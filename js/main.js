@@ -60,12 +60,14 @@ function drawOne(path, x, gy, h, fallback, e, kindKey) {
   const im = sprite(path);
   const swing = e && e.swing > 0 ? 1 - e.swing / 0.26 : 0;
 
-  /* 맞은 순간엔 뒤로 밀리고 하얗게 튄다 — 맞았다는 것도 그림에 있어야 때린 게 성립한다 */
-  let fx2 = 0, fy2 = 0, flash = 0;
+  /* 맞은 순간엔 **뒤로 밀린다.** 흰 번쩍임도 넣었다가 뺐다 — `source-atop` 으로 실루엣
+     안에만 칠하려 했는데, 리깅이 부위마다 save/restore 를 하는 바람에 그 합성 모드가
+     실루엣이 아니라 **사각형 전체**에 걸려 네모가 번쩍였다(병수님이 바로 잡아냈다).
+     맞은 표시는 밀림 + 닿는 자리의 불꽃(fx)으로 충분하다. */
+  let fx2 = 0, fy2 = 0;
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
-    flash = t * 0.55;
   }
 
   if (im) {
@@ -75,13 +77,6 @@ function drawOne(path, x, gy, h, fallback, e, kindKey) {
       walkPh: ((e && e.walked) || 0) / (h * 0.30),
       walking, swing, flip: (e && e.face === -1) ? -1 : 1,
     });
-    if (flash > 0) {                    // 맞은 순간의 흰 번쩍임 — 실루엣 안에만
-      const w2 = h * (im.width / im.height);
-      ctx.globalCompositeOperation = "source-atop";
-      ctx.fillStyle = `rgba(255,240,220,${flash})`;
-      ctx.fillRect(x - w2 / 2, gy - h, w2, h);
-      ctx.globalCompositeOperation = "source-over";
-    }
     ctx.restore();
   } else {
     ctx.fillStyle = fallback;
