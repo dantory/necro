@@ -1,5 +1,6 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
+import { drawRigged } from "./rig.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -49,81 +50,46 @@ function sprite(path) {
   im.src = "assets/" + path + ".png";
   return null;
 }
-/* ══ 걸음 ══ **그림 한 장을 좌표만 바꿔 밀면 걷는 게 아니라 미끄러진다**
-   (병수님: "이동 모션이 하나도 없이 떠다님"). 걷기 프레임이 아직 없으므로,
-   한 장으로 낼 수 있는 것을 낸다 — 앞 프로토타입에서 같은 지적을 받고 세운 처방이다:
-
-     · 위상은 **지나온 거리**로 센다(battle.js 의 walked) — 그래야 느린 골렘은 발도
-       천천히 놀리고, 붙어서 멎은 놈은 발이 멎는다
-     · 발이 땅을 딛는 결이라 위아래는 |sin| 로, 몸통 기울기는 그 절반 주기로
-     · 딛는 순간 **눌리고** 뜨는 순간 늘어난다 — 위아래 이동만이면 "떠오른다"로 읽힌다
-     · **접지 그림자가 제일 크다.** 떠 보이는 것의 정체는 바닥에 닿은 자국이 없는 것이다.
-       몸이 뜰 때 그림자도 같이 작아져야 딛는 것으로 보인다
-     · 때리는 순간(swing)은 걷기를 멈추고 앞으로 한 번 내지른다 */
-function drawOne(path, x, gy, h, fallback, e, sc) {
+/* ══ 걸음·공격 ══ **부위를 잘라 따로 움직인다**(js/rig.js).
+   PixelLab 의 걷기 프레임은 못 썼다 — `create_character` 가 참조를 무시하고 제 골격
+   (정면 8방향)으로 다시 세워, 옆모습으로 구운 우리 그림이 정면으로 돌아 버렸다.
+   그래서 프레임을 받는 대신 **가진 한 장을 머리·몸통·다리로 잘라** 각자 움직인다.
+   통째로 흔드는 것과 다른 점 하나: **부위마다 위상이 다르다.** 그게 걸음으로 읽히는 조건. */
+function drawOne(path, x, gy, h, fallback, e, kindKey) {
   const walking = e && e.moving > 0 && !(e.swing > 0);
-  const ph = ((e && e.walked) || 0) / (h * 0.42) * Math.PI;     // 보폭은 키에 비례
-  const bob  = walking ? Math.abs(Math.sin(ph)) * h * 0.075 : 0;
-  const tilt = walking ? Math.sin(ph * 0.5) * 0.075 : 0;
-  const sq   = walking ? Math.cos(ph * 2) * 0.055 : 0;
-  /* **때리는 동작은 앞으로 확 나갔다 돌아온다.** 살짝 기울이는 정도로는 화면에서
-     아무 일도 안 일어난 것처럼 보인다 — 앞의 30% 에 몰아서 튀어 나가고 남은 70% 로
-     돌아온다(빠르게 치고 천천히 회수). 몸도 같이 젖혀야 "휘둘렀다"가 된다. */
-  let lx = 0, ly = 0, swAng = 0;
-  if (e && e.swing > 0) {
-    const t = 1 - e.swing / 0.26;                       // 0 → 1
-    const k = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;  // 튀어 나갔다 돌아옴
-    const reach = h * 0.42 * k;
-    lx = (e.sdx || 1) * reach; ly = (e.sdy || 0) * reach * 0.5;
-    swAng = (e.sdx >= 0 ? 1 : -1) * 0.42 * k;
-  }
-  /* 맞은 순간엔 뒤로 밀리고 하얗게 튄다 — **맞았다는 것도 그림에 있어야** 때린 게 읽힌다 */
+  const im = sprite(path);
+  const swing = e && e.swing > 0 ? 1 - e.swing / 0.26 : 0;
+
+  /* 맞은 순간엔 뒤로 밀리고 하얗게 튄다 — 맞았다는 것도 그림에 있어야 때린 게 성립한다 */
   let fx2 = 0, fy2 = 0, flash = 0;
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
     flash = t * 0.55;
   }
-  /* **진짜 프레임이 있으면 그것을 쓴다.** 걷기는 지나온 거리로, 공격은 휘두름의 진행도로
-     프레임을 고른다 — 시간으로 고르면 멈춘 놈도 발을 놀리고 느린 놈도 같은 박자가 된다. */
-  const swSeq = (e && e.swing > 0) ? frames(path + "/attack") : null;
-  const wkSeq = (!swSeq && walking) ? frames(path + "/walk") : null;
-  let im;
-  if (swSeq) {
-    const t = Math.min(0.999, 1 - e.swing / 0.26);
-    im = swSeq[Math.floor(t * swSeq.length)] || swSeq[0];
-  } else if (wkSeq) {
-    im = wkSeq[Math.floor(((e.walked || 0) / (h * 0.34)) % wkSeq.length)] || wkSeq[0];
-  } else {
-    im = sprite(path);
-  }
-  /* 프레임이 있으면 코드로 내던 흉내는 **줄인다** — 둘이 겹치면 과장돼 보인다. */
-  const real = !!(swSeq || wkSeq);
-  if (real) { lx *= 0.35; ly *= 0.35; swAng *= 0.3; }
-  ctx.save();
-  ctx.translate(x + lx + fx2, gy - bob * (real ? 0.3 : 1) + ly + fy2);
-  ctx.rotate((real ? tilt * 0.3 : tilt) + swAng);
-  ctx.scale(1 + (real ? sq * 0.3 : sq), 1 - (real ? sq * 0.3 : sq));
+
   if (im) {
-    const w = h * (im.width / im.height);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(im, -w / 2, -h, w, h);
+    ctx.save();
+    ctx.translate(fx2, fy2);
+    drawRigged(ctx, im, x, gy, h, kindKey, {
+      walkPh: ((e && e.walked) || 0) / (h * 0.30),
+      walking, swing, flip: (e && e.face === -1) ? -1 : 1,
+    });
+    if (flash > 0) {                    // 맞은 순간의 흰 번쩍임 — 실루엣 안에만
+      const w2 = h * (im.width / im.height);
+      ctx.globalCompositeOperation = "source-atop";
+      ctx.fillStyle = `rgba(255,240,220,${flash})`;
+      ctx.fillRect(x - w2 / 2, gy - h, w2, h);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    ctx.restore();
   } else {
     ctx.fillStyle = fallback;
-    ctx.beginPath(); ctx.ellipse(0, -h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
   }
-  if (flash > 0 && im) {            // 맞은 순간의 흰 번쩍임
-    const w2 = h * (im.width / im.height);
-    ctx.globalCompositeOperation = "source-atop";
-    ctx.fillStyle = `rgba(255,240,220,${flash})`;
-    ctx.fillRect(-w2 / 2, -h, w2, h);
-    ctx.globalCompositeOperation = "source-over";
-  }
-  ctx.restore();
-  // 접지 그림자 — 몸이 뜬 만큼 작아진다
-  const sh = 1 - bob / (h * 0.14) * 0.28;
-  ctx.fillStyle = `rgba(0,0,0,${0.45 * sh})`;
-  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3 * sh, h * 0.09 * sh, 0, 0, 6.284); ctx.fill();
+  // 접지 그림자 — 이게 없으면 무엇을 그리든 바닥에서 떠 보인다
+  ctx.fillStyle = "rgba(0,0,0,.45)";
+  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3, h * 0.09, 0, 0, 6.284); ctx.fill();
 }
 
 /* ══ 판을 **위에서 비스듬히** 본다 ══
@@ -177,15 +143,15 @@ function draw() {
   all.sort((a, b) => a.y - b.y);
 
   for (const it of all) {
-    if (it.kind === "necro") { drawOne("char/necro", px(0), py(0), 58, COL.necro, null); continue; }
+    if (it.kind === "necro") { drawOne("char/necro", px(0), py(0), 58, COL.necro, null, "necro"); continue; }
     if (it.u) {
       const u = it.u, hh = HGT[u.kind] || 40, x = px(u.x), y = py(u.y);
-      drawFlip("minion/" + u.kind, x, y, hh, COL[u.kind], u.face, u);
+      drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u, u.kind);
       if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
       continue;
     }
     const m = it.m, hh = m.boss ? 104 : 48 + (m.r - 10) * 2.6, x = px(m.x), y = py(m.y);
-    drawFlip(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m.face, m);
+    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m, m.kind);
     if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
   }
 
@@ -199,16 +165,6 @@ function draw() {
       ctx.beginPath(); ctx.arc(x, y - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
-}
-
-/** 가는 쪽을 보게 좌우를 뒤집어 그린다 — 사방으로 도는 판에서 이게 없으면
- *  절반이 뒷걸음질로 다닌다. */
-function drawFlip(path, x, y, hh, fallback, face, e) {
-  if (face === -1) {
-    ctx.save(); ctx.translate(x, 0); ctx.scale(-1, 1);
-    drawOne(path, 0, y, hh, fallback, e);
-    ctx.restore();
-  } else drawOne(path, x, y, hh, fallback, e);
 }
 
 /* ══ 벨트 ══ D2 의 그 띠. 쓸 수 있으면 금테가 살고, 못 쓰면 죽는다 —
@@ -275,4 +231,4 @@ fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto });
+Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, drawRigged });

@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+
+# 검수에서 떨어진 프레임 보관소 — 리포에 넣지 않는다
+_rejected/
