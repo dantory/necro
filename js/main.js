@@ -1,6 +1,6 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
-import { dirName, drawSprite8 } from "./sprite8.js";
+import { dirName, drawSprite8, footMetrics } from "./sprite8.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -95,6 +95,14 @@ function drawOne(base, x, gy, h, fallback, e) {
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
   }
 
+  /* 접지 그림자 — 스프라이트보다 **먼저**, 발밑에 깐다(그림이 그 위에 온다). 밀림(flinch)과
+     무관하게 바닥에 고정한다 — 몸만 뒤로 밀리고 그림자는 제자리라야 맞은 티가 난다.
+     폭은 발 폭(footWidthFrac)에 맞춘다 — 골렘은 넓게, 해골은 좁게. */
+  const fm = footMetrics(base);
+  const shr = fm ? h * fm.footWidthFrac * 0.55 : h * 0.3;
+  ctx.fillStyle = "rgba(0,0,0,.42)";
+  ctx.beginPath(); ctx.ellipse(x, gy, shr, shr * 0.34, 0, 0, 6.284); ctx.fill();
+
   ctx.save();
   ctx.translate(fx2, fy2);
   const drew = drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h);
@@ -104,9 +112,6 @@ function drawOne(base, x, gy, h, fallback, e) {
     ctx.fillStyle = fallback;
     ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
   }
-  // 접지 그림자 — 이게 없으면 무엇을 그리든 바닥에서 떠 보인다
-  ctx.fillStyle = "rgba(0,0,0,.45)";
-  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3, h * 0.09, 0, 0, 6.284); ctx.fill();
 }
 
 /* ══ 판을 **위에서 비스듬히** 본다 ══
@@ -114,19 +119,34 @@ function drawOne(base, x, gy, h, fallback, e) {
    위에서 보면 **옆모습으로 구운 스프라이트**가 누워 버린다(디아블로 2 도 같은 이유로
    비스듬히 본다). y 를 눌러(SQUASH) 바닥을 눕히고, 그림은 세워서 세운 채로 얹는다 —
    흔히 쓰는 2.5D 다. 그리는 순서는 **y 가 작은 것부터**라야 앞의 것이 뒤를 가린다. */
-const SQUASH = 0.56;
 
 function draw() {
   const w = cv.clientWidth, h = cv.clientHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  const cx = w / 2, cy = h * 0.52;
-  /* **판이 화면에 꽉 차야 한다.** 바깥 여백을 조금만 남기고 맞춘다 — 여백이 크면
-     인물이 콩알이 되고, 그러면 어떤 에셋을 구워도 안 보인다. */
-  const sc = Math.min(w / (RING_SPAWN * 2.16), h / (RING_SPAWN * 2.16 * SQUASH));
+  /* ══ 화면을 꽉 채우는 스케일 ══ 세로 화면에서는 **폭이 스케일을 묶는다**(판이 가로로 먼저
+     꽉 찬다). 그러면 세로가 통째로 남아 인물이 가운데 눌리고 위아래가 검다 — 병수님이 본 그것.
+     남는 세로를 쓰려면 바닥의 눌림(SQUASH)을 화면비에 맞춰 **키운다**: 세로가 길수록 판을 더
+     둥글게 펴서 세로를 먹는다. 다만 스프라이트는 세운 채(2.5D)라 SQUASH 는 상한을 둔다 —
+     1 에 가까우면 바닥이 정면(탑다운)이 되어 옆모습 그림이 누워 버린다. */
+  const MARGIN = 0.05;                                   // 바깥 여백(양쪽 각 5%)
+  const scByW = (w * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
+  const squash = Math.max(0.56, Math.min(0.86,
+                   (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
+  const sc = Math.min(scByW, (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
+  const SQUASH = squash;
+  /* 인물 크기(HGT)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
+     서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
+  const us = Math.max(1, Math.min(1.85, sc / 0.44));
+
+  const cx = w / 2, cy = h * 0.5;
   const px = (x) => cx + x * sc;
   const py = (y) => cy + y * sc * SQUASH;
+  /* 검수용 — 마지막으로 그린 판의 실제 기하(반지름·눌림·인물배율). 자(headless)가 화면 대비
+     판이 얼마나 찼는지 재려면 그림값 자체가 필요하다. RING_SPAWN 은 battle.js 상수(300). */
+  window.__geo = { w, h, cx, cy, sc, squash: SQUASH, us,
+                   ringW: 2 * RING_SPAWN * sc, ringH: 2 * RING_SPAWN * sc * SQUASH };
 
   // 던전 바닥 — 어둡고, 빛은 가운데 한 점(본인이 든 횃불)에서만 온다
   ctx.fillStyle = "#080605"; ctx.fillRect(0, 0, w, h);
@@ -166,17 +186,17 @@ function draw() {
          방향은 그 적 쪽(공격 방향 sdx,sdy 도 같은 방향으로 준다). */
       let nx = 0, ny = 1, nd = Infinity;
       for (const m of S.mobs) { const d = m.x * m.x + m.y * m.y; if (d < nd) { nd = d; nx = m.x; ny = m.y; } }
-      drawOne("char/necro", px(0), py(0), 58, COL.necro,
+      drawOne("char/necro", px(0), py(0), 58 * us, COL.necro,
               { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0 });
       continue;
     }
     if (it.u) {
-      const u = it.u, hh = HGT[u.kind] || 40, x = px(u.x), y = py(u.y);
+      const u = it.u, hh = (HGT[u.kind] || 40) * us, x = px(u.x), y = py(u.y);
       drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u);
       if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
       continue;
     }
-    const m = it.m, hh = m.boss ? 104 : 48 + (m.r - 10) * 2.6, x = px(m.x), y = py(m.y);
+    const m = it.m, hh = (m.boss ? 104 : 48 + (m.r - 10) * 2.6) * us, x = px(m.x), y = py(m.y);
     drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m);
     if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
   }
@@ -257,4 +277,4 @@ fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName });
+Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics });

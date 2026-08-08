@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>necro — 네크로멘서</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,18 +17,25 @@
     <span class="who"><b id="hName">네크로멘서</b> <span id="hLv">Lv.1</span> · 금 <span id="hGold">0</span></span>
   </div>
 
+  <!-- 로그 — 판 안이 아니라 전장 아래쪽에 반투명으로 겹친다(판 바로 위) -->
+  <div id="log"></div>
+
   <!-- ══ 아래 판 — 붉은 구슬 · 스킬 벨트 · 푸른 구슬 ══ -->
   <div id="panel">
-    <div class="orb hp"><div class="fill" id="hpFill" style="height:100%"></div>
-      <div class="gloss"></div><div class="num" id="hpNum">100 / 100</div></div>
+    <!-- 유리알(.glass)만 원으로 잘라내고, 금장 테(.ring)와 숫자는 **그 바깥**에 둔다.
+         테를 .orb 안에 넣었더니 overflow:hidden 이 테까지 구슬 원으로 잘라내,
+         그림의 가운데 구멍(42.6%)만 남아 숫자를 덮었다. -->
+    <div class="orb hp">
+      <div class="glass"><div class="fill" id="hpFill" style="height:100%"></div>
+        <div class="gloss"></div></div>
+      <div class="ring"></div><div class="num" id="hpNum">100 / 100</div></div>
 
-    <div id="mid">
-      <div id="log"></div>
-      <div id="belt"></div>
-    </div>
+    <div id="belt"></div>
 
-    <div class="orb mp"><div class="fill" id="mpFill" style="height:100%"></div>
-      <div class="gloss"></div><div class="num" id="mpNum">40 / 40</div></div>
+    <div class="orb mp">
+      <div class="glass"><div class="fill" id="mpFill" style="height:100%"></div>
+        <div class="gloss"></div></div>
+      <div class="ring"></div><div class="num" id="mpNum">40 / 40</div></div>
   </div>
 
   <!-- 능력치 창 -->

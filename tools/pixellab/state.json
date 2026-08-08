@@ -2,8 +2,8 @@
  "minion/skel": {
   "id": "8a378762-b9f6-4bf6-9ba3-52008f5304e7",
   "ready": true,
-  "walk_q": true,
   "attack_q": true,
+  "walk_q": true,
   "anim_done": true,
   "collected": {
    "rot": 8,
@@ -24,19 +24,13 @@
  "minion/ghoul": {
   "id": "e6cda9cd-4467-4b1d-8ca3-d5d04f321089",
   "ready": true,
-  "walk_q": true,
-  "attack_q": true,
-  "anim_done": true,
-  "collected": {
-   "rot": 8,
-   "frames": 96
-  }
+  "walk_q": true
  },
  "minion/golem": {
   "id": "8d5f9f17-1f08-4a6d-9f89-8bc9cfe8637b",
   "ready": true,
-  "walk_q": true,
   "attack_q": true,
+  "walk_q": true,
   "anim_done": true,
   "collected": {
    "rot": 8,
@@ -46,46 +40,22 @@
  "mob/fallen": {
   "id": "05779989-7ceb-4cc2-a6ec-b2934d78c8dd",
   "ready": true,
-  "walk_q": true,
-  "attack_q": true,
-  "anim_done": true,
-  "collected": {
-   "rot": 8,
-   "frames": 108
-  }
+  "walk_q": true
  },
  "mob/zombie": {
   "id": "49c54b0a-f96e-4ebe-a2ba-643c92ea4834",
   "ready": true,
-  "walk_q": true,
-  "attack_q": true,
-  "anim_done": true,
-  "collected": {
-   "rot": 8,
-   "frames": 96
-  }
+  "walk_q": true
  },
  "mob/skelarch": {
   "id": "74b87e86-c72a-4730-82d9-2d044f2ae704",
   "ready": true,
-  "walk_q": true,
-  "attack_q": true,
-  "anim_done": true,
-  "collected": {
-   "rot": 8,
-   "frames": 104
-  }
+  "walk_q": true
  },
  "mob/brute": {
   "id": "bf0548cd-f34b-499a-a426-6acafb5f7e05",
   "ready": true,
-  "walk_q": true,
-  "attack_q": true,
-  "anim_done": true,
-  "collected": {
-   "rot": 8,
-   "frames": 96
-  }
+  "walk_q": true
  },
  "mob/boss": {
   "id": "9031a81f-db47-4410-bb80-e3f957477382",
