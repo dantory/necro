@@ -1,6 +1,6 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
-import { drawRigged } from "./rig.js";
+import { dirName, drawSprite8 } from "./sprite8.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -60,40 +60,47 @@ function sprite(path) {
   im.src = "assets/" + path + ".png";
   return null;
 }
-/* ══ 걸음·공격 ══ **부위를 잘라 따로 움직인다**(js/rig.js).
-   PixelLab 의 걷기 프레임은 못 썼다 — `create_character` 가 참조를 무시하고 제 골격
-   (정면 8방향)으로 다시 세워, 옆모습으로 구운 우리 그림이 정면으로 돌아 버렸다.
-   그래서 프레임을 받는 대신 **가진 한 장을 머리·몸통·다리로 잘라** 각자 움직인다.
-   통째로 흔드는 것과 다른 점 하나: **부위마다 위상이 다르다.** 그게 걸음으로 읽히는 조건. */
-function drawOne(path, x, gy, h, fallback, e, kindKey) {
-  const walking = e && e.moving > 0 && !(e.swing > 0);
-  const im = sprite(path);
-  const swing = e && e.swing > 0 ? 1 - e.swing / 0.26 : 0;
+/* ══ 걸음·공격 ══ **8방향 스프라이트를 재생한다**(js/sprite8.js).
+   전에는 한 장을 부위로 잘라 흔들었다(js/rig.js) — PixelLab 8방향 프레임이 못 쓸 것이라
+   여겼기 때문이다. 이제 걷기 6프레임·공격 6프레임이 8방향 전부로 실제로 구워져 있어
+   그것을 그대로 튼다. 방향이 그림에 들어 있으니 **좌우 뒤집기는 하지 않는다.** */
+function drawOne(base, x, gy, h, fallback, e) {
+  // 상태: 휘두르는 중 > 걷는 중 > 서 있음. 방향은 dx,dy(공격 땐 내지르는 sdx,sdy).
+  let state = "idle", dir = "south", frameIdx = 0;
+  if (e) {
+    if (e.swing > 0) {
+      state = "attack";
+      /* 공격 프레임은 **swing 진행도**로. swing 은 0.26 에서 0 으로 준다 → 진행도(1-swing/0.26,
+         0→1)를 6프레임에 선형 배분하고 끝에서 넘치지 않게 clamp. */
+      frameIdx = Math.max(0, Math.min(5, Math.floor((1 - e.swing / 0.26) * 6)));
+      dir = e.sdx !== undefined ? dirName(e.sdx, e.sdy) : dirName(e.dx ?? 0, e.dy ?? 1);
+    } else if (e.moving > 0) {
+      state = "walk";
+      /* 걷기 프레임은 **지나온 거리**로(시간 아님) — 느린 골렘은 저절로 느리게 딛는다.
+         한 주기 거리는 기존 리깅의 walkPh(=walked/(h*0.14)) 한 바퀴(2π)와 같게 잡아 박자
+         (≈1.3초)를 그대로 물려받고, 그 한 바퀴를 6프레임에 나눈다. */
+      const stride = h * 0.14 * 2 * Math.PI / 6;
+      frameIdx = Math.floor((e.walked || 0) / stride) % 6;
+      dir = dirName(e.dx ?? 0, e.dy ?? 1);
+    } else {
+      dir = dirName(e.dx ?? 0, e.dy ?? 1);
+    }
+  }
 
-  /* 맞은 순간엔 **뒤로 밀린다.** 흰 번쩍임도 넣었다가 뺐다 — `source-atop` 으로 실루엣
-     안에만 칠하려 했는데, 리깅이 부위마다 save/restore 를 하는 바람에 그 합성 모드가
-     실루엣이 아니라 **사각형 전체**에 걸려 네모가 번쩍였다(병수님이 바로 잡아냈다).
-     맞은 표시는 밀림 + 닿는 자리의 불꽃(fx)으로 충분하다. */
+  /* 맞은 순간엔 **뒤로 밀린다**(기존 그대로). 흰 번쩍임은 예전에 뺐다 — 밀림 + 닿는 자리의
+     불꽃(fx)으로 충분하다. */
   let fx2 = 0, fy2 = 0;
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
   }
 
-  if (im) {
-    ctx.save();
-    ctx.translate(fx2, fy2);
-    drawRigged(ctx, im, x, gy, h, kindKey, {
-      /* **보폭.** 지나온 거리를 이 값으로 나눈 것이 걸음 위상이다 — 작을수록 자주 딛는다.
-         0.30 으로 뒀더니 한 걸음 주기가 2.9초였다. 다리는 분명히 움직이는데 화면에서는
-         그냥 미끄러지는 걸로 읽혀 병수님이 "적용 안 된 거냐"고 물었다. 사람 눈은 걸음을
-         **박자**로 읽지 각도로 읽지 않는다. 0.14 면 1.3초에 한 바퀴 — 걷는 것으로 보인다.
-         속도로 나누지 않고 거리로 나누므로, 느린 골렘은 저절로 느리게 딛는다. */
-      walkPh: ((e && e.walked) || 0) / (h * 0.14),
-      walking, swing, flip: (e && e.face === -1) ? -1 : 1,
-    });
-    ctx.restore();
-  } else {
+  ctx.save();
+  ctx.translate(fx2, fy2);
+  const drew = drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h);
+  ctx.restore();
+  if (!drew) {
+    // 그림이 아직 하나도 없으면 색 덩어리로 — 판이 멈추지 않게(기존 폴백 그대로)
     ctx.fillStyle = fallback;
     ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
   }
@@ -153,15 +160,24 @@ function draw() {
   all.sort((a, b) => a.y - b.y);
 
   for (const it of all) {
-    if (it.kind === "necro") { drawOne("char/necro", px(0), py(0), 58, COL.necro, null, "necro"); continue; }
+    if (it.kind === "necro") {
+      /* 네크로는 원점(0,0)에 **고정** — 이동이 없으니 걷지 않는다. 가장 가까운 적을 보는
+         idle 로 세우고, 스킬을 시전한 순간(S.pswing)만 attack 으로 바꾼다. 바라보는
+         방향은 그 적 쪽(공격 방향 sdx,sdy 도 같은 방향으로 준다). */
+      let nx = 0, ny = 1, nd = Infinity;
+      for (const m of S.mobs) { const d = m.x * m.x + m.y * m.y; if (d < nd) { nd = d; nx = m.x; ny = m.y; } }
+      drawOne("char/necro", px(0), py(0), 58, COL.necro,
+              { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0 });
+      continue;
+    }
     if (it.u) {
       const u = it.u, hh = HGT[u.kind] || 40, x = px(u.x), y = py(u.y);
-      drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u, u.kind);
+      drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u);
       if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
       continue;
     }
     const m = it.m, hh = m.boss ? 104 : 48 + (m.r - 10) * 2.6, x = px(m.x), y = py(m.y);
-    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m, m.kind);
+    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m);
     if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
   }
 
@@ -241,4 +257,4 @@ fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, drawRigged });
+Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName });

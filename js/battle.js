@@ -109,6 +109,10 @@ export function cast(id) {
     say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리에 ${Math.round(dmg)}`);
   }
   if (id === "amp") { S.amp = 8; say(`<b style="color:#6a6aff">약화의 저주</b> 8초`); }
+  /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
+     자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 0.26초짜리 창을 켜서,
+     그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */
+  S.pswing = 0.26;
   return true;
 }
 
@@ -121,6 +125,7 @@ export function step(dt) {
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
+  if (S.pswing > 0) S.pswing -= dt;
   S.mp = Math.min(mpMaxOf(), S.mp + dt * (2.2 + (META.up.mp | 0) * 0.25));
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
 
@@ -131,12 +136,23 @@ export function step(dt) {
     const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
     const step = Math.min(d, sp * dt);
     e.x += dx / d * step; e.y += dy / d * step;
-    if (Math.abs(dx) > 0.5) e.face = dx < 0 ? -1 : 1;    // 가는 쪽을 본다
-    /* **걸음 위상은 시간이 아니라 지나온 거리로 센다.** 시간으로 세면 멈춘 놈도 발을
-       놀리고, 느려진 놈도 같은 박자로 걷는다 — 그러면 "미끄러진다"가 그대로 남는다.
-       거리로 세면 느린 골렘은 발도 천천히, 붙어서 멎은 놈은 발도 멎는다. */
-    e.walked = (e.walked || 0) + step;
-    e.moving = 0.12;                                     // 방금 움직였다(잠깐 유지)
+    if (Math.abs(dx) > 0.5) e.face = dx < 0 ? -1 : 1;    // 가는 쪽을 본다(다른 곳에서 아직 쓴다)
+    /* **제자리 걸음은 걸음이 아니다.** 제 구역에 선 소환수는 매 프레임 toward(제 home)로
+       불려도 사실상 안 움직인다(step≈0). 그걸 walk 로 치면 8방향 그림이 걷는 프레임에서
+       얼어붙어 어색하다. 실제로 옮겨간 거리가 있을 때만 걷는 것으로 센다. */
+    if (step > 0.05) {
+      /* **걸음 위상은 시간이 아니라 지나온 거리로 센다.** 시간으로 세면 멈춘 놈도 발을
+         놀리고, 느려진 놈도 같은 박자로 걷는다 — 그러면 "미끄러진다"가 그대로 남는다.
+         거리로 세면 느린 골렘은 발도 천천히, 붙어서 멎은 놈은 발도 멎는다. */
+      e.walked = (e.walked || 0) + step;
+      e.moving = 0.12;                                   // 방금 움직였다(잠깐 유지)
+      /* **바라보는 방향(dx,dy)을 8방향 그림에 그대로 넘긴다.** 매 프레임 새로 쓰면
+         두 방향 경계에서 이동 벡터의 잔떨림이 그림을 덜덜 떨게 한다. 그래서 히스테리시스:
+         지금 보는 방향과 새 이동 방향의 각도차가 충분히 클 때(내적<0.85, ≈32°)만 바꾼다.
+         이웃 방향의 중심은 45° 떨어져 있으니, 진짜로 돌 때는 넘어가고 경계의 떨림은 무시된다. */
+      const nx = dx / d, ny = dy / d;
+      if (e.dx === undefined || e.dx * nx + e.dy * ny < 0.85) { e.dx = nx; e.dy = ny; }
+    }
   };
 
   /* ── 소환수 ── **제 자리를 지키되 가까이 온 적은 마중 나간다.**
@@ -228,7 +244,7 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], cd: {}, log: [], killed: 0, deepest: 1, amp: 0,
+    minions: [], mobs: [], fx: [], cd: {}, log: [], killed: 0, deepest: 1, amp: 0, pswing: 0,
   });
   enterFloor(1);
 }
