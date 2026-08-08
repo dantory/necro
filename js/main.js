@@ -74,7 +74,12 @@ function drawOne(path, x, gy, h, fallback, e, kindKey) {
     ctx.save();
     ctx.translate(fx2, fy2);
     drawRigged(ctx, im, x, gy, h, kindKey, {
-      walkPh: ((e && e.walked) || 0) / (h * 0.30),
+      /* **보폭.** 지나온 거리를 이 값으로 나눈 것이 걸음 위상이다 — 작을수록 자주 딛는다.
+         0.30 으로 뒀더니 한 걸음 주기가 2.9초였다. 다리는 분명히 움직이는데 화면에서는
+         그냥 미끄러지는 걸로 읽혀 병수님이 "적용 안 된 거냐"고 물었다. 사람 눈은 걸음을
+         **박자**로 읽지 각도로 읽지 않는다. 0.14 면 1.3초에 한 바퀴 — 걷는 것으로 보인다.
+         속도로 나누지 않고 거리로 나누므로, 느린 골렘은 저절로 느리게 딛는다. */
+      walkPh: ((e && e.walked) || 0) / (h * 0.14),
       walking, swing, flip: (e && e.face === -1) ? -1 : 1,
     });
     ctx.restore();

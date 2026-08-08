@@ -61,9 +61,9 @@ export function drawRigged(ctx, im, x, gy, h, kind, pose) {
   // 걸음 — 다리는 서로 **반대 위상**, 몸통은 그 두 배 주기로 아주 조금
   /* 걷는 폭은 **0.3rad 이면 충분하다.** 0.42 로 벌렸더니 성큼성큼 뛰는 것처럼 보였다 —
      방치형에서 계속 보는 그림이라 과장은 금방 물린다. */
-  const sw1 = walking ? Math.sin(walkPh) * 0.30 : 0;
-  const sw2 = walking ? Math.sin(walkPh + Math.PI) * 0.30 : 0;
-  const bob = walking ? Math.abs(Math.sin(walkPh)) * h * 0.035 : 0;
+  const sw1 = walking ? Math.sin(walkPh) * 0.34 : 0;
+  const sw2 = walking ? Math.sin(walkPh + Math.PI) * 0.34 : 0;
+  const bob = walking ? Math.abs(Math.sin(walkPh)) * h * 0.05 : 0;
   const lean = walking ? Math.sin(walkPh * 2) * 0.035 : 0;
   // 휘두름 — 몸통만 앞으로 꺾는다(다리는 버틴다). 앞 35% 에 몰아 나가고 나머지로 회수
   /* 휘두름 — **꺾기보다 내지르기**로 낸다. 1.15rad 로 꺾었더니 몸통에 붙은 방패까지
