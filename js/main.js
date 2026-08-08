@@ -18,6 +18,27 @@ const COL = {
   skel: "#d8d2c4", ghoul: "#8fae76", golem: "#8a6b45",
   mob: "#9a3b3b", boss: "#d05353", necro: "#2b2338",
 };
+/* ══ 프레임 묶음 ══ `assets/<종류>/walk/0.png…` · `…/attack/0.png…`
+   PixelLab 로 구운 진짜 애니메이션이다. **없으면 조용히 한 장짜리로 돌아간다** —
+   굽는 데 몇십 분이 걸리므로, 오는 대로 하나씩 살아나야지 다 올 때까지 못 보면 안 된다.
+   프레임 수를 미리 모르니 0 번부터 **끊길 때까지** 물어보고 그 수를 기억한다. */
+const SEQ = {};
+function frames(path) {
+  let f = SEQ[path];
+  if (!f) {
+    f = SEQ[path] = { list: [], probing: 0, done: false };
+    probe(path, f, 0);
+  }
+  return f.list.length ? f.list : null;
+}
+function probe(path, f, i) {
+  if (f.done || i > 15) { f.done = true; return; }
+  const im = new Image();
+  im.onload  = () => { f.list[i] = im; probe(path, f, i + 1); };
+  im.onerror = () => { f.done = true; };
+  im.src = `assets/${path}/${i}.png`;
+}
+
 const IMG = {};
 function sprite(path) {
   if (IMG[path] !== undefined) return IMG[path] || null;
@@ -63,11 +84,26 @@ function drawOne(path, x, gy, h, fallback, e, sc) {
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
     flash = t * 0.55;
   }
-  const im = sprite(path);
+  /* **진짜 프레임이 있으면 그것을 쓴다.** 걷기는 지나온 거리로, 공격은 휘두름의 진행도로
+     프레임을 고른다 — 시간으로 고르면 멈춘 놈도 발을 놀리고 느린 놈도 같은 박자가 된다. */
+  const swSeq = (e && e.swing > 0) ? frames(path + "/attack") : null;
+  const wkSeq = (!swSeq && walking) ? frames(path + "/walk") : null;
+  let im;
+  if (swSeq) {
+    const t = Math.min(0.999, 1 - e.swing / 0.26);
+    im = swSeq[Math.floor(t * swSeq.length)] || swSeq[0];
+  } else if (wkSeq) {
+    im = wkSeq[Math.floor(((e.walked || 0) / (h * 0.34)) % wkSeq.length)] || wkSeq[0];
+  } else {
+    im = sprite(path);
+  }
+  /* 프레임이 있으면 코드로 내던 흉내는 **줄인다** — 둘이 겹치면 과장돼 보인다. */
+  const real = !!(swSeq || wkSeq);
+  if (real) { lx *= 0.35; ly *= 0.35; swAng *= 0.3; }
   ctx.save();
-  ctx.translate(x + lx + fx2, gy - bob + ly + fy2);
-  ctx.rotate(tilt + swAng);
-  ctx.scale(1 + sq, 1 - sq);
+  ctx.translate(x + lx + fx2, gy - bob * (real ? 0.3 : 1) + ly + fy2);
+  ctx.rotate((real ? tilt * 0.3 : tilt) + swAng);
+  ctx.scale(1 + (real ? sq * 0.3 : sq), 1 - (real ? sq * 0.3 : sq));
   if (im) {
     const w = h * (im.width / im.height);
     ctx.imageSmoothingEnabled = false;
