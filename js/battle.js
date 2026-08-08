@@ -5,6 +5,10 @@ import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, goldFor, hpMaxOf, isGate,
    방치형에서 진짜로 읽혀야 하는 건 위치가 아니라 **누가 앞에 서 있나**다 —
    골렘이 앞을 막고 해골이 그 뒤에서 때리는 그림이 한 줄이면 바로 읽힌다. */
 export const LANE = { x0: 60, x1: 980, y: 0 };
+/** **소환수는 진을 치고 기다린다.** 처음엔 적을 향해 판 끝까지 진격하게 뒀더니 싸움이
+ *  화면 오른쪽 밖에서 벌어지고, 네크로멘서만 왼쪽에 덩그러니 남았다 — 방치형은 **보는
+ *  게임**인데 볼 것이 화면 밖에 있으면 그건 아무것도 아니다. 이 선까지만 나간다. */
+export const HOLD = 400;
 
 let seq = 0;
 export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
@@ -16,7 +20,8 @@ export function enterFloor(f) {
   for (let i = 0; i < n; i++) spawnMob(f, i, n);
   if (isGate(f)) {
     const b = spawnMob(f, 0, 1);
-    b.boss = true; b.hp = b.hpMax = floorHp(f) * 7; b.dmg = floorDmg(f) * 2.1; b.r = 22;
+    b.boss = true; b.kind = "boss"; b.hp = b.hpMax = floorHp(f) * 7;
+    b.dmg = floorDmg(f) * 2.1; b.r = 22;
     say(`<b style="color:#c8aa6e">${f}층 — 관문</b> 큰 놈이 지키고 있음`);
   } else {
     say(`<b>${f}층</b> 내려감`);
@@ -24,9 +29,25 @@ export function enterFloor(f) {
   S.deepest = Math.max(S.deepest, f);
 }
 
+/* 적의 **얼굴은 깊이가 정한다.** 위층은 작은 것들, 아래로 갈수록 험한 것이 섞인다 —
+   층이 바뀐 게 숫자 말고 화면에서도 읽혀야 "내려가고 있다"가 성립한다. */
+const MOB_TIERS = [
+  { from: 1,  kinds: ["fallen"] },
+  { from: 4,  kinds: ["fallen", "zombie"] },
+  { from: 9,  kinds: ["fallen", "zombie", "skelarch"] },
+  { from: 16, kinds: ["zombie", "skelarch", "brute"] },
+  { from: 26, kinds: ["skelarch", "brute", "brute"] },
+];
+const mobKindFor = (f) => {
+  const t = [...MOB_TIERS].reverse().find(x => f >= x.from) || MOB_TIERS[0];
+  return t.kinds[Math.floor(Math.random() * t.kinds.length)];
+};
+
 function spawnMob(f, i, n) {
-  const m = { id: ++seq, x: LANE.x1 + 40 + i * 46, hp: floorHp(f), hpMax: floorHp(f),
-              dmg: floorDmg(f), spd: 22 + Math.random() * 10, r: 11, atk: 0, boss: false };
+  const kind = mobKindFor(f);
+  const m = { id: ++seq, kind, x: LANE.x1 + 40 + i * 46, hp: floorHp(f), hpMax: floorHp(f),
+              dmg: floorDmg(f), spd: 22 + Math.random() * 10,
+              r: kind === "brute" ? 15 : kind === "fallen" ? 10 : 12, atk: 0, boss: false };
   S.mobs.push(m);
   return m;
 }
@@ -34,7 +55,12 @@ function spawnMob(f, i, n) {
 export function summon(kind) {
   const K = MINIONS[kind];
   if (S.minions.length >= armyCap()) return false;
-  S.minions.push({ id: ++seq, kind, x: LANE.x0 + 30 + Math.random() * 60,
+  /* **줄을 세운다.** 다 같은 자리에서 멈추면 여섯이 한 덩어리로 겹쳐 군대가 아니라 얼룩이
+     된다. 골렘이 제일 앞(벽), 구울이 그다음, 해골이 뒤 — 자리가 곧 그 종류의 역할이다. */
+  const rank = kind === "golem" ? 0 : kind === "ghoul" ? 1 : 2;
+  const same = S.minions.filter(m => m.kind === kind).length;
+  S.minions.push({ id: ++seq, kind, x: LANE.x0 + 30 + Math.random() * 30,
+                   gap: 10 + rank * 26 + same * 15,
                    hp: K.hp, hpMax: K.hp, atk: 0, r: kind === "golem" ? 16 : 10 });
   return true;
 }
@@ -80,8 +106,11 @@ export function step(dt) {
     const K = MINIONS[u.kind];
     let tgt = null, td = 1e9;
     for (const m of S.mobs) { const d = m.x - u.x; if (d >= 0 && d < td) { td = d; tgt = m; } }
-    if (!tgt) { u.x = Math.min(LANE.x1, u.x + K.spd * dt); continue; }
-    if (td > u.r + tgt.r + 4) { u.x += K.spd * dt; continue; }
+    /* **자기 자리**로 간다. 모두 같은 선에서 멈추면 여섯이 한 점에 겹쳐 다시 얼룩이 된다 —
+       골렘이 맨 앞, 구울이 그 뒤, 해골이 뒤쪽. 앞뒤가 곧 역할이다. */
+    const hold = HOLD - Math.max(0, (u.gap || 10) - 10);
+    if (!tgt) { u.x = Math.min(hold, u.x + K.spd * dt); continue; }
+    if (td > u.r + tgt.r + 6) { u.x = Math.min(hold, u.x + K.spd * dt); continue; }
     if ((u.atk -= dt) > 0) continue;
     u.atk = K.cd;
     const d = K.dmg * dmgMulOf() * ampMul;

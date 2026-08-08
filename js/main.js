@@ -12,10 +12,38 @@ function fit() {
 }
 addEventListener("resize", fit);
 
+/* ══ 그림 ══ PixelLab 으로 구운 스프라이트(assets/). **아직 안 온 것은 색 덩어리로 낸다** —
+   그림 한 장이 없다고 판이 멈추면 에셋 굽는 동안 아무것도 못 본다. 오면 그때부터 그림이 뜬다. */
 const COL = {
   skel: "#d8d2c4", ghoul: "#8fae76", golem: "#8a6b45",
-  mob: "#9a3b3b", boss: "#d05353",
+  mob: "#9a3b3b", boss: "#d05353", necro: "#2b2338",
 };
+const IMG = {};
+function sprite(path) {
+  if (IMG[path] !== undefined) return IMG[path] || null;
+  const im = new Image();
+  im.onload  = () => { IMG[path] = im; };
+  im.onerror = () => { IMG[path] = null; };   // 없으면 영영 안 묻는다
+  IMG[path] = null;
+  im.src = "assets/" + path + ".png";
+  return null;
+}
+/** 그림이 있으면 그림을, 없으면 색 덩어리를. **바닥에 발을 붙여 그린다**(gy 가 접지선이다) —
+ *  가운데를 맞추면 큰 놈이 공중에 뜬 것처럼 보인다. */
+function drawOne(path, x, gy, h, fallback) {
+  const im = sprite(path);
+  if (im) {
+    const w = h * (im.width / im.height);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(im, x - w / 2, gy - h, w, h);
+  } else {
+    ctx.fillStyle = fallback;
+    ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
+  }
+  // 접지 그림자 — 이게 없으면 무엇을 그리든 바닥에서 떠 보인다
+  ctx.fillStyle = "rgba(0,0,0,.45)";
+  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3, h * 0.09, 0, 0, 6.284); ctx.fill();
+}
 
 function draw() {
   const w = cv.clientWidth, h = cv.clientHeight;
@@ -54,32 +82,37 @@ function draw() {
   const px = (x) => x * sx;
 
   // 네크로멘서 본인 — 왼쪽 끝에 서 있다. **직접 안 싸운다**
-  ctx.fillStyle = "#2b2338";
-  ctx.beginPath(); ctx.ellipse(px(LANE.x0 - 14), gy - 16, 11, 20, 0, 0, 6.284); ctx.fill();
-  ctx.fillStyle = "#6a6aff";
-  ctx.beginPath(); ctx.arc(px(LANE.x0 - 14), gy - 34, 5, 0, 6.284); ctx.fill();
+  drawOne("char/necro", px(LANE.x0 - 14), gy, 62, COL.necro);
 
   const bar = (x, y, wdt, pct, col) => {
     ctx.fillStyle = "#000a"; ctx.fillRect(x - wdt / 2, y, wdt, 3);
     ctx.fillStyle = col; ctx.fillRect(x - wdt / 2, y, wdt * Math.max(0, pct), 3);
   };
+  const HGT = { skel: 46, ghoul: 50, golem: 78 };
   for (const u of S.minions) {
-    const x = px(u.x), r = u.r;
-    ctx.fillStyle = COL[u.kind];
-    ctx.beginPath(); ctx.ellipse(x, gy - r, r * 0.7, r, 0, 0, 6.284); ctx.fill();
-    if (u.hp < u.hpMax) bar(x, gy - r * 2 - 7, r * 2, u.hp / u.hpMax, "#7fb069");
+    const x = px(u.x), hh = HGT[u.kind] || 46;
+    drawOne("minion/" + u.kind, x, gy, hh, COL[u.kind]);
+    if (u.hp < u.hpMax) bar(x, gy - hh - 7, hh * 0.6, u.hp / u.hpMax, "#7fb069");
   }
+  /* 적은 **옆을 보고 왼쪽으로 온다** — 그림은 오른쪽을 보게 구웠으므로 좌우를 뒤집는다.
+     안 뒤집으면 적이 뒷걸음질로 쳐들어온다. */
   for (const m of S.mobs) {
     const x = px(m.x);
-    if (x > w + 30) continue;
-    ctx.fillStyle = m.boss ? COL.boss : COL.mob;
-    ctx.beginPath(); ctx.ellipse(x, gy - m.r, m.r * 0.72, m.r, 0, 0, 6.284); ctx.fill();
-    if (m.hp < m.hpMax) bar(x, gy - m.r * 2 - 7, m.r * 2, m.hp / m.hpMax, "#8b1a1a");
+    if (x > w + 40) continue;
+    const hh = m.boss ? 96 : 44 + (m.r - 11) * 2;
+    ctx.save(); ctx.translate(x, 0); ctx.scale(-1, 1);
+    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", 0, gy, hh, m.boss ? COL.boss : COL.mob);
+    ctx.restore();
+    if (m.hp < m.hpMax) bar(x, gy - hh - 7, hh * 0.6, m.hp / m.hpMax, "#8b1a1a");
   }
   for (const f of S.fx) {
-    ctx.globalAlpha = Math.max(0, f.t * 3);
-    ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
-    ctx.beginPath(); ctx.arc(px(f.x), gy - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill();
+    const im = sprite("fx/" + (f.kind === "nova" ? "nova" : "hit"));
+    ctx.globalAlpha = Math.max(0, Math.min(1, f.t * 3));
+    const hh = f.kind === "nova" ? 90 : 26;
+    if (im) { ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(im, px(f.x) - hh / 2, gy - hh * 0.8, hh, hh); }
+    else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
+      ctx.beginPath(); ctx.arc(px(f.x), gy - 20, f.kind === "nova" ? 60 : 5, 0, 6.284); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
 }
