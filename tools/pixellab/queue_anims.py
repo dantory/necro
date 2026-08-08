@@ -25,6 +25,15 @@ ATTACK = {
     "mob/brute":    "raising a heavy axe overhead and chopping down",
 }
 
+def has_walk(t):
+    """캐릭터가 실제로 가진 애니메이션 중에 걷기가 있나. `available_animations:` 는 제외."""
+    m = re.search(r"animations \(.*?\):(.*?)(?:\navailable_animations:|\Z)", t, re.S)
+    if not m:
+        return False
+    body = m.group(1).lower()
+    return "animating" in body or "walking" in body or "walk" in body
+
+
 def mcp(tool, args, timeout=300):
     r = subprocess.run([sys.executable, MCP, tool, json.dumps(args)],
                        capture_output=True, text=True, timeout=timeout)
@@ -40,11 +49,12 @@ if __name__ == "__main__":
     for kind, cid in pairs:
         try:
             t = mcp("get_character", {"character_id": cid})
-            has = "animations:" in t and "animations: none" not in t
             # **걷기가 없으면 건다.** 있는데 또 걸면 zip 에 같은 그룹이 두 번 들어간다.
-            # 찾는 이름은 `animating` 이다 — "walking" 으로 봤더니 **이미 붙은 걷기를 못 보고
-            # 매번 다시 걸었다.** 템플릿이 만드는 그룹 이름은 걸 때 쓴 이름과 다르다.
-            if "animating" not in t and "walking" not in t:
+            # 반드시 `animations (...)` 절 안에서만 찾는다 — 응답 아래쪽 `available_animations:`
+            # 는 **고를 수 있는 템플릿 목록**이고 거기엔 "crouched-walking" 이 늘 들어 있다.
+            # 전문에서 "walking" 을 찾던 버전은 **일곱 마리 전부를 "이미 있음"으로 오판해
+            # 아무한테도 걷기를 안 걸었고**, 그걸 모른 채 폴러가 36분을 헛돌았다(2026-08-09).
+            if not has_walk(t):
                 mcp("animate_character", {"character_id": cid,
                                           "template_animation_id": "walking-4-frames"})
                 print(f"걷기 다시 검 {kind}", flush=True)
