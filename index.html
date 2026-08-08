@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>necro — 네크로멘서</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div id="top">
+    <span class="floor" id="hFloor">1층</span>
+    <span class="sp"></span>
+    <span class="who"><b id="hName">네크로멘서</b> <span id="hLv">Lv.1</span> · 금 <span id="hGold">0</span></span>
+  </div>
+
+  <!-- ══ 아래 판 — 붉은 구슬 · 스킬 벨트 · 푸른 구슬 ══ -->
+  <div id="panel">
+    <div class="orb hp"><div class="fill" id="hpFill" style="height:100%"></div>
+      <div class="gloss"></div><div class="num" id="hpNum">100 / 100</div></div>
+
+    <div id="mid">
+      <div id="log"></div>
+      <div id="belt"></div>
+    </div>
+
+    <div class="orb mp"><div class="fill" id="mpFill" style="height:100%"></div>
+      <div class="gloss"></div><div class="num" id="mpNum">40 / 40</div></div>
+  </div>
+
+  <!-- 능력치 창 -->
+  <div class="win" id="winStat"><div class="frame">
+    <h2>능 력 치</h2>
+    <div id="statBody"></div>
+  </div></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
