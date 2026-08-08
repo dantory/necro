@@ -39,17 +39,34 @@ function sprite(path) {
      · **접지 그림자가 제일 크다.** 떠 보이는 것의 정체는 바닥에 닿은 자국이 없는 것이다.
        몸이 뜰 때 그림자도 같이 작아져야 딛는 것으로 보인다
      · 때리는 순간(swing)은 걷기를 멈추고 앞으로 한 번 내지른다 */
-function drawOne(path, x, gy, h, fallback, e) {
-  const walking = e && e.moving > 0;
+function drawOne(path, x, gy, h, fallback, e, sc) {
+  const walking = e && e.moving > 0 && !(e.swing > 0);
   const ph = ((e && e.walked) || 0) / (h * 0.42) * Math.PI;     // 보폭은 키에 비례
   const bob  = walking ? Math.abs(Math.sin(ph)) * h * 0.075 : 0;
   const tilt = walking ? Math.sin(ph * 0.5) * 0.075 : 0;
   const sq   = walking ? Math.cos(ph * 2) * 0.055 : 0;
-  const sw   = e && e.swing > 0 ? Math.sin((0.22 - e.swing) / 0.22 * Math.PI) : 0;
+  /* **때리는 동작은 앞으로 확 나갔다 돌아온다.** 살짝 기울이는 정도로는 화면에서
+     아무 일도 안 일어난 것처럼 보인다 — 앞의 30% 에 몰아서 튀어 나가고 남은 70% 로
+     돌아온다(빠르게 치고 천천히 회수). 몸도 같이 젖혀야 "휘둘렀다"가 된다. */
+  let lx = 0, ly = 0, swAng = 0;
+  if (e && e.swing > 0) {
+    const t = 1 - e.swing / 0.26;                       // 0 → 1
+    const k = t < 0.3 ? t / 0.3 : 1 - (t - 0.3) / 0.7;  // 튀어 나갔다 돌아옴
+    const reach = h * 0.42 * k;
+    lx = (e.sdx || 1) * reach; ly = (e.sdy || 0) * reach * 0.5;
+    swAng = (e.sdx >= 0 ? 1 : -1) * 0.42 * k;
+  }
+  /* 맞은 순간엔 뒤로 밀리고 하얗게 튄다 — **맞았다는 것도 그림에 있어야** 때린 게 읽힌다 */
+  let fx2 = 0, fy2 = 0, flash = 0;
+  if (e && e.flinch > 0) {
+    const t = e.flinch / 0.18;
+    fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
+    flash = t * 0.55;
+  }
   const im = sprite(path);
   ctx.save();
-  ctx.translate(x + sw * h * 0.16, gy - bob);
-  ctx.rotate(tilt + sw * 0.12);
+  ctx.translate(x + lx + fx2, gy - bob + ly + fy2);
+  ctx.rotate(tilt + swAng);
   ctx.scale(1 + sq, 1 - sq);
   if (im) {
     const w = h * (im.width / im.height);
@@ -58,6 +75,13 @@ function drawOne(path, x, gy, h, fallback, e) {
   } else {
     ctx.fillStyle = fallback;
     ctx.beginPath(); ctx.ellipse(0, -h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
+  }
+  if (flash > 0 && im) {            // 맞은 순간의 흰 번쩍임
+    const w2 = h * (im.width / im.height);
+    ctx.globalCompositeOperation = "source-atop";
+    ctx.fillStyle = `rgba(255,240,220,${flash})`;
+    ctx.fillRect(-w2 / 2, -h, w2, h);
+    ctx.globalCompositeOperation = "source-over";
   }
   ctx.restore();
   // 접지 그림자 — 몸이 뜬 만큼 작아진다

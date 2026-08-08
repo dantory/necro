@@ -117,8 +117,8 @@ export function cast(id) {
 export function step(dt) {
   if (S.dead) return;
   S.t += dt;
-  for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; }
-  for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; }
+  for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
+  for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
   S.mp = Math.min(mpMaxOf(), S.mp + dt * (2.2 + (META.up.mp | 0) * 0.25));
@@ -153,9 +153,16 @@ export function step(dt) {
     if (!tgt) { toward(u, hx, hy, K.spd, dt); continue; }
     if (dist(u, tgt) > u.r + tgt.r + 4) { toward(u, tgt.x, tgt.y, K.spd, dt); continue; }
     if ((u.atk -= dt) > 0) continue;
-    u.atk = K.cd; u.swing = 0.22;          // 때리는 순간 — 걷기와 갈린다
+    /* **때리는 순간을 크게 만든다.** 방금 넣은 0.22초짜리 살짝 내지르기는 화면에서
+       안 읽혔다(병수님: "공격모션도 없고"). 때리는 것이 보이려면 셋이 같이 가야 한다:
+       **내지르는 놈** · **밀리는 놈** · **닿는 자리의 불꽃**. 하나만 있으면 안 읽힌다. */
+    u.atk = K.cd; u.swing = 0.26;
+    u.sdx = (tgt.x - u.x); u.sdy = (tgt.y - u.y);       // 내지르는 방향
+    const sl = Math.hypot(u.sdx, u.sdy) || 1; u.sdx /= sl; u.sdy /= sl;
     const d = K.dmg * dmgMulOf() * ampMul;
     tgt.hp -= d;
+    tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
+    tgt.kx = u.sdx; tgt.ky = u.sdy;
     if (u.kind === "ghoul") u.hp = Math.min(u.hpMax, u.hp + d * 0.35);
     S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
   }
@@ -167,7 +174,11 @@ export function step(dt) {
     for (const u of S.minions) { const d = dist(m, u); if (d < td && d < 90) { td = d; tgt = u; } }
     if (tgt && td < m.r + tgt.r + 4) {
       if ((m.atk -= dt) > 0) continue;
-      m.atk = 1.0; m.swing = 0.22; tgt.hp -= m.dmg;
+      m.atk = 1.0; m.swing = 0.26;
+      m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
+      const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
+      tgt.hp -= m.dmg; tgt.flinch = 0.18; tgt.kx = m.sdx; tgt.ky = m.sdy;
+      S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
       continue;
     }
     if (tgt) { toward(m, tgt.x, tgt.y, m.spd, dt); continue; }
