@@ -1,5 +1,5 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap } from "./core.js";
-import { cast, LANE, newRun, step } from "./battle.js";
+import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -28,93 +28,127 @@ function sprite(path) {
   im.src = "assets/" + path + ".png";
   return null;
 }
-/** 그림이 있으면 그림을, 없으면 색 덩어리를. **바닥에 발을 붙여 그린다**(gy 가 접지선이다) —
- *  가운데를 맞추면 큰 놈이 공중에 뜬 것처럼 보인다. */
-function drawOne(path, x, gy, h, fallback) {
+/* ══ 걸음 ══ **그림 한 장을 좌표만 바꿔 밀면 걷는 게 아니라 미끄러진다**
+   (병수님: "이동 모션이 하나도 없이 떠다님"). 걷기 프레임이 아직 없으므로,
+   한 장으로 낼 수 있는 것을 낸다 — 앞 프로토타입에서 같은 지적을 받고 세운 처방이다:
+
+     · 위상은 **지나온 거리**로 센다(battle.js 의 walked) — 그래야 느린 골렘은 발도
+       천천히 놀리고, 붙어서 멎은 놈은 발이 멎는다
+     · 발이 땅을 딛는 결이라 위아래는 |sin| 로, 몸통 기울기는 그 절반 주기로
+     · 딛는 순간 **눌리고** 뜨는 순간 늘어난다 — 위아래 이동만이면 "떠오른다"로 읽힌다
+     · **접지 그림자가 제일 크다.** 떠 보이는 것의 정체는 바닥에 닿은 자국이 없는 것이다.
+       몸이 뜰 때 그림자도 같이 작아져야 딛는 것으로 보인다
+     · 때리는 순간(swing)은 걷기를 멈추고 앞으로 한 번 내지른다 */
+function drawOne(path, x, gy, h, fallback, e) {
+  const walking = e && e.moving > 0;
+  const ph = ((e && e.walked) || 0) / (h * 0.42) * Math.PI;     // 보폭은 키에 비례
+  const bob  = walking ? Math.abs(Math.sin(ph)) * h * 0.075 : 0;
+  const tilt = walking ? Math.sin(ph * 0.5) * 0.075 : 0;
+  const sq   = walking ? Math.cos(ph * 2) * 0.055 : 0;
+  const sw   = e && e.swing > 0 ? Math.sin((0.22 - e.swing) / 0.22 * Math.PI) : 0;
   const im = sprite(path);
+  ctx.save();
+  ctx.translate(x + sw * h * 0.16, gy - bob);
+  ctx.rotate(tilt + sw * 0.12);
+  ctx.scale(1 + sq, 1 - sq);
   if (im) {
     const w = h * (im.width / im.height);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(im, x - w / 2, gy - h, w, h);
+    ctx.drawImage(im, -w / 2, -h, w, h);
   } else {
     ctx.fillStyle = fallback;
-    ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
   }
-  // 접지 그림자 — 이게 없으면 무엇을 그리든 바닥에서 떠 보인다
-  ctx.fillStyle = "rgba(0,0,0,.45)";
-  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3, h * 0.09, 0, 0, 6.284); ctx.fill();
+  ctx.restore();
+  // 접지 그림자 — 몸이 뜬 만큼 작아진다
+  const sh = 1 - bob / (h * 0.14) * 0.28;
+  ctx.fillStyle = `rgba(0,0,0,${0.45 * sh})`;
+  ctx.beginPath(); ctx.ellipse(x, gy, h * 0.3 * sh, h * 0.09 * sh, 0, 0, 6.284); ctx.fill();
 }
+
+/* ══ 판을 **위에서 비스듬히** 본다 ══
+   사방에서 오는 판이라 옆에서 보면 앞뒤가 겹쳐 아무것도 안 읽힌다. 그렇다고 정확히
+   위에서 보면 **옆모습으로 구운 스프라이트**가 누워 버린다(디아블로 2 도 같은 이유로
+   비스듬히 본다). y 를 눌러(SQUASH) 바닥을 눕히고, 그림은 세워서 세운 채로 얹는다 —
+   흔히 쓰는 2.5D 다. 그리는 순서는 **y 가 작은 것부터**라야 앞의 것이 뒤를 가린다. */
+const SQUASH = 0.56;
 
 function draw() {
   const w = cv.clientWidth, h = cv.clientHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
-  /* 던전 — **위가 벽, 아래가 바닥**이다. 지평선을 0.62 에 두었더니 위쪽 절반이 통째로
-     까맣게 비어 "아직 안 그린 화면"으로 보였다. 벽을 세우고 지평선을 내린다. */
-  const gy = h * 0.72;
-  ctx.fillStyle = "#0a0806"; ctx.fillRect(0, 0, w, h);
-  /* 벽 — 돌을 쌓은 결. 줄눈이 가로세로로 어긋나야 벽으로 읽힌다(한 방향이면 줄무늬다) */
-  const wg = ctx.createLinearGradient(0, 0, 0, gy);
-  wg.addColorStop(0, "#0b0907"); wg.addColorStop(1, "#171009");
-  ctx.fillStyle = wg; ctx.fillRect(0, 0, w, gy);
-  ctx.strokeStyle = "#1e150d"; ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let y = gy - 34; y > -34; y -= 34) {
-    ctx.moveTo(0, y); ctx.lineTo(w, y);
-    const off = ((y / 34) | 0) % 2 ? 0 : 39;
-    for (let x = off; x < w; x += 78) { ctx.moveTo(x, y); ctx.lineTo(x, y + 34); }
-  }
-  ctx.stroke();
-  const grd = ctx.createLinearGradient(0, gy - 90, 0, h);
-  grd.addColorStop(0, "#0f0b08"); grd.addColorStop(1, "#191209");
-  ctx.fillStyle = grd; ctx.fillRect(0, gy - 90, w, h);
-  ctx.strokeStyle = "#241a10"; ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let i = 0; i < 7; i++) { const y = gy + i * i * 3.2; ctx.moveTo(0, y); ctx.lineTo(w, y); }
-  ctx.stroke();
-  // 횃불 같은 은은한 빛 — D2 의 어둠은 "까만 화면"이 아니라 **한 점에서 오는 빛**이다
-  const lg = ctx.createRadialGradient(w * 0.18, gy - 40, 10, w * 0.18, gy - 40, w * 0.6);
-  lg.addColorStop(0, "#c8aa6e18"); lg.addColorStop(1, "transparent");
+  const cx = w / 2, cy = h * 0.52;
+  /* **판이 화면에 꽉 차야 한다.** 바깥 여백을 조금만 남기고 맞춘다 — 여백이 크면
+     인물이 콩알이 되고, 그러면 어떤 에셋을 구워도 안 보인다. */
+  const sc = Math.min(w / (RING_SPAWN * 2.16), h / (RING_SPAWN * 2.16 * SQUASH));
+  const px = (x) => cx + x * sc;
+  const py = (y) => cy + y * sc * SQUASH;
+
+  // 던전 바닥 — 어둡고, 빛은 가운데 한 점(본인이 든 횃불)에서만 온다
+  ctx.fillStyle = "#080605"; ctx.fillRect(0, 0, w, h);
+  const lg = ctx.createRadialGradient(cx, cy, 20, cx, cy, RING_SPAWN * sc * 1.15);
+  lg.addColorStop(0, "#241a11"); lg.addColorStop(0.55, "#140f0a"); lg.addColorStop(1, "#080605");
   ctx.fillStyle = lg; ctx.fillRect(0, 0, w, h);
 
-  const sx = w / (LANE.x1 + 90);                 // 전장을 화면 폭에 맞춘다
-  const px = (x) => x * sx;
-
-  // 네크로멘서 본인 — 왼쪽 끝에 서 있다. **직접 안 싸운다**
-  drawOne("char/necro", px(LANE.x0 - 14), gy, 62, COL.necro);
+  // 바닥 돌 — 타원 고리 몇 겹이면 "둥근 방"으로 읽힌다
+  ctx.strokeStyle = "#1d1610"; ctx.lineWidth = 1;
+  for (let r = 70; r <= RING_SPAWN + 40; r += 70) {
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * sc, r * sc * SQUASH, 0, 0, 6.284); ctx.stroke();
+  }
+  // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
+  ctx.strokeStyle = "rgba(200,170,110,.16)"; ctx.setLineDash([5, 7]);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, RING_HOLD * 1.2 * sc, RING_HOLD * 1.2 * sc * SQUASH, 0, 0, 6.284);
+  ctx.stroke(); ctx.setLineDash([]);
 
   const bar = (x, y, wdt, pct, col) => {
     ctx.fillStyle = "#000a"; ctx.fillRect(x - wdt / 2, y, wdt, 3);
     ctx.fillStyle = col; ctx.fillRect(x - wdt / 2, y, wdt * Math.max(0, pct), 3);
   };
-  const HGT = { skel: 46, ghoul: 50, golem: 78 };
-  for (const u of S.minions) {
-    const x = px(u.x), hh = HGT[u.kind] || 46;
-    drawOne("minion/" + u.kind, x, gy, hh, COL[u.kind]);
-    if (u.hp < u.hpMax) bar(x, gy - hh - 7, hh * 0.6, u.hp / u.hpMax, "#7fb069");
+  const HGT = { skel: 52, ghoul: 58, golem: 84 };
+
+  /* **뒤에 있는 것부터 그린다.** 안 그러면 위쪽(먼) 적이 아래쪽(가까운) 소환수를 덮어
+     앞뒤가 뒤집힌 그림이 된다. */
+  const all = [];
+  all.push({ y: 0, kind: "necro" });
+  for (const u of S.minions) all.push({ y: u.y, u });
+  for (const m of S.mobs)    all.push({ y: m.y, m });
+  all.sort((a, b) => a.y - b.y);
+
+  for (const it of all) {
+    if (it.kind === "necro") { drawOne("char/necro", px(0), py(0), 58, COL.necro, null); continue; }
+    if (it.u) {
+      const u = it.u, hh = HGT[u.kind] || 40, x = px(u.x), y = py(u.y);
+      drawFlip("minion/" + u.kind, x, y, hh, COL[u.kind], u.face, u);
+      if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
+      continue;
+    }
+    const m = it.m, hh = m.boss ? 104 : 48 + (m.r - 10) * 2.6, x = px(m.x), y = py(m.y);
+    drawFlip(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m.face, m);
+    if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
   }
-  /* 적은 **옆을 보고 왼쪽으로 온다** — 그림은 오른쪽을 보게 구웠으므로 좌우를 뒤집는다.
-     안 뒤집으면 적이 뒷걸음질로 쳐들어온다. */
-  for (const m of S.mobs) {
-    const x = px(m.x);
-    if (x > w + 40) continue;
-    const hh = m.boss ? 96 : 44 + (m.r - 11) * 2;
-    ctx.save(); ctx.translate(x, 0); ctx.scale(-1, 1);
-    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", 0, gy, hh, m.boss ? COL.boss : COL.mob);
-    ctx.restore();
-    if (m.hp < m.hpMax) bar(x, gy - hh - 7, hh * 0.6, m.hp / m.hpMax, "#8b1a1a");
-  }
+
   for (const f of S.fx) {
     const im = sprite("fx/" + (f.kind === "nova" ? "nova" : "hit"));
     ctx.globalAlpha = Math.max(0, Math.min(1, f.t * 3));
-    const hh = f.kind === "nova" ? 90 : 26;
-    if (im) { ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(im, px(f.x) - hh / 2, gy - hh * 0.8, hh, hh); }
+    const hh = f.kind === "nova" ? 190 : 28;
+    const x = px(f.x || 0), y = py(f.y || 0);
+    if (im) { ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
     else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
-      ctx.beginPath(); ctx.arc(px(f.x), gy - 20, f.kind === "nova" ? 60 : 5, 0, 6.284); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(x, y - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
+}
+
+/** 가는 쪽을 보게 좌우를 뒤집어 그린다 — 사방으로 도는 판에서 이게 없으면
+ *  절반이 뒷걸음질로 다닌다. */
+function drawFlip(path, x, y, hh, fallback, face, e) {
+  if (face === -1) {
+    ctx.save(); ctx.translate(x, 0); ctx.scale(-1, 1);
+    drawOne(path, 0, y, hh, fallback, e);
+    ctx.restore();
+  } else drawOne(path, x, y, hh, fallback, e);
 }
 
 /* ══ 벨트 ══ D2 의 그 띠. 쓸 수 있으면 금테가 살고, 못 쓰면 죽는다 —
@@ -142,6 +176,10 @@ function beltState() {
 
 function hud() {
   $("hFloor").textContent = S.floor + "층";
+  /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
+     띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
+  const left = S.mobs.length;
+  $("hLeft").textContent = left ? `남은 적 ${left}` : "정리 중";
   $("hLv").textContent = "Lv." + META.lv;
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   $("hpFill").style.height = Math.max(0, S.hp / hpMaxOf()) * 100 + "%";

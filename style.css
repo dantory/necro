@@ -41,6 +41,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   padding:0 12px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000cc,#00000000)}
 #top .floor{color:var(--gold);letter-spacing:3px;font-size:15px}
+#top .left{font-size:12px;color:var(--dim);letter-spacing:1px}
 #top .sp{flex:1}
 #top .who{font-size:12px;color:var(--dim)}
 
@@ -55,10 +56,12 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   display:grid;grid-template-columns:auto 1fr auto;align-items:end;gap:8px;padding:8px 10px 10px}
 
 /* ── 구슬 ── 붉은 것과 푸른 것. 이게 없으면 D2 로 안 읽힌다 */
-.orb{position:relative;width:96px;height:96px;border-radius:50%;overflow:hidden;
+/* **구슬은 판에 반쯤 박혀 있다.** 동그라미를 판 위에 얹어만 두면 「원형 게이지」로 읽히고
+   D2 의 그 앉음새가 안 나온다. 아래를 물려 앉히고 테를 두껍게 준다. */
+.orb{position:relative;width:104px;height:104px;margin-bottom:-14px;border-radius:50%;overflow:hidden;
   background:radial-gradient(circle at 34% 28%,#3a3129,#0a0806 72%);
-  box-shadow:inset 0 0 22px #000, 0 0 0 3px #0d0a08, 0 0 0 5px var(--gold-d),
-             0 0 14px #000a}
+  box-shadow:inset 0 0 26px #000, 0 0 0 3px #0d0a08, 0 0 0 5px var(--gold-d),
+             0 0 0 6px #241a10, 0 4px 18px #000c}
 .orb .fill{position:absolute;left:0;right:0;bottom:0;transition:height .25s}
 .orb.hp .fill{background:linear-gradient(#e04a4a,#8b1a1a 55%,#4a0c0c)}
 .orb.mp .fill{background:linear-gradient(#5a8ae0,#2a4a8a 55%,#101c3a)}
@@ -71,13 +74,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
 
 /* ── 가운데: 스킬 벨트 + 글줄 ── */
 #mid{display:flex;flex-direction:column;gap:6px;min-width:0;padding-bottom:4px}
-#log{height:62px;overflow:hidden;font-size:12px;line-height:1.55;color:var(--dim);
+#log{height:66px;overflow:hidden;font-size:12px;line-height:1.55;color:var(--dim);
   padding:5px 8px;border:1px solid #2a2118;background:#0a0806cc;
   box-shadow:inset 0 0 12px #000}
 #log b{color:var(--ink);font-weight:400}
 #belt{display:flex;gap:5px;justify-content:center}
-.slot{width:44px;height:44px;position:relative;background:linear-gradient(#221a12,#100c08);
-  border:1px solid #3a2f20;box-shadow:inset 0 0 8px #000;display:flex;align-items:center;
+/* 벨트 칸도 테를 두 겹으로 — 한 겹이면 그냥 네모다 */
+.slot{width:46px;height:46px;position:relative;background:linear-gradient(#221a12,#100c08);
+  border:1px solid #3a2f20;box-shadow:inset 0 0 8px #000,0 0 0 1px #0a0705;display:flex;align-items:center;
   justify-content:center;font-size:19px;color:var(--gold);cursor:pointer}
 .slot:active{background:#2c2216}
 .slot .k{position:absolute;right:2px;bottom:0;font-size:9px;color:var(--dim)}
