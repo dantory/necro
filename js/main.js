@@ -1,6 +1,7 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNeed } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
+import { drawOrb } from "./orb.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -264,9 +265,14 @@ function hud() {
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
      띠는 가로로 차오르는데, 어느 쪽을 쓸지는 판의 결(테마)이 정한다 — 여기서는 둘 다 준다. */
-  const hpPct = Math.max(0, S.hp / hpMaxOf()) * 100, mpPct = Math.max(0, S.mp / mpMaxOf()) * 100;
-  $("hpFill").style.height = hpPct + "%"; $("hpFill").style.setProperty("--pct", hpPct + "%");
-  $("mpFill").style.height = mpPct + "%"; $("mpFill").style.setProperty("--pct", mpPct + "%");
+  /* 구슬은 **캔버스에 픽셀로** 그린다(js/orb.js) — CSS 원은 가장자리가 매끄러워
+     픽셀 화면에서 거기만 튄다. 값이 바뀔 때만 다시 그린다(매 프레임 30x30 을 두 번
+     훑을 이유가 없다). */
+  const hpPct = Math.max(0, Math.min(1, S.hp / hpMaxOf())),
+        mpPct = Math.max(0, Math.min(1, S.mp / mpMaxOf()));
+  const hq = Math.round(hpPct * 30), mq = Math.round(mpPct * 30);
+  if (hq !== hud._hq) { hud._hq = hq; drawOrb($("hpOrb"), "hp", hpPct); }
+  if (mq !== hud._mq) { hud._mq = mq; drawOrb($("mpOrb"), "mp", mpPct); }
   $("hpNum").textContent = `${Math.max(0, Math.round(S.hp))}/${hpMaxOf()}`;
   $("mpNum").textContent = `${Math.round(S.mp)}/${mpMaxOf()}`;
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이

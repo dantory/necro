@@ -29,7 +29,9 @@
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   background:
     repeating-linear-gradient(90deg, #ffffff05 0 1px, #0000 1px 4px),
-    linear-gradient(#0000, #000000cc 42%, #000000f2);
+    /* ★ 부드러운 그라디언트도 매끄러움의 원인이다. **계단으로 끊는다** —
+       픽셀아트는 색 단계가 몇 개뿐이고, 그 끊김이 결을 만든다. */
+    linear-gradient(#0000 0 18%, #00000088 18% 42%, #000000cc 42% 66%, #000000f2 66%);
   border:none;box-shadow:none}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지
    눈이 못 잡는다. 가운데가 밝고 양끝이 사라지는 선 — 끝을 자르면 선이 뚝 끊겨 보인다. */
@@ -41,18 +43,14 @@
    넓게 퍼진 흰빛을 주면 유리가 아니라 플라스틱이 된다. */
 /* 구슬은 **테가 있어야 박힌 것으로 읽힌다.** 벌거벗은 원은 그냥 떠 있는 공이다.
    두께는 얇게(2px 금 + 3px 무쇠) — 두꺼우면 그것이 볼거리가 되어 시끄러워진다. */
+/* 구슬 알맹이는 **캔버스가 픽셀로 그린다**(js/orb.js). 여기서는 테와 자리만 맡는다.
+   ★ 테를 `border-radius:50%` + box-shadow 로 두르면 그 테만 다시 매끄러워진다 —
+   그래서 테도 **네모 모서리를 조금 굴린 것**으로 두고, 둥근 것은 캔버스가 그린
+   구슬 자신이 맡게 한다. */
 .orb{position:relative;flex:0 0 auto;width:var(--orb);height:var(--orb);
-  border-radius:50%;overflow:hidden;background:#080706;
-  box-shadow:0 0 0 2px var(--gold-d), 0 0 0 5px #17120c, 0 0 0 6px #000,
-             inset 0 0 0 2px #000, inset 0 -9px 18px #000, 0 3px 14px #000c}
-.orb::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
-  background:
-    radial-gradient(ellipse 26% 20% at 31% 22%, #ffffffb0, #ffffff2a 42%, transparent 72%),
-    radial-gradient(ellipse 54% 26% at 50% 108%, #ffffff1a, transparent 72%),
-    radial-gradient(circle at 50% 46%, transparent 44%, #000000aa 100%)}
-.orb .fill{position:absolute;left:0;right:0;bottom:0;height:100%;transition:height .25s}
-.orb.hp .fill{background:linear-gradient(#c83232,#7a0e0e 60%,#2a0606)}
-.orb.mp .fill{background:linear-gradient(#3a5ecc,#12207a 60%,#070c22)}
+  background:none;filter:drop-shadow(0 2px 4px #000c)}
+.orb canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+
 .orb .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:11px;color:#efe4cd;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
   white-space:nowrap;z-index:2}
@@ -77,7 +75,7 @@
     /* 칸 나눔을 26px 로 박으면 폭에 따라 칸 수가 들쭉날쭉해진다. **10%씩 열 칸**으로
        나누면 어느 폭에서도 같은 모양이다. */
     repeating-linear-gradient(90deg, #0000 0 10%, #00000099 calc(10% - 1px) 10%),
-    linear-gradient(#ffd47a,#c8901e 60%,#8a5f10)}
+    linear-gradient(#ffd47a 0 34%, #c8901e 34% 68%, #8a5f10 68%)}
 /* ★ 픽셀 글꼴로 갈면서 경험치 글씨가 **띠 밖으로 넘쳤다**(11px 격자가 최소라 더 못 줄인다).
    D2R 의 경험치 띠에는 애초에 글씨가 없다 — 얼마나 찼는지는 **길이가 말한다.**
    레벨은 이미 화면 위에 있으니 여기서는 지운다. 넘치는 글씨를 줄이는 대신 없앤다. */
@@ -87,7 +85,7 @@
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
 #belt{display:flex;gap:5px}
 .slot{flex:1 1 0;aspect-ratio:1;position:relative;cursor:pointer;
-  background:linear-gradient(#241410,#0e0806);
+  background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
   border:1px solid #4a3a28;box-shadow:inset 0 0 8px #000;
   display:flex;align-items:center;justify-content:center}
 .slot:active{filter:brightness(1.25)}

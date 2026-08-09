@@ -34,7 +34,9 @@
        어느 폭에서도 저절로 맞는다. (id 는 그대로 두어 js 를 안 건드린다.)
        ══════════════════════════════════════════════════════ -->
   <div id="panel">
-    <div class="orb hp"><div class="fill" id="hpFill"></div><div class="num" id="hpNum">100/100</div></div>
+    <!-- 구슬은 **캔버스에 픽셀로 직접 그린다**(js/orb.js). CSS 원은 안티에일리어싱이
+         먹어 가장자리가 매끈해지는데, 그 매끈함 하나가 픽셀 화면에서 제일 튄다. -->
+    <div class="orb hp"><canvas id="hpOrb" width="30" height="30"></canvas><div class="num" id="hpNum">100/100</div></div>
 
     <div class="mid">
       <div class="res"><span id="gCorpse">시체 0</span><span class="xpTxt" id="xpNum">Lv.1</span><span id="gArmy">군세 0/6</span></div>
@@ -42,7 +44,7 @@
       <div id="belt"></div>
     </div>
 
-    <div class="orb mp"><div class="fill" id="mpFill"></div><div class="num" id="mpNum">40/40</div></div>
+    <div class="orb mp"><canvas id="mpOrb" width="30" height="30"></canvas><div class="num" id="mpNum">40/40</div></div>
   </div>
 
   <!-- 능력치 창 -->
