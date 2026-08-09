@@ -109,7 +109,11 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
     const gx = wx(rx), gy = wy(ry);
     place(ctx, im, gx, gy);
     // 대장간 화덕과 입구 등불은 **제 둘레를 밝힌다**
-    if (id === "forge") addGlow(gx + 14 * sc, gy - 46 * sc * squash, 150 * sc, 1.0);
+    /* ★ 대장간 그림을 **바깥에서 본 건물**로 바꾸면서(예전 것은 벽이 잘린 실내라
+       마을 한복판에 방이 하나 떠 있는 꼴이었다) 불이 있는 자리가 오른쪽으로 옮겨갔다.
+       빛은 **그림의 따뜻한 화소 무게중심**에 놓는다 — 그림을 바꾸면 빛도 따라 옮긴다
+       (안 옮기면 창문은 캄캄한데 엉뚱한 벽이 밝다). 현재 그림 기준 발에서 +24, -46. */
+    if (id === "forge") addGlow(gx + 24 * sc, gy - 46 * sc * squash, 160 * sc, 1.0);
     if (id === "gate")  addGlow(gx, gy - 70 * sc * squash, 90 * sc, 0.7);
     /* NPC 는 가게 **앞에** 선다 — 사람이 없으면 좌판이 아니라 폐허다. */
     const npcIm = npc[NPC_OF[id]];
