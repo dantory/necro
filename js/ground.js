@@ -13,56 +13,24 @@ import { LOAD } from "./sprite8.js";
      · **횃불빛 한 점** — 가장자리로 갈수록 어둡고, 그 경계가 **계단**이다
      · **어둠이 대부분** — 밝은 곳은 좁아야 무섭다
 
-   ★ 조명은 **저해상도로 그려 확대한다.** 화면 해상도로 원을 그리면 계단이 1px 이라
-   눈에 안 보이고, 그러면 그라디언트와 구별이 안 된다. 1/LIGHT_PX 크기에 그려서
-   pixelated 로 늘리면 **덩어리진 계단**이 생긴다 — 그게 픽셀아트의 조명이다.
+   ★★ **횃불빛은 걷어냈다**(병수님: "지도 내 주위로 광원? 같은거 없애면 안됨?").
+   어둠은 분위기를 만들지만 **볼 것을 가린다** — 소품을 아무리 뿌려도 빛 밖이면 없는
+   것과 같았고, 배율을 건드릴 때마다 빛 반경이 같이 흔들려 화면이 밝아졌다 어두워졌다
+   했다. **규칙이 하나 줄면 어긋날 곳도 하나 준다.**
+   어두운 결은 **바닥 밝기 자체**로 지킨다(loadFloor 의 boost).
    ══════════════════════════════════════════════════════════ */
 
-const LIGHT_PX = 6;                 // 조명 한 칸의 크기(화면 픽셀)
-/** 빛의 단계. **다섯 단계뿐이다** — 이 끊김이 그라디언트와 픽셀아트를 가른다.
- *  ★ 이 색은 바닥에 **곱해진다.** 그래서 「빛의 밝기」지 「빛의 색」이 아니다 —
- *  가운데가 거의 흰색이라야 바닥이 원래 색으로 보이고, 바깥이 검정이라야 잠긴다.
- *  처음엔 어두운 갈색 다섯을 넣었다가 **바닥이 통째로 안 보였다**(0.18배가 되어서). */
-/* ★ 맨 바깥을 완전한 검정에 가깝게 뒀더니 **벽과 소품이 통째로 사라졌다.**
-   빛 밖은 잠겨야 하지만 **아무것도 안 보이면 없는 것과 같다** — D2 도 방 끝의 벽은
-   어렴풋이 보인다. 마지막 단계를 조금 들어 올려 「어둠 속에 뭔가 있다」로 만든다. */
-/* ★ 맨 바깥을 한 번 더 들었다(#191410 → #241d16). 병수님: "배경이 비어있는 부분도
-   있네" — 소품을 더 뿌려도 **빛이 안 닿으면 없는 것과 같다.** 어둠은 지키되
-   「저 멀리 뭔가 서 있다」가 보이는 선까지만 올린다. */
-const LIT = ["#efe2c8", "#a8977c", "#5e5142", "#3a3025", "#241d16"];
-
-let lightCv = null, lightKey = "";
-
-/** 횃불빛을 저해상도 캔버스에 굽는다. 화면 크기가 그대로면 다시 안 굽는다. */
-function bakeLight(w, h, cx, cy, radius, squash) {
-  const key = `${w}x${h}:${Math.round(cx)},${Math.round(cy)}:${Math.round(radius)}:${squash.toFixed(2)}`;
-  if (lightKey === key && lightCv) return lightCv;
-  lightKey = key;
-  const lw = Math.ceil(w / LIGHT_PX), lh = Math.ceil(h / LIGHT_PX);
-  if (!lightCv) lightCv = document.createElement("canvas");
-  lightCv.width = lw; lightCv.height = lh;
-  const g = lightCv.getContext("2d");
-  const lcx = cx / LIGHT_PX, lcy = cy / LIGHT_PX, lr = radius / LIGHT_PX;
-  for (let y = 0; y < lh; y++) for (let x = 0; x < lw; x++) {
-    const dx = (x + 0.5 - lcx) / lr;
-    const dy = (y + 0.5 - lcy) / (lr * squash);   // 위에서 비스듬히 보므로 세로로 눌린다
-    const d = Math.sqrt(dx * dx + dy * dy);
-    /* 단계 경계에 **아주 작은 흔들림**을 준다. 완전한 동심원은 과녁처럼 보인다 —
-       경계가 조금 우툴두툴해야 횃불빛으로 읽힌다. 값은 좌표로 정해지므로 안 깜빡인다. */
-    const jitter = ((x * 7 + y * 13) % 5) * 0.012;
-    const i = Math.min(LIT.length - 1, Math.floor((d + jitter) * (LIT.length - 0.2)));
-    g.fillStyle = LIT[i]; g.fillRect(x, y, 1, 1);
-  }
-  return lightCv;
-}
-
-/* ★ 마을에 **던전 돌바닥**을 그대로 깔았던 것이 잘못이었다(병수님: "그냥 바닥을
-   제대로 만들어"). 실내 돌바닥 위에 천막이 서 있으면 마을이 아니라 지하 창고다.
-   바닥을 **두 벌** 들고 장면마다 바꾼다 — 마을은 흙길, 던전은 돌바닥. */
 const tileSets = {};       // 이름 → 네 가지 변형
 let tiles = [], floorReady = false;
+/* ★★ **마을에 던전 돌바닥이 깔려 있었다**(병수님: "마을과 던전 타일도 구분이 필요").
+   타일은 확실히 다른데(던전 평균밝기 41 회색돌 · 마을 96 갈색흙) 화면에는 던전 것이
+   나왔다 — `loadFloor` 는 **비동기**라 처음 `useFloor("town")` 을 부를 때 아직
+   아무것도 안 왔고, 나중에 먼저 도착한 crypt 가 기본으로 눌러앉았기 때문이다.
+   그래서 **원하는 이름을 적어 두고**, 그 이름이 도착할 때 그때 갈아 끼운다. */
+let wanted = "crypt";
 
 export function useFloor(name) {
+  wanted = name;
   if (tileSets[name]) { tiles = tileSets[name]; floorReady = true; }
 }
 
@@ -91,7 +59,7 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
       return c;
     });
     tileSets[name] = made;
-    if (!tiles.length) { tiles = made; floorReady = true; }
+    if (name === wanted || !tiles.length) { tiles = made; floorReady = true; }
     LOAD.done++;
   };
   /* ★ 실패 경로에서 done 을 안 올렸더니 **1115/1116 에서 영영 멈췄다.**
@@ -124,24 +92,11 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
                            scatter.clear, scatter.density, scatter.set);
 
-  /* ③ 횃불빛 — 저해상도로 구워 곱하기로 덮는다. 곱하기라 바닥 무늬가 어둠 속에서
-     사라졌다가 빛 안에서 살아난다. 이게 「빛이 닿았다」로 읽히는 이유다. */
-  const lc = bakeLight(w, h, cx, cy, radius, squash);
-  ctx.save();
-  ctx.globalCompositeOperation = floorReady ? "multiply" : "source-over";
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(lc, 0, 0, lc.width, lc.height, 0, 0, lc.width * LIGHT_PX, lc.height * LIGHT_PX);
-  ctx.restore();
-  if (floorReady) {
-    /* 횃불의 **따뜻한 기운**을 아주 옅게 더한다. 곱하기만 하면 회색으로 식는다.
-       0.10 이 넘으면 바닥이 주황 물감을 뒤집어쓴 것처럼 보인다. */
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = 0.08;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(lc, 0, 0, lc.width, lc.height, 0, 0, lc.width * LIGHT_PX, lc.height * LIGHT_PX);
-    ctx.restore();
-  }
+  /* ★★ 병수님: "지도 내 주위로 광원? 같은거 없애면 안됨?"
+     **횃불빛을 걷는다.** 어둠은 분위기를 만들지만 **볼 것을 가린다** — 소품을 뿌려도
+     빛 밖이면 없는 것과 같았고, 배율을 건드릴 때마다 빛 반경도 같이 흔들려 화면이
+     밝아졌다 어두워졌다 했다. 규칙이 하나 줄면 어긋날 곳도 하나 준다.
+     대신 **바닥 밝기 자체를 낮춰** 어두운 결은 지킨다(loadFloor 의 boost). */
 }
 
 
@@ -172,7 +127,7 @@ function loadOne(n, dir) {
     c.width = im.width; c.height = im.height;
     const g = c.getContext("2d");
     g.imageSmoothingEnabled = false;
-    g.filter = "sepia(0.42) saturate(1.15) brightness(0.95)";
+    g.filter = "sepia(0.42) saturate(1.05) brightness(0.72)";
     g.drawImage(im, 0, 0);
     decor[n] = c; LOAD.done++;
   };

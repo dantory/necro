@@ -202,22 +202,21 @@ function draw(dt) {
   /* ★ 배율을 1.05 로 낮췄더니 **빛이 화면을 다 덮어 어둠이 사라졌다** — 반경을
      화면 크기에 비례로 잡아 뒀기 때문이다(0.72). 배율을 건드리면 조명도 같이
      움직인다는 것을 잊었다. 어둠이 이 게임의 절반이므로 다시 조인다. */
-  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.52);
   if (MODE.at === "town") {
     /* 마을 — 바닥만 흙으로 바꾸고 나머지는 던전과 같은 길을 탄다.
        빛은 모닥불이라 조금 더 넓고, 싸움 둘레는 그리지 않는다. */
     /* 마을도 **끝없는 맵의 한 조각**이다 — 같은 격자에 뿌리되 밀도를 낮추고(사람이
        사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
-    drawGround(ctx, w, h, cx, cy, lightR * 1.1, SQUASH, sc,
-               { clear: 300, density: 46, town: true,
+    drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc,
+               { clear: 300, density: 26, town: true,
                  set: ["barrel", "crate", "cart", "well", "sacks", "barrel", "crate"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
     drawTownLabels(ctx);
     return;
   }
-  drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc, { clear: 190, density: 58 });
+  drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 });
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
 
@@ -244,6 +243,13 @@ function draw(dt) {
          방향은 그 적 쪽(공격 방향 sdx,sdy 도 같은 방향으로 준다). */
       let nx = 0, ny = 1, nd = Infinity;
       for (const m of S.mobs) { const d = m.x * m.x + m.y * m.y; if (d < nd) { nd = d; nx = m.x; ny = m.y; } }
+      /* ★★ **여기를 정규화 안 하고 있었다.** 방향만 쓸 때는 크기가 상관없어서
+         적의 좌표를 그대로 넘겼는데, 나중에 **내지르기**(drawOne 의 lunge)를 넣으면서
+         그 값에 길이가 곱해졌다 — 적이 300 만큼 떨어져 있으면 본체가 300배로 튕겨
+         **화면 밖으로 날아갔다.** 소환수·적은 battle.js 에서 이미 정규화해 넘긴다.
+         **새 기능이 기존 호출자의 가정을 깬 것** — 방향 벡터는 언제나 길이 1 로 준다. */
+      const nl = Math.hypot(nx, ny) || 1;
+      nx /= nl; ny /= nl;
       drawOne("char/necro", px(0), py(0), 58 * us, COL.necro,
               { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0 });
       continue;
@@ -561,8 +567,10 @@ function loop(t) {
    「타격 시 깜빡임」이었다. 방향이 여덟이라 몸을 틀 때마다 되풀이됐다. */
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
-loadFloor("assets/floor/crypt_tile.png", 1.8, "crypt");
-loadFloor("assets/floor/town_tile.png", 1.7, "town");
+/* ★ 조명을 걷었으니 **바닥 밝기가 그대로 화면 밝기**다. 던전은 어둡게(1.55),
+   마을은 원본이 이미 밝아 오히려 낮춘다(0.72) — 어둠은 조명이 아니라 여기서 만든다. */
+loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
+loadFloor("assets/floor/town_tile.png", 0.55, "town");
 loadDecor();
 loadTown();
 watch($("xpWrap"), drawBar);

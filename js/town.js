@@ -46,7 +46,7 @@ export function loadTown(dir = "assets/town") {
       c.width = im.width; c.height = im.height;
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
-      g.filter = "sepia(0.42) saturate(1.15) brightness(0.95)";
+      g.filter = "sepia(0.42) saturate(1.05) brightness(0.80)";
       g.drawImage(im, 0, 0);
       art[n] = c;
       if (--left === 0) ready = true;
@@ -63,6 +63,7 @@ export function loadTown(dir = "assets/town") {
       c.width = im.width; c.height = im.height;
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
+      g.filter = "brightness(0.9)";
       g.drawImage(im, 0, 0);
       npc[n] = c; LOAD.done++;
     };
