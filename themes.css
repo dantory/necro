@@ -311,7 +311,7 @@ body.t-d2r .slot.on{border-color:var(--g);box-shadow:inset 0 0 6px #000,0 0 7px 
 body.t-d2r .slot.off{opacity:.4}
 
 /* 구슬 — 양 끝에 크게. 유리알 셋(위 반사·아래 되비침·안쪽 어두운 띠). */
-body.t-d2r .orb{width:80px;height:80px;bottom:10px;left:8px;right:auto;z-index:2}
+body.t-d2r .orb{width:66px;height:66px;bottom:14px;left:8px;right:auto;z-index:2}
 body.t-d2r .orb.mp{left:auto;right:8px}
 body.t-d2r .orb .glass{border-radius:50%;background:#0a0806;
   box-shadow:inset 0 0 0 2px #2a241c, inset 0 -10px 20px #000,
@@ -342,3 +342,39 @@ body.t-d2r #gauge .xpFill{background:
 body.t-d2r #gauge .xp span{font-size:8px;color:#efe0bd;text-shadow:0 1px 2px #000}
 body.t-d2r #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
   background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
+
+/* ── D2R : PixelLab 으로 구운 조각을 끼운다 ──
+   `create_ui_asset`(20생성)은 세 번 다 **에셋 시트**를 줬다. `create_map_object`(1생성)로
+   바꾸니 다섯 장이 한 번에 나왔다 — **단일 오브젝트는 이쪽이 맞다.** */
+/* ★ 석상을 구슬 **뒤**(z-index 1)에 뒀더니 구슬이 통째로 덮어 안 보였다. 앞으로 올리고
+   바깥으로 민다 — D2R 도 석상이 구슬 곁에 서서 살짝 겹친다. */
+body.t-d2r .statue{position:absolute;bottom:0;width:54px;height:74px;z-index:3;
+  background:center/contain no-repeat;image-rendering:pixelated;pointer-events:none;
+  filter:drop-shadow(0 2px 4px #000)}
+body.t-d2r .statue.l{left:0;background-image:url("assets/ui/d2r/statue_l.png")}
+body.t-d2r .statue.r{right:0;background-image:url("assets/ui/d2r/statue_r.png")}
+/* 가운데 띠 — 이어 붙일 수 있게 구웠으므로 **repeat-x** 로 깐다(9-slice 불필요) */
+body.t-d2r #beltArc{left:118px;right:118px;
+  background:url("assets/ui/d2r/bar.png") left center/auto 100% repeat-x, #0000;
+  image-rendering:pixelated;border:none;
+  box-shadow:0 2px 10px #000a}
+body.t-d2r .slot{width:38px;height:38px;background:url("assets/ui/d2r/slot.png") center/100% 100% no-repeat;
+  image-rendering:pixelated;border:none;box-shadow:none;font-size:0}
+body.t-d2r .slot > i{inset:4px}
+body.t-d2r .slot.on{box-shadow:0 0 8px #c8aa6e66}
+body.t-d2r #belt{gap:3px}
+/* 석상이 폭을 먹지 않게 구슬을 안쪽으로 들인다 */
+body.t-d2r .orb{left:44px}
+body.t-d2r .orb.mp{left:auto;right:44px}
+body.t-d2r #gauge{left:118px;right:118px}
+
+/* ── 구슬 테 ── 재굽기 끝에 구멍이 **59.4%** 인 것이 나왔다(1차는 32.8% 라 못 썼다).
+   그러니 구슬 66px 이 구멍에 맞으려면 테는 66/0.594 = 111px → inset 은 -(111-66)/2 = -23px.
+   눈대중이 아니라 **그림을 픽셀로 훑어 잰 값**이다. */
+body.t-d2r .orb .ring{display:block;position:absolute;inset:-23px;pointer-events:none;
+  image-rendering:pixelated;z-index:2;
+  background:url("assets/ui/d2r/orb_rim.png") center/100% 100% no-repeat}
+/* 꺼진 칸이 0.4 였더니 띠 배경에 묻혀 **다섯 칸 중 셋이 안 보였다.** 아이콘은 죽이되
+   칸 자체는 보이게 한다 — 몇 칸인지가 안 읽히면 벨트가 아니다. */
+body.t-d2r .slot.off{opacity:1}
+body.t-d2r .slot.off > i{filter:grayscale(.8) brightness(.45)}
