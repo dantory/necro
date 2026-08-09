@@ -201,14 +201,34 @@ const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
      · wall_c  — 조각조각 부서져 담으로 안 보인다(wall_a 가 이미 그 일을 한다)
      · boulder — 주문과 달리 **초록 풀이 붙은 돌 폐허**다. 마른 야영지 색과 안 맞고
                  바위는 rock 이 이미 제대로 한다
-   로그만 보고 넣었으면 셋 다 들어갔다 — **합성 시트로 눈으로 본다.** */
+   로그만 보고 넣었으면 셋 다 들어갔다 — **합성 시트로 눈으로 본다.**
+
+   ★★ 3차(01:20) — 버린 셋을 프롬프트를 고쳐 다시 구웠다. **하나만 살았다.**
+     · boulder ○ 풀 붙은 폐허 → 마른 흙 위 둥근 바위. 고친 게 먹혔다
+     · hay     ✗ 통이 초가집이 됐을 뿐, 여전히 **건물**이다(두 번 연속 같은 실패)
+     · wall_c  ✗ 두께가 사라져 벽돌 띠 한 줄. 1차보다 더 나쁘다 — wall_c 는 접는다
+   같이 구운 넷 중 셋만 받았다:
+     · cookpot ○ 삼각대에 걸린 솥   · wrack ○ 창·방패 걸이   · dryrack ○ 빨래 건조대
+     · bedroll ✗ 잠자리가 아니라 **돌바닥 방 한 칸**(문·궤짝까지 딸려 왔다)
+   banner 는 붉은 깃발이라 야영지 표식으로 읽힌다 — 받되 드물게 뿌린다.
+
+   **두 번 틀린 것은 값이 아니라 주문이 문제다**(hay/wall_c). 왜 틀렸는지는
+   tools/pixellab/camp_night3.py 머리에 적어 뒀다. */
 const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed",
                     "tent_a", "tent_b", "wagon", "trough", "palisade", "stump",
-                    "tree", "firepit"];
+                    "tree", "firepit",
+                    "boulder", "cookpot", "wrack", "dryrack", "banner"];
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
 let decorLeft = DECOR.length, decorReady = false;
+
+/* ★ **표식은 눈에 띄어야 표식이다.** 야영지의 색보정(sepia .42 / brightness .72)은
+   소품을 흙빛으로 묶어 주는데, 깃발은 그 통일이 곧 실패다 — 붉은 천이 땅빛으로
+   내려앉아 「장대 하나」로 읽혔다. 불은 원래 밝아서 보정을 뚫고 살아남지만
+   중간 밝기의 빨강은 그대로 죽는다.
+   그래서 **깃발만 보정을 풀어 준다** — 이 그림의 일은 섞이는 게 아니라 튀는 것이다. */
+const DECOR_FILTER = { banner: "sepia(0.14) saturate(1.35) brightness(0.95)" };
 
 function loadOne(n, dir) {
   const im = new Image();
@@ -218,7 +238,7 @@ function loadOne(n, dir) {
     c.width = im.width; c.height = im.height;
     const g = c.getContext("2d");
     g.imageSmoothingEnabled = false;
-    g.filter = "sepia(0.42) saturate(1.05) brightness(0.72)";
+    g.filter = DECOR_FILTER[n] || "sepia(0.42) saturate(1.05) brightness(0.72)";
     g.drawImage(im, 0, 0);
     decor[n] = c; LOAD.done++;
   };
@@ -416,8 +436,10 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
          같은 자로 쟀다(따뜻한 화소 무게중심, 104x80 원본 기준 발에서 -24px).
          반경은 횃불보다 넓게 — 야영지의 불은 사람이 모이는 자리다. */
       if (name === "firepit") addGlow(px2, py2 - 24 * ART.s, 175 * sc, 1.1);
-      /* 장대 횃불은 불그릇이 **꼭대기**에 있다 — 빛의 자리도 그만큼 위로. */
-      if (name === "torch") addGlow(px2, py2 - 130 * ART.s * squash, 170 * sc, 1.0);
+      /* ★ 여기 **횃불 빛이 하나 더** 있었다(-130, r170). 무게중심으로 -101 을 재
+         넣으면서 눈대중으로 잡아 뒀던 옛 줄을 안 지운 것이다 — 그래서 횃불만
+         빛을 둘 받아 혼자 허옇게 떴다. 다시 재도 -107 이라 -101 이 맞다.
+         **값을 고칠 때는 그 값을 쓰던 옛 줄을 같이 지운다.** */
     }
   }
 }

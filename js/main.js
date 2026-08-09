@@ -265,14 +265,24 @@ function draw(dt) {
                       · 큰 것(천막 넷·짐수레·죽은나무·헛간)        7 ≈ 19%
                     천막 넷은 일부러다 — **자는 자리가 보여야 야영지로 읽힌다.**
                     죽은나무(160x200)·헛간(224x168)은 하나씩만: 흔하면 밭이 된다. */
+                 /* ★★★ 3차 — **사람이 산 흔적**을 넣는다. 천막이 잠자리라면
+                    솥·건조대는 **살림**이고, 무기걸이는 여기가 누구의 야영지인지를
+                    말한다. 셋 다 사람 키만 하니 잔 것과 큰 것 사이로 둔다:
+                      · cookpot·dryrack 둘씩 — 살림은 눈에 자주 밟혀야 산 곳이다
+                      · wrack 하나        — 흔하면 무기고지 야영지가 아니다
+                      · boulder 둘        — 마른 흙에 박힌 자연물, 바닥을 채운다
+                      · banner 하나       — **표식은 드물어야 표식이다**(80x176 로
+                                            세로가 길어 흔하면 깃발밭이 된다)
+                    45 칸 중 큰 것 여덟(천막 넷·짐수레·죽은나무·헛간·깃발) ≈ 18%. */
                  set: ["barrel", "barrel", "barrel", "crate", "crate", "crate",
                        "sacks", "sacks", "logs", "logs", "shrub", "shrub",
-                       "rock", "rock", "stump", "stump",
+                       "rock", "rock", "stump", "stump", "boulder", "boulder",
                        "wall_a", "wall_a", "wall_b", "cart", "cart", "trough",
                        "palisade", "palisade", "well",
+                       "cookpot", "cookpot", "dryrack", "dryrack", "wrack",
                        "torch", "torch", "torch", "firepit", "firepit",
                        "tent_a", "tent_a", "tent_b", "tent_b",
-                       "wagon", "tree", "shed"] });
+                       "wagon", "tree", "shed", "banner"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
