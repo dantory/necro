@@ -1,0 +1,19 @@
+실패 wall — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+실패 pillar — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+실패 coffin — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+실패 bones — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+실패 brazier — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+실패 rubble — 1 validation error for call[create_map_object]
+detail
+  Input should be 'low detail', 'medium detail' or 'high detail' [type=literal_error, input_value='highly 
+══ 0/6장  

@@ -48,26 +48,51 @@ function bakeLight(w, h, cx, cy, radius, squash) {
   return lightCv;
 }
 
-let floorImg = null, floorReady = false;
-/** 바닥 타일. PixelLab 이 구운 것을 쓰고, 아직 없으면 빛만 깔린다(깨지지 않는다). */
-export function loadFloor(src) {
+let tiles = [];            // 미리 구운 네 가지 변형
+let floorReady = false;
+
+/** 바닥 타일을 받아 **네 가지 변형으로 미리 구워 둔다.**
+ *  ★ 한 장을 그대로 반복하면 **격자가 보인다** — 같은 얼룩이 32px 마다 되풀이되니
+ *  눈이 그 주기를 금방 찾아낸다. 좌우·상하로 뒤집은 네 장을 자리마다 골라 쓰면
+ *  주기가 128px 로 늘어나고 무늬가 훨씬 덜 읽힌다. 뒤집기는 **공짜**다(새로 굽지 않는다).
+ *
+ *  ★ 굽는 김에 **밝기도 올린다.** PixelLab 이 준 crypt 타일은 평균 밝기가 41(255 중)
+ *  이라 조명을 곱하면 거의 검정이 된다. 어둠은 조명이 만들어야 하므로 재료는 밝게
+ *  둔다 — 그래야 빛 안에서 살아나고 빛 밖에서 잠긴다. */
+export function loadFloor(src, boost = 1.8) {
   const im = new Image();
-  im.onload = () => { floorImg = im; floorReady = true; };
+  im.onload = () => {
+    const t = im.width;
+    tiles = [[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sy]) => {
+      const c = document.createElement("canvas");
+      c.width = t; c.height = t;
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.filter = `brightness(${boost}) saturate(0.9)`;
+      g.translate(sx < 0 ? t : 0, sy < 0 ? t : 0);
+      g.scale(sx, sy);
+      g.drawImage(im, 0, 0);
+      return c;
+    });
+    floorReady = true;
+  };
   im.src = src;
 }
 
-/** 전장 바닥 한 판. **타일 → 빛 → 고리** 순서로 얹는다. */
+/** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
 export function drawGround(ctx, w, h, cx, cy, radius, squash) {
   ctx.fillStyle = "#070504"; ctx.fillRect(0, 0, w, h);
 
-  /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다). */
+  /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
+     자리마다 네 변형 중 하나를 고르는데, **좌표로 정한다**(난수가 아니다) —
+     난수면 매 프레임 무늬가 바뀌어 바닥이 끓는다. */
   if (floorReady) {
-    const t = floorImg.width;
+    const t = tiles[0].width;
     ctx.imageSmoothingEnabled = false;
-    const ox = Math.floor(cx % t) - t, oy = Math.floor(cy % t) - t;
-    for (let y = oy; y < h + t; y += t)
-      for (let x = ox; x < w + t; x += t)
-        ctx.drawImage(floorImg, Math.floor(x), Math.floor(y));
+    const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
+    for (let y = oy, gy = 0; y < h + t; y += t, gy++)
+      for (let x = ox, gx = 0; x < w + t; x += t, gx++)
+        ctx.drawImage(tiles[(gx * 3 + gy * 7 + ((gx * gy) & 1)) & 3], x, y);
   }
 
   /* ② 횃불빛 — 저해상도로 구워 곱하기로 덮는다. 곱하기라 바닥 무늬가 어둠 속에서
