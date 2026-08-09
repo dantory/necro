@@ -77,28 +77,26 @@ export function drawPlate(cv, panel) {
   const beltEl = panel.querySelector("#belt");
   const belt = box(beltEl || midEl);
   const barT = belt.y - 3, barB = belt.y + belt.h + 3;
-  const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
+  /* 띠는 구슬 **한가운데까지** 들어간다 — 끝이 구슬에 완전히 가려져 이음매가 안 보인다. */
+  const barL = hp.cx, barR = mp.cx;
   const CH = 4;                                      // 띠 끝을 깎는다
 
-  /* 받침 — 구슬을 감싸는 고리.
-     ★★★★★ 병수님: "구슬 부분 배경 하단에 공간이 남는거 말한거야, 아까도, 이거 줄여
-     (구슬에 딱 맞게 배경이 그려졌으면)". 아래쪽을 두껍게(+3.4) 해 놨던 것이 원인이다 —
-     「받치고 있다」로 보이라고 준 무게가, 구슬 밑에 **빈 배경**으로 남았다.
-     구슬에 **딱 붙는 얇은 테** 한 겹으로 바꾼다. 두께가 고르면 남는 자리도 없다. */
-  const RING = 1.6;                                  // 고리 두께(고르게)
-  const cradle = (o, x, y) => {
-    const dx = x - o.cx, dy = y - o.cy;
-    const rr = Math.sqrt(dx * dx + dy * dy);
-    return rr > o.r + 0.5 && rr < o.r + 0.5 + RING;
-  };
+  /* ★★★★★★ 받침 **고리를 없앤다.** 병수님: "하단에 중간에 짤린부분 있다고,,
+     왜 자꾸 반복되냐 같은실수가".
 
+     원인은 값이 아니라 **구조**였다. 띠(네모)와 고리(원)를 각각 그려서 붙이면
+     둘이 만나는 자리가 늘 어긋난다 — 두께를 바꾸면 이음매가 어긋나고, 잘라내면
+     썰린 자국이 남고, 여백을 늘리면 빈 자리가 생긴다. 오늘 이 자리에서만 네 번
+     같은 실수를 되풀이했는데, 전부 **이음매를 손으로 맞추려 한 것**이었다.
+
+     이음매를 **없앤다.** 띠 하나만 그리고 구슬은 그 위에 얹는다 — 띠의 양 끝은
+     구슬 뒤로 들어가므로 애초에 만나는 자리가 화면에 없다.
+     (디아블로도 그렇다: 띠는 조각상 뒤로 들어가고 구슬이 그 끝을 덮는다.) */
   const inside = (x, y) => {
-    if (x >= barL && x <= barR && y >= barT && y <= barB) {
-      const l = x - barL, r = barR - x, t = y - barT, b = barB - y;
-      if (l + t < CH || r + t < CH || l + b < CH || r + b < CH) return false;   // 모서리 깎기
-      return true;
-    }
-    return cradle(hp, x, y) || cradle(mp, x, y);
+    if (x < barL || x > barR || y < barT || y > barB) return false;
+    const l = x - barL, r = barR - x, t = y - barT, b = barB - y;
+    if (l + t < CH || r + t < CH || l + b < CH || r + b < CH) return false;    // 모서리 깎기
+    return true;
   };
 
   for (let y = 0; y < ph; y++) {

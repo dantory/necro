@@ -125,6 +125,10 @@
    **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
 .mid{flex:1 1 auto;max-width:370px;min-width:0;
   display:flex;flex-direction:column;gap:6px;padding:2px 8px 4px}
+/* ★ 띠 밑변이 구슬 밑변보다 4px 아래여서, 구슬 밑으로 **띠 조각이 삐져나왔다** —
+   그게 병수님이 본 「하단 중간에 잘린 부분」이다. 칸 줄을 그만큼 올려 띠가 구슬
+   안에서 끝나게 한다(띠 끝은 구슬이 덮어 안 보여야 한다). */
+.mid{padding-bottom:10px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
 .mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
