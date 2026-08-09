@@ -199,14 +199,17 @@ function draw(dt) {
   /* ★ 빛 반경을 싸움터(RING_SPAWN)에만 맞췄더니 세로로 긴 화면에서는 위아래가
      통째로 검게 남고 **벽도 소품도 안 보였다.** 방 전체가 어렴풋이라도 보이도록
      화면 크기에도 맞춘다 — 둘 중 큰 쪽. */
-  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.72);
+  /* ★ 배율을 1.05 로 낮췄더니 **빛이 화면을 다 덮어 어둠이 사라졌다** — 반경을
+     화면 크기에 비례로 잡아 뒀기 때문이다(0.72). 배율을 건드리면 조명도 같이
+     움직인다는 것을 잊었다. 어둠이 이 게임의 절반이므로 다시 조인다. */
+  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.52);
   if (MODE.at === "town") {
     /* 마을 — 바닥만 흙으로 바꾸고 나머지는 던전과 같은 길을 탄다.
        빛은 모닥불이라 조금 더 넓고, 싸움 둘레는 그리지 않는다. */
     /* 마을도 **끝없는 맵의 한 조각**이다 — 같은 격자에 뿌리되 밀도를 낮추고(사람이
        사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
-    drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, sc,
+    drawGround(ctx, w, h, cx, cy, lightR * 1.1, SQUASH, sc,
                { clear: 300, density: 46, town: true,
                  set: ["barrel", "crate", "cart", "well", "sacks", "barrel", "crate"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
