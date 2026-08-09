@@ -126,14 +126,16 @@
    가린다. 디아블로 4 의 그 띠에는 **바탕이 없다**: 칸은 제 테를 하나씩 갖고,
    글자는 그림자로 읽히고, 그 사이로 바닥이 그대로 보인다.
    **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
-/* ★ 가운데를 맞춰도 22px 이 남았다 — **칸 줄이 이 열의 맨 아래**에 있기 때문이다.
-   열 전체의 가운데가 아니라 **칸 줄**이 구슬 허리에 와야 한 묶음으로 보인다.
-   그래서 열의 키를 **칸 줄로만** 잡고, 시체/군세와 경험치는 그 위에 띄운다. */
-.mid{flex:1 1 auto;max-width:370px;min-width:0;position:relative;padding:0 8px}
+/* ★★ 한때 **칸 줄만** 구슬 허리에 맞추려고 글자·경험치를 띄웠는데, 병수님이 가리킨
+   것은 그게 아니었다 — "UI 배경보다 구슬이 조금 위에 있는거 같았다".
+   즉 문제는 **판과 구슬**이지 칸 줄이 아니었다. 띄워 놓으면 열의 키가 칸 줄만 남아
+   판이 내용을 헐겁게 감싼다. 다시 흐름에 넣어 **열 전체가 구슬 중심**에 오게 하고,
+   판은 구슬 중심 대칭으로 잡는다(js/hudplate.js) — 그러면 딱 맞게 감싼다. */
+.mid{flex:1 1 auto;max-width:370px;min-width:0;
+  display:flex;flex-direction:column;gap:6px;padding:0 8px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{position:absolute;left:8px;right:8px;bottom:calc(100% + 26px);
-  display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
+.mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
   letter-spacing:0;
   /* 바탕이 없으니 글자는 **제 그림자로** 바닥에서 떨어져야 읽힌다 */
   text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000}
@@ -146,7 +148,7 @@
    마개를 둔다. 마개가 있어야 띠가 어디서 끝나는지 읽힌다. */
 /* ★ D4 의 경험치 띠는 **실낱같이 가늘다** — 굵으면 그것이 볼거리가 되어 스킬바와
    다툰다. 늘 보되 안 읽어도 되는 값이라 가늘어도 된다. */
-.mid .xp{position:absolute;left:8px;right:8px;bottom:calc(100% + 8px);height:7px;background:#0a0806;box-shadow:inset 0 0 6px #000}
+.mid .xp{position:relative;height:7px;background:#0a0806;box-shadow:inset 0 0 6px #000}
 .mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:

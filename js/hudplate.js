@@ -61,8 +61,14 @@ export function drawPlate(cv, panel) {
   const rows = [".res", ".xp", "#belt"].map((q) => panel.querySelector(q)).filter(Boolean).map(box);
   const midT = Math.min(...rows.map((r) => r.y)), midB = Math.max(...rows.map((r) => r.y + r.h));
 
-  /* 띠 — 스킬 칸과 경험치를 감싼다. 위아래로 조금 물려 **여백이 테가 되게** 한다. */
-  const barT = midT - 4, barB = midB + 3;
+  /* 띠 — 스킬 칸과 경험치를 감싼다. 위아래로 조금 물려 **여백이 테가 되게** 한다.
+     ★★ 병수님: "UI 배경보다 구슬이 조금 위에 있는거 같았다". 맞다 — 띠의 위아래를
+     **속 내용**(글자 줄·경험치·칸)으로만 잡으면, 위에 글자가 한 줄 더 있는 만큼
+     띠의 중심이 위로 올라가고 구슬은 그 아래로 밀려 **얹혀 있는 꼴**이 된다.
+     구슬이 판에 **박혀** 보이려면 띠가 구슬 중심을 기준으로 **위아래 같아야** 한다.
+     그래서 필요한 반높이를 구한 뒤 위아래로 똑같이 편다. */
+  const half = Math.max(hp.cy - (midT - 4), (midB + 3) - hp.cy);
+  const barT = hp.cy - half, barB = hp.cy + half;
   const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
   const CH = 4;                                      // 띠 끝을 깎는다
 
