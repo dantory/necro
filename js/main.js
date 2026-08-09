@@ -541,7 +541,9 @@ function loop(t) {
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
   /* 다 받기 전에는 **시간도 멈춘다.** 덮어 놓고 뒤에서 싸움이 진행되면, 걷어냈을 때
      이미 벌어진 판을 보게 된다 — 「시작」이 아니라 「중간부터」가 된다. */
-  if (!loading(dt)) { draw(dt); requestAnimationFrame(loop); return; }
+  /* ★ 로딩 중에는 **연출 시간도 멈춘다.** 예전엔 draw(dt) 를 그대로 돌려 모닥불이
+     로딩 화면 뒤에서 계속 흔들렸고, 걷히는 순간 이미 한창 떨고 있었다. */
+  if (!loading(dt)) { draw(0); requestAnimationFrame(loop); return; }
   if (MODE.at === "dungeon") {
     for (let i = 0; i < S.speed; i++) step(dt);
     if ((autoT += dt) > 0.35) { autoT = 0; auto(); }

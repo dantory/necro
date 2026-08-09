@@ -85,9 +85,16 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   const wy = (y) => Math.round(cy + y * R.y * sc * squash);
   ctx.imageSmoothingEnabled = false;
 
-  // 모닥불 — **숨을 쉰다.** 불은 가만히 있으면 그림이 되고, 흔들리면 불이 된다
+  /* 모닥불 — **숨을 쉰다.** 불은 가만히 있으면 그림이 되고, 흔들리면 불이 된다.
+     ★ 그런데 `sin(t*6)` 은 **초당 한 바퀴에 가까워** 프레임마다 -1/0/+1 을 오간다 —
+     그게 「부들부들」로 보인다. 게다가 로딩 중에도 시간이 흘러 걷히는 순간 이미
+     빠르게 떨고 있다. 주기를 늦추고(1.9), **아래로만** 1px 눌리게 한다: 위아래로
+     오가면 떨림이고, 한 쪽으로만 눌렸다 펴지면 숨이다. */
   const fire = art.fire;
-  if (fire) place(ctx, fire, wx(FIRE[0]), wy(FIRE[1]) + Math.round(Math.sin(t * 6)), false);
+  if (fire) {
+    const bob = Math.sin(t * 1.9) > 0.4 ? 1 : 0;
+    place(ctx, fire, wx(FIRE[0]), wy(FIRE[1]) + bob, false);
+  }
 
   /* 장소 셋 — 그리면서 **누를 자리를 함께 적어 둔다.** 그림과 판정이 한 곳에서 나와야
      둘이 어긋나지 않는다(따로 적어 두면 배치를 고칠 때 한쪽만 고치게 된다). */
