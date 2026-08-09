@@ -23,9 +23,14 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 MCP  = os.path.join(HERE, "mcp_call.py")
 
 # 디아블로 2 의 그 판 — 돌과 무쇠, 금장, 횃불빛. 채도는 낮게.
-TONE = ("dark gothic Diablo 2 game interface, carved dark stone and rusted iron with "
-        "ornate gold filigree trim, torchlit, desaturated, grim medieval")
-PAL = "dark brown stone, black iron, antique gold"
+# ★ 1차 결과가 **보라·자주빛 벽돌**로 나왔다. 디아블로 2 의 판은 그 색이 아니다 —
+# 축축한 회갈색 돌에 어두운 금장이다. 색을 안 적으면 모델이 제 취향으로 칠하므로
+# **빼야 할 색까지 적는다**(no purple, no violet). 장식도 「절제」를 명시한다:
+# 1차는 금장 스크롤이 사방에 붙어 시끄러웠다(병수님: "UI스타일이 별로").
+TONE = ("dark gothic Diablo 2 game interface, carved cold grey-brown stone and black iron, "
+        "restrained thin dark gold trim only, torchlit, heavily desaturated, grim medieval, "
+        "no purple, no violet, no magenta, no bright colors, minimal ornament")
+PAL = "cold grey stone, warm brown, black iron, dark antique gold"
 
 # id: (설명, 가로, 세로, 배경제거)
 UI = {
@@ -45,15 +50,22 @@ UI = {
   # 스킬 칸 — 빈 것과 켜진 것
   # 1차 시도는 조각 수십 개가 늘어선 **UI 킷 시트**가 나왔다("slot" 이 곧 시트라는 학습).
   # 한 칸만 나오게 하려면 "칸 하나가 화면을 꽉 채운다"고 못박아야 한다.
-  "slot":       (f"{TONE}, ONE single empty square socket filling the entire image edge to "
-                 "edge, dark recessed stone interior with a thin gold beveled border, "
-                 "front view, perfectly centered, only one object, not a sheet, "
-                 "no grid of items, no icon, no text", 256, 256, True),
-  "slot_on":    (f"{TONE}, a single square skill slot socket glowing with warm gold light, "
-                 "bright gold border, front view, centered, no icon", 256, 256, True),
+  # ★ 1차·2차 모두 **액자**가 나왔다 — 두꺼운 금장 테에 속이 텅 빈 네모. D2 의 칸은
+  # 그냥 벽에 파인 어두운 홈이다. "frame" 이라는 말을 빼고 "socket / recess" 로 못박는다.
+  "slot":       (f"{TONE}, ONE plain square recess carved into stone, filling the whole image "
+                 "edge to edge, flat very dark interior, only a 1px bevel at the rim, "
+                 "no decorative frame, no filigree, no corner ornament, no icon, no text, "
+                 "not a sheet, only one object", 256, 256, True),
+  "slot_on":    (f"{TONE}, ONE plain square recess carved into stone with a faint warm amber "
+                 "glow inside, filling the whole image edge to edge, thin bright rim, "
+                 "no decorative frame, no filigree, no icon, no text, only one object",
+                 256, 256, True),
   # 글줄이 앉는 상자
-  "logbox":     (f"{TONE}, a sunken rectangular parchment-dark message box with a thin "
-                 "gold border and worn corners, empty interior, no text", 688, 384, True),
+  # ★ 1차는 금장 스크롤이 네 모서리에 크게 붙어 시끄러웠다. 글을 읽는 상자이므로
+  # 테는 얇을수록 좋다 — 장식을 명시적으로 뺀다.
+  "logbox":     (f"{TONE}, a plain sunken rectangular panel of dark stone with a thin simple "
+                 "border, flat empty interior, no scrollwork, no corner ornament, "
+                 "no filigree, no text", 688, 384, True),
   # 창(인벤토리·능력치)의 틀
   # 600x450 은 검증에서 튕겼다 — 그 가로세로비의 상한은 600x448 이다(1차 실패 원인).
   "window":     (f"{TONE}, an ornate rectangular panel frame with gold corner scrollwork "

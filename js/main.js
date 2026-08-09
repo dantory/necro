@@ -1,5 +1,5 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNeed } from "./core.js";
-import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
+import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -70,9 +70,9 @@ function drawOne(base, x, gy, h, fallback, e) {
   if (e) {
     if (e.swing > 0) {
       state = "attack";
-      /* 공격 프레임은 **swing 진행도**로. swing 은 0.26 에서 0 으로 준다 → 진행도(1-swing/0.26,
+      /* 공격 프레임은 **swing 진행도**로. swing 은 SWING_T 에서 0 으로 준다 → 진행도(1-swing/SWING_T,
          0→1)를 6프레임에 선형 배분하고 끝에서 넘치지 않게 clamp. */
-      frameIdx = Math.max(0, Math.min(5, Math.floor((1 - e.swing / 0.26) * 6)));
+      frameIdx = Math.max(0, Math.min(5, Math.floor((1 - e.swing / SWING_T) * 6)));
       dir = e.sdx !== undefined ? dirName(e.sdx, e.sdy) : dirName(e.dx ?? 0, e.dy ?? 1);
     } else if (e.moving > 0) {
       state = "walk";
@@ -217,7 +217,10 @@ function draw() {
    **왜 못 쓰는지**(마나냐 시체냐)는 아래 글줄이 말한다. */
 function belt() {
   $("belt").innerHTML = SKILLS.map((s, i) =>
-    `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}">${s.ico}<span class="k">${i + 1}</span>
+    /* ★ 아이콘은 **그림**이다. 예전엔 유니코드 기호(☠ ✦ ◆ ✹ ✜)를 넣었는데, 주위가
+       전부 픽셀아트라 매끈한 시스템 폰트 글리프 하나가 통째로 튀었다(병수님: "UI스타일이
+       별로"). 아직 안 구워진 것은 background 가 안 뜰 뿐이라 칸이 깨지지 않는다. */
+    `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
       <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("");
   $("belt").onclick = (e) => {
     const el = e.target.closest("[data-sk]");

@@ -17,6 +17,12 @@ import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, goldFor, hpMaxOf, isGate,
 export const RING_SPAWN = 300;    // 적이 나타나는 둘레
 export const RING_HOLD  = 105;    // 소환수가 진을 치는 둘레 — 본인 앞마당
 export const CORE_R     = 26;     // 여기까지 들어오면 본인이 맞는다
+/** 한 번 휘두르는 데 걸리는 시간. **0.26초는 너무 빨랐다**(병수님: "공격 모션이 너무
+ *  빠른듯") — 프레임이 여섯이라 초당 23장, 눈이 못 따라가고 그냥 번쩍하고 지나간다.
+ *  0.45 면 초당 13장으로, 픽셀아트 공격 애니의 흔한 박자다. 제일 짧은 쿨다운(해골 0.9초)
+ *  의 절반이라 다음 휘두름과 겹치지도 않는다.
+ *  ★ 그리는 쪽에서도 이 값을 쓴다 — 숫자를 양쪽에 적어 두면 한쪽만 고쳐 어긋난다. */
+export const SWING_T    = 0.45;
 
 let seq = 0;
 export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
@@ -110,9 +116,9 @@ export function cast(id) {
   }
   if (id === "amp") { S.amp = 8; say(`<b style="color:#6a6aff">약화의 저주</b> 8초`); }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
-     자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 0.26초짜리 창을 켜서,
+     자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
      그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */
-  S.pswing = 0.26;
+  S.pswing = SWING_T;
   return true;
 }
 
@@ -172,7 +178,7 @@ export function step(dt) {
     /* **때리는 순간을 크게 만든다.** 방금 넣은 0.22초짜리 살짝 내지르기는 화면에서
        안 읽혔다(병수님: "공격모션도 없고"). 때리는 것이 보이려면 셋이 같이 가야 한다:
        **내지르는 놈** · **밀리는 놈** · **닿는 자리의 불꽃**. 하나만 있으면 안 읽힌다. */
-    u.atk = K.cd; u.swing = 0.26;
+    u.atk = K.cd; u.swing = SWING_T;
     u.sdx = (tgt.x - u.x); u.sdy = (tgt.y - u.y);       // 내지르는 방향
     const sl = Math.hypot(u.sdx, u.sdy) || 1; u.sdx /= sl; u.sdy /= sl;
     const d = K.dmg * dmgMulOf() * ampMul;
@@ -190,7 +196,7 @@ export function step(dt) {
     for (const u of S.minions) { const d = dist(m, u); if (d < td && d < 90) { td = d; tgt = u; } }
     if (tgt && td < m.r + tgt.r + 4) {
       if ((m.atk -= dt) > 0) continue;
-      m.atk = 1.0; m.swing = 0.26;
+      m.atk = 1.0; m.swing = SWING_T;
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
       const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
       tgt.hp -= m.dmg; tgt.flinch = 0.18; tgt.kx = m.sdx; tgt.ky = m.sdy;

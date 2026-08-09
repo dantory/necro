@@ -187,3 +187,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   background:linear-gradient(#c8aa6e,#6b5730);transition:width .3s}
 #gauge .xp span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:9px;color:#e8dcc2;letter-spacing:1px;text-shadow:0 1px 2px #000}
+
+/* ── 스킬 아이콘 ── PixelLab 으로 구운 그림. 칸 안쪽에 여백을 두고 앉힌다.
+   못 쓸 만큼 못 구워진 것은 background 가 비어 칸만 남을 뿐, 깨진 이미지가 뜨지 않는다. */
+.slot > i{position:absolute;inset:5px;background-position:center;background-repeat:no-repeat;
+  background-size:contain;image-rendering:pixelated}
+.slot.off > i{filter:grayscale(.7) brightness(.5)}     /* 못 쓰는 스킬은 죽은 색 */
