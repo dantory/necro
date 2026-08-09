@@ -631,7 +631,10 @@ preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
 /* ★ 조명을 걷었으니 **바닥 밝기가 그대로 화면 밝기**다. 던전은 어둡게(1.55),
    마을은 원본이 이미 밝아 오히려 낮춘다(0.72) — 어둠은 조명이 아니라 여기서 만든다. */
 loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
-loadFloor("assets/floor/town_tile.png", 0.55, "town");
+/* ★ 마을 바닥을 **야영지 마른 풀**로 바꾼다(병수님이 준 D2 로그 야영지 화면).
+   갈색 흙 한 가지는 「공터」로 읽혔다 — 마른 풀빛이라야 야영지가 된다.
+   원본 평균 110 이라 0.70 을 곱해 70 안팎 — 던전(40~60)보다 밝고 눈이 안 시리다. */
+loadFloor("assets/floor/camp_tile.png", 0.70, "town");
 loadDecor();
 loadDecals();                   // 바닥 얼룩 — 격자를 끊는다(js/ground.js)
 loadTown();
