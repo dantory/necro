@@ -1,3 +1,16 @@
+/* ══ 글꼴 ══ **이것이 「허접함」의 가장 큰 원인이었다.**
+   화면 전체를 시스템 세리프(Georgia·명조)로 쓰고 있었다. 캐릭터와 아이콘을 아무리
+   잘 구워도, 그 옆에 **매끈한 벡터 글꼴**이 있으면 단번에 싸구려로 읽힌다 —
+   픽셀은 계단으로 서 있는데 글씨만 매끄러우니 둘이 다른 세계의 것이 된다.
+
+   Galmuri 는 한글이 되는 픽셀 글꼴이다(11px 격자). 로컬에 두어 인터넷 없이도 뜬다.
+   ★ 픽셀 글꼴은 **제 격자 배수로만** 써야 안 뭉개진다 — 11px 글꼴이면 11 · 22 …
+   어중간한 13px 로 쓰면 안티에일리어싱이 끼어 도로 흐릿해진다. */
+@font-face{font-family:"Galmuri11";src:url("assets/font/Galmuri11.woff2") format("woff2");
+  font-display:swap}
+@font-face{font-family:"Galmuri9";src:url("assets/font/Galmuri9.woff2") format("woff2");
+  font-display:swap}
+
 /* ══════════════════════════════════════════════════════════════
    디아블로 2 의 화면 — **아쉬운 방치형 UI 말고 진짜 그것처럼**(병수님)
    ──────────────────────────────────────────────────────────────
@@ -26,8 +39,8 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
-  font:14px/1.5 "Iowan Old Style",Georgia,"Times New Roman","Nanum Myeongjo",serif;
-  letter-spacing:.4px;-webkit-user-select:none;user-select:none}
+  font:11px/1.6 "Galmuri11","Galmuri9",monospace;
+  letter-spacing:0;-webkit-font-smoothing:none;font-smooth:never;-webkit-user-select:none;user-select:none}
 
 /* ── 던전 — 위쪽 전부 ──
    **캔버스는 대체 요소(replaced element)라 `inset` 으로 안 늘어난다.** top·bottom 을 둘 다
@@ -41,7 +54,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   padding:0 16px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000d8,#00000000)}
 #top .floor{color:var(--gold);letter-spacing:4px;font-size:17px;text-shadow:0 0 8px #c8aa6e40}
-#top .left{font-size:12px;color:var(--dim);letter-spacing:1px}
+#top .left{font-size:11px;color:var(--dim);letter-spacing:1px}
 #top .sp{flex:1}
 #top .who{font-size:12.5px;color:var(--dim);letter-spacing:.5px}
 
@@ -66,13 +79,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   border-style:solid;border-width:22px 26px;border-color:transparent;
   border-image:url("assets/ui/window.png") 105 120 110 120 fill / 22px 26px / 0 stretch;
   box-shadow:0 10px 30px #000c;padding:14px}
-.win h2{margin:0 0 10px;color:var(--gold);letter-spacing:4px;font-size:16px;font-weight:400;
+.win h2{margin:0 0 10px;color:var(--gold);letter-spacing:4px;font-size:22px;font-weight:400;
   text-align:center;text-shadow:0 0 8px #c8aa6e40}
 .row{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #1d160f;
-  font-size:13px}
+  font-size:11px}
 .row .v{color:var(--gold)}
 .btn{background:linear-gradient(#241c13,#120d09);color:var(--ink);border:1px solid var(--gold-d);
-  padding:7px 14px;font:inherit;font-size:13px;letter-spacing:2px;cursor:pointer}
+  padding:7px 14px;font:inherit;font-size:11px;letter-spacing:2px;cursor:pointer}
 .btn:active{background:#2e241a}
 .btn:disabled{color:#4a4034;border-color:#241d16;cursor:default}
 
@@ -84,14 +97,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
    시체·군세는 흘러가는 로그가 아니라 늘 봐야 하는 값이라 여기가 맞다. */
 #gauge{position:absolute;top:56px;left:104px;right:104px;
   display:flex;flex-direction:column;gap:3px;pointer-events:none}
-#gauge .res{display:flex;justify-content:space-between;font-size:10px;color:var(--ink);
+#gauge .res{display:flex;justify-content:space-between;font-size:11px;color:var(--ink);
   letter-spacing:1px;text-shadow:0 1px 2px #000}
 #gauge .xp{position:relative;height:11px;background:#0a0806;
   border:1px solid var(--gold-d);box-shadow:inset 0 0 8px #000,0 0 0 1px #0a0705}
 #gauge .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;
   background:linear-gradient(#c8aa6e,#6b5730);transition:width .3s}
 #gauge .xp span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:9px;color:#e8dcc2;letter-spacing:1px;text-shadow:0 1px 2px #000}
+  font-size:11px;color:#e8dcc2;letter-spacing:1px;text-shadow:0 1px 2px #000}
 
 /* ── 스킬 아이콘 ── PixelLab 으로 구운 그림. 칸 안쪽에 여백을 두고 앉힌다.
    못 쓸 만큼 못 구워진 것은 background 가 비어 칸만 남을 뿐, 깨진 이미지가 뜨지 않는다. */

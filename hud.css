@@ -54,7 +54,7 @@
 .orb.hp .fill{background:linear-gradient(#c83232,#7a0e0e 60%,#2a0606)}
 .orb.mp .fill{background:linear-gradient(#3a5ecc,#12207a 60%,#070c22)}
 .orb .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:10px;color:#efe4cd;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
+  font-size:11px;color:#efe4cd;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
   white-space:nowrap;z-index:2}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
@@ -63,8 +63,9 @@
   display:flex;flex-direction:column;gap:4px;padding-bottom:2px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{display:flex;justify-content:space-between;font-size:10px;color:#9d907a;
-  letter-spacing:.5px;text-shadow:0 1px 2px #000}
+.mid .res{display:flex;justify-content:space-between;font-size:11px;color:#9d907a;
+  letter-spacing:0;text-shadow:0 1px 2px #000}
+.mid .res .xpTxt{color:#8a7c60}
 
 /* 경험치 — D2R 처럼 **칸이 나뉜** 띠. 그 칸 나눔이 이 게임 판의 표시다.
    위아래 금색 실선 한 줄씩 — 이 두 줄이 D2R 의 얼굴이다. */
@@ -77,8 +78,10 @@
        나누면 어느 폭에서도 같은 모양이다. */
     repeating-linear-gradient(90deg, #0000 0 10%, #00000099 calc(10% - 1px) 10%),
     linear-gradient(#ffd47a,#c8901e 60%,#8a5f10)}
-.mid .xp span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:8px;color:#efe0bd;letter-spacing:.5px;text-shadow:0 1px 2px #000}
+/* ★ 픽셀 글꼴로 갈면서 경험치 글씨가 **띠 밖으로 넘쳤다**(11px 격자가 최소라 더 못 줄인다).
+   D2R 의 경험치 띠에는 애초에 글씨가 없다 — 얼마나 찼는지는 **길이가 말한다.**
+   레벨은 이미 화면 위에 있으니 여기서는 지운다. 넘치는 글씨를 줄이는 대신 없앤다. */
+.mid .xp span{display:none}
 
 /* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
@@ -90,7 +93,7 @@
 .slot:active{filter:brightness(1.25)}
 .slot > i{position:absolute;inset:3px;background:center/contain no-repeat;
   image-rendering:pixelated}
-.slot .k{position:absolute;right:2px;bottom:0;font-size:9px;color:#6b5f4e}
+.slot .k{position:absolute;right:2px;bottom:0;font-size:11px;color:#6b5f4e}
 .slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
 .slot.on{border-color:var(--gold);box-shadow:inset 0 0 8px #000, 0 0 8px #c8aa6e55;
   animation:slotBreath 2.4s ease-in-out infinite}
