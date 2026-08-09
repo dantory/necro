@@ -335,7 +335,16 @@ function draw(dt) {
 
 /* ══ 벨트 ══ D2 의 그 띠. 쓸 수 있으면 금테가 살고, 못 쓰면 죽는다 —
    **왜 못 쓰는지**(마나냐 시체냐)는 아래 글줄이 말한다. */
+/* ★★ 디아블로 4 의 스킬바는 **여섯 칸이 늘 있고** 안 배운 자리는 빈 칸으로 남는다
+   (병수님: "이거 디아4인데 하단 UI 보이지? 이거 최대한 비슷하게 구현해봐").
+   칸 수가 스킬 수에 따라 늘었다 줄었다 하면 **띠의 폭이 흔들려** 판이 안 잡힌다 —
+   자리를 먼저 만들어 두고 채워 넣는 쪽이 맞다. 빈 칸은 「아직 없는 것」이라는
+   정보이기도 하다. */
+const BELT_SLOTS = 6;
+
 function belt() {
+  const empty = Array.from({ length: Math.max(0, BELT_SLOTS - SKILLS.length) }, (_, j) =>
+    `<div class="slot empty"><canvas class="fr"></canvas><span class="k">${SKILLS.length + j + 1}</span></div>`).join("");
   $("belt").innerHTML = SKILLS.map((s, i) =>
     /* ★ 아이콘은 **그림**이다. 예전엔 유니코드 기호(☠ ✦ ◆ ✹ ✜)를 넣었는데, 주위가
        전부 픽셀아트라 매끈한 시스템 폰트 글리프 하나가 통째로 튀었다(병수님: "UI스타일이
@@ -343,7 +352,7 @@ function belt() {
     /* ★ 칸의 **테두리도 캔버스가 그린다**(js/frame.js). `border:1px solid` 는 언제나
        정확히 1px 이라 픽셀아트 옆에서 매끈하게 튄다. */
     `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><canvas class="fr"></canvas><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
-      <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("");
+      <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("") + empty;
   /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다. */
   for (const el of document.querySelectorAll("#belt .slot"))
     watch(el, (cv, w, h) => drawSlot(cv, w, h, el.classList.contains("on")));

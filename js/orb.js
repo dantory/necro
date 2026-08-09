@@ -26,8 +26,10 @@
 
 const S = 64;                       // 캔버스 한 변(화면에서는 정수 2배 = 128px)
 const C = (S - 1) / 2;              // 중심
+/* ★ D4 의 구슬 테는 **얇다** — 금테를 두껍게 두르면 그것이 볼거리가 되어 액체와
+   다툰다(병수님이 준 화면에서 테는 실선 두어 겹뿐이고, 대신 색 발광이 테를 대신한다). */
 const R_OUT = 31.5;                 // 테 바깥
-const R_IN = 25.5;                  // 유리 안쪽(여기부터 액체)
+const R_IN = 28.2;                  // 유리 안쪽(여기부터 액체) — 테 두께 3.3
 const LX = 22, LY = 19;             // 빛이 오는 자리(왼쪽 위)
 
 /** 색은 **네 단계로 자른다.** 부드럽게 흐르는 색은 아무리 잘 골라도 사진처럼 보인다. */
@@ -94,17 +96,16 @@ export function drawOrb(cv, kind, pct) {
  *  안쪽부터: 그늘 한 겹 → 금 베벨 → 무쇠 → 바깥 어둠. */
 function ringColor(rr, dx, dy) {
   const up = (dx * -0.55 + dy * -0.84) > 0;         // 왼쪽 위에서 오는 빛을 받는 쪽인가
-  if (rr < R_IN + 1.2) return "#0b0705";            // 유리와 테 사이 그늘
-  if (rr < R_IN + 3.4) return up ? "#d8bd82" : "#6b5730";   // 금 베벨
-  if (rr < R_IN + 4.6) return up ? "#8a7448" : "#3a2c18";   // 금이 꺾이는 면
-  if (rr < R_OUT - 0.8) return up ? "#3a332a" : "#181310";  // 무쇠
+  if (rr < R_IN + 0.9) return "#0b0705";            // 유리와 테 사이 그늘
+  if (rr < R_IN + 2.2) return up ? "#c8ab72" : "#5f4d2b";   // 금 실선(얇게)
+  if (rr < R_OUT - 0.7) return up ? "#332d25" : "#15110e";  // 무쇠
   return "#0a0806";                                  // 바깥 한 겹
 }
 
 /** 네 방향의 **리벳** — 「박아 놓은 것」이라는 표시. 점 하나면 티가 안 나고
  *  덩어리면 시끄럽다. 2x2 에 아래 그림자 한 줄이 딱 맞다. */
 function ringOrnaments(g) {
-  const r = R_IN + 3.2;
+  const r = R_IN + 1.6;
   for (const a of [-Math.PI / 2, 0, Math.PI / 2, Math.PI]) {
     const x = Math.round(C + Math.cos(a) * r) - 1, y = Math.round(C + Math.sin(a) * r) - 1;
     g.fillStyle = "#f0dca8"; g.fillRect(x, y, 2, 2);
