@@ -138,13 +138,10 @@ export function summon(kind) {
 export function cast(id) {
   const sk = SKILLS.find(s => s.id === id);
   if (!sk || (S.cd[id] || 0) > 0 || S.mp < sk.mp || S.corpses < sk.corpse) return false;
-  if (id === "golem" && S.minions.some(m => m.kind === "golem")) return false;   // 골렘은 하나뿐
-  if ((id === "raise" || id === "ghoul" || id === "golem") && S.minions.length >= armyCap()) return false;
+  if (id === "raise" && S.minions.length >= armyCap()) return false;
 
   S.mp -= sk.mp; S.corpses -= sk.corpse; S.cd[id] = sk.cd;
   if (id === "raise") { summon("skel");  say(`<b>해골 전사</b> 일어섬`); }
-  if (id === "ghoul") { summon("ghoul"); say(`<b>구울</b> 일어섬`); }
-  if (id === "golem") { summon("golem"); say(`<b>흙 골렘</b> 세움`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
     const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf();

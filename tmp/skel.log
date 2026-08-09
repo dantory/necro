@@ -1,0 +1,7 @@
+줄 세움 a8952c41-6109-4ff8-b1d4-5bfd32465bbe
+── 몸이 익기를 기다린다(v3 는 몇 분 걸린다)
+── 몸 완성. 애니를 건다
+walk 걸었다 → character: a8952c41-6109-4ff8-b1d4-5bfd32465bbe animation: walking-6-frames directions: south, south-west, west, north-west, north, north-east, east, south-east (8 jobs) group: 763bc360-d9e5-41a9-9457
+attack 걸었다 → error: character a8952c41-6109-4ff8-b1d4-5bfd32465bbe is still being created — v3 animations need the finished rotation images. (template-mode animations can queue during creation, but v3/pro cannot.)
+── 애니가 익기를 기다린다
+  대기… status: creating (1% ~471s)
