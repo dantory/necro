@@ -203,7 +203,7 @@ function draw(dt) {
        사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
     drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, sc,
-               { clear: 340, density: 30, set: ["rubble", "pillar", "rubble", "coffin"] });
+               { clear: 300, density: 46, set: ["rubble", "pillar", "rubble", "coffin", "brazier"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
     drawTownLabels(ctx);
@@ -379,32 +379,58 @@ const closeAll = () => { win("winShop", false); win("winForge", false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
+/** 등급을 **점으로** 보인다. 숫자(3/5)보다 점이 한눈에 들어오고, 다음 칸이 비어 있는
+ *  것이 곧 「더 살 수 있다」는 뜻이 된다. */
+const pips = (n, max) => Array.from({ length: max }, (_, i) =>
+  `<i class="pip${i < n ? " on" : ""}"></i>`).join("");
+
 function drawShop() {
   $("shopBody").innerHTML = Object.entries(GEAR).map(([k, g]) => {
-    const t = META.gear[k] | 0, nx = gearNext(k);
-    const have = g.tiers[t];
-    if (nx === null)
-      return `<div class="row"><span class="nm">${g.n}</span>
-        <span class="ds">${have} — 더 좋은 것은 없음</span><span class="vl">최고</span></div>`;
-    const cost = g.cost[nx], can = META.gold >= cost;
-    return `<div class="row"><span class="nm">${g.n}</span>
-      <span class="ds">${have} → <b style="color:#efe4cd">${g.tiers[nx]}</b> · ${g.d}</span>
-      <span class="vl">${cost}금</span>
-      <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`;
-  }).join("") + `<div class="row"><span class="nm">가진 금</span>
-      <span class="ds"></span><span class="vl">${META.gold | 0}</span></div>`;
+    const t = META.gear[k] | 0, nx = gearNext(k), max = g.tiers.length - 1;
+    const now = g.val[t], next = nx === null ? null : g.val[nx];
+    /* 값은 **지금 → 다음**으로 보인다. 「최대 체력」만 적으면 얼마나 좋아지는지 모른다. */
+    const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
+              : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
+    const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
+    return `<div class="item${nx === null ? " maxed" : ""}">
+      <div class="ico gear-${k}"></div>
+      <div class="col">
+        <div class="ttl">${g.tiers[t]}<span class="sub">${g.n}</span></div>
+        <div class="pips">${pips(t, max)}</div>
+        <div class="eff">${g.d} <span class="num"><b>${fmt(now)}</b>${
+          next === null ? "" : ` <span class="up">→ ${fmt(next)}</span>`}</span></div>
+      </div>
+      ${nx === null
+        ? `<div class="buy"><span class="max">최고 등급</span></div>`
+        : `<div class="buy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+             <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`}
+    </div>`;
+  }).join("");
+  $("shopGold").textContent = (META.gold | 0).toLocaleString();
 }
 
 /** 대장간 — **몸을 키운다.** 장비와 축이 다르다: 이쪽은 조금씩 여러 번. */
 function drawForge() {
-  $("forgeBody").innerHTML = Object.entries(UPS).map(([k, u]) => {
-    const cost = upCost(k), can = META.gold >= cost, lv = META.up[k] | 0;
-    return `<div class="row"><span class="nm">${u.n}</span>
-      <span class="ds">${u.d} <b style="color:#8a7c60">+${lv}</b></span>
-      <span class="vl">${cost}금</span>
-      <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
-  }).join("") + `<div class="row"><span class="nm">가진 금</span>
-      <span class="ds"></span><span class="vl">${META.gold | 0}</span></div>`;
+  /* 지금 몸이 어떤지 **총합으로** 먼저 보인다 — 무엇을 올릴지는 지금 값을 알아야 정한다. */
+  $("forgeBody").innerHTML =
+    `<div class="stats">
+       <span>체력 <b>${hpMaxOf()}</b></span>
+       <span>마나 <b>${mpMaxOf()}</b></span>
+       <span>군세 <b>${armyCap()}</b></span>
+     </div>` +
+    Object.entries(UPS).map(([k, u]) => {
+      const cost = upCost(k), can = META.gold >= cost, lv = META.up[k] | 0;
+      return `<div class="item">
+        <div class="ico up-${k}"><span>${lv}</span></div>
+        <div class="col">
+          <div class="ttl">${u.n}<span class="sub">+${lv}</span></div>
+          <div class="eff">${u.d}</div>
+        </div>
+        <div class="buy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+          <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>
+      </div>`;
+    }).join("");
+  $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
 
 /* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
