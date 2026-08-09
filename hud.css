@@ -61,13 +61,6 @@
   background:none;border:none;box-shadow:none}
 /* 판 자체는 클릭을 안 먹고(맵이 그 뒤로 이어진다), 얹힌 물건만 먹는다. */
 #panel > .orb, #panel > .mid{position:relative;z-index:1;pointer-events:auto}
-/* 가운데 판의 돌 바탕 — **가운데만** 깐다. 여백을 조금 넉넉히 물려 테가 글자에
-   안 닿게 한다(js/panel.js 가 그린다). */
-/* ★ canvas 는 **대체 요소**라 inset 만 주고 width:auto 로 두면 안 늘어난다
-   (제 고유 크기 8x8 그대로 남는다 — 재 보고 알았다). 퍼센트로 못박는다. */
-#panelBg{position:absolute;left:-14px;top:-9px;box-sizing:border-box;
-  width:calc(100% + 28px);height:calc(100% + 15px);
-  image-rendering:pixelated;pointer-events:none;z-index:-1}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지
    눈이 못 잡는다. 가운데가 밝고 양끝이 사라지는 선 — 끝을 자르면 선이 뚝 끊겨 보인다. */
 /* 위 경계선은 **난간을 캔버스가 그리므로** 뺐다 — 두 곳에서 같은 것을 그리면
@@ -115,14 +108,20 @@
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
+/* ★★ 가운데에 돌 판을 깔았다가 걷어냈다. 병수님: "하단 UI의 배경을 만들어서
+   게임화면을 덮는게 아니라 하단 체력/스킬/마나 UI가 플로팅된 느낌으로 가야지".
+   맞다 — 판을 **좁게** 만든다고 뜨는 게 아니다. 좁은 판도 판이고, 그 밑의 세상을
+   가린다. 디아블로 4 의 그 띠에는 **바탕이 없다**: 칸은 제 테를 하나씩 갖고,
+   글자는 그림자로 읽히고, 그 사이로 바닥이 그대로 보인다.
+   **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
 .mid{flex:1 1 auto;max-width:370px;min-width:0;
-  /* ★ 돌 판이 생기면서 글자가 **테에 닿았다**(「시체」의 첫 자가 물렸다).
-     판은 바깥으로 물려 있으니 안쪽 여백은 여기서 준다. */
-  display:flex;flex-direction:column;gap:5px;padding:2px 8px 4px}
+  display:flex;flex-direction:column;gap:6px;padding:2px 8px 4px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9d907a;
-  letter-spacing:0;text-shadow:0 1px 2px #000}
+.mid .res{display:flex;justify-content:space-between;font-size:18px;color:#bfb195;
+  letter-spacing:0;
+  /* 바탕이 없으니 글자는 **제 그림자로** 바닥에서 떨어져야 읽힌다 */
+  text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000}
 .mid .res .xpTxt{color:#8a7c60}
 
 /* 경험치 — D2R 처럼 **칸이 나뉜** 띠. 그 칸 나눔이 이 게임 판의 표시다.
