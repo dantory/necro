@@ -48,7 +48,7 @@ TILESETS = {
                        "evenly lit flat texture, no vignette, no shadows baked in, not dark, "
                        "no blue, no purple, no teal, no bright saturated green, "
                        "Diablo 2 Rogue Encampment ground, grim gothic, "
-                       "patchy dry meadow grass with small stones and bare soil showing through"),
+                       "patchy dry meadow grass, individual blades and tufts clearly drawn, clumpy uneven texture with small stones and bare soil showing through, NOT a flat single color, visible speckled detail everywhere"),
     upper_description=("MEDIUM BROWN PACKED EARTH, desaturated, worn dirt path trodden flat "
                        "by boots, small pebbles and wheel ruts, no grass"),
     transition_description="ragged edge where the grass has been worn away into bare dirt",
@@ -90,6 +90,11 @@ def auth():
 
 
 def grab(url, dst):
+    """★ `/image` 는 backblaze 로 **리다이렉트**되는데 거기에 우리 Authorization 헤더가
+    같이 따라가서 403 이 난다(camp 타일셋에서 열 번 넘게 재시도만 했다).
+    `?inline=true` 는 서버가 직접 바이트를 주므로 헤더가 그대로 통한다."""
+    if "?" not in url:
+        url += "?inline=true"
     req = urllib.request.Request(url, headers={"Authorization": auth()})
     with urllib.request.urlopen(req, timeout=120) as f:
         data = f.read()

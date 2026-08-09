@@ -19,7 +19,7 @@ import base64, json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 MCP  = os.path.join(HERE, "mcp_call.py")
-OUT  = os.path.join(ROOT, "assets", "camp")
+OUT  = os.path.join(ROOT, "assets", os.environ.get("CAMP_OUT", "camp"))
 
 TONE = ("Diablo II Act 1 Rogue Encampment at night, grim gothic dark fantasy pixel art, "
         "rough undressed fieldstone, weathered grey timber, rusted iron, frayed rope, "
@@ -27,6 +27,13 @@ TONE = ("Diablo II Act 1 Rogue Encampment at night, grim gothic dark fantasy pix
         "desaturated palette of grey stone and grey-brown wood, only firelight is warm, "
         "evenly lit, no vignette, no baked shadows, not dark, "
         "absolutely no blue, no purple, no violet, no teal, no bright green")
+# ★★ 1차에서 여섯 중 **넷이 건물로 나왔다** — 돌담은 문 달린 벽이 됐고, 통나무 더미와
+# 덤불은 아예 불 피운 실내가 됐다. 모델이 "Diablo Rogue Encampment" 를 보면 습관적으로
+# **구조물과 불**을 그린다. 그래서 「아니다」를 문장으로 못박는다 — 무엇을 그릴지보다
+# **무엇이 아닌지**가 이 도구에서는 더 세게 먹는다.
+NOBUILD = ("NOT a building, NOT a doorway, NOT an arch, NOT a gate, no roof, no walls of a "
+           "house, no room, no interior, no floor tiles, no fire, no flame, no torch, "
+           "no glowing light, just the one small object lying on nothing")
 ONE  = ("ONE single object only, centered, transparent background, "
         "seen from above at a steep angle, "
         "NO GROUND UNDER IT: no floor tiles, no paving, no grass, no dirt patch, "
@@ -35,10 +42,10 @@ ONE  = ("ONE single object only, centered, transparent background, "
 
 OBJ = {
   # ── 야석 돌담 ── 야영지를 두르는 것. **벽이 아니라 잔해**라 끊겨 있어야 한다
-  "wall_a": (f"{TONE}, {ONE}, a short straight section of knee-high dry-stone wall built of "
+  "wall_a": (f"{TONE}, {ONE}, {NOBUILD}, a short straight section of knee-high dry-stone wall built of "
              "rough undressed grey fieldstones stacked without mortar, the top course uneven, "
              "both ends broken off and crumbling, moss in the gaps", 176, 88),
-  "wall_b": (f"{TONE}, {ONE}, a crumbling corner of a knee-high dry-stone wall, rough grey "
+  "wall_b": (f"{TONE}, {ONE}, {NOBUILD}, a crumbling corner of a knee-high dry-stone wall, rough grey "
              "fieldstones, half collapsed with fallen stones lying at its foot", 144, 96),
   # ── 장대 횃불 ── 빛웅덩이의 근원. 게임에서 addGlow 를 붙인다
   "torch": (f"{TONE}, {ONE}, a tall wooden stake driven into the ground with an iron fire "
@@ -49,10 +56,10 @@ OBJ = {
             "sloped roof of weathered planks and thatch, no walls so you can see through it, "
             "a workbench and barrels underneath, seen from above at an angle", 224, 168),
   # ── 통나무 더미 ── 임시로 머무는 곳의 표시
-  "logs":  (f"{TONE}, {ONE}, a stack of cut logs piled crosswise, bark still on them, "
+  "logs":  (f"{TONE}, {ONE}, {NOBUILD}, a stack of cut logs piled crosswise, bark still on them, "
             "a few loose logs fallen beside the pile", 128, 88),
   # ── 마른 덤불 ── 풀밭에 흩어져 바닥의 반복을 끊는다
-  "shrub": (f"{TONE}, {ONE}, a low dry thorny shrub with bare twisted branches and a few "
+  "shrub": (f"{TONE}, {ONE}, {NOBUILD}, a low dry thorny shrub with bare twisted branches and a few "
             "brown leaves, muted olive and grey-brown, not bright green", 96, 88),
 }
 
