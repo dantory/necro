@@ -2,6 +2,46 @@ import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
+
+/* 값 표기 — 네 자리부터 k, 백만부터 M. 1000 미만은 그대로 둔다(초반에 1.0k 는 안 읽힌다). */
+const num = (v) => {
+  v = Math.max(0, Math.round(v));
+  return v < 1000     ? String(v)
+       : v < 10000    ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+       : v < 1000000  ? Math.round(v / 1000) + "k"
+       : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+};
+
+/* 구슬 안 숫자가 **테를 밟지 않게** 맞춘다. 글꼴 폭은 짐작하지 말고 canvas 로 잰다. */
+const _mm = document.createElement("canvas").getContext("2d");
+/* ★ 픽셀 글꼴은 글자마다 폭이 다르다(`1` 이 좁다) — 제일 넓은 숫자와 단위를 한 번 재 둔다. */
+const [FAT, UNIT] = (() => {
+  _mm.font = '27px "Galmuri9", monospace';
+  const widest = (set) => [...set].reduce((a, b) => _mm.measureText(b).width > _mm.measureText(a).width ? b : a);
+  return [widest("0123456789"), widest("kM")];
+})();
+
+/** 이 판에서 **나올 수 있는 제일 넓은 글자**. 크기를 지금 값으로 정하면 체력이
+ *  닳는 동안 27 ↔ 18 로 깜빡이고, 「최대치/최대치」로 정해도 모자란다 —
+ *  `num()` 은 값마다 길이가 달라서(6k 인데 4.4k) **최대치가 제일 긴 글자가 아니다.**
+ *  그래서 자릿수를 **만들어서** 잰다: 현재값은 최대치 이하 어디든 올 수 있다. */
+function widestNum(max) {
+  const cur = max < 1000 ? FAT.repeat(String(Math.round(max)).length)
+                         : FAT + "." + FAT + UNIT;
+  return (cur + "/" + num(max)).replace(/\d/g, FAT);
+}
+
+/* ★★ 「현재값/최대치」를 한 줄로 27px 에 넣으려니 **어떤 값이든 유리(102px)를 넘어**
+   전부 18px 로 떨어졌다 — 키운 의미가 사라진다. 한 줄에 다 넣으려 한 것이 잘못이었다.
+   **현재값을 크게, 최대치를 그 아래 작게** 두 줄로 나눈다:
+     · 현재값은 길어야 네 글자(9.9M) — 27px 로도 유리 안에 넉넉히 들어간다
+     · 최대치는 곁다리이므로 작아도 되고, 두 줄이라 서로 폭을 안 뺏는다
+     · 크기가 값에 따라 안 바뀌니 **깜빡임도 없다**(그래서 잴 것도 없어졌다) */
+function fitNum(el, cur, max) {
+  const a = num(cur), b = "/" + num(max);
+  if (el._a !== a) { el._a = a; el.children[0].textContent = a; }
+  if (el._b !== b) { el._b = b; el.children[1].textContent = b; }
+}
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGlows, drawGround, drawHoldRing, loadFloor, loadDecor, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
@@ -359,15 +399,12 @@ function hud() {
   /* ★ 자가 **지금 값만** 보면 나중에 값이 커질 때 또 넘친다. 나올 수 있는 최악의
      표기를 재 보니 「1280k/1280k」(104px)만 구슬(112px)을 넘겼다 — 백만을 넘으면
      **단계를 하나 더** 올린다(1.3M). 「지금 안 넘친다」와 「앞으로도 안 넘친다」는 다르다. */
-  const num = (v) => {
-    v = Math.max(0, Math.round(v));
-    return v < 1000     ? String(v)
-         : v < 10000    ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
-         : v < 1000000  ? Math.round(v / 1000) + "k"
-         : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
-  };
-  $("hpNum").textContent = `${num(S.hp)}/${num(hpMaxOf())}`;
-  $("mpNum").textContent = `${num(S.mp)}/${num(mpMaxOf())}`;
+  /* ★ 글자를 넣고 **넘치면 한 격자 내린다**(27 → 18px). 둘 다 9격자의 배수라
+     어느 쪽이든 선명하다. 구슬을 넓혀서 자리를 만들려던 것이 모양을 망친
+     원인이었으니(원 → 타원 → 네모), 이제 **그릇은 그대로 두고 글자가 맞춘다.**
+     길이는 짐작하지 않고 canvas 로 **잰다** — 값이 커져도 규칙이 그대로 산다. */
+  fitNum($("hpNum"), S.hp, hpMaxOf());
+  fitNum($("mpNum"), S.mp, mpMaxOf());
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
      지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
   $("gCorpse").textContent = `시체 ${S.corpses}`;

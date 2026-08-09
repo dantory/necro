@@ -38,7 +38,7 @@
    구슬을 82 → **112**, 숫자를 9 → **18px**(9격자의 두 배라 선명하다).
    판도 116 → **124** 로 올려 구슬이 들어갈 자리를 만든다 —
    판(124) − 아래 여백(9) = 115 ≥ 구슬(112). 눈대중이 아니라 계산으로 맞춘다. */
-:root{ --hudH:124px; --orb:112px; --orbw:157px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+:root{ --hudH:140px; --orb:128px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
@@ -70,7 +70,7 @@
 /* ★ 병수님: "구슬 너비를 넓힌순없나". 가로만 CSS 로 늘리면 픽셀이 눌리므로
    **캔버스를 42x30 으로 그려서**(js/orb.js) 여기서는 42:30 비율 그대로 키운다 —
    157/42 = 3.74, 112/30 = 3.73. 가로세로 배율이 같으니 픽셀은 정사각형이다. */
-.orb{position:relative;flex:0 0 auto;width:var(--orbw);height:var(--orb);
+.orb{position:relative;flex:0 0 auto;width:var(--orb);height:var(--orb);
   background:none;filter:drop-shadow(0 2px 4px #000c)}
 .orb canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 
@@ -89,7 +89,11 @@
 .orb .num{position:absolute;left:4px;right:4px;top:0;bottom:0;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
   font-size:27px;color:#efe4cd;text-shadow:0 2px 3px #000,0 0 5px #000;
-  white-space:nowrap;z-index:2}
+  white-space:nowrap;z-index:2;flex-direction:column;line-height:1;gap:1px;
+  padding-top:14px}   /* 왼쪽 위 정반사를 안 가리게 조금 아래로 */
+/* 현재값은 크게(27), 최대치는 곁다리라 작게(18). 둘 다 9격자의 배수라 선명하다. */
+.orb .num b{font-weight:400;font-size:27px}
+.orb .num i{font-style:normal;font-size:18px;color:#b3a488}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
