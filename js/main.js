@@ -3,7 +3,7 @@ import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./ba
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGround, drawHoldRing, loadFloor, loadDecor } from "./ground.js";
+import { drawGround, drawHoldRing, loadFloor, loadDecor, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -203,7 +203,8 @@ function draw(dt) {
        사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
     drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, sc,
-               { clear: 300, density: 46, set: ["rubble", "pillar", "rubble", "coffin", "brazier"] });
+               { clear: 300, density: 46, town: true,
+                 set: ["barrel", "crate", "cart", "well", "sacks", "barrel", "crate"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
     drawTownLabels(ctx);
@@ -490,6 +491,7 @@ $("stage").addEventListener("click", (e) => {
 
 export function toTown(why) {
   MODE.at = "town";
+  useFloor("town");      // 마을은 흙길
   document.body.classList.add("in-town");
   saveMeta();
   if (why) S.log.unshift(why);
@@ -497,6 +499,7 @@ export function toTown(why) {
 export function toDungeon() {
   closeAll();
   MODE.at = "dungeon";
+  useFloor("crypt");   // 던전은 돌바닥
   document.body.classList.remove("in-town");
   newRun();
 }
@@ -549,7 +552,8 @@ function loop(t) {
    「타격 시 깜빡임」이었다. 방향이 여덟이라 몸을 틀 때마다 되풀이됐다. */
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
-loadFloor("assets/floor/crypt_tile.png");
+loadFloor("assets/floor/crypt_tile.png", 1.8, "crypt");
+loadFloor("assets/floor/town_tile.png", 1.7, "town");
 loadDecor();
 loadTown();
 watch($("xpWrap"), drawBar);

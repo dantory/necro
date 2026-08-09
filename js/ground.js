@@ -56,8 +56,15 @@ function bakeLight(w, h, cx, cy, radius, squash) {
   return lightCv;
 }
 
-let tiles = [];            // 미리 구운 네 가지 변형
-let floorReady = false;
+/* ★ 마을에 **던전 돌바닥**을 그대로 깔았던 것이 잘못이었다(병수님: "그냥 바닥을
+   제대로 만들어"). 실내 돌바닥 위에 천막이 서 있으면 마을이 아니라 지하 창고다.
+   바닥을 **두 벌** 들고 장면마다 바꾼다 — 마을은 흙길, 던전은 돌바닥. */
+const tileSets = {};       // 이름 → 네 가지 변형
+let tiles = [], floorReady = false;
+
+export function useFloor(name) {
+  if (tileSets[name]) { tiles = tileSets[name]; floorReady = true; }
+}
 
 /** 바닥 타일을 받아 **네 가지 변형으로 미리 구워 둔다.**
  *  ★ 한 장을 그대로 반복하면 **격자가 보인다** — 같은 얼룩이 32px 마다 되풀이되니
@@ -67,12 +74,12 @@ let floorReady = false;
  *  ★ 굽는 김에 **밝기도 올린다.** PixelLab 이 준 crypt 타일은 평균 밝기가 41(255 중)
  *  이라 조명을 곱하면 거의 검정이 된다. 어둠은 조명이 만들어야 하므로 재료는 밝게
  *  둔다 — 그래야 빛 안에서 살아나고 빛 밖에서 잠긴다. */
-export function loadFloor(src, boost = 1.8) {
+export function loadFloor(src, boost = 1.8, name = "crypt") {
   const im = new Image();
   LOAD.total++;
   im.onload = () => {
     const t = im.width;
-    tiles = [[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sy]) => {
+    const made = [[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sy]) => {
       const c = document.createElement("canvas");
       c.width = t; c.height = t;
       const g = c.getContext("2d");
@@ -83,7 +90,8 @@ export function loadFloor(src, boost = 1.8) {
       g.drawImage(im, 0, 0);
       return c;
     });
-    floorReady = true;
+    tileSets[name] = made;
+    if (!tiles.length) { tiles = made; floorReady = true; }
     LOAD.done++;
   };
   /* ★ 실패 경로에서 done 을 안 올렸더니 **1115/1116 에서 영영 멈췄다.**
@@ -148,12 +156,32 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
 /* wall 은 이제 안 쓴다 — **벽이 곧 테두리**라서 뺐다. 파일은 남겨 둔다(방을 다시
    만들 일이 생기면 쓴다). */
 const DECOR = ["pillar", "coffin", "bones", "brazier", "rubble"];
+/* ★ 마을에 관·뼈무더기를 뿌린 것이 잘못이었다(병수님: "쓸데 없는 무덤 같은거 없애라").
+   **관이 굴러다니는 곳은 마을이 아니라 공동묘지다.** 마을에는 마을 것을 둔다. */
+const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
 let decorLeft = DECOR.length, decorReady = false;
 
+function loadOne(n, dir) {
+  const im = new Image();
+  LOAD.total++;
+  im.onload = () => {
+    const c = document.createElement("canvas");
+    c.width = im.width; c.height = im.height;
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.filter = "sepia(0.42) saturate(1.15) brightness(0.95)";
+    g.drawImage(im, 0, 0);
+    decor[n] = c; LOAD.done++;
+  };
+  im.onerror = () => { LOAD.done++; };
+  im.src = `${dir}/${n}.png`;
+}
+
 export function loadDecor(dir = "assets/decor") {
+  for (const n of TOWN_DECOR) loadOne(n, "assets/town");
   for (const n of DECOR) {
     const im = new Image();
     LOAD.total++;
@@ -194,6 +222,50 @@ export function loadDecor(dir = "assets/decor") {
 const CELL = 165;                      // 칸 하나의 월드 크기
 const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "bones", "rubble"];
 
+/* ══ 접지 ══ 병수님: "던전입구/상인/대장간 같은거또 둥둥 떠잇네".
+   ★★ **캐릭터에는 이미 고쳤던 것을 소품·건물에는 안 옮겼다.** PixelLab 이 준 그림은
+   캔버스 아래에 투명 여백을 두고 그려져 있어서, 이미지 **바닥**을 지면으로 삼으면
+   그 여백만큼 떠 보인다. 캐릭터는 알파 경계를 재서 발을 맞췄는데(sprite8 footMetrics)
+   소품은 `y - im.height` 로 그대로 놓고 있었다.
+
+   **같은 문제의 같은 처방을 다른 곳에 옮기지 않은 것** — 이게 이번 지적의 뿌리다.
+   그래서 여기 한 함수를 두고 **소품·건물·NPC 가 전부 이걸 지난다.** */
+export function footOf(cv) {
+  if (cv._foot) return cv._foot;
+  const g = cv.getContext("2d");
+  const d = g.getImageData(0, 0, cv.width, cv.height).data;
+  let bot = 0, lo = cv.width, hi = 0;
+  for (let y = cv.height - 1; y >= 0; y--) {
+    let any = false;
+    for (let x = 0; x < cv.width; x++) {
+      if (d[(y * cv.width + x) * 4 + 3] > 8) { any = true; if (x < lo) lo = x; if (x > hi) hi = x; }
+    }
+    if (any && !bot) bot = y + 1;                 // 아래에서 처음 만난 불투명 줄 = 발
+  }
+  cv._foot = { bot: bot || cv.height, cx: (lo + hi) / 2 || cv.width / 2,
+               w: Math.max(6, hi - lo + 1) };
+  return cv._foot;
+}
+
+/** 발을 지면에 맞춰 놓고, **발 폭에 맞춘 그림자**를 깐다.
+ *  그림자를 이미지 폭으로 그리면 넓적한 놈은 그림자가 몸 밖으로 삐져나온다. */
+export function place(ctx, cv, gx, gy, shadow = true) {
+  const f = footOf(cv);
+  const px = Math.round(gx - f.cx), py = Math.round(gy - f.bot);
+  if (shadow) {
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,.42)";
+    ctx.beginPath();
+    /* ★ 그림자를 발 폭에 **비례**로만 그렸더니 건물(176px)에 반경 74 짜리 먹구름이
+       깔렸다. 큰 것일수록 비율을 줄인다 — 큰 물건은 바닥에 닿는 면이 폭만큼 넓지 않다. */
+    const k = f.w > 96 ? 0.26 : f.w > 56 ? 0.34 : 0.42;
+    ctx.ellipse(Math.round(gx), Math.round(gy) - 1, f.w * k, f.w * k * 0.36, 0, 0, 6.284);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.drawImage(cv, px, py);
+}
+
 /** 좌표를 섞어 **늘 같은 값**을 낸다(난수가 아니다 — 난수면 매 프레임 자리가 바뀐다). */
 function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -220,16 +292,9 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       const wxw = gx * CELL + ((rnd >> 11) % CELL) - CELL / 2;
       const wyw = gy * CELL + ((rnd >> 17) % CELL) - CELL / 2;
       if (clear && Math.hypot(wxw, wyw) < clear) continue;   // 싸움터는 비운다
-      const px = Math.round(cx + wxw * sc) - im.width / 2;
-      const py = Math.round(cy + wyw * sc * squash) - im.height;
-      ctx.save();
-      ctx.fillStyle = "rgba(0,0,0,.42)";
-      ctx.beginPath();
-      ctx.ellipse(px + im.width / 2, py + im.height - 2,
-                  im.width * 0.34, im.width * 0.12, 0, 0, 6.284);
-      ctx.fill();
-      ctx.restore();
-      ctx.drawImage(im, px, py);
+      /* ★ 여기도 place() 로 통일한다 — 이미지 바닥을 지면으로 삼으면 그림 아래
+         투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
+      place(ctx, im, cx + wxw * sc, cy + wyw * sc * squash);
     }
   }
 }
