@@ -1,0 +1,103 @@
+/* ══════════════════════════════════════════════════════════════
+   하단 판 — **세 갈래를 실제로 만들어 보고 고른다.**
+   ──────────────────────────────────────────────────────────────
+   디아블로 2 를 그대로 흉내 내는 길(돌 + 금장 + 구슬)로 세 번 구웠는데 계속
+   시끄러웠다(병수님: "UI스타일이 별로" → "아예 다르게 바꿔줄수없냐").
+   원인은 그림 품질이 아니라 **방향**이었다 — 장식이 많은 판은 그 자체가 볼거리라
+   전장과 눈을 다툰다. 방치형은 **판을 보는 게임이 아니라 전장을 보는 게임**이다.
+
+   그래서 셋을 짓는다. `<body class="t-…">` 하나로 갈아 끼운다.
+     t-slim   판을 없앤다. 화면 위에 얇게 떠 있는 것만 남긴다
+     t-slate  석판 한 장. 장식 없이 면과 선으로만
+     t-relic  유물함. 어둡고 무거운 금속, 빛은 게이지에서만
+
+   셋 다 **PixelLab 판 조각(panel_band·logbox·slot)을 안 쓴다.** 세 번 구워 세 번 다
+   시끄러웠다 — 면·선·빛으로만 지으면 어느 폭에서도 안 무너지고 톤도 안 어긋난다.
+   (캐릭터와 스킬 아이콘은 그대로 픽셀아트다. 판만 물러선다.)
+   ══════════════════════════════════════════════════════════ */
+
+/* ── 공통 ── 그림을 걷어낸다 */
+body[class*="t-"] #panel::before{display:none}
+body[class*="t-"] #panel{background-image:none;border-top:none;box-shadow:none}
+body[class*="t-"] .slot{background-image:none}
+body[class*="t-"] #log{border-image:none;border-width:0}
+body[class*="t-"] .orb .ring{display:none}
+/* 채움은 세로(height)로도 가로(--pct)로도 쓸 수 있게 둘 다 받는다 */
+body[class*="t-"] .orb .fill{height:auto}
+
+/* ══ 하나 — 얇게(slim) ══ **판을 없앤다.**
+   구슬·돌판을 다 버리고 화면 위에 반투명으로 얹는다. 전장이 제일 넓어진다.
+   요즘 모바일 방치형이 가는 길이고, 픽셀아트 캐릭터와 부딪히지 않는다. */
+.t-slim{--panelH:108px}   /* 92 였을 때 게이지와 스킬 칸이 겹쳤다 */
+.t-slim #panel{background:linear-gradient(#0000,#000000d8 34%)}
+.t-slim .orb{width:auto;height:auto;bottom:auto;top:8px;left:14px;right:auto}
+.t-slim .orb.mp{top:26px;left:14px;right:auto}
+.t-slim .orb .glass{position:static;width:148px;height:8px;border-radius:0;
+  background:#ffffff14;box-shadow:none;overflow:hidden}
+.t-slim .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
+  width:var(--pct,100%);transition:width .25s}
+.t-slim .orb .gloss{display:none}
+.t-slim .orb .num{position:absolute;left:156px;top:-5px;right:auto;width:100px;
+  justify-content:flex-start;font-size:10px}
+.t-slim #belt{top:auto;bottom:8px;gap:9px}
+.t-slim .slot{width:46px;height:46px;border:none;border-radius:11px;
+  background:#ffffff10;box-shadow:none}
+.t-slim .slot.on{background:#ffffff1c;box-shadow:0 0 0 1px #c8aa6e88}
+.t-slim .slot.off{opacity:.38}
+.t-slim #gauge{top:8px;left:auto;right:14px;width:152px}
+.t-slim #gauge .res{font-size:10px;color:#9d907a}
+.t-slim #gauge .xp{height:5px;border:none;background:#ffffff14;box-shadow:none}
+.t-slim #gauge .xp span{font-size:8px}
+.t-slim #log{left:14px;right:14px;bottom:calc(var(--panelH) + 4px);height:52px;
+  background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
+
+/* ══ 둘 — 석판(slate) ══ **한 장의 판, 장식 없음.**
+   D2 의 앉음새(아래에 판, 양 끝에 게이지)는 남기되 조각·금장을 다 걷어낸다.
+   면과 선만으로 짓는 것 — 그림이 없으니 어느 폭에서도 안 무너진다. */
+.t-slate{--panelH:114px}
+.t-slate #panel{background:linear-gradient(#1a1713,#0e0c0a);
+  border-top:1px solid #3a3128;box-shadow:0 -10px 24px #000a}
+.t-slate .orb{width:auto;height:auto;bottom:14px;left:16px;right:auto}
+.t-slate .orb.mp{left:auto;right:16px}
+.t-slate .orb .glass{position:static;width:104px;height:16px;border-radius:2px;
+  background:#000;box-shadow:inset 0 0 0 1px #3a3128;overflow:hidden}
+.t-slate .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
+  width:var(--pct,100%);transition:width .25s}
+.t-slate .orb .gloss{display:none}
+.t-slate .orb .num{position:absolute;left:0;top:0;width:104px;height:16px;font-size:10px}
+.t-slate #belt{top:12px;gap:8px}
+.t-slate .slot{width:48px;height:48px;border-radius:3px;
+  background:#0b0908;border:1px solid #2f2820;box-shadow:none}
+.t-slate .slot.on{border-color:#c8aa6e}
+.t-slate .slot.off{opacity:.42}
+.t-slate #gauge{top:70px;left:132px;right:132px}
+.t-slate #gauge .xp{height:8px;border:1px solid #2f2820;border-radius:2px}
+.t-slate #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+  box-shadow:inset 0 0 0 1px #241d16;padding:4px 8px}
+
+/* ══ 셋 — 유물함(relic) ══ **어둡고 무거운 금속.**
+   장식 대신 **두께와 그림자**로 무게를 낸다. 빛은 게이지에서만 나온다 —
+   그래야 눈이 판이 아니라 게이지로 간다. 구슬은 남기되 테를 걷고 빛만 남긴다. */
+.t-relic{--panelH:122px}
+.t-relic #panel{background:
+    linear-gradient(#2a2620 0 1px, transparent 1px),
+    linear-gradient(#14110d,#080706);
+  box-shadow:inset 0 1px 0 #4a4034, 0 -12px 28px #000c}
+.t-relic .orb{width:62px;height:62px;bottom:14px;left:20px;right:auto}
+.t-relic .orb.mp{left:auto;right:20px}
+.t-relic .orb .glass{border-radius:50%;background:#050403;
+  box-shadow:inset 0 0 0 2px #2a241c, inset 0 0 18px #000, 0 0 14px #0008}
+.t-relic .orb.hp .fill{box-shadow:0 0 18px #e04a4a66}
+.t-relic .orb.mp .fill{box-shadow:0 0 18px #5a8ae066}
+.t-relic .orb .num{font-size:10px}
+.t-relic #belt{top:14px;gap:6px}
+.t-relic .slot{width:46px;height:46px;border-radius:2px;
+  background:linear-gradient(#181410,#0a0806);
+  border:1px solid #33291f;box-shadow:inset 0 1px 0 #4a4034}
+.t-relic .slot.on{border-color:#c8aa6e;box-shadow:inset 0 1px 0 #4a4034,0 0 10px #c8aa6e55}
+.t-relic .slot.off{opacity:.4}
+.t-relic #gauge{top:72px;left:100px;right:100px}
+.t-relic #gauge .xp{height:9px;border:1px solid #33291f;border-radius:1px}
+.t-relic #gauge .xpFill{box-shadow:0 0 10px #c8aa6e55}
+.t-relic #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+  box-shadow:inset 0 0 0 1px #241d16;padding:4px 8px}

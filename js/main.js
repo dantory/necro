@@ -262,8 +262,11 @@ function hud() {
   $("hLeft").textContent = left ? `남은 적 ${left}` : "정리 중";
   $("hLv").textContent = "Lv." + META.lv;
   $("hGold").textContent = (META.gold | 0).toLocaleString();
-  $("hpFill").style.height = Math.max(0, S.hp / hpMaxOf()) * 100 + "%";
-  $("mpFill").style.height = Math.max(0, S.mp / mpMaxOf()) * 100 + "%";
+  /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
+     띠는 가로로 차오르는데, 어느 쪽을 쓸지는 판의 결(테마)이 정한다 — 여기서는 둘 다 준다. */
+  const hpPct = Math.max(0, S.hp / hpMaxOf()) * 100, mpPct = Math.max(0, S.mp / mpMaxOf()) * 100;
+  $("hpFill").style.height = hpPct + "%"; $("hpFill").style.setProperty("--pct", hpPct + "%");
+  $("mpFill").style.height = mpPct + "%"; $("mpFill").style.setProperty("--pct", mpPct + "%");
   $("hpNum").textContent = `${Math.max(0, Math.round(S.hp))}/${hpMaxOf()}`;
   $("mpNum").textContent = `${Math.round(S.mp)}/${mpMaxOf()}`;
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
