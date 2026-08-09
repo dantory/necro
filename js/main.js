@@ -2,6 +2,7 @@ import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNee
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
+import { drawSlot, drawBar, watch } from "./frame.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -236,8 +237,13 @@ function belt() {
     /* ★ 아이콘은 **그림**이다. 예전엔 유니코드 기호(☠ ✦ ◆ ✹ ✜)를 넣었는데, 주위가
        전부 픽셀아트라 매끈한 시스템 폰트 글리프 하나가 통째로 튀었다(병수님: "UI스타일이
        별로"). 아직 안 구워진 것은 background 가 안 뜰 뿐이라 칸이 깨지지 않는다. */
-    `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
+    /* ★ 칸의 **테두리도 캔버스가 그린다**(js/frame.js). `border:1px solid` 는 언제나
+       정확히 1px 이라 픽셀아트 옆에서 매끈하게 튄다. */
+    `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><canvas class="fr"></canvas><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
       <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("");
+  /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다. */
+  for (const el of document.querySelectorAll("#belt .slot"))
+    watch(el, (cv, w, h) => drawSlot(cv, w, h, el.classList.contains("on")));
   $("belt").onclick = (e) => {
     const el = e.target.closest("[data-sk]");
     if (el) cast(el.dataset.sk);
@@ -248,8 +254,12 @@ function beltState() {
     const el = document.querySelector(`[data-sk="${s.id}"]`);
     if (!el) continue;
     const ok = (S.cd[s.id] || 0) <= 0 && S.mp >= s.mp && S.corpses >= s.corpse;
-    el.classList.toggle("on", ok);
-    el.classList.toggle("off", !ok);
+    if (el.classList.contains("on") !== ok) {          // **바뀔 때만** 다시 그린다
+      el.classList.toggle("on", ok);
+      el.classList.toggle("off", !ok);
+      const cv = el.querySelector("canvas.fr");
+      if (cv) drawSlot(cv, Math.round(el.clientWidth), Math.round(el.clientHeight), ok);
+    }
     const cd = el.querySelector("[data-cd]");
     cd.style.height = Math.max(0, Math.min(1, (S.cd[s.id] || 0) / s.cd)) * 100 + "%";
   }
@@ -310,6 +320,7 @@ function loop(t) {
    「타격 시 깜빡임」이었다. 방향이 여덟이라 몸을 틀 때마다 되풀이됐다. */
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
+watch($("xpWrap"), drawBar);
 fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
 

@@ -72,9 +72,11 @@
 
 /* 경험치 — D2R 처럼 **칸이 나뉜** 띠. 그 칸 나눔이 이 게임 판의 표시다.
    위아래 금색 실선 한 줄씩 — 이 두 줄이 D2R 의 얼굴이다. */
-.mid .xp{position:relative;height:11px;background:#080706;
-  border-top:1px solid var(--gold-d);border-bottom:1px solid var(--gold-d);
-  box-shadow:inset 0 0 8px #000}
+/* ★ 위아래 실선을 `border` 로 두면 언제나 정확히 1px 이라 픽셀아트 옆에서 매끈하게
+   튄다. **테두리도 캔버스가 그린다**(js/frame.js drawBar) — 두 단계로 나누고 양 끝에
+   마개를 둔다. 마개가 있어야 띠가 어디서 끝나는지 읽힌다. */
+.mid .xp{position:relative;height:11px;background:#080706;box-shadow:inset 0 0 8px #000}
+.mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:
     /* 칸 나눔을 26px 로 박으면 폭에 따라 칸 수가 들쭉날쭉해진다. **10%씩 열 칸**으로
@@ -89,21 +91,22 @@
 /* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
 #belt{display:flex;gap:5px}
+/* 칸의 **바탕과 테두리는 캔버스가 그린다.** 여기서는 자리와 겹 순서만 맡는다 —
+   폭이 화면마다 30~68px 로 변하므로 캔버스는 **실제 크기와 1:1** 로 그린다
+   (작은 캔버스를 늘리면 배율이 소수가 되어 픽셀이 들쭉날쭉해진다). */
 .slot{flex:1 1 0;aspect-ratio:1;position:relative;cursor:pointer;
-  background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
-  border:1px solid #4a3a28;box-shadow:inset 0 0 8px #000;
+  background:none;border:none;box-shadow:none;
   display:flex;align-items:center;justify-content:center}
+.slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.slot > i, .slot .k, .slot .cd{z-index:1}
 .slot:active{filter:brightness(1.25)}
-.slot > i{position:absolute;inset:3px;background:center/contain no-repeat;
+.slot > i{position:absolute;inset:5px;background:center/contain no-repeat;
   image-rendering:pixelated}
 .slot .k{position:absolute;right:2px;bottom:0;font-size:11px;color:#6b5f4e}
 .slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
-.slot.on{border-color:var(--gold);box-shadow:inset 0 0 8px #000, 0 0 8px #c8aa6e55;
-  animation:slotBreath 2.4s ease-in-out infinite}
+.slot.on{animation:slotBreath 2.4s ease-in-out infinite}
 /* **쓸 수 있다**를 숨결로 알린다. 깜빡이면 시끄러우니 2.4초에 한 번, 아주 옅게. */
-@keyframes slotBreath{
-  0%,100%{box-shadow:inset 0 0 8px #000, 0 0 6px #c8aa6e33}
-  50%    {box-shadow:inset 0 0 8px #000, 0 0 11px #c8aa6e77}}
+@keyframes slotBreath{0%,100%{filter:none} 50%{filter:brightness(1.18)}}
 .slot.off > i{filter:grayscale(.85) brightness(.45)}
 .slot.off .k{color:#4a4034}
 
