@@ -353,11 +353,15 @@ function hud() {
   /* ★ 값이 커지면 「2280/2280」 이 구슬 폭을 넘는다(병수님 지적). 글꼴은 11px 격자가
      최소라 더 못 줄이므로 **값 쪽을 줄인다** — 네 자리부터 k 로 적는다.
      1000 미만은 그대로 둔다(초반에 굳이 1.0k 로 적으면 오히려 안 읽힌다). */
+  /* ★ 자가 **지금 값만** 보면 나중에 값이 커질 때 또 넘친다. 나올 수 있는 최악의
+     표기를 재 보니 「1280k/1280k」(104px)만 구슬(112px)을 넘겼다 — 백만을 넘으면
+     **단계를 하나 더** 올린다(1.3M). 「지금 안 넘친다」와 「앞으로도 안 넘친다」는 다르다. */
   const num = (v) => {
     v = Math.max(0, Math.round(v));
-    return v < 1000 ? String(v)
-         : v < 10000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
-         : Math.round(v / 1000) + "k";
+    return v < 1000     ? String(v)
+         : v < 10000    ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+         : v < 1000000  ? Math.round(v / 1000) + "k"
+         : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
   };
   $("hpNum").textContent = `${num(S.hp)}/${num(hpMaxOf())}`;
   $("mpNum").textContent = `${num(S.mp)}/${num(mpMaxOf())}`;
