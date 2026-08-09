@@ -45,108 +45,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
 #top .sp{flex:1}
 #top .who{font-size:12.5px;color:var(--dim);letter-spacing:.5px}
 
-/* ══ 아래 판 — D2 의 그 컨트롤 패널 ══
-   폭이 좁은 세로 화면에서 **큰 구슬 둘 + 큰 벨트를 한 줄에 나란히** 두면 서로 밀려 눌린다
-   (병수님이 본 「끼여 눌린 벨트」). 그래서 D2 의 앉음새를 세로폰에 맞게 고쳐:
-   **구슬은 판 양 끝 바닥에 크게**, **벨트는 그 구슬들 위에 가운데로** 얹어 겹치지 않게 쌓는다.
-   바탕은 panel_band.png 를 repeat-x 로 깔되(어느 폭에도 안 뭉개짐), 없으면 아래 CSS 결이 뜬다. */
-#panel{position:fixed;left:0;right:0;bottom:0;height:var(--panelH,124px);z-index:30;
-  image-rendering:pixelated;
-  background-color:#140f0a;                                   /* 불투명 바탕 — 그림 없어도 안 비침 */
-  background-image:
-    repeating-linear-gradient(90deg,#191309 0 3px,#15100a 3px 6px),
-    linear-gradient(#1d1710,#0b0806);
-  background-repeat:repeat,no-repeat;
-  background-size:auto,100% 100%;
-  border-top:2px solid var(--gold-d);
-  box-shadow:inset 0 2px 0 #3a2f20, 0 -8px 22px #000a}
-/* 판의 돌결 — panel_band.png 를 **repeat-x 가 아니라 9-slice** 로 쓴다.
-   두 번 구웠지만 PixelLab 은 끝내 「이어지는 띠」가 아니라 **닫힌 액자**를 준다
-   (좌우 끝에 모서리 블록이 박혀 있어 repeat-x 하면 이음매가 그대로 보인다).
-   대신 9-slice 로 자르면 양 끝의 장식 블록은 그대로 두고 가운데 블록만 반복되니,
-   오히려 D2 컨트롤 패널의 앉음새가 된다. 잰 테두리: 위116 오132 아99 왼131.
 
-   ★ #panel 본체가 아니라 ::before 에 얹는다 — 본체에 46px 짜리 테두리를 주면
-   그 안의 `position:absolute` 자식(구슬·벨트)이 패딩 박스 기준으로 밀려 배치가 깨진다. */
-#panel::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
-  image-rendering:pixelated;
-  border-style:solid;border-width:40px 46px;border-color:transparent;
-  border-image:url("assets/ui/panel_band.png") 116 132 99 131 fill / 40px 46px / 0 round}
-#panel > *{z-index:1}                        /* 구슬·벨트는 돌결 위로 */
-
-/* ── 구슬 ── 붉은 것과 푸른 것. 판 양 끝 바닥에 크게 앉고 **아래가 잘리지 않는다**.
-   테(orb_frame.png)는 구슬 위에 겹쳐 얹는다(가운데가 비어 있어 구슬이 비친다).
-   ★ 자르는 건 .glass 뿐이다. 테를 .orb 안에서 자르면 그림 가운데 구멍만 남아 숫자를 덮는다. */
-.orb{position:absolute;bottom:35px;width:54px;height:54px;overflow:visible}
-.orb .glass{position:absolute;inset:0;border-radius:50%;overflow:hidden;
-  background:radial-gradient(circle at 34% 28%,#3a3129,#0a0806 72%);
-  box-shadow:inset 0 0 26px #000, 0 4px 18px #000c}
-.orb.hp{left:14px} .orb.mp{right:14px}
-.orb .fill{position:absolute;left:0;right:0;bottom:0;transition:height .25s}
-.orb.hp .fill{background:linear-gradient(#e04a4a,#8b1a1a 55%,#4a0c0c)}
-.orb.mp .fill{background:linear-gradient(#5a8ae0,#2a4a8a 55%,#101c3a)}
-/* 구슬 표면의 빛 — 유리알처럼 보이는 건 이 한 겹이다 */
-.orb .gloss{position:absolute;inset:0;border-radius:50%;pointer-events:none;
-  background:radial-gradient(circle at 32% 24%,#ffffff30,#ffffff08 34%,transparent 58%),
-             radial-gradient(circle at 50% 118%,#ffffff14,transparent 46%)}
-.orb .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:9px;color:#e8dcc2;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
-  white-space:nowrap}
-/* 금장 테 — 구슬 위에 덮어씌운다. 파일이 없으면 그냥 안 뜬다(깨진 이미지 아님).
-   ★ 크기는 눈대중이 아니라 **그림에서 잰 값**이다: orb_frame.png 512px 중 가운데
-   구멍이 147~364px = 폭의 42.6%. 그러니 구슬(76px)이 구멍에 꼭 맞으려면
-   테는 76/0.426 ≈ 179px 여야 한다 → inset 은 -(179-76)/2 ≈ -51.5px.
-   -10px 로 뒀더니 테가 108px 이라 구멍이 46px 로 쪼그라들어 숫자를 덮었다.
-
-   ★ 네모난 바깥판은 화면 밖으로 흘리지 않고 **원형 마스크로 잘라낸다**.
-   흘려보냈더니 판의 좌·하단 모서리가 그냥 「잘린 그림」으로 보였다(병수님 지적).
-   반경은 그림의 세로 중심선을 픽셀로 훑어 쟀다(512px 기준, 중심에서):
-   r 0~110 투명(구멍) · r 114~162 해골과 금테 · r 168~ 네모 판 · r 222~ 다시 투명.
-   그러니 둥근 테의 바깥은 r≈168 = 반지름 32.8%, 지름 65.6%.
-
-   ★ 반드시 `closest-side` 를 붙인다. 안 붙이면 기본값이 `farthest-corner` 라
-   퍼센트 기준이 모서리까지의 거리(반지름×√2)가 되어, 31.4% 로 줬더니 실제로는
-   구멍 언저리에서 잘려 금테가 실오라기처럼 한 줄만 남았다.
-   closest-side 기준 66% → 179px × 0.5 × 0.66 ≈ 59px 반지름 = 지름 118px,
-   구슬(76px) 밖으로 21px 씩 번진다 → 좌우 여백 22px, 아래 22px 면 안 잘린다. */
-.orb .ring{position:absolute;inset:-34px;pointer-events:none;image-rendering:pixelated;
-  background:url("assets/ui/orb_frame.png") center/100% 100% no-repeat;
-  -webkit-mask-image:radial-gradient(circle closest-side,#000 0 66%,transparent 66.5%);
-  mask-image:radial-gradient(circle closest-side,#000 0 66%,transparent 66.5%)}
-
-/* ── 스킬 벨트 — 구슬들 위, 가운데. 칸을 키우고 사이를 벌린다. 판 밑바닥에 붙지 않는다. ── */
-#belt{position:absolute;top:7px;left:0;right:0;display:flex;gap:5px;justify-content:center}
-/* 칸 배경은 slot.png / slot_on.png, 없으면 아래 CSS 결. 테는 두 겹으로. */
-.slot{width:42px;height:42px;position:relative;image-rendering:pixelated;
-  background-color:#161009;background-image:url("assets/ui/slot.png"),linear-gradient(#221a12,#100c08);
-  background-repeat:no-repeat,no-repeat;background-position:center,center;background-size:100% 100%,100% 100%;
-  border:1px solid #3a2f20;box-shadow:inset 0 0 8px #000,0 0 0 1px #0a0705;display:flex;align-items:center;
-  justify-content:center;font-size:19px;color:var(--gold);cursor:pointer}
-.slot:active{filter:brightness(1.2)}
-.slot .k{position:absolute;right:3px;bottom:1px;font-size:10px;color:var(--dim)}
-.slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000aa}
-.slot.off{color:#4a4034;border-color:#241d16}
-/* 켜짐은 **그림을 갈아끼우지 않는다** — 전용 slot_on.png 는 안이 밝아 아이콘을 잡아먹었고,
-   재굽기본은 UI 시트 조각이 노출됐다. 같은 판 위에 금테+빛무리만 얹는 쪽이 아이콘이 산다. */
-.slot.on{border-color:var(--gold);box-shadow:inset 0 0 10px #c8aa6e55,0 0 7px #c8aa6e66;
-  background-image:url("assets/ui/slot.png"),linear-gradient(#2a2114,#140f08);filter:brightness(1.15)}
-
-/* ── 로그 — 전장 아래쪽에 반투명으로 겹친다(판 바로 위). logbox.png, 없으면 CSS 상자. ── */
-/* ★ 액자는 **늘리지 말고 9-slice** 로 쓴다.
-   688x384 그림을 720x52 에 `background-size:100% 100%` 로 욱여넣었더니 테두리가
-   세로로 7배 눌려 뭉개지고, 글줄이 테두리 밖으로 삐져나왔다.
-   그림에서 잰 테두리 두께: 위 91 · 아래 92 · 왼 152 · 오른 150 (688x384 기준).
-   그걸 border-image 로 잘라 모서리는 그대로 두고 가운데만 늘린다. */
-/* 높이 = 글줄 3개(12px * 1.5 = 18px) + 위아래 테두리 10px + 여백 → 76px.
-   64px 였을 땐 셋째 줄이 아래 테두리에 잘려 나갔다. */
-#log{position:fixed;left:10px;right:10px;bottom:var(--panelH,124px);height:62px;z-index:15;
-  overflow:hidden;font-size:11px;line-height:1.45;color:var(--dim);
-  padding:2px 8px;image-rendering:pixelated;
-  background-color:#0a0806c8;background-clip:padding-box;
-  border-style:solid;border-width:6px 10px;border-color:transparent;
-  border-image:url("assets/ui/logbox.png") 91 150 92 152 fill / 6px 10px / 0 stretch;
-  box-shadow:0 -2px 10px #0008}
-#log b{color:var(--ink);font-weight:400}
+/* ══ 아래 판은 **hud.css 가 통째로 맡는다** ══
+   여기 있던 규칙(판 · 구슬 · 벨트 · 게이지 · 로그)은 좌표로 조립돼 있었고,
+   화면 폭이 바뀔 때마다 어긋났다. 아홉 번 덧칠하다 뿌리를 뽑기로 하고 걷어냈다.
+   이 파일에는 **전장 위쪽과 창**만 남는다. */
 
 /* ── 아이템 등급 색 ── */
 .it-norm{color:var(--it-norm)} .it-magic{color:var(--it-magic)} .it-rare{color:var(--it-rare)}

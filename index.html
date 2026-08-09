@@ -6,13 +6,9 @@
 <title>necro — 네크로멘서</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="themes.css">
+<link rel="stylesheet" href="hud.css">
 </head>
-<!-- 하단 판의 결. **여덟 갈래를 지어 놓고 갈아 끼운다**(themes.css) —
-     t-d2r 이 디아블로 2 Resurrected 구조다(병수님이 준 참고 화면 기준).
-     콘솔에서 `document.body.className="t-blood"` 처럼 바꿔 바로 견줘 볼 수 있다.
-     고르고 나면 나머지 일곱은 지운다. -->
-<body class="t-d2r">
+<body>
   <canvas id="stage"></canvas>
 
   <div id="top">
@@ -25,31 +21,28 @@
   <!-- 로그 — 판 안이 아니라 전장 아래쪽에 반투명으로 겹친다(판 바로 위) -->
   <div id="log"></div>
 
-  <!-- ══ 아래 판 — 붉은 구슬 · 스킬 벨트 · 푸른 구슬 ══ -->
-  <div id="panel">
-    <!-- 석상 둘 — D2R 판의 얼굴. 구슬 **뒤에** 깔려 살짝 겹친다(폭을 안 먹게). -->
-    <div class="statue l" id="statL"></div><div class="statue r" id="statR"></div>
-    <!-- 유리알(.glass)만 원으로 잘라내고, 금장 테(.ring)와 숫자는 **그 바깥**에 둔다.
-         테를 .orb 안에 넣었더니 overflow:hidden 이 테까지 구슬 원으로 잘라내,
-         그림의 가운데 구멍(42.6%)만 남아 숫자를 덮었다. -->
-    <div class="orb hp">
-      <div class="glass"><div class="fill" id="hpFill" style="height:100%"></div>
-        <div class="gloss"></div></div>
-      <div class="ring"></div><div class="num" id="hpNum">100 / 100</div></div>
+  <!-- ══════════════════════════════════════════════════════
+       아래 판 — **처음부터 다시.**
+       ────────────────────────────────────────────────────
+       아홉 번 고쳐 아홉 번 다 어긋났고, 뿌리는 하나였다:
+       **좌표로 조립했다.** `left:118px; right:118px` 같은 값으로 자리를 잡으니
+       화면 폭이 바뀔 때마다 어딘가가 넘치거나 파고들었다. 그 위에 테마 CSS 를
+       아홉 겹 덧칠하며 숫자를 계속 고쳤지만, 고칠 곳이 늘어날 뿐이었다.
 
-    <!-- 벨트 아래가 통째로 비어 있었다(병수님: "UI 하단 여백있음?").
-         D2 도 벨트 밑에 경험치 띠가 있다 — 빈자리를 지우는 게 아니라 **제 것으로 채운다**.
-         시체·군세는 흘러가는 로그가 아니라 **늘 봐야 하는 값**이라 여기가 제집이다. -->
-    <div id="beltArc"><div id="belt"></div></div>
-    <div id="gauge">
+       그래서 **마크업부터 버리고 flex 한 줄로 다시 짠다** — 구슬 · 가운데 · 구슬.
+       가운데가 남는 폭을 먹고, 구슬은 제 크기만 차지한다. 좌표 계산이 없으니
+       어느 폭에서도 저절로 맞는다. (id 는 그대로 두어 js 를 안 건드린다.)
+       ══════════════════════════════════════════════════════ -->
+  <div id="panel">
+    <div class="orb hp"><div class="fill" id="hpFill"></div><div class="num" id="hpNum">100/100</div></div>
+
+    <div class="mid">
       <div class="res"><span id="gCorpse">시체 0</span><span id="gArmy">군세 0/6</span></div>
       <div class="xp"><div class="xpFill" id="xpFill"></div><span id="xpNum">Lv.1</span></div>
+      <div id="belt"></div>
     </div>
 
-    <div class="orb mp">
-      <div class="glass"><div class="fill" id="mpFill" style="height:100%"></div>
-        <div class="gloss"></div></div>
-      <div class="ring"></div><div class="num" id="mpNum">40 / 40</div></div>
+    <div class="orb mp"><div class="fill" id="mpFill"></div><div class="num" id="mpNum">40/40</div></div>
   </div>
 
   <!-- 능력치 창 -->

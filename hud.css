@@ -1,0 +1,96 @@
+/* ══════════════════════════════════════════════════════════════
+   아래 판 — **처음부터 다시 짠다.**
+   ──────────────────────────────────────────────────────────────
+   오늘 하단 판을 아홉 번 고쳤고 아홉 번 다 어긋났다. 뿌리는 하나였다:
+
+     **좌표로 조립했다.** `left:118px; right:118px`, `bottom:78px` 같은 값으로
+     자리를 잡으니 화면 폭이 바뀔 때마다 어딘가가 넘치거나 파고들었다. 세로에서
+     맞추면 가로가 무너지고, 가로를 고치면 띠가 구슬을 파고들었다. 그 위에 테마
+     CSS 를 아홉 겹 덧칠하며 숫자를 계속 고쳤지만 **고칠 곳이 늘어날 뿐이었다.**
+
+   그래서 마크업부터 버리고 **flex 한 줄**로 다시 짠다 — 구슬 · 가운데 · 구슬.
+   가운데가 남는 폭을 먹고, 구슬은 제 크기만 차지한다. **좌표 계산이 하나도 없다.**
+   화면이 좁아지면 가운데가 줄고, 넓어지면 가운데가 는다. 저절로 맞는다.
+
+   결은 디아블로 2 Resurrected(병수님이 준 참고 화면):
+     · 바닥에 깔린 판이 아니라 **아래에 놓인 물건** — 위가 어둠으로 풀린다
+     · 양 끝에 **유리 구슬**, 가운데에 **평평한 검은 띠**
+     · 띠 위아래로 **금색 실선 한 줄씩**. 그 위에 경험치
+     · 색은 검정 · 무쇠 · 어두운 금. 채도는 거의 없다
+   ══════════════════════════════════════════════════════════ */
+
+:root{ --hudH:112px; --orb:74px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+
+/* ── 판 ── flex 한 줄. **이것이 전부다.** */
+#panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
+  display:flex;align-items:flex-end;justify-content:center;gap:10px;
+  padding:0 10px 8px;
+  background:linear-gradient(#0000, #000000cc 42%, #000000f2);
+  border:none;box-shadow:none}
+
+/* ── 구슬 ── 제 크기만 차지한다(flex:0 0 auto). 유리알은 셋이 같이 가야 한다:
+   **작고 또렷한 반사** · 아래에서 올라오는 되비침 · 가장자리의 어두운 눌림.
+   넓게 퍼진 흰빛을 주면 유리가 아니라 플라스틱이 된다. */
+.orb{position:relative;flex:0 0 auto;width:var(--orb);height:var(--orb);
+  border-radius:50%;overflow:hidden;background:#080706;
+  box-shadow:inset 0 0 0 2px var(--iron), inset 0 0 0 4px #0a0806,
+             inset 0 -9px 18px #000, 0 2px 12px #000c}
+.orb::after{content:"";position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:
+    radial-gradient(ellipse 26% 20% at 31% 22%, #ffffffb0, #ffffff2a 42%, transparent 72%),
+    radial-gradient(ellipse 54% 26% at 50% 108%, #ffffff1a, transparent 72%),
+    radial-gradient(circle at 50% 46%, transparent 44%, #000000aa 100%)}
+.orb .fill{position:absolute;left:0;right:0;bottom:0;height:100%;transition:height .25s}
+.orb.hp .fill{background:linear-gradient(#c83232,#7a0e0e 60%,#2a0606)}
+.orb.mp .fill{background:linear-gradient(#3a5ecc,#12207a 60%,#070c22)}
+.orb .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:#efe4cd;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
+  white-space:nowrap;z-index:2}
+
+/* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
+   끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
+.mid{flex:1 1 auto;max-width:360px;min-width:0;
+  display:flex;flex-direction:column;gap:4px;padding-bottom:2px}
+
+/* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
+.mid .res{display:flex;justify-content:space-between;font-size:10px;color:#9d907a;
+  letter-spacing:.5px;text-shadow:0 1px 2px #000}
+
+/* 경험치 — D2R 처럼 **칸이 나뉜** 띠. 그 칸 나눔이 이 게임 판의 표시다.
+   위아래 금색 실선 한 줄씩 — 이 두 줄이 D2R 의 얼굴이다. */
+.mid .xp{position:relative;height:11px;background:#080706;
+  border-top:1px solid var(--gold-d);border-bottom:1px solid var(--gold-d);
+  box-shadow:inset 0 0 8px #000}
+.mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
+  background:
+    repeating-linear-gradient(90deg, #0000 0 26px, #00000099 26px 27px),
+    linear-gradient(#ffd47a,#c8901e 60%,#8a5f10)}
+.mid .xp span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:8px;color:#efe0bd;letter-spacing:.5px;text-shadow:0 1px 2px #000}
+
+/* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
+   **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
+#belt{display:flex;gap:5px}
+.slot{flex:1 1 0;aspect-ratio:1;position:relative;cursor:pointer;
+  background:linear-gradient(#241410,#0e0806);
+  border:1px solid #4a3a28;box-shadow:inset 0 0 8px #000;
+  display:flex;align-items:center;justify-content:center}
+.slot:active{filter:brightness(1.25)}
+.slot > i{position:absolute;inset:3px;background:center/contain no-repeat;
+  image-rendering:pixelated}
+.slot .k{position:absolute;right:2px;bottom:0;font-size:9px;color:#6b5f4e}
+.slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
+.slot.on{border-color:var(--gold);box-shadow:inset 0 0 8px #000, 0 0 8px #c8aa6e55}
+.slot.off > i{filter:grayscale(.85) brightness(.45)}
+.slot.off .k{color:#4a4034}
+
+/* ── 로그 ── 판 위에 얹지 않고 **전장 아래쪽에 글자만** 띄운다.
+   상자를 두면 그것이 또 하나의 볼거리가 되어 판과 눈을 다툰다. */
+#log{position:fixed;left:12px;right:12px;bottom:calc(var(--hudH) + 4px);height:52px;
+  z-index:15;overflow:hidden;padding:0;border:none;background:none;
+  font-size:11px;line-height:1.45;color:#8c8271;text-shadow:0 1px 3px #000}
+#log b{color:#c9bda4;font-weight:400}
+
+/* 전장은 판만큼 비켜 선다 */
+#stage{height:calc(100% - var(--hudH))}
+.win{inset:38px 0 var(--hudH) 0}
