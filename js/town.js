@@ -23,7 +23,10 @@ const PLACES = [
 ];
 const FIRE = [0.00, 0.30];
 
-const TOWN = ["gate", "shop", "forge", "fire", "fence"];
+/* ★ 울타리를 뺀다 — 병수님: "마을에 테두리같은건 없애라". 경계를 그리면 그것이
+   **테두리**가 되고, 화면이 커질 때마다 「여기가 끝」이 보인다. 마을도 던전과 같이
+   **끝없는 맵의 한 조각**이다(js/ground.js drawScatter). */
+const TOWN = ["gate", "shop", "forge", "fire"];
 const art = {};
 let left = TOWN.length, ready = false;
 
@@ -49,20 +52,6 @@ export function loadTown(dir = "assets/town") {
   }
 }
 
-/** 그림에서 **실제로 칠해진 폭**을 잰다(양옆 투명 여백을 뺀 값).
- *  한 번 재고 캔버스에 적어 둔다 — 매 프레임 픽셀을 훑을 이유가 없다. */
-function fenceStep(cv) {
-  if (cv._step) return cv._step;
-  const g = cv.getContext("2d");
-  const d = g.getImageData(0, 0, cv.width, cv.height).data;
-  let lo = cv.width, hi = 0;
-  for (let x = 0; x < cv.width; x++)
-    for (let y = 0; y < cv.height; y++)
-      if (d[(y * cv.width + x) * 4 + 3] > 8) { if (x < lo) lo = x; if (x > hi) hi = x; break; }
-  cv._step = Math.max(8, hi - lo + 1);
-  return cv._step;
-}
-
 /** 화면에서 각 장소가 차지하는 네모(클릭 판정에 쓴다). draw 가 채운다. */
 let hits = [];
 export const townHits = () => hits;
@@ -76,17 +65,6 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   const wx = (x) => Math.round(cx + x * R.x * sc);
   const wy = (y) => Math.round(cy + y * R.y * sc * squash);
   ctx.imageSmoothingEnabled = false;
-
-  /* 울타리 — 마을의 경계. 위쪽 한 줄.
-     ★ 조각 폭(128) 그대로 띄웠더니 **사이가 벌어져 세 토막으로 보였다** — 그림이
-     캔버스 안에서 여백을 두고 그려져 있기 때문이다. 「이어 붙이라」고 주문해도
-     여백까지 없어지지는 않는다. 그래서 **불투명한 폭만큼만** 밀어 겹쳐 놓는다. */
-    const fence = art.fence;
-  if (fence) {
-    const step = fenceStep(fence);
-    const y = wy(-0.94) - fence.height;
-    for (let x = wx(-1.05); x < wx(1.05); x += step) ctx.drawImage(fence, x, y);
-  }
 
   // 모닥불 — **숨을 쉰다.** 불은 가만히 있으면 그림이 되고, 흔들리면 불이 된다
   const fire = art.fire;

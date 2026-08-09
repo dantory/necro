@@ -199,13 +199,17 @@ function draw(dt) {
   if (MODE.at === "town") {
     /* 마을 — 바닥만 흙으로 바꾸고 나머지는 던전과 같은 길을 탄다.
        빛은 모닥불이라 조금 더 넓고, 싸움 둘레는 그리지 않는다. */
-    drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, 0);
+    /* 마을도 **끝없는 맵의 한 조각**이다 — 같은 격자에 뿌리되 밀도를 낮추고(사람이
+       사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
+       마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
+    drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, sc,
+               { clear: 340, density: 30, set: ["rubble", "pillar", "rubble", "coffin"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
     drawTownLabels(ctx);
     return;
   }
-  drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc);
+  drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc, { clear: 190, density: 58 });
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
 

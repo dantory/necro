@@ -91,7 +91,7 @@ export function loadFloor(src, boost = 1.8) {
 }
 
 /** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
-export function drawGround(ctx, w, h, cx, cy, radius, squash, sc) {
+export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   ctx.fillStyle = "#070504"; ctx.fillRect(0, 0, w, h);
 
   /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
@@ -106,9 +106,12 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc) {
         ctx.drawImage(tiles[(gx * 3 + gy * 7 + ((gx * gy) & 1)) & 3], x, y);
   }
 
-  /* ②' 벽과 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고
-     빛이 닿은 것만 보인다. 나중에 그리면 어둠 위에 둥둥 떠서 스티커가 된다. */
-  if (sc) drawRoom(ctx, cx, cy, sc, squash, w, h);
+  /* ②' 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고 빛이 닿은
+     것만 보인다. 나중에 그리면 어둠 위에 둥둥 떠서 스티커가 된다.
+     ★ 마을에서 이걸 밖에서 따로 부르다가 **조명 뒤로 밀려** 어둠 속 소품이 또렷하게
+     보였다. 부르는 곳이 둘이면 순서도 둘이 된다 — 여기 하나로 모은다. */
+  if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
+                           scatter.clear, scatter.density, scatter.set);
 
   /* ③ 횃불빛 — 저해상도로 구워 곱하기로 덮는다. 곱하기라 바닥 무늬가 어둠 속에서
      사라졌다가 빛 안에서 살아난다. 이게 「빛이 닿았다」로 읽히는 이유다. */
@@ -139,7 +142,11 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc) {
    다시 굽는 대신 여기서 톤을 맞춘다 — sepia 를 조금 섞어 바닥·구슬과 같은
    따뜻한 회갈색으로 끌어온다. 재료를 고치는 것보다 **한 군데서 톤을 잡는 편**이
    낫다(조각이 늘어도 손댈 곳은 여기 하나다). */
-const DECOR = ["wall", "pillar", "coffin", "bones", "brazier", "rubble"];
+/* wall 은 이제 안 쓴다 — **벽이 곧 테두리**라서 뺐다. 파일은 남겨 둔다(방을 다시
+   만들 일이 생기면 쓴다). */
+const DECOR = ["pillar", "coffin", "bones", "brazier", "rubble"];
+/** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
+const RING_HOLD_CLEAR = 190;
 const decor = {};
 let decorLeft = DECOR.length, decorReady = false;
 
@@ -163,66 +170,64 @@ export function loadDecor(dir = "assets/decor") {
   }
 }
 
-/** 방을 짓는다. **월드 좌표로 자리를 정하고** 화면으로 옮긴다 —
- *  화면 좌표로 박으면 폭이 바뀔 때마다 소품이 제자리를 잃는다.
- *  자리는 **고정값**이다(난수가 아니다). 매번 달라지면 같은 방으로 안 읽힌다. */
-/* ★ 자리를 처음엔 x ±430 까지 벌렸다가 **소품이 화면 밖에서 잘렸다.**
-   세로 화면(414x860)에서 보이는 월드 범위는 가로가 ±330, 세로가 ±690 이다 —
-   **세로가 두 배 넓다.** 그러니 가로로 벌리지 말고 **세로로 늘어놓아야** 한다.
-   화면 비율이 판을 정하지, 방이 화면을 정하지 않는다. */
-/* ★★ 자리를 **월드 좌표에 고정**했더니 PC(1440x900)에서 방이 화면 한가운데 작게
-   박히고 좌우가 텅 비었다(병수님: "PC로 했을때도 고려해줘"). 화면마다 보이는 월드
-   범위가 다르기 때문이다 — 모바일은 가로 ±330, PC 는 ±690.
+/* ══════════════════════════════════════════════════════════════
+   **맵에 끝이 없다.** — 병수님: "맵이 무한대로 큰건데, 내가 보이는 화면은 그 중에
+   일부분(중앙부분)으로 만들 수 없나? (실제 무한대는 아니고, 화면을 꽉채우고
+   테두리가 없는거지)"
+   ──────────────────────────────────────────────────────────────
+   앞서는 **방**을 지었다 — 위에 벽을 세우고 소품을 화면 안에 열두 개 박았다.
+   그러면 화면이 커질 때마다 「끝」이 보이고, 벽이 곧 **테두리**가 된다.
 
-   그래서 자리를 **비율(-1~1)로 적고** 방 크기는 **화면에서 보이는 범위로 정한다.**
-   어느 화면에서도 방이 화면을 채운다. 「고정 좌표」와 「화면에 맞춤」은 둘 다 필요한데,
-   **무엇이 고정인지**가 다르다 — 소품끼리의 배치는 고정이고, 방의 크기는 화면 몫이다. */
-const PROPS = [
-  ["coffin", -0.62, -0.77], ["bones",   0.64, -0.72], ["brazier", -0.84, -0.29],
-  ["rubble",  0.82, -0.11], ["bones",  -0.68,  0.65], ["coffin",   0.61,  0.75],
-  ["rubble", -0.33, -0.92], ["brazier", 0.82,  0.33], ["bones",    0.13,  0.99],
-  ["rubble", -0.76,  1.04], ["coffin",  0.50,  1.27], ["bones",   -0.46,  1.38],
-];
-const PILLARS = [-0.80, -0.28, 0.28, 0.80];
+   이제 **격자에 뿌린다.** 월드를 CELL 크기 칸으로 나누고, 칸마다 좌표를 섞은 값으로
+   놓을지 말지·무엇을·어디에 놓을지를 정한다. 그래서:
 
-export function drawRoom(ctx, cx, cy, sc, squash, w, h) {
+     · **끝이 없다** — 화면이 넓어지면 칸이 더 보일 뿐이다. 벽도 울타리도 없다
+     · **언제나 같다** — 난수가 아니라 좌표에서 나온 값이라, 같은 자리는 늘 같다
+     · **공짜다** — 보이는 칸만 돈다. 맵을 미리 만들어 들고 있지 않는다
+
+   싸움터 한가운데는 비워 둔다 — 소품이 싸움을 가리면 판이 안 읽힌다.
+   ══════════════════════════════════════════════════════════ */
+
+const CELL = 165;                      // 칸 하나의 월드 크기
+const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "bones", "rubble"];
+
+/** 좌표를 섞어 **늘 같은 값**을 낸다(난수가 아니다 — 난수면 매 프레임 자리가 바뀐다). */
+function hash2(x, y) {
+  let h = (x * 374761393 + y * 668265263) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177 | 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/** 보이는 칸에 소품을 뿌린다. `clear` 안쪽(싸움터)은 비워 둔다. */
+export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 58, set = SCATTER) {
   if (!decorReady) return;
-  /* 방은 **화면에서 보이는 만큼**이다. 벽은 화면 위 가장자리 바로 밖에 서고,
-     소품은 그 안쪽에 비율대로 놓인다. */
-  const halfW = (w / 2) / sc, halfH = (h / 2) / (sc * squash);
-  /* ★ 0.82 로 뒀더니 넓은 화면에서 **벽이 조명 밖으로 밀려 안 보였다.** 방을 화면에
-     맞추는 것과 「빛이 닿는 데까지가 방」인 것은 다르다 — 세로는 조금 당겨 벽이
-     빛 언저리에 걸리게 한다. */
-  const ROOM = { x: halfW * 0.92, y: halfH * 0.70 };
-  const wx = (x) => Math.round(cx + x * sc);
-  const wy = (y) => Math.round(cy + y * sc * squash);
   ctx.imageSmoothingEnabled = false;
+  const halfW = (w / 2) / sc + CELL, halfH = (h / 2) / (sc * squash) + CELL;
+  const gx0 = Math.floor(-halfW / CELL), gx1 = Math.ceil(halfW / CELL);
+  const gy0 = Math.floor(-halfH / CELL), gy1 = Math.ceil(halfH / CELL);
 
-  /* ① 위쪽 벽 — 가로로 이어 붙인다. 아래쪽 벽은 두지 않는다: 화면 아래는 판이
-     가리고, 벽이 앞을 막으면 **방 안이 아니라 상자 속**을 보는 그림이 된다. */
-  const wall = decor.wall;
-  if (wall) {
-    const y = wy(-ROOM.y) - wall.height;
-    for (let x = wx(-ROOM.x); x < wx(ROOM.x); x += wall.width)
-      ctx.drawImage(wall, x, y);
-  }
-  /* ② 기둥 — 위쪽 벽 앞에 늘어세운다. 발이 벽 아래 선에 닿아야 벽에 붙어 보인다. */
-  const pil = decor.pillar;
-  if (pil) for (const rx of PILLARS)
-    ctx.drawImage(pil, wx(rx * ROOM.x) - pil.width / 2, wy(-ROOM.y + 16) - pil.height);
-
-  /* ③ 소품 — 자리마다 고정. 발밑 그림자를 한 겹 깔아 바닥에 **놓인 것**으로 만든다. */
-  for (const [n, rx, ry] of PROPS) {
-    const im = decor[n]; if (!im) continue;
-    const x = rx * ROOM.x, y = ry * ROOM.y;
-    const px = wx(x) - im.width / 2, py = wy(y) - im.height;
-    ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,.42)";
-    ctx.beginPath();
-    ctx.ellipse(wx(x), wy(y) - 2, im.width * 0.34, im.width * 0.12, 0, 0, 6.284);
-    ctx.fill();
-    ctx.restore();
-    ctx.drawImage(im, px, py);
+  /* **뒤에 있는 것부터** 그린다(y 가 작은 칸부터) — 안 그러면 위쪽 소품이 아래쪽을 덮는다. */
+  for (let gy = gy0; gy <= gy1; gy++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      const rnd = hash2(gx, gy);
+      if (rnd % 100 >= density) continue;                    // 대부분의 칸은 빈 채로 둔다
+      const name = set[(rnd >> 7) % set.length];
+      const im = decor[name]; if (!im) continue;
+      /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
+      const wxw = gx * CELL + ((rnd >> 11) % CELL) - CELL / 2;
+      const wyw = gy * CELL + ((rnd >> 17) % CELL) - CELL / 2;
+      if (clear && Math.hypot(wxw, wyw) < clear) continue;   // 싸움터는 비운다
+      const px = Math.round(cx + wxw * sc) - im.width / 2;
+      const py = Math.round(cy + wyw * sc * squash) - im.height;
+      ctx.save();
+      ctx.fillStyle = "rgba(0,0,0,.42)";
+      ctx.beginPath();
+      ctx.ellipse(px + im.width / 2, py + im.height - 2,
+                  im.width * 0.34, im.width * 0.12, 0, 0, 6.284);
+      ctx.fill();
+      ctx.restore();
+      ctx.drawImage(im, px, py);
+    }
   }
 }
 
