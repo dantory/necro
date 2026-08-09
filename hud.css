@@ -160,3 +160,28 @@ body.in-town .mid .res{ justify-content:center; gap:18px }
    화면 안의 것을 눌러 움직이는 편이 「거기 있는 곳」으로 읽힌다. */
 #stage{cursor:default}
 body.in-town #stage{cursor:pointer}
+
+
+/* ══════════════════════════════════════════════════════════════
+   로딩 — 병수님: "에셋 불러올때 시간이 좀 필요할거 같으니 로딩화면도 구현해주고"
+   ──────────────────────────────────────────────────────────────
+   **반쯤 그려진 판을 보여 주면 「깨진 것」으로 읽힌다.** 그림이 하나둘 나타나는 것을
+   보여 주느니 덮고 기다리게 하는 편이 낫다 — 기다림은 「아직」이지만 반쯤 그려진
+   화면은 「고장」이다.
+   결은 판과 같게(픽셀 글꼴 · 계단 그라디언트 · 금 실선 하나).
+   ══════════════════════════════════════════════════════════ */
+#loading{position:fixed;inset:0;z-index:60;display:flex;align-items:center;
+  justify-content:center;background:#070504;
+  transition:opacity .45s ease}
+#loading.gone{opacity:0;pointer-events:none}
+.lWrap{width:min(280px,72vw);text-align:center}
+.lTitle{font-size:22px;color:var(--gold);letter-spacing:6px;margin-bottom:16px;
+  text-shadow:0 2px 0 #000, 0 0 12px #c8aa6e33}
+/* 막대 — 경험치 띠와 **같은 결**로. 화면에 결이 둘이면 안 된다 */
+.lBar{position:relative;height:11px;background:#080706;box-shadow:inset 0 0 8px #000;
+  border-top:1px solid var(--gold-d);border-bottom:1px solid var(--gold-d)}
+.lFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .2s linear;
+  background:
+    repeating-linear-gradient(90deg, #0000 0 10%, #00000099 calc(10% - 1px) 10%),
+    linear-gradient(#ffd47a 0 34%, #c8901e 34% 68%, #8a5f10 68%)}
+.lTxt{margin-top:10px;font-size:11px;color:#8a7c60}

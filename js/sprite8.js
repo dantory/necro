@@ -26,6 +26,20 @@ export function dirName(dx, dy) {
 const CACHE = {};
 export const MAX_FRAMES = 10;
 
+/** 다음 프레임을 **앞 장이 왔을 때만** 이어 부른다.
+ *  없는 것을 미리 다 두드리면 404 만 쌓이고 로딩이 길어진다. */
+function chain(base, state, dir, f) {
+  if (f >= MAX_FRAMES) return;
+  const path = `assets/${base}/${state}/${dir}/${f}.png`;
+  if (CACHE[path] !== undefined) return;
+  LOAD.total++;
+  const im = new Image();
+  im.onload  = () => { CACHE[path] = im; LOAD.done++; chain(base, state, dir, f + 1); };
+  im.onerror = () => { CACHE[path] = null; LOAD.done++; };   // 여기서 끝. 더 안 두드린다
+  CACHE[path] = null;
+  im.src = path;
+}
+
 /** 이 종·이 동작이 **몇 프레임인가.** 파일이 있는 데까지 센다 —
  *  프레임 수를 코드에 박으면 종마다 다른 애니를 못 쓴다(6장짜리와 7장짜리가 섞인다).
  *  한 번 세고 적어 둔다. 아직 다 안 받아졌으면 0 을 주지 않고 6 으로 버틴다. */
@@ -39,12 +53,19 @@ export function frameCount(base, state, dir = "south") {
   return n || 6;
 }
 
+/* ══ 얼마나 받았나 ══ 병수님: "에셋 불러올때 시간이 좀 필요할거 같으니 로딩화면도".
+   **요청한 수와 끝난 수를 여기서 센다.** 로딩 막대는 이 둘의 비다 — 화면 쪽에서
+   따로 세면 실제로 받는 곳과 어긋난다(받는 곳이 하나뿐이므로 세는 곳도 하나여야 한다).
+   실패도 「끝난 것」이다. 없는 파일을 기다리며 영원히 99%에 멈추는 것이 제일 나쁘다. */
+export const LOAD = { total: 0, done: 0 };
+
 function img(path) {
   if (CACHE[path] !== undefined) return CACHE[path] || null;
   CACHE[path] = null;                       // 로드 전·실패 모두 null — 재요청 안 함
+  LOAD.total++;
   const im = new Image();
-  im.onload  = () => { CACHE[path] = im; };
-  im.onerror = () => { CACHE[path] = null; };
+  im.onload  = () => { CACHE[path] = im; LOAD.done++; };
+  im.onerror = () => { CACHE[path] = null; LOAD.done++; };
   im.src = path;
   return null;
 }
@@ -126,11 +147,16 @@ export function preload(bases) {
     for (const d of DIRS) {
       img(`assets/${base}/${d}.png`);
       /* ★ 6장으로 박아 뒀는데 새로 구운 해골은 **7장**이다(v3 애니는 프레임 수가
-         종마다 다르다). 넉넉히 받아 두고, 몇 장인지는 아래 frameCount 가 센다. */
-      for (let f = 0; f < MAX_FRAMES; f++) {
+         종마다 다르다). 그렇다고 MAX_FRAMES 까지 다 부르면 **없는 파일을 552번**
+         요청하게 된다(404 가 그만큼 나고 로딩이 그만큼 느려진다).
+         그래서 **여섯 장은 그냥 부르고, 그다음은 앞 장이 실제로 왔을 때만 이어 부른다** —
+         있는 데까지만 두드린다. */
+      for (let f = 0; f < 6; f++) {
         img(`assets/${base}/walk/${d}/${f}.png`);
         img(`assets/${base}/attack/${d}/${f}.png`);
       }
+      chain(base, "walk", d, 6);
+      chain(base, "attack", d, 6);
     }
   }
 }

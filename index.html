@@ -67,6 +67,16 @@
     <div class="winFoot"><button class="btn" data-close>나가기</button></div>
   </div></div>
 
+  <!-- 로딩 — **에셋이 다 올 때까지 화면을 덮는다.** 반쯤 그려진 판을 보여 주면
+       「깨진 것」으로 읽힌다. 다 오면 스스로 물러난다. -->
+  <div id="loading">
+    <div class="lWrap">
+      <div class="lTitle">네크로멘서</div>
+      <div class="lBar"><div class="lFill" id="lFill"></div></div>
+      <div class="lTxt" id="lTxt">뼈를 맞추는 중…</div>
+    </div>
+  </div>
+
   <script type="module" src="js/main.js"></script>
 </body>
 </html>

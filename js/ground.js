@@ -1,3 +1,5 @@
+import { LOAD } from "./sprite8.js";
+
 /* ══════════════════════════════════════════════════════════════
    **바닥을 깐다.** — 병수님: "디아블로 같은 느낌이긴한데 뭔가 부족하긴한데,,뭘까"
    ──────────────────────────────────────────────────────────────
@@ -64,6 +66,7 @@ let floorReady = false;
  *  둔다 — 그래야 빛 안에서 살아나고 빛 밖에서 잠긴다. */
 export function loadFloor(src, boost = 1.8) {
   const im = new Image();
+  LOAD.total++;
   im.onload = () => {
     const t = im.width;
     tiles = [[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sy]) => {
@@ -78,7 +81,12 @@ export function loadFloor(src, boost = 1.8) {
       return c;
     });
     floorReady = true;
+    LOAD.done++;
   };
+  /* ★ 실패 경로에서 done 을 안 올렸더니 **1115/1116 에서 영영 멈췄다.**
+     로딩 막대는 「끝난 것」을 세는 것이지 「성공한 것」을 세는 게 아니다 —
+     실패도 끝난 것이다. 안 그러면 파일 하나가 없을 때 화면이 영원히 안 걷힌다. */
+  im.onerror = () => { LOAD.done++; };
   im.src = src;
 }
 
@@ -138,6 +146,7 @@ let decorLeft = DECOR.length, decorReady = false;
 export function loadDecor(dir = "assets/decor") {
   for (const n of DECOR) {
     const im = new Image();
+    LOAD.total++;
     im.onload = () => {
       const c = document.createElement("canvas");
       c.width = im.width; c.height = im.height;
@@ -147,8 +156,9 @@ export function loadDecor(dir = "assets/decor") {
       g.drawImage(im, 0, 0);
       decor[n] = c;
       if (--decorLeft === 0) decorReady = true;
+      LOAD.done++;
     };
-    im.onerror = () => { if (--decorLeft === 0) decorReady = true; };
+    im.onerror = () => { if (--decorLeft === 0) decorReady = true; LOAD.done++; };
     im.src = `${dir}/${n}.png`;
   }
 }

@@ -1,6 +1,6 @@
 import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
-import { dirName, drawSprite8, footMetrics, frameCount, preload } from "./sprite8.js";
+import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGround, drawHoldRing, loadFloor, loadDecor } from "./ground.js";
@@ -450,10 +450,37 @@ export function toDungeon() {
   newRun();
 }
 
+/* ══ 로딩 ══ **다 올 때까지 덮는다.**
+   ★ 진행률을 「내가 부른 횟수」로 세면 실제와 어긋난다 — 받는 곳(sprite8 의 img)에서
+   센 값(LOAD)만 쓴다. 실패도 「끝난 것」으로 센다: 없는 파일을 기다리며 99% 에
+   멈춰 있는 것이 제일 나쁘다.
+   ★ 다 받아도 **최소 0.7초는 보여 준다.** 번쩍 지나가면 무엇이 있었는지 모르고,
+   빠른 기기에서만 화면이 덜컥거린다. */
+const LOAD_MIN = 0.7;
+let loadT = 0, loadDone = false;
+function loading(dt) {
+  if (loadDone) return true;
+  loadT += dt;
+  const p = LOAD.total ? LOAD.done / LOAD.total : 0;
+  $("lFill").style.width = Math.round(p * 100) + "%";
+  $("lTxt").textContent = p < 1 ? `뼈를 맞추는 중… ${LOAD.done}/${LOAD.total}`
+                                : "준비됨";
+  if (p >= 1 && loadT >= LOAD_MIN && LOAD.total > 0) {
+    loadDone = true;
+    $("loading").classList.add("gone");
+    /* 다 사라진 뒤에 치운다 — display:none 을 바로 걸면 사라지는 것이 안 보인다. */
+    setTimeout(() => { const el = $("loading"); if (el) el.style.display = "none"; }, 500);
+  }
+  return loadDone;
+}
+
 let townT = 0;
 let last = 0, autoT = 0, hudT = 0;
 function loop(t) {
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+  /* 다 받기 전에는 **시간도 멈춘다.** 덮어 놓고 뒤에서 싸움이 진행되면, 걷어냈을 때
+     이미 벌어진 판을 보게 된다 — 「시작」이 아니라 「중간부터」가 된다. */
+  if (!loading(dt)) { draw(dt); requestAnimationFrame(loop); return; }
   if (MODE.at === "dungeon") {
     for (let i = 0; i < S.speed; i++) step(dt);
     if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
@@ -480,4 +507,4 @@ toTown();                       // **마을에서 시작한다** — 들어갈�
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits });
+Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits, LOAD });

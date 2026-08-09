@@ -1,3 +1,5 @@
+import { LOAD } from "./sprite8.js";
+
 /* ══════════════════════════════════════════════════════════════
    **마을** — 병수님: "마을도 만들어줘, 마을에서 던전으로 진입하는거고,
    마을에서 아이템 구매 / 강화 등을 진행할 수 있게".
@@ -28,6 +30,7 @@ let left = TOWN.length, ready = false;
 export function loadTown(dir = "assets/town") {
   for (const n of TOWN) {
     const im = new Image();
+    LOAD.total++;
     im.onload = () => {
       /* 던전 소품과 **같은 톤 보정**을 건다(ground.js 와 같은 값). PixelLab 이 준 것은
          청회색으로 치우쳐 있어서, 한 군데서 따뜻한 회갈색으로 끌어와야 한 화면이 된다. */
@@ -39,8 +42,9 @@ export function loadTown(dir = "assets/town") {
       g.drawImage(im, 0, 0);
       art[n] = c;
       if (--left === 0) ready = true;
+      LOAD.done++;
     };
-    im.onerror = () => { if (--left === 0) ready = true; };
+    im.onerror = () => { if (--left === 0) ready = true; LOAD.done++; };
     im.src = `${dir}/${n}.png`;
   }
 }
