@@ -80,13 +80,16 @@ export function drawPlate(cv, panel) {
   const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
   const CH = 4;                                      // 띠 끝을 깎는다
 
-  /* 받침 — 구슬을 감싸는 고리. 구슬보다 조금 크게, 아래쪽을 더 두껍게(무게가 아래에
-     있어야 「받치고 있다」로 읽힌다). */
+  /* 받침 — 구슬을 감싸는 고리.
+     ★★★★★ 병수님: "구슬 부분 배경 하단에 공간이 남는거 말한거야, 아까도, 이거 줄여
+     (구슬에 딱 맞게 배경이 그려졌으면)". 아래쪽을 두껍게(+3.4) 해 놨던 것이 원인이다 —
+     「받치고 있다」로 보이라고 준 무게가, 구슬 밑에 **빈 배경**으로 남았다.
+     구슬에 **딱 붙는 얇은 테** 한 겹으로 바꾼다. 두께가 고르면 남는 자리도 없다. */
+  const RING = 1.6;                                  // 고리 두께(고르게)
   const cradle = (o, x, y) => {
     const dx = x - o.cx, dy = y - o.cy;
     const rr = Math.sqrt(dx * dx + dy * dy);
-    const thick = 2.2 + (dy > 0 ? 3.4 * (dy / o.r) : 0);
-    return rr > o.r + 0.6 && rr < o.r + 0.6 + thick;
+    return rr > o.r + 0.5 && rr < o.r + 0.5 + RING;
   };
 
   const inside = (x, y) => {
