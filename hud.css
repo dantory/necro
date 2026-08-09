@@ -49,14 +49,17 @@
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
      좌우를 흐리면 **떠 있는 물건**이 아니라 **끝이 어중간하게 잘린 판**으로 보인다.
      판은 화면 끝까지 간다. 뜬 느낌은 위쪽 그라디언트가 이미 내고 있다. */
-  background:
-    repeating-linear-gradient(90deg, #ffffff05 0 1px, #0000 1px 4px),
-    linear-gradient(#0000 0 18%, #00000088 18% 42%, #000000cc 42% 66%, #000000f2 66%);
-  border:none;box-shadow:none}
+  /* ★ 바탕은 이제 **캔버스가 돌로 깎는다**(js/panel.js) — CSS 그라디언트는 매끄러워
+     픽셀 화면에서 거기만 종이가 된다. 여기서는 자리만 잡는다. */
+  background:#14110d;border:none;box-shadow:none}
+#panelBg{position:absolute;inset:0;width:100%;height:100%;
+  image-rendering:pixelated;pointer-events:none;z-index:0}
+/* 판 위에 놓이는 것들은 바탕보다 위 — 바탕이 절대배치라 안 올리면 가려진다. */
+#panel > .orb, #panel > .mid, #panel > .slots{position:relative;z-index:1}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지
    눈이 못 잡는다. 가운데가 밝고 양끝이 사라지는 선 — 끝을 자르면 선이 뚝 끊겨 보인다. */
-#panel::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;
-  background:linear-gradient(90deg,#0000, #c8aa6e55 22%, #c8aa6e88 50%, #c8aa6e55 78%, #0000)}
+/* 위 경계선은 **난간을 캔버스가 그리므로** 뺐다 — 두 곳에서 같은 것을 그리면
+   한쪽만 고치게 된다(오늘 버튼 크기에서 이미 겪었다). */
 
 /* ── 구슬 ── 제 크기만 차지한다(flex:0 0 auto). 유리알은 셋이 같이 가야 한다:
    **작고 또렷한 반사** · 아래에서 올라오는 되비침 · 가장자리의 어두운 눌림.
