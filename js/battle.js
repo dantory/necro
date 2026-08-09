@@ -19,10 +19,15 @@ export const RING_HOLD  = 105;    // 소환수가 진을 치는 둘레 — 본�
 export const CORE_R     = 26;     // 여기까지 들어오면 본인이 맞는다
 /** 한 번 휘두르는 데 걸리는 시간. **0.26초는 너무 빨랐다**(병수님: "공격 모션이 너무
  *  빠른듯") — 프레임이 여섯이라 초당 23장, 눈이 못 따라가고 그냥 번쩍하고 지나간다.
- *  0.45 면 초당 13장으로, 픽셀아트 공격 애니의 흔한 박자다. 제일 짧은 쿨다운(해골 0.9초)
- *  의 절반이라 다음 휘두름과 겹치지도 않는다.
+ *  0.45 로 늘렸더니 아직도 "파파팟" 이라 하셔서 0.6 까지 늘렸다(초당 10장).
+ *  **휘두름만 늘려서는 소용이 없다** — 치는 주기가 짧으면 한 번이 느려져도 연타로 보인다.
+ *  그래서 MINIONS 의 cd 도 1.6배 늘리고 한 방을 그만큼 세게 했다(core.js).
+ *  제일 짧은 쿨다운(해골 1.5초)의 40% 라 다음 휘두름과 겹치지 않는다.
  *  ★ 그리는 쪽에서도 이 값을 쓴다 — 숫자를 양쪽에 적어 두면 한쪽만 고쳐 어긋난다. */
-export const SWING_T    = 0.45;
+export const SWING_T    = 0.6;
+/** 적이 때리는 주기. 소환수만 늦추면 **적만 연타로 보인다.** 같이 늦추되 한 방을
+ *  그만큼 세게 해서(아래 `m.dmg * MOB_CD`) 받는 피해 총량은 그대로 둔다. */
+const MOB_CD = 1.6;
 
 let seq = 0;
 export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
@@ -196,10 +201,10 @@ export function step(dt) {
     for (const u of S.minions) { const d = dist(m, u); if (d < td && d < 90) { td = d; tgt = u; } }
     if (tgt && td < m.r + tgt.r + 4) {
       if ((m.atk -= dt) > 0) continue;
-      m.atk = 1.0; m.swing = SWING_T;
+      m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
       const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
-      tgt.hp -= m.dmg; tgt.flinch = 0.18; tgt.kx = m.sdx; tgt.ky = m.sdy;
+      tgt.hp -= m.dmg * MOB_CD; tgt.flinch = 0.18; tgt.kx = m.sdx; tgt.ky = m.sdy;
       S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
       continue;
     }
@@ -207,7 +212,7 @@ export function step(dt) {
     toward(m, 0, 0, m.spd, dt);
     if (Math.hypot(m.x, m.y) <= CORE_R) {            // 둘레가 뚫렸다 — 본인이 맞는다
       if ((m.atk -= dt) > 0) continue;
-      m.atk = 1.0; S.hp -= m.dmg;
+      m.atk = MOB_CD; S.hp -= m.dmg * MOB_CD;   // 주기를 늘린 만큼 한 방을 세게
       if (S.hp <= 0) { S.hp = 0; die(); return; }
     }
   }
