@@ -100,7 +100,7 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc) {
 
   /* ②' 벽과 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고
      빛이 닿은 것만 보인다. 나중에 그리면 어둠 위에 둥둥 떠서 스티커가 된다. */
-  if (sc) drawRoom(ctx, cx, cy, sc, squash);
+  if (sc) drawRoom(ctx, cx, cy, sc, squash, w, h);
 
   /* ③ 횃불빛 — 저해상도로 구워 곱하기로 덮는다. 곱하기라 바닥 무늬가 어둠 속에서
      사라졌다가 빛 안에서 살아난다. 이게 「빛이 닿았다」로 읽히는 이유다. */
@@ -160,17 +160,30 @@ export function loadDecor(dir = "assets/decor") {
    세로 화면(414x860)에서 보이는 월드 범위는 가로가 ±330, 세로가 ±690 이다 —
    **세로가 두 배 넓다.** 그러니 가로로 벌리지 말고 **세로로 늘어놓아야** 한다.
    화면 비율이 판을 정하지, 방이 화면을 정하지 않는다. */
-const ROOM = { x: 300, y: 330 };
-const PROPS = [
-  ["coffin",  -190, -255], ["bones",    195, -240], ["brazier", -255,  -95],
-  ["rubble",   250,  -35], ["bones",   -205,  215], ["coffin",   185,  250],
-  ["rubble",  -100, -305], ["brazier",  250,  110], ["bones",     40,  330],
-  ["rubble",  -230,  345], ["coffin",   150,  420], ["bones",   -140,  455],
-];
-const PILLARS = [-245, -85, 85, 245];
+/* ★★ 자리를 **월드 좌표에 고정**했더니 PC(1440x900)에서 방이 화면 한가운데 작게
+   박히고 좌우가 텅 비었다(병수님: "PC로 했을때도 고려해줘"). 화면마다 보이는 월드
+   범위가 다르기 때문이다 — 모바일은 가로 ±330, PC 는 ±690.
 
-export function drawRoom(ctx, cx, cy, sc, squash) {
+   그래서 자리를 **비율(-1~1)로 적고** 방 크기는 **화면에서 보이는 범위로 정한다.**
+   어느 화면에서도 방이 화면을 채운다. 「고정 좌표」와 「화면에 맞춤」은 둘 다 필요한데,
+   **무엇이 고정인지**가 다르다 — 소품끼리의 배치는 고정이고, 방의 크기는 화면 몫이다. */
+const PROPS = [
+  ["coffin", -0.62, -0.77], ["bones",   0.64, -0.72], ["brazier", -0.84, -0.29],
+  ["rubble",  0.82, -0.11], ["bones",  -0.68,  0.65], ["coffin",   0.61,  0.75],
+  ["rubble", -0.33, -0.92], ["brazier", 0.82,  0.33], ["bones",    0.13,  0.99],
+  ["rubble", -0.76,  1.04], ["coffin",  0.50,  1.27], ["bones",   -0.46,  1.38],
+];
+const PILLARS = [-0.80, -0.28, 0.28, 0.80];
+
+export function drawRoom(ctx, cx, cy, sc, squash, w, h) {
   if (!decorReady) return;
+  /* 방은 **화면에서 보이는 만큼**이다. 벽은 화면 위 가장자리 바로 밖에 서고,
+     소품은 그 안쪽에 비율대로 놓인다. */
+  const halfW = (w / 2) / sc, halfH = (h / 2) / (sc * squash);
+  /* ★ 0.82 로 뒀더니 넓은 화면에서 **벽이 조명 밖으로 밀려 안 보였다.** 방을 화면에
+     맞추는 것과 「빛이 닿는 데까지가 방」인 것은 다르다 — 세로는 조금 당겨 벽이
+     빛 언저리에 걸리게 한다. */
+  const ROOM = { x: halfW * 0.92, y: halfH * 0.70 };
   const wx = (x) => Math.round(cx + x * sc);
   const wy = (y) => Math.round(cy + y * sc * squash);
   ctx.imageSmoothingEnabled = false;
@@ -185,12 +198,13 @@ export function drawRoom(ctx, cx, cy, sc, squash) {
   }
   /* ② 기둥 — 위쪽 벽 앞에 늘어세운다. 발이 벽 아래 선에 닿아야 벽에 붙어 보인다. */
   const pil = decor.pillar;
-  if (pil) for (const x of PILLARS)
-    ctx.drawImage(pil, wx(x) - pil.width / 2, wy(-ROOM.y + 16) - pil.height);
+  if (pil) for (const rx of PILLARS)
+    ctx.drawImage(pil, wx(rx * ROOM.x) - pil.width / 2, wy(-ROOM.y + 16) - pil.height);
 
   /* ③ 소품 — 자리마다 고정. 발밑 그림자를 한 겹 깔아 바닥에 **놓인 것**으로 만든다. */
-  for (const [n, x, y] of PROPS) {
+  for (const [n, rx, ry] of PROPS) {
     const im = decor[n]; if (!im) continue;
+    const x = rx * ROOM.x, y = ry * ROOM.y;
     const px = wx(x) - im.width / 2, py = wy(y) - im.height;
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,.42)";

@@ -1,3 +1,7 @@
 {
- "id": "a8952c41-6109-4ff8-b1d4-5bfd32465bbe"
+ "id": "a8952c41-6109-4ff8-b1d4-5bfd32465bbe",
+ "anim": {
+  "walk": true,
+  "attack": true
+ }
 }

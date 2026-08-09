@@ -159,7 +159,15 @@ function draw() {
   const scByW = (w * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
   const squash = Math.max(0.56, Math.min(0.86,
                    (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
-  const sc = Math.min(scByW, (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
+  /* ★★ 병수님: "좌우 화면 넓어졌을때도 고려해라 모바일도 좋은데 PC로 했을때도".
+     예전엔 화면이 커진 만큼 **배율만 커졌다**(1440 폭에서 sc 2.07 — 모바일의 세 배).
+     그래서 PC 에서는 바닥 타일이 거대해지고 조명 계단이 뭉텅이가 되고, 보이는 넓이는
+     모바일과 똑같았다. **화면이 넓어지면 확대할 게 아니라 더 넓게 보여야 한다** —
+     디아블로도 그렇다. 그래서 배율에 상한을 둔다. 남는 폭은 시야가 가져간다.
+     상한 1.05 는 인물 배율(us)이 상한 1.85 에 닿는 지점 언저리라, 더 키워도
+     인물은 안 커지고 바닥만 성겨진다. */
+  const SC_MAX = 1.05;
+  const sc = Math.min(SC_MAX, scByW, (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
   const SQUASH = squash;
   /* 인물 크기(개체가 든 h)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
      서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
@@ -180,7 +188,7 @@ function draw() {
   /* ★ 빛 반경을 싸움터(RING_SPAWN)에만 맞췄더니 세로로 긴 화면에서는 위아래가
      통째로 검게 남고 **벽도 소품도 안 보였다.** 방 전체가 어렴풋이라도 보이도록
      화면 크기에도 맞춘다 — 둘 중 큰 쪽. */
-  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.62);
+  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.72);
   drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc);
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
