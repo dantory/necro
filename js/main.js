@@ -1,9 +1,10 @@
-import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNeed } from "./core.js";
+import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
-import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
+import { dirName, drawSprite8, footMetrics, frameCount, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGround, drawHoldRing, loadFloor, loadDecor } from "./ground.js";
+import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -83,16 +84,22 @@ function drawOne(base, x, gy, h, fallback, e) {
          **들었다가(느리게) · 후려치고(빠르게) · 거둔다(느리게).** 균등 배분하면 팔이
          일정한 속도로 도는 기계가 된다. 타격 칸(3)에 제일 오래 머물게 나눈다. */
       const p = 1 - e.swing / SWING_T;                 // 0 → 1
-      frameIdx = p < 0.18 ? 0 : p < 0.36 ? 1 : p < 0.50 ? 2
-               : p < 0.72 ? 3 : p < 0.86 ? 4 : 5;
+      /* 구간 비율은 그대로 두고 **프레임 수만 종에 맞춘다** — 6장짜리와 7장짜리가
+         섞여 있어서(v3 애니는 종마다 다르다) 숫자를 박으면 한쪽이 어긋난다.
+         타격 칸이 제일 길다는 성질은 비율에 있으므로 장수가 늘어도 유지된다. */
+      const nf = frameCount(base, "attack");
+      const seq = [0, 0.18, 0.36, 0.50, 0.72, 0.86];    // 여섯 구간(타격 칸 = 세 번째)
+      let k = 0; while (k < 5 && p >= seq[k + 1]) k++;
+      frameIdx = Math.min(nf - 1, Math.round(k * (nf - 1) / 5));
       dir = e.sdx !== undefined ? dirName(e.sdx, e.sdy) : dirName(e.dx ?? 0, e.dy ?? 1);
     } else if (e.moving > 0) {
       state = "walk";
       /* 걷기 프레임은 **지나온 거리**로(시간 아님) — 느린 골렘은 저절로 느리게 딛는다.
          한 주기 거리는 기존 리깅의 walkPh(=walked/(h*0.14)) 한 바퀴(2π)와 같게 잡아 박자
          (≈1.3초)를 그대로 물려받고, 그 한 바퀴를 6프레임에 나눈다. */
-      const stride = h * 0.14 * 2 * Math.PI / 6;
-      frameIdx = Math.floor((e.walked || 0) / stride) % 6;
+      const nf = frameCount(base, "walk");
+      const stride = h * 0.14 * 2 * Math.PI / nf;
+      frameIdx = Math.floor((e.walked || 0) / stride) % nf;
       dir = dirName(e.dx ?? 0, e.dy ?? 1);
     } else {
       dir = dirName(e.dx ?? 0, e.dy ?? 1);
@@ -145,7 +152,7 @@ function drawOne(base, x, gy, h, fallback, e) {
    비스듬히 본다). y 를 눌러(SQUASH) 바닥을 눕히고, 그림은 세워서 세운 채로 얹는다 —
    흔히 쓰는 2.5D 다. 그리는 순서는 **y 가 작은 것부터**라야 앞의 것이 뒤를 가린다. */
 
-function draw() {
+function draw(dt) {
   const w = cv.clientWidth, h = cv.clientHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
@@ -189,6 +196,15 @@ function draw() {
      통째로 검게 남고 **벽도 소품도 안 보였다.** 방 전체가 어렴풋이라도 보이도록
      화면 크기에도 맞춘다 — 둘 중 큰 쪽. */
   const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.72);
+  if (MODE.at === "town") {
+    /* 마을 — 바닥만 흙으로 바꾸고 나머지는 던전과 같은 길을 탄다.
+       빛은 모닥불이라 조금 더 넓고, 싸움 둘레는 그리지 않는다. */
+    drawGround(ctx, w, h, cx, cy, lightR * 1.15, SQUASH, 0);
+    drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
+    drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
+    drawTownLabels(ctx);
+    return;
+  }
   drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc);
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
@@ -292,11 +308,18 @@ function beltState() {
 }
 
 function hud() {
+  /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
+     떠 있으면 화면이 무슨 장면인지 헷갈린다. */
+  if (MODE.at === "town") {
+    $("hFloor").textContent = "마을";
+    $("hLeft").textContent  = `가장 깊이 ${META.deepest}층`;
+  } else {
   $("hFloor").textContent = S.floor + "층";
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
   const left = S.mobs.length;
   $("hLeft").textContent = left ? `남은 적 ${left}` : "정리 중";
+  }
   $("hLv").textContent = "Lv." + META.lv;
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
@@ -340,12 +363,105 @@ function auto() {
   if (S.corpses >= 1 && S.minions.length < armyCap()) cast("raise");
 }
 
+/* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".
+   **한 화면을 두 장면으로 쓴다** — 같은 캔버스·같은 렌더 규칙. 다른 것은 무엇을
+   그리느냐와 시간이 흐르느냐뿐이다(마을에서는 싸움이 멈춘다). */
+export const MODE = { at: "town" };
+
+/* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
+   표는 방치형이 아니라 숙제가 된다. */
+const win = (id, on) => $(id).classList.toggle("on", on);
+const closeAll = () => { win("winShop", false); win("winForge", false); };
+
+/** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
+ *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
+function drawShop() {
+  $("shopBody").innerHTML = Object.entries(GEAR).map(([k, g]) => {
+    const t = META.gear[k] | 0, nx = gearNext(k);
+    const have = g.tiers[t];
+    if (nx === null)
+      return `<div class="row"><span class="nm">${g.n}</span>
+        <span class="ds">${have} — 더 좋은 것은 없음</span><span class="vl">최고</span></div>`;
+    const cost = g.cost[nx], can = META.gold >= cost;
+    return `<div class="row"><span class="nm">${g.n}</span>
+      <span class="ds">${have} → <b style="color:#efe4cd">${g.tiers[nx]}</b> · ${g.d}</span>
+      <span class="vl">${cost}금</span>
+      <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`;
+  }).join("") + `<div class="row"><span class="nm">가진 금</span>
+      <span class="ds"></span><span class="vl">${META.gold | 0}</span></div>`;
+}
+
+/** 대장간 — **몸을 키운다.** 장비와 축이 다르다: 이쪽은 조금씩 여러 번. */
+function drawForge() {
+  $("forgeBody").innerHTML = Object.entries(UPS).map(([k, u]) => {
+    const cost = upCost(k), can = META.gold >= cost, lv = META.up[k] | 0;
+    return `<div class="row"><span class="nm">${u.n}</span>
+      <span class="ds">${u.d} <b style="color:#8a7c60">+${lv}</b></span>
+      <span class="vl">${cost}금</span>
+      <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
+  }).join("") + `<div class="row"><span class="nm">가진 금</span>
+      <span class="ds"></span><span class="vl">${META.gold | 0}</span></div>`;
+}
+
+/* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
+document.addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
+  const buy = t.getAttribute && t.getAttribute("data-buy");
+  if (buy) {
+    const nx = gearNext(buy); if (nx === null) return;
+    const cost = GEAR[buy].cost[nx];
+    if (META.gold < cost) return;
+    META.gold -= cost; META.gear[buy] = nx; saveMeta();
+    S.hp = Math.min(hpMaxOf(), S.hp + 0);          // 최대치가 늘면 비율이 아니라 여유가 는다
+    drawShop(); hud();
+    return;
+  }
+  const up = t.getAttribute && t.getAttribute("data-up");
+  if (up) {
+    const cost = upCost(up);
+    if (META.gold < cost) return;
+    META.gold -= cost; META.up[up] = (META.up[up] | 0) + 1; saveMeta();
+    drawForge(); hud();
+  }
+});
+
+/* 마을에서 **화면 안의 것을 눌러** 움직인다. 큰 단추를 따로 두는 것보다
+   「거기 있는 곳」으로 읽힌다. */
+$("stage").addEventListener("click", (e) => {
+  if (MODE.at !== "town") return;
+  const r = $("stage").getBoundingClientRect();
+  const id = townHitAt(e.clientX - r.left, e.clientY - r.top);
+  if (id === "gate")  { closeAll(); toDungeon(); }
+  if (id === "shop")  { drawShop();  win("winShop", true);  win("winForge", false); }
+  if (id === "forge") { drawForge(); win("winForge", true); win("winShop", false); }
+});
+
+export function toTown(why) {
+  MODE.at = "town";
+  document.body.classList.add("in-town");
+  saveMeta();
+  if (why) S.log.unshift(why);
+}
+export function toDungeon() {
+  closeAll();
+  MODE.at = "dungeon";
+  document.body.classList.remove("in-town");
+  newRun();
+}
+
+let townT = 0;
 let last = 0, autoT = 0, hudT = 0;
 function loop(t) {
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
-  for (let i = 0; i < S.speed; i++) step(dt);
-  if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
-  draw();
+  if (MODE.at === "dungeon") {
+    for (let i = 0; i < S.speed; i++) step(dt);
+    if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
+    /* 죽으면 **마을로 돌아온다.** 예전엔 그 자리에 멈춰 서서 아무 데도 못 갔다 —
+       방치형은 죽는 것이 끝이 아니라 **한 바퀴의 끝**이라야 다시 들어갈 마음이 든다. */
+    if (S.dead) { META.runs++; toTown(`<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`); }
+  }
+  draw(dt);
   if ((hudT += dt) > 0.1) { hudT = 0; hud(); }
   requestAnimationFrame(loop);
 }
@@ -357,9 +473,11 @@ preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
 loadFloor("assets/floor/crypt_tile.png");
 loadDecor();
+loadTown();
 watch($("xpWrap"), drawBar);
 fit(); belt(); newRun(); hud();
+toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics });
+Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits });

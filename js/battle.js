@@ -1,4 +1,4 @@
-import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, goldFor, hpMaxOf, isGate, META, SQUASH_VIEW,
+import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
@@ -195,7 +195,7 @@ export function step(dt) {
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
   if (S.pswing > 0) S.pswing -= dt;
-  S.mp = Math.min(mpMaxOf(), S.mp + dt * (2.2 + (META.up.mp | 0) * 0.25));
+  S.mp = Math.min(mpMaxOf(), S.mp + dt * mpRegenOf());
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
 
   const ampMul = S.amp > 0 ? 1.5 : 1;
@@ -235,7 +235,7 @@ export function step(dt) {
       S.pswing = SWING_T;                              // 던지는 자세
       const d = Math.hypot(t.x, t.y) || 1;
       S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d,
-                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf(), life: 2 });
+                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * (1 + gearVal("wand")), life: 2 });
     }
   }
   /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.

@@ -125,3 +125,38 @@
 /* 전장은 판만큼 비켜 선다 */
 #stage{height:calc(100% - var(--hudH))}
 .win{inset:38px 0 var(--hudH) 0}
+
+
+/* ══════════════════════════════════════════════════════════════
+   마을 — 상인 · 대장간 · 판의 모습
+   ──────────────────────────────────────────────────────────────
+   **마을에서는 판이 물러선다.** 싸울 것이 없으니 구슬도 스킬 칸도 쓸 데가 없다.
+   지우지 않고 **접는다** — 없어졌다 나타나면 화면이 덜컥거린다.
+   ══════════════════════════════════════════════════════════ */
+body.in-town #belt, body.in-town .orb, body.in-town #log{ opacity:0; pointer-events:none }
+body.in-town .orb, body.in-town #belt{ transition:opacity .25s }
+body.in-town .mid .res{ justify-content:center; gap:18px }
+
+/* 창 안의 줄 — 이름 · 설명 · 값 · 단추. **한 줄에 한 가지 결정**만 담는다. */
+.row{display:flex;align-items:center;gap:8px;padding:7px 2px;
+  border-bottom:1px solid #241d16}
+.row:last-child{border-bottom:none}
+.row .nm{flex:0 0 52px;color:#efe4cd}
+.row .ds{flex:1 1 auto;color:#9d907a;min-width:0}
+.row .vl{flex:0 0 auto;color:var(--gold)}
+
+/* 단추 — 판의 칸과 같은 결(깎인 모서리 · 몇 단계 색)로. 화면에 결이 둘이면 안 된다. */
+/* ★ nowrap 이 없으면 좁은 화면에서 **「사기」가 세로로 쪼개진다** — 두 글자짜리
+   단추라 폭이 조금만 모자라도 글자 사이에서 줄이 바뀐다. */
+.btn{white-space:nowrap;font:11px/1 "Galmuri11",monospace;color:#efe4cd;cursor:pointer;
+  padding:7px 11px;border:1px solid #5a4a34;background:#241410;
+  box-shadow:inset 0 0 8px #000}
+.btn:hover{border-color:var(--gold)}
+.btn:active{filter:brightness(1.25)}
+.btn[disabled]{color:#6b5f4e;border-color:#332a20;cursor:default;filter:none}
+.winFoot{margin-top:12px;text-align:center}
+
+/* 마을에서 던전으로 들어가는 큰 단추가 필요 없다 — **입구를 누르면 들어간다.**
+   화면 안의 것을 눌러 움직이는 편이 「거기 있는 곳」으로 읽힌다. */
+#stage{cursor:default}
+body.in-town #stage{cursor:pointer}

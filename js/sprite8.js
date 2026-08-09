@@ -24,6 +24,21 @@ export function dirName(dx, dy) {
    요청하는 순간 캐시를 null 로 박아 두므로(undefined 가 아니게) 두 번 묻지 않고,
    onload 로 그림이 오면 그때부터 그 그림을 돌려준다. */
 const CACHE = {};
+export const MAX_FRAMES = 10;
+
+/** 이 종·이 동작이 **몇 프레임인가.** 파일이 있는 데까지 센다 —
+ *  프레임 수를 코드에 박으면 종마다 다른 애니를 못 쓴다(6장짜리와 7장짜리가 섞인다).
+ *  한 번 세고 적어 둔다. 아직 다 안 받아졌으면 0 을 주지 않고 6 으로 버틴다. */
+const COUNT = {};
+export function frameCount(base, state, dir = "south") {
+  const k = `${base}/${state}`;
+  if (COUNT[k]) return COUNT[k];
+  let n = 0;
+  while (n < MAX_FRAMES && CACHE[`assets/${base}/${state}/${dir}/${n}.png`]) n++;
+  if (n > 0) COUNT[k] = n;
+  return n || 6;
+}
+
 function img(path) {
   if (CACHE[path] !== undefined) return CACHE[path] || null;
   CACHE[path] = null;                       // 로드 전·실패 모두 null — 재요청 안 함
@@ -110,7 +125,9 @@ export function preload(bases) {
   for (const base of bases) {
     for (const d of DIRS) {
       img(`assets/${base}/${d}.png`);
-      for (let f = 0; f < 6; f++) {
+      /* ★ 6장으로 박아 뒀는데 새로 구운 해골은 **7장**이다(v3 애니는 프레임 수가
+         종마다 다르다). 넉넉히 받아 두고, 몇 장인지는 아래 frameCount 가 센다. */
+      for (let f = 0; f < MAX_FRAMES; f++) {
         img(`assets/${base}/walk/${d}/${f}.png`);
         img(`assets/${base}/attack/${d}/${f}.png`);
       }

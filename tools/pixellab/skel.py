@@ -40,6 +40,14 @@ DESC = ("dark gothic Diablo 2 dungeon character, grim medieval horror, "
 
 # 공격은 **무기를 든 채** 휘둘러야 한다. 그걸 말로 못박는다 —
 # "keeps holding the sword and shield" 를 빼면 무기가 사라진 채 주먹질이 온다.
+# ★★ 걷기도 **v3 로 직접 적는다.** `walking-6-frames` 템플릿으로 구웠더니 정면 걷기에서
+# **칼과 방패가 통째로 사라졌다**(머리에 뿔 같은 것까지 붙었다). 템플릿은 맨몸 기준의
+# 동작이라 손에 든 것을 보장하지 않는다 — 공격에서 겪은 것과 같은 함정이다.
+# 「무기를 든 채」를 말로 못박아야 한다.
+WALK = ("walks forward at a steady pace, "
+        "keeps gripping the rusted sword in one hand and the round shield in the other "
+        "the whole time, arms swing only slightly, bones rattle")
+
 ATTACK = ("swings the rusted sword down and forward in a single overhead chop, "
           "shield arm braced in front, keeps holding the sword and the shield the whole time, "
           "body leans into the blow")
@@ -116,9 +124,16 @@ def queued(t):
 def animate(cid):
     s = load(); done = s.get("anim", {})
     if not done.get("walk"):
+        # 같은 이름의 그룹이 남아 있으면 zip 에 폴더가 겹치므로 먼저 지운다
+        try:
+            mcp("delete_animation", {"character_id": cid, "animation_group_id": "walk",
+                                     "confirm": True})
+        except Exception:
+            pass
         t = text_of(mcp("animate_character", {
-            "character_id": cid, "template_animation_id": "walking-6-frames",
-            "animation_name": "walk"}))
+            "character_id": cid, "action_description": WALK,
+            "animation_name": "walk", "mode": "v3",
+            "frame_count": 6, "directions": DIRS}))
         ok = queued(t)
         print(("walk 걸었다 → " if ok else "walk 실패 → ") + t[:220].replace("\n", " "), flush=True)
         if ok: done["walk"] = True; s["anim"] = done; save(s)
@@ -136,12 +151,29 @@ def animate(cid):
         raise SystemExit("애니를 다 못 걸었다 — 위 실패 사유를 보고 다시 실행할 것")
 
 
-def collect(cid):
+def collect(cid, tries=40):
     """zip 으로 받는다. **개별 프레임 URL 에는 서명 토큰이 안 붙어 403 이 난다** —
-    /download 엔드포인트에 Authorization 헤더로 받아야 한다."""
+    /download 엔드포인트에 Authorization 헤더로 받아야 한다.
+
+    ★ 상태가 completed 여도 **아직 굽는 중이면 423 Locked** 가 온다. get_character 의
+    본문에 "walk"·"attack" 이 보이는 것만으로는 다 익었다는 뜻이 아니다(그 낱말은
+    쓸 수 있는 템플릿 목록에도 있다). **상태를 믿지 말고 산출물로 판단한다** —
+    받아질 때까지 기다렸다 다시 받는다."""
     url = f"https://api.pixellab.ai/mcp/characters/{cid}/download"
-    req = urllib.request.Request(url, headers={"Authorization": auth()})
-    raw = urllib.request.urlopen(req, timeout=300).read()
+    raw = None
+    for i in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"Authorization": auth()})
+            raw = urllib.request.urlopen(req, timeout=300).read()
+            break
+        except urllib.error.HTTPError as e:
+            if e.code != 423:
+                raise
+            if i % 4 == 0:
+                print(f"  아직 굽는 중(423) — {i * 20}초째", flush=True)
+            time.sleep(20)
+    if raw is None:
+        raise SystemExit("계속 잠겨 있다 — 나중에 다시 실행할 것")
     zf = zipfile.ZipFile(io.BytesIO(raw))
     names = zf.namelist()
     os.makedirs(OUT, exist_ok=True)

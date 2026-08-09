@@ -100,8 +100,18 @@ export const META_KEY = "necro.meta.v1";
 export const META = load();
 function load() {
   const base = { gold: 0, lv: 1, xp: 0, deepest: 1, runs: 0,
-                 up: { hp:0, mp:0, dmg:0, army:0 } };
-  try { return Object.assign(base, JSON.parse(localStorage.getItem(META_KEY) || "{}")); }
+                 up: { hp:0, mp:0, dmg:0, army:0 },
+                 gear: { wand:0, robe:0, charm:0 } };
+  /* ★ 얕은 Object.assign 이라 **중첩된 것은 통째로 덮인다** — 예전 저장에 gear 가 없으면
+     통째로 사라지는 게 아니라, 있으면 통째로 옛것이 된다. up/gear 는 따로 합친다.
+     안 그러면 새 항목을 더할 때마다 기존 사용자에게 undefined 가 간다. */
+  try {
+    const raw = JSON.parse(localStorage.getItem(META_KEY) || "{}");
+    const m = Object.assign(base, raw);
+    m.up   = Object.assign({}, base.up,   raw.up   || {});
+    m.gear = Object.assign({}, base.gear, raw.gear || {});
+    return m;
+  }
   catch { return base; }
 }
 export function saveMeta() {
@@ -116,7 +126,32 @@ export const UPS = {
   army: { n:"군세",     d:"소환수 상한 +1",    base:40 },
 };
 export const upCost = (k) => Math.round(UPS[k].base * Math.pow(1.55, META.up[k] || 0));
-export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8;
+
+/* ══ 장비 ══ 병수님: "마을에서 아이템 구매 / 강화 등을 진행할 수 있게".
+   **강화(UPS)와 겹치지 않게 축을 나눈다** — 강화는 «몸»을 키우고, 장비는 «손에 든 것»을
+   바꾼다. 장비는 **등급을 사는 것**이라 한 번 사면 끝이고(반복 구매가 아니다), 그래서
+   상점에 갈 이유가 「다음 등급이 열렸다」로 분명해진다.
+   등급마다 값이 뛰므로 **한 번의 구매가 사건**이 된다 — 조금씩 오르는 강화와 다른 맛. */
+export const GEAR = {
+  wand:  { n:"지팡이", d:"본인 기본공격 피해",
+           tiers:["뼈 지팡이","녹슨 홀","흑요석 홀","심장의 홀","왕의 홀"],
+           cost:[0, 90, 320, 1100, 3800], val:[0, 0.25, 0.6, 1.1, 1.9] },
+  robe:  { n:"망토",   d:"최대 체력",
+           tiers:["누더기","가죽 망토","사슬 망토","제의","왕의 제의"],
+           cost:[0, 80, 300, 1000, 3500], val:[0, 40, 110, 260, 560] },
+  charm: { n:"부적",   d:"마나 회복",
+           tiers:["없음","뼛조각","은 부적","영혼석","군주의 인장"],
+           cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
+};
+/** 다음 등급 값. 마지막이면 null(더 살 것이 없다). */
+export const gearNext = (k) => {
+  const t = (META.gear[k] | 0) + 1;
+  return t < GEAR[k].tiers.length ? t : null;
+};
+export const gearVal = (k) => GEAR[k].val[META.gear[k] | 0];
+export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8 + gearVal("robe");
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
+/** 마나가 차는 속도 — 부적이 올린다. */
+export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm");
 export const dmgMulOf = () => 1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03;
 export const armyCap  = () => 6 + (META.up.army | 0);
