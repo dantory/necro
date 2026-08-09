@@ -68,16 +68,15 @@ export function drawPlate(cv, panel) {
   const hp = box(hpEl), mp = box(mpEl), mid = box(midEl);
 
   /* 띠 — 스킬 칸과 경험치를 감싼다. 위아래로 조금 물려 **여백이 테가 되게** 한다. */
-  /* ★★ 병수님: "하단을 기준으로 일자로 맞춰줘(상단은 라인 일자로 안맞아도 됨)".
-     재 보니 밑변이 **셋 다 달랐다** — 받침 바닥 889 · 구슬 바닥 891 · 띠 바닥 898.
-     제일 확실한 방법은 위치를 옮기는 게 아니라 **한 줄에서 잘라내는 것**이다:
-     구슬 밑변을 바닥선으로 삼고, 띠도 받침도 거기서 끝낸다. 위는 그대로 둔다 —
-     구슬이 솟는 것은 원래 디아블로도 그렇다. */
+  /* ★★★★ 「하단을 한 줄로」를 **잘라서** 풀었더니 병수님: "하단이 좀 잘린거 같은데?".
+     맞다 — 받침 고리를 바닥선에서 썰면 그건 정렬이 아니라 **잘린 그림**이다.
+     (게다가 자르기 전에도 고리가 화면 밑으로 넘쳐 캔버스에서 잘리고 있었다.)
+     자르는 대신 **자리를 만든다** — 판 아래 여백을 늘려 고리가 통째로 들어오게 했다
+     (hud.css 의 #panel padding-bottom). 여기서는 아무것도 안 자른다. */
   /* 띠는 **칸 줄만** 감싼다(위 ★★★). 글자와 경험치는 띠 위에 그냥 얹힌다. */
   const beltEl = panel.querySelector("#belt");
   const belt = box(beltEl || midEl);
-  const floorY = Math.max(hp.cy + hp.r, mp.cy + mp.r) + 1;
-  const barT = belt.y - 3, barB = Math.min(belt.y + belt.h + 3, floorY);
+  const barT = belt.y - 3, barB = belt.y + belt.h + 3;
   const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
   const CH = 4;                                      // 띠 끝을 깎는다
 
@@ -91,7 +90,6 @@ export function drawPlate(cv, panel) {
   };
 
   const inside = (x, y) => {
-    if (y > floorY) return false;                    // ★ 바닥선 — 여기서 전부 잘린다
     if (x >= barL && x <= barR && y >= barT && y <= barB) {
       const l = x - barL, r = barR - x, t = y - barT, b = barB - y;
       if (l + t < CH || r + t < CH || l + b < CH || r + b < CH) return false;   // 모서리 깎기

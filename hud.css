@@ -52,7 +52,9 @@
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
   pointer-events:none;
   display:flex;align-items:flex-end;justify-content:center;gap:16px;
-  padding:0 16px 9px;
+  /* ★ 아래 여백은 **받침 고리가 통째로 들어올 만큼** 있어야 한다 — 9px 이던 때는
+     고리가 화면 밑으로 넘쳐 잘렸다(병수님: "하단이 좀 잘린거 같은데?"). */
+  padding:0 16px 22px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
