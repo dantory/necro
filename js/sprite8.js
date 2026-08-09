@@ -96,3 +96,24 @@ export function drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h) {
   ctx.drawImage(im, x - w / 2, gy - h + drop, w, h);
   return true;
 }
+
+/* ══ 미리 받아 둔다 ══ **깜빡임의 정체가 이것이었다.**
+   프레임은 처음 그려지는 순간에야 요청된다. 그런데 로드는 즉시 끝나지 않으므로
+   그 프레임은 `idle` 한 장으로 폴백된다 — 공격은 0.26초뿐이라 여섯 장이 통째로
+   idle 로 나가고, 자세가 확 달라서 **번쩍 하고 튄 것처럼 보인다.**
+   방향이 여덟이라 놈이 몸을 틀 때마다 그 방향에서 또 겪는다(그래서 계속 깜빡였다).
+
+   그래서 판이 열릴 때 **쓸 그림을 미리 다 받아 둔다.** 로컬 서버라 한 장이 1~2KB,
+   9종 × (회전8 + 걷기48 + 공격48) ≈ 900장이지만 브라우저가 알아서 몇 개씩 나눠 받는다.
+   받아 두면 CACHE 에 들어가므로 그리는 쪽 코드는 그대로다. */
+export function preload(bases) {
+  for (const base of bases) {
+    for (const d of DIRS) {
+      img(`assets/${base}/${d}.png`);
+      for (let f = 0; f < 6; f++) {
+        img(`assets/${base}/walk/${d}/${f}.png`);
+        img(`assets/${base}/attack/${d}/${f}.png`);
+      }
+    }
+  }
+}

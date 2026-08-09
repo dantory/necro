@@ -1,6 +1,6 @@
 import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNeed } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
-import { dirName, drawSprite8, footMetrics } from "./sprite8.js";
+import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -278,6 +278,11 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
+/* **판이 열릴 때 그림을 미리 받아 둔다.** 안 그러면 처음 보는 방향의 공격 프레임이
+   그 순간에야 요청되어, 로드될 때까지 idle 자세로 폴백된다 — 그게 병수님이 본
+   「타격 시 깜빡임」이었다. 방향이 여덟이라 몸을 틀 때마다 되풀이됐다. */
+preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
+         "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
 fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
 
