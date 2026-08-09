@@ -26,12 +26,20 @@
    모바일 때문에 눌러 놓았던 것들을 전부 걷는다 — 11px 글꼴 · clamp/vw 로 줄어드는
    구슬 · 62px 로 묶어 둔 칸 · 얇은 판. **PC 는 화면이 넓은 게 아니라 「크게 봐도
    되는」 것**이다. D2 의 판은 화면 아래를 묵직하게 차지한다. */
-:root{ --hudH:148px; --orb:118px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+/* ★★ 병수님: "하단 UI 넘치는거 안보이냐?" — **내 자가 반쪽이었다.**
+   `scrollWidth > clientWidth` 로 **가로 넘침만** 보고 있었고, 가운데 묶음이 판 **위로**
+   6px 삐져나오는 것은 아예 못 봤다. 이제 자식의 실제 사각형이 판 사각형 안에 있는지로
+   본다(/tmp/fit.mjs). **자가 못 보는 것은 없는 것이 아니다.**
+
+   크기도 한 단계 더 줄인다(병수님: "아직 요소들이 큰거 같은데"). 줄이면서 **판 안에
+   들어가는지 계산**한다: 글줄 27 + 5 + 띠 12 + 5 + 칸 62 + 아래 여백 5 = 116,
+   판 132 에서 아래 padding 12 를 빼면 120 — 4 만큼 여유가 남는다. */
+:root{ --hudH:132px; --orb:96px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
-  display:flex;align-items:flex-end;justify-content:center;gap:18px;
-  padding:0 20px 12px;
+  display:flex;align-items:flex-end;justify-content:center;gap:16px;
+  padding:0 18px 10px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
@@ -69,8 +77,8 @@
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
-.mid{flex:1 1 auto;max-width:470px;min-width:0;
-  display:flex;flex-direction:column;gap:6px;padding-bottom:5px}
+.mid{flex:1 1 auto;max-width:420px;min-width:0;
+  display:flex;flex-direction:column;gap:5px;padding-bottom:4px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
 .mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9d907a;
@@ -82,7 +90,7 @@
 /* ★ 위아래 실선을 `border` 로 두면 언제나 정확히 1px 이라 픽셀아트 옆에서 매끈하게
    튄다. **테두리도 캔버스가 그린다**(js/frame.js drawBar) — 두 단계로 나누고 양 끝에
    마개를 둔다. 마개가 있어야 띠가 어디서 끝나는지 읽힌다. */
-.mid .xp{position:relative;height:14px;background:#080706;box-shadow:inset 0 0 8px #000}
+.mid .xp{position:relative;height:12px;background:#080706;box-shadow:inset 0 0 8px #000}
 .mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:
@@ -97,19 +105,19 @@
 
 /* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
-#belt{display:flex;gap:7px}
+#belt{display:flex;gap:6px}
 /* 칸의 **바탕과 테두리는 캔버스가 그린다.** 여기서는 자리와 겹 순서만 맡는다 —
    폭이 화면마다 30~68px 로 변하므로 캔버스는 **실제 크기와 1:1** 로 그린다
    (작은 캔버스를 늘리면 배율이 소수가 되어 픽셀이 들쭉날쭉해진다). */
 /* ★ 넓은 화면에서 칸이 끝없이 커져 아이콘이 화면을 잡아먹었다(PC 1440 에서 100px 넘음).
    칸에도 상한을 둔다 — 판은 「도구」지 볼거리가 아니다. */
-.slot{flex:1 1 0;max-width:84px;aspect-ratio:1;position:relative;cursor:pointer;
+.slot{flex:1 1 0;max-width:62px;aspect-ratio:1;position:relative;cursor:pointer;
   background:none;border:none;box-shadow:none;
   display:flex;align-items:center;justify-content:center}
 .slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 .slot > i, .slot .k, .slot .cd{z-index:1}
 .slot:active{filter:brightness(1.25)}
-.slot > i{position:absolute;inset:6px;background:center/contain no-repeat;
+.slot > i{position:absolute;inset:5px;background:center/contain no-repeat;
   image-rendering:pixelated}
 .slot .k{position:absolute;right:4px;bottom:0;font-size:18px;color:#6b5f4e}
 .slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
@@ -121,7 +129,7 @@
 
 /* ── 로그 ── 판 위에 얹지 않고 **전장 아래쪽에 글자만** 띄운다.
    상자를 두면 그것이 또 하나의 볼거리가 되어 판과 눈을 다툰다. */
-#log{position:fixed;left:20px;right:20px;bottom:calc(var(--hudH) + 6px);height:80px;
+#log{position:fixed;left:18px;right:18px;bottom:calc(var(--hudH) + 5px);height:70px;
   z-index:15;overflow:hidden;padding:0;border:none;background:none;
   font-size:18px;line-height:1.4;color:#8c8271;text-shadow:0 2px 3px #000}
 #log b{color:#c9bda4;font-weight:400}
@@ -156,7 +164,7 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .wSub{margin:-6px 0 18px;text-align:center;color:#6b5f4e}
 
 /* 좌판 — 인벤토리 격자. 빈 칸도 그린다: **빈 칸이 있어야 격자로 읽힌다** */
-.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:15px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:13px}
 .cell{aspect-ratio:1;position:relative;cursor:pointer;
   background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
   box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #4a3a28}
@@ -171,11 +179,11 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 /* 칸 구석의 작은 숫자 = 등급. D2 도 수량·소켓을 구석에 적는다 */
 .cell .q{position:absolute;right:2px;bottom:0}
 .cell .lvl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:27px;color:var(--gold);font-weight:400}
+  font-size:18px;color:var(--gold);font-weight:400}
 .cell .cn{position:absolute;left:0;right:0;bottom:1px;text-align:center;color:#6b5f4e}
 
 /* ── 툴팁 ── 검은 판에 글만. **테두리는 얇게** — D2 툴팁은 장식이 없다 */
-.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:13px 16px}
+.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
 .tipName{font-size:18px;margin-bottom:2px}
 .tipName .lv{color:#8a7c60}
 .tipKind{color:#6b5f4e;margin-bottom:6px}
@@ -237,7 +245,7 @@ body.in-town #stage{cursor:pointer}
   transition:opacity .45s ease}
 #loading.gone{opacity:0;pointer-events:none}
 .lWrap{width:360px;text-align:center}
-.lTitle{font-size:36px;color:var(--gold);letter-spacing:6px;margin-bottom:16px;
+.lTitle{font-size:27px;color:var(--gold);letter-spacing:6px;margin-bottom:16px;
   text-shadow:0 2px 0 #000, 0 0 12px #c8aa6e33}
 /* 막대 — 경험치 띠와 **같은 결**로. 화면에 결이 둘이면 안 된다 */
 .lBar{position:relative;height:14px;background:#080706;box-shadow:inset 0 0 8px #000;

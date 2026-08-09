@@ -55,10 +55,10 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   background:#0a0806;display:block}
 
 /* ── 위쪽 얇은 띠: 층·이름 ── */
-#top{position:fixed;top:0;left:0;right:0;height:46px;display:flex;align-items:center;gap:20px;
+#top{position:fixed;top:0;left:0;right:0;height:40px;display:flex;align-items:center;gap:20px;
   padding:0 24px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000d8,#00000000)}
-#top .floor{color:var(--gold);letter-spacing:4px;font-size:27px;text-shadow:0 0 8px #c8aa6e40}
+#top .floor{color:var(--gold);letter-spacing:4px;font-size:18px;text-shadow:0 0 8px #c8aa6e40}
 #top .left{font-size:18px;color:var(--dim);letter-spacing:1px}
 #top .sp{flex:1}
 #top .who{font-size:12.5px;color:var(--dim);letter-spacing:.5px}
@@ -83,13 +83,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
 .win.on{display:flex}
 /* 틀은 window.png 를 9-slice 로. 모서리 넝쿨 장식이 안 눌리게 모서리를 통째로 남기고
    가운데 나무결만 늘린다(잰 값: 모서리 장식이 대략 왼/오 120px, 위 105 · 아래 110px). */
-.win .frame{width:100%;max-width:660px;max-height:86vh;overflow:auto;margin:0 auto;background:linear-gradient(#161009,#0b0806);
+.win .frame{width:100%;max-width:580px;max-height:86vh;overflow:auto;margin:0 auto;background:linear-gradient(#161009,#0b0806);
   background-clip:padding-box;image-rendering:pixelated;
   border-style:solid;border-width:22px 26px;border-color:transparent;
-  border-image:url("assets/ui/window.png") 105 120 110 120 fill / 28px 32px / 0 stretch;
-  border-width:28px 32px;
-  box-shadow:0 14px 40px #000e;padding:18px}
-.win h2{margin:0 0 12px;color:var(--gold);letter-spacing:6px;font-size:27px;font-weight:400;
+  border-image:url("assets/ui/window.png") 105 120 110 120 fill / 24px 28px / 0 stretch;
+  border-width:24px 28px;
+  box-shadow:0 12px 34px #000e;padding:16px}
+.win h2{margin:0 0 10px;color:var(--gold);letter-spacing:5px;font-size:27px;font-weight:400;
   text-align:center;text-shadow:0 0 8px #c8aa6e40}
 .row{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #1d160f;
   font-size:18px}
