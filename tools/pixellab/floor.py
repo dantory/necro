@@ -39,6 +39,20 @@ TILESETS = {
     upper_description=f"{TONE}, dark damp earth and gravel",
     transition_description="crumbled broken edge of the stone slabs",
   ),
+  # ── 마을(로그 야영지) ── 병수님이 준 D2R 화면: **풀밭에 다져진 흙길**이 섞인 바닥.
+  # 지금 마을 바닥은 갈색 흙 한 가지라 「야영지」가 아니라 「공터」로 보인다.
+  # ★ 여기서는 초록을 **막지 않는다** — 다른 굽기에서는 청록이 튀어서 금지했지만,
+  #   야영지 바닥의 절반은 실제로 풀이다. 대신 **채도를 낮춘 마른 풀**로 못박는다.
+  "camp": dict(
+    lower_description=("MUTED DRY GRASS, olive and khaki, desaturated, moderate contrast, "
+                       "evenly lit flat texture, no vignette, no shadows baked in, not dark, "
+                       "no blue, no purple, no teal, no bright saturated green, "
+                       "Diablo 2 Rogue Encampment ground, grim gothic, "
+                       "patchy dry meadow grass with small stones and bare soil showing through"),
+    upper_description=("MEDIUM BROWN PACKED EARTH, desaturated, worn dirt path trodden flat "
+                       "by boots, small pebbles and wheel ruts, no grass"),
+    transition_description="ragged edge where the grass has been worn away into bare dirt",
+  ),
   # 깊은 층 — 뼛조각이 섞인 흙바닥. 네크로멘서의 소굴.
   "bone": dict(
     lower_description=f"{TONE}, packed brown earth floor littered with small pale bone "

@@ -84,7 +84,10 @@ export function drawPlate(cv, panel) {
      ★★ 여기 단위를 틀렸다 — barT 는 **아트 픽셀**이라 `- 7` 이 화면에서는 21px 이고,
      판이 위로 올라가 **경험치 띠를 삼켰다**(판 805 · 띠 807~814). 눈에 보이는 값은
      화면 픽셀이니 **화면 기준으로 적고 K 로 나눈다.** */
-  const PAD_TOP = 10;                                // 칸 줄 위 여백(화면 px)
+  /* ★ 10/8 도 아직 붙어 보였다(병수님: "스킬 영역 위아래 간격 넣어줘~~").
+     16/16 으로 벌린다 — 아래는 구슬 밑변이 고정이라 **칸 줄을 그만큼 올려서**
+     맞춘다(hud.css .mid padding-bottom). 위아래가 같아야 칸이 가운데 앉는다. */
+  const PAD_TOP = 16;                                // 칸 줄 위 여백(화면 px)
   const barT = belt.y - PAD_TOP / K;
   const barB = Math.max(belt.y + belt.h + 3, hp.cy + hp.r, mp.cy + mp.r);
   /* 띠는 구슬 **한가운데까지** 들어간다 — 끝이 구슬에 완전히 가려져 이음매가 안 보인다. */
