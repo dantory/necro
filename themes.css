@@ -16,6 +16,11 @@
    (캐릭터와 스킬 아이콘은 그대로 픽셀아트다. 판만 물러선다.)
    ══════════════════════════════════════════════════════════ */
 
+
+/* ★ **명시도 함정 하나 적어 둔다.** 공통 규칙을 `body[class*="t-"] #panel` 로 썼는데
+   이게 (1,1,1) 이고 테마 규칙 `.t-bone #panel` 은 (1,1,0) 이라 **공통이 이긴다.**
+   그래서 여섯 갈래 전부 판 배경이 검게 지워져 나왔다(에러 없이 조용히).
+   테마 셀렉터에 `body` 를 붙여 (1,1,1) 로 맞추면 뒤에 오는 쪽이 이긴다. */
 /* ── 공통 ── 그림을 걷어낸다 */
 body[class*="t-"] #panel::before{display:none}
 body[class*="t-"] #panel{background-image:none;border-top:none;box-shadow:none}
@@ -28,76 +33,176 @@ body[class*="t-"] .orb .fill{height:auto}
 /* ══ 하나 — 얇게(slim) ══ **판을 없앤다.**
    구슬·돌판을 다 버리고 화면 위에 반투명으로 얹는다. 전장이 제일 넓어진다.
    요즘 모바일 방치형이 가는 길이고, 픽셀아트 캐릭터와 부딪히지 않는다. */
-.t-slim{--panelH:108px}   /* 92 였을 때 게이지와 스킬 칸이 겹쳤다 */
-.t-slim #panel{background:linear-gradient(#0000,#000000d8 34%)}
-.t-slim .orb{width:auto;height:auto;bottom:auto;top:8px;left:14px;right:auto}
-.t-slim .orb.mp{top:26px;left:14px;right:auto}
-.t-slim .orb .glass{position:static;width:148px;height:8px;border-radius:0;
+body.t-slim{--panelH:108px}   /* 92 였을 때 게이지와 스킬 칸이 겹쳤다 */
+body.t-slim #panel{background:linear-gradient(#0000,#000000d8 34%)}
+body.t-slim .orb{width:auto;height:auto;bottom:auto;top:8px;left:14px;right:auto}
+body.t-slim .orb.mp{top:26px;left:14px;right:auto}
+body.t-slim .orb .glass{position:static;width:148px;height:8px;border-radius:0;
   background:#ffffff14;box-shadow:none;overflow:hidden}
-.t-slim .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
+body.t-slim .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
   width:var(--pct,100%);transition:width .25s}
-.t-slim .orb .gloss{display:none}
-.t-slim .orb .num{position:absolute;left:156px;top:-5px;right:auto;width:100px;
+body.t-slim .orb .gloss{display:none}
+body.t-slim .orb .num{position:absolute;left:156px;top:-5px;right:auto;width:100px;
   justify-content:flex-start;font-size:10px}
-.t-slim #belt{top:auto;bottom:8px;gap:9px}
-.t-slim .slot{width:46px;height:46px;border:none;border-radius:11px;
+body.t-slim #belt{top:auto;bottom:8px;gap:9px}
+body.t-slim .slot{width:46px;height:46px;border:none;border-radius:11px;
   background:#ffffff10;box-shadow:none}
-.t-slim .slot.on{background:#ffffff1c;box-shadow:0 0 0 1px #c8aa6e88}
-.t-slim .slot.off{opacity:.38}
-.t-slim #gauge{top:8px;left:auto;right:14px;width:152px}
-.t-slim #gauge .res{font-size:10px;color:#9d907a}
-.t-slim #gauge .xp{height:5px;border:none;background:#ffffff14;box-shadow:none}
-.t-slim #gauge .xp span{font-size:8px}
-.t-slim #log{left:14px;right:14px;bottom:calc(var(--panelH) + 4px);height:52px;
+body.t-slim .slot.on{background:#ffffff1c;box-shadow:0 0 0 1px #c8aa6e88}
+body.t-slim .slot.off{opacity:.38}
+body.t-slim #gauge{top:8px;left:auto;right:14px;width:152px}
+body.t-slim #gauge .res{font-size:10px;color:#9d907a}
+body.t-slim #gauge .xp{height:5px;border:none;background:#ffffff14;box-shadow:none}
+body.t-slim #gauge .xp span{font-size:8px}
+body.t-slim #log{left:14px;right:14px;bottom:calc(var(--panelH) + 4px);height:52px;
   background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
 
 /* ══ 둘 — 석판(slate) ══ **한 장의 판, 장식 없음.**
    D2 의 앉음새(아래에 판, 양 끝에 게이지)는 남기되 조각·금장을 다 걷어낸다.
    면과 선만으로 짓는 것 — 그림이 없으니 어느 폭에서도 안 무너진다. */
-.t-slate{--panelH:114px}
-.t-slate #panel{background:linear-gradient(#1a1713,#0e0c0a);
+body.t-slate{--panelH:114px}
+body.t-slate #panel{background:linear-gradient(#1a1713,#0e0c0a);
   border-top:1px solid #3a3128;box-shadow:0 -10px 24px #000a}
-.t-slate .orb{width:auto;height:auto;bottom:14px;left:16px;right:auto}
-.t-slate .orb.mp{left:auto;right:16px}
-.t-slate .orb .glass{position:static;width:104px;height:16px;border-radius:2px;
+body.t-slate .orb{width:auto;height:auto;bottom:14px;left:16px;right:auto}
+body.t-slate .orb.mp{left:auto;right:16px}
+body.t-slate .orb .glass{position:static;width:104px;height:16px;border-radius:2px;
   background:#000;box-shadow:inset 0 0 0 1px #3a3128;overflow:hidden}
-.t-slate .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
+body.t-slate .orb .fill{position:absolute;left:0;top:0;bottom:0;height:auto;
   width:var(--pct,100%);transition:width .25s}
-.t-slate .orb .gloss{display:none}
-.t-slate .orb .num{position:absolute;left:0;top:0;width:104px;height:16px;font-size:10px}
-.t-slate #belt{top:12px;gap:8px}
-.t-slate .slot{width:48px;height:48px;border-radius:3px;
+body.t-slate .orb .gloss{display:none}
+body.t-slate .orb .num{position:absolute;left:0;top:0;width:104px;height:16px;font-size:10px}
+body.t-slate #belt{top:12px;gap:8px}
+body.t-slate .slot{width:48px;height:48px;border-radius:3px;
   background:#0b0908;border:1px solid #2f2820;box-shadow:none}
-.t-slate .slot.on{border-color:#c8aa6e}
-.t-slate .slot.off{opacity:.42}
-.t-slate #gauge{top:70px;left:132px;right:132px}
-.t-slate #gauge .xp{height:8px;border:1px solid #2f2820;border-radius:2px}
-.t-slate #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+body.t-slate .slot.on{border-color:#c8aa6e}
+body.t-slate .slot.off{opacity:.42}
+body.t-slate #gauge{top:70px;left:132px;right:132px}
+body.t-slate #gauge .xp{height:8px;border:1px solid #2f2820;border-radius:2px}
+body.t-slate #log{left:10px;right:10px;height:52px;background:#0a0806cc;
   box-shadow:inset 0 0 0 1px #241d16;padding:4px 8px}
 
 /* ══ 셋 — 유물함(relic) ══ **어둡고 무거운 금속.**
    장식 대신 **두께와 그림자**로 무게를 낸다. 빛은 게이지에서만 나온다 —
    그래야 눈이 판이 아니라 게이지로 간다. 구슬은 남기되 테를 걷고 빛만 남긴다. */
-.t-relic{--panelH:122px}
-.t-relic #panel{background:
+body.t-relic{--panelH:122px}
+body.t-relic #panel{background:
     linear-gradient(#2a2620 0 1px, transparent 1px),
     linear-gradient(#14110d,#080706);
   box-shadow:inset 0 1px 0 #4a4034, 0 -12px 28px #000c}
-.t-relic .orb{width:62px;height:62px;bottom:14px;left:20px;right:auto}
-.t-relic .orb.mp{left:auto;right:20px}
-.t-relic .orb .glass{border-radius:50%;background:#050403;
+body.t-relic .orb{width:62px;height:62px;bottom:14px;left:20px;right:auto}
+body.t-relic .orb.mp{left:auto;right:20px}
+body.t-relic .orb .glass{border-radius:50%;background:#050403;
   box-shadow:inset 0 0 0 2px #2a241c, inset 0 0 18px #000, 0 0 14px #0008}
-.t-relic .orb.hp .fill{box-shadow:0 0 18px #e04a4a66}
-.t-relic .orb.mp .fill{box-shadow:0 0 18px #5a8ae066}
-.t-relic .orb .num{font-size:10px}
-.t-relic #belt{top:14px;gap:6px}
-.t-relic .slot{width:46px;height:46px;border-radius:2px;
+body.t-relic .orb.hp .fill{box-shadow:0 0 18px #e04a4a66}
+body.t-relic .orb.mp .fill{box-shadow:0 0 18px #5a8ae066}
+body.t-relic .orb .num{font-size:10px}
+body.t-relic #belt{top:14px;gap:6px}
+body.t-relic .slot{width:46px;height:46px;border-radius:2px;
   background:linear-gradient(#181410,#0a0806);
   border:1px solid #33291f;box-shadow:inset 0 1px 0 #4a4034}
-.t-relic .slot.on{border-color:#c8aa6e;box-shadow:inset 0 1px 0 #4a4034,0 0 10px #c8aa6e55}
-.t-relic .slot.off{opacity:.4}
-.t-relic #gauge{top:72px;left:100px;right:100px}
-.t-relic #gauge .xp{height:9px;border:1px solid #33291f;border-radius:1px}
-.t-relic #gauge .xpFill{box-shadow:0 0 10px #c8aa6e55}
-.t-relic #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+body.t-relic .slot.on{border-color:#c8aa6e;box-shadow:inset 0 1px 0 #4a4034,0 0 10px #c8aa6e55}
+body.t-relic .slot.off{opacity:.4}
+body.t-relic #gauge{top:72px;left:100px;right:100px}
+body.t-relic #gauge .xp{height:9px;border:1px solid #33291f;border-radius:1px}
+body.t-relic #gauge .xpFill{box-shadow:0 0 10px #c8aa6e55}
+body.t-relic #log{left:10px;right:10px;height:52px;background:#0a0806cc;
   box-shadow:inset 0 0 0 1px #241d16;padding:4px 8px}
+
+/* ══════════════════════════════════════════════════════════════
+   두 번째 묶음 — **개성을 세게.**
+   앞의 셋(slim·slate·relic)은 장식을 걷어냈더니 밋밋하다는 말을 들었다.
+   「별로」는 **조잡해서**였지 화려해서가 아니었다. 그러니 이번엔 반대로 민다:
+   장식을 넣되 **한 가지 생각으로 통일**한다. 시끄러웠던 건 돌·금장·해골·스크롤이
+   서로 다른 말을 했기 때문이다. 하나의 소재로만 지으면 화려해도 안 시끄럽다.
+     t-bone   뼈 제단 — 판이 곧 갈비뼈. 두개골 안에 피와 혼이 찬다
+     t-blood  핏빛 계약 — 금장을 버리고 전부 핏빛. 게이지가 흘러내린다
+     t-grim   고서 — 펼친 책 위의 룬. 따뜻한 양피지, 유일하게 밝은 갈래
+   ══════════════════════════════════════════════════════════ */
+
+/* ══ 넷 — 뼈 제단(bone) ══ **판을 뼈로 짓는다.**
+   네크로멘서의 판이 돌일 이유가 없다. 위 테두리는 늘어선 갈비뼈, 구슬은 두개골의
+   눈구멍이다. 소재가 하나라 장식이 많아도 한 목소리로 읽힌다. */
+body.t-bone{--panelH:130px;--bone:#d8d2c4;--bone-d:#6b6558}
+body.t-bone #panel{background:linear-gradient(#17140f,#090807)}
+/* 갈비뼈 — 위쪽에 늘어선 마디. repeating-linear-gradient 로 뼈 마디를 만든다 */
+/* ★ `display:block` 만 되살렸더니 **옛 판 그림(panel_band.png)의 border-image 가 같이
+   살아나** 벽돌담이 갈비뼈 뒤에 떴다. 그림 관련 속성을 전부 꺼야 한다. */
+body.t-bone #panel::before{content:"";display:block;position:absolute;left:0;right:0;top:0;
+  height:11px;pointer-events:none;z-index:2;
+  border-image:none;border-width:0;border-style:none;inset:0 0 auto 0;
+  background:repeating-linear-gradient(90deg,
+    #b8b0a0 0 8px, #6b6558 8px 10px, transparent 10px 17px);
+  filter:drop-shadow(0 2px 2px #000)}
+body.t-bone .orb{width:66px;height:66px;bottom:12px;left:18px;right:auto}
+body.t-bone .orb.mp{left:auto;right:18px}
+body.t-bone .orb .glass{border-radius:50% 50% 46% 46%;background:#0b0a08;
+  box-shadow:inset 0 0 0 3px var(--bone), inset 0 0 0 5px var(--bone-d), 0 3px 10px #000}
+body.t-bone .orb .gloss{background:radial-gradient(circle at 34% 26%,#ffffff22,transparent 52%)}
+body.t-bone .orb .num{font-size:10px;color:#efe8d8}
+body.t-bone #belt{top:22px;gap:7px}
+body.t-bone .slot{width:46px;height:46px;border-radius:6px 6px 3px 3px;
+  background:#0d0b09;border:2px solid var(--bone-d);box-shadow:inset 0 0 10px #000}
+body.t-bone .slot.on{border-color:var(--bone);box-shadow:inset 0 0 10px #000,0 0 8px #d8d2c455}
+body.t-bone .slot.off{opacity:.4}
+body.t-bone #gauge{top:78px;left:100px;right:100px}
+body.t-bone #gauge .res{color:#b9b0a0}
+body.t-bone #gauge .xp{height:9px;background:#0b0a08;border:2px solid var(--bone-d);border-radius:5px}
+body.t-bone #gauge .xpFill{background:linear-gradient(var(--bone),var(--bone-d))}
+body.t-bone #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+  box-shadow:inset 0 0 0 2px var(--bone-d);padding:4px 8px;color:#a89e8c}
+
+/* ══ 다섯 — 핏빛 계약(blood) ══ **금장을 통째로 버린다.**
+   D2 의 금색이 자꾸 시끄러웠던 이유는 어두운 판 위에서 금색만 튀기 때문이다.
+   금을 빼고 **전부 핏빛 한 색**으로 가면 화려해도 한 덩어리로 읽힌다. */
+body.t-blood{--panelH:126px;--bl:#8b1a1a;--bl-l:#e04a4a}
+body.t-blood #panel{background:
+    radial-gradient(120% 80% at 50% 0%, #3a0d0d 0%, transparent 62%),
+    linear-gradient(#180a0a,#0a0505);
+  border-top:2px solid var(--bl)}
+body.t-blood .orb{width:64px;height:64px;bottom:14px;left:18px;right:auto}
+body.t-blood .orb.mp{left:auto;right:18px}
+body.t-blood .orb .glass{border-radius:50%;background:#0a0505;
+  box-shadow:inset 0 0 0 2px var(--bl), inset 0 0 20px #000, 0 0 16px #8b1a1a55}
+body.t-blood .orb.mp .fill{background:linear-gradient(#7a4ad0,#3a1a6a)}   /* 마나도 핏빛 계열로 */
+body.t-blood .orb .num{font-size:10px;color:#f0d8d8}
+body.t-blood #belt{top:14px;gap:7px}
+body.t-blood .slot{width:47px;height:47px;border-radius:50% 50% 4px 4px;
+  background:linear-gradient(#1c0c0c,#0a0505);border:2px solid #4a1414}
+body.t-blood .slot.on{border-color:var(--bl-l);box-shadow:0 0 12px #e04a4a55}
+body.t-blood .slot.off{opacity:.36}
+body.t-blood #gauge{top:74px;left:100px;right:100px}
+body.t-blood #gauge .res{color:#c89a9a}
+body.t-blood #gauge .xp{height:9px;background:#0a0505;border:1px solid #4a1414;border-radius:5px}
+body.t-blood #gauge .xpFill{background:linear-gradient(var(--bl-l),var(--bl));
+  box-shadow:0 0 10px #e04a4a55}
+body.t-blood #log{left:10px;right:10px;height:52px;background:#100707cc;
+  box-shadow:inset 0 0 0 1px #4a1414;padding:4px 8px;color:#b09090}
+
+/* ══ 여섯 — 고서(grim) ══ **펼친 책 위의 룬.**
+   유일하게 밝은 갈래다. 어두운 전장 아래에 따뜻한 양피지를 깔면 **대비로** 화면이
+   산다 — 어두운 판은 전장에 묻히지만 밝은 판은 받쳐 준다. 가운데 접힘선이 책을 만든다. */
+body.t-grim{--panelH:132px;--pg:#c8b48a;--pg-d:#8a7550;--ink:#2a1f14}
+body.t-grim #panel{background:
+    linear-gradient(90deg, #00000055 0 2px, transparent 2px) 50% 0/2px 100% no-repeat,
+    radial-gradient(80% 120% at 50% 120%, #e0cfa8 0%, #b8a077 55%, #8a7550 100%);
+  box-shadow:inset 0 3px 10px #6b5730, 0 -8px 20px #000a}
+body.t-grim .orb{width:60px;height:60px;bottom:14px;left:18px;right:auto}
+body.t-grim .orb.mp{left:auto;right:18px}
+body.t-grim .orb .glass{border-radius:50%;background:#efe0bd;
+  box-shadow:inset 0 0 0 3px var(--pg-d), inset 0 0 14px #8a755066}
+body.t-grim .orb .gloss{background:radial-gradient(circle at 32% 24%,#ffffff55,transparent 50%)}
+body.t-grim .orb .num{font-size:10px;color:var(--ink);text-shadow:0 1px 0 #ffffff66}
+body.t-grim #belt{top:14px;gap:8px}
+body.t-grim .slot{width:48px;height:48px;border-radius:3px;
+  background:radial-gradient(#f0e2c0,#cdb98e);border:2px solid var(--pg-d);
+  box-shadow:inset 0 0 8px #8a755055;color:var(--ink)}
+body.t-grim .slot.on{border-color:#5a3a12;box-shadow:inset 0 0 8px #8a755055,0 0 10px #6b573088}
+body.t-grim .slot.off{opacity:.45;filter:sepia(.4)}
+body.t-grim .slot > i{filter:drop-shadow(0 1px 0 #ffffff44)}
+body.t-grim .slot .k{color:#6b5730}
+body.t-grim #gauge{top:74px;left:100px;right:100px}
+body.t-grim #gauge .res{color:#4a3a24}
+body.t-grim #gauge .xp{height:9px;background:#8a755044;border:1px solid var(--pg-d);border-radius:2px}
+body.t-grim #gauge .xpFill{background:linear-gradient(#6b5730,#3a2f18)}
+body.t-grim #gauge .xp span{color:#efe0bd}
+body.t-grim #log{left:10px;right:10px;height:52px;background:#0a0806cc;
+  box-shadow:inset 0 0 0 1px #6b5730;padding:4px 8px;color:#a89168}
