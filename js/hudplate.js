@@ -19,9 +19,6 @@
    ══════════════════════════════════════════════════════════ */
 
 const K = 3;                        // 한 픽셀이 화면에서 차지하는 크기
-/* 받침 고리의 두께 — **한 곳에서** 정한다. 띠의 아랫변을 여기에 맞추므로
-   그리는 값과 재는 값이 어긋나면 밑줄이 안 맞는다. */
-const CRADLE_IN = 2.2, CRADLE_LOW = 3.4;
 
 function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -60,14 +57,13 @@ export function drawPlate(cv, panel) {
   const hp = box(hpEl), mp = box(mpEl), mid = box(midEl);
 
   /* 띠 — 스킬 칸과 경험치를 감싼다. 위아래로 조금 물려 **여백이 테가 되게** 한다. */
-  /* ★★ 병수님: "하단 UI가 상단으로 라인이 일자로 맞춰져있는데, 반대로 하단을 기준으로
-     일자로 맞춰줘(상단은 라인 일자로 안맞아도 됨)". 재 보니 구슬 자리의 실루엣은
-     757~898(받침 고리), 띠는 766~889 — 위아래로 9px 씩 어긋나 있었다.
-     **아랫변을 받침 바닥에 맞춘다.** 물건이 놓인 것은 밑변으로 읽히니 아래가 한 줄이면
-     한 덩어리로 앉아 보이고, 위는 구슬이 솟아도 그게 오히려 자연스럽다. */
-  const cradleBot = (o) => o.cy + o.r + 0.6 + CRADLE_IN + CRADLE_LOW;
-  const barT = mid.y - 4;
-  const barB = Math.max(mid.y + mid.h + 3, cradleBot(hp), cradleBot(mp));
+  /* ★★ 병수님: "하단을 기준으로 일자로 맞춰줘(상단은 라인 일자로 안맞아도 됨)".
+     재 보니 밑변이 **셋 다 달랐다** — 받침 바닥 889 · 구슬 바닥 891 · 띠 바닥 898.
+     제일 확실한 방법은 위치를 옮기는 게 아니라 **한 줄에서 잘라내는 것**이다:
+     구슬 밑변을 바닥선으로 삼고, 띠도 받침도 거기서 끝낸다. 위는 그대로 둔다 —
+     구슬이 솟는 것은 원래 디아블로도 그렇다. */
+  const floorY = Math.max(hp.cy + hp.r, mp.cy + mp.r) + 1;
+  const barT = mid.y - 4, barB = floorY;
   const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
   const CH = 4;                                      // 띠 끝을 깎는다
 
@@ -76,11 +72,12 @@ export function drawPlate(cv, panel) {
   const cradle = (o, x, y) => {
     const dx = x - o.cx, dy = y - o.cy;
     const rr = Math.sqrt(dx * dx + dy * dy);
-    const thick = CRADLE_IN + (dy > 0 ? CRADLE_LOW * (dy / o.r) : 0);
+    const thick = 2.2 + (dy > 0 ? 3.4 * (dy / o.r) : 0);
     return rr > o.r + 0.6 && rr < o.r + 0.6 + thick;
   };
 
   const inside = (x, y) => {
+    if (y > floorY) return false;                    // ★ 바닥선 — 여기서 전부 잘린다
     if (x >= barL && x <= barR && y >= barT && y <= barB) {
       const l = x - barL, r = barR - x, t = y - barT, b = barB - y;
       if (l + t < CH || r + t < CH || l + b < CH || r + b < CH) return false;   // 모서리 깎기
