@@ -277,3 +277,68 @@ body.t-d3 #gauge .xpFill{background:linear-gradient(#ffb14a,#a05f10)}
 body.t-d3 #gauge .xp span{font-size:8px;color:#e8dcc2}
 body.t-d3 #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
   background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
+
+/* ══════════════════════════════════════════════════════════════
+   여덟 — **디아블로 2 Resurrected**(t-d2r). 두 번째 참고 화면.
+   ──────────────────────────────────────────────────────────────
+   D3 를 만든 다음에 D2R 실제 화면을 받았다. **둘은 다르다**:
+
+     D3   가운데 스킬바를 **아치**가 감싼다. 둥글게 솟는다
+     D2R  가운데가 **평평한 검은 띠**다. 위아래로 금색 얇은 선 두 줄
+          띠 위에 **칸이 나뉜 경험치 바**가 얹힌다
+          구슬 곁에 **석상**이 붙는다(왼쪽 날개 여인 · 오른쪽 뿔 악마)
+          Life/Mana 는 구슬 **위쪽 바깥**에 금색 세리프로
+
+   D2R 쪽이 이 게임에 더 맞다 — 아치는 곡선이라 픽셀아트와 결이 다르고,
+   평평한 띠는 **가로로 긴 화면 아래**에 얌전히 눕는다.
+   ══════════════════════════════════════════════════════════ */
+body.t-d2r{--panelH:118px;--g:#c8aa6e;--g-d:#6b5730;--g-l:#e8d5a0}
+body.t-d2r #panel{background:linear-gradient(#0000,#000000cc 30%,#000000f2)}
+
+/* 가운데 띠 — **평평하다.** 검은 바탕에 위아래 금색 선 두 줄이 D2R 의 얼굴이다. */
+body.t-d2r #beltArc{position:absolute;left:98px;right:98px;bottom:14px;
+  padding:7px 8px 6px;border-radius:0;
+  background:linear-gradient(#141210,#080706);
+  border-top:1px solid var(--g-d);border-bottom:1px solid var(--g-d);
+  box-shadow:inset 0 1px 0 #00000088, inset 0 0 18px #000, 0 2px 10px #000a}
+body.t-d2r #beltArc::before{display:none}      /* 아치 꼭짓점 장식은 D2R 에 없다 */
+body.t-d2r #belt{position:static;display:flex;gap:4px;justify-content:center}
+/* 칸 — D2R 은 아이콘이 **붉은 바탕** 위에 앉아 있다. 테는 거의 없다시피 얇다. */
+body.t-d2r .slot{width:40px;height:40px;border-radius:2px;
+  background:linear-gradient(#3a1414,#1a0808);
+  border:1px solid #4a2a1a;box-shadow:inset 0 0 6px #000}
+body.t-d2r .slot.on{border-color:var(--g);box-shadow:inset 0 0 6px #000,0 0 7px #c8aa6e55}
+body.t-d2r .slot.off{opacity:.4}
+
+/* 구슬 — 양 끝에 크게. 유리알 셋(위 반사·아래 되비침·안쪽 어두운 띠). */
+body.t-d2r .orb{width:80px;height:80px;bottom:10px;left:8px;right:auto;z-index:2}
+body.t-d2r .orb.mp{left:auto;right:8px}
+body.t-d2r .orb .glass{border-radius:50%;background:#0a0806;
+  box-shadow:inset 0 0 0 2px #2a241c, inset 0 -10px 20px #000,
+             inset 0 5px 10px #ffffff0e, 0 3px 14px #000c, 0 0 0 1px #000}
+/* ★ 반사를 크게 줬더니 **플라스틱 공**이 됐다. 유리알은 반사가 **작고 또렷하다** —
+   넓게 퍼진 흰빛은 표면이 무광이라는 뜻이다. 점 하나로 줄이고 대신 가장자리를
+   깊게 눌러 안이 비어 보이게 한다. */
+body.t-d2r .orb .gloss{background:
+  radial-gradient(ellipse 26% 20% at 31% 22%,#ffffffcc,#ffffff33 42%,transparent 72%),
+  radial-gradient(ellipse 54% 26% at 50% 108%,#ffffff1c,transparent 72%),
+  radial-gradient(circle at 50% 46%,transparent 44%,#000000aa 100%)}
+/* 채움도 한 단 어둡게 — D2R 의 구슬은 형광이 아니라 **짙은 액체**다 */
+body.t-d2r .orb.hp .fill{background:linear-gradient(#c83232,#7a0e0e 60%,#2a0606)}
+body.t-d2r .orb.mp .fill{background:linear-gradient(#3a5ecc,#12207a 60%,#070c22)}
+/* 글씨는 구슬 **위쪽 바깥**에, 금색 세리프로 — D2R 이 그렇다 */
+body.t-d2r .orb .num{position:absolute;left:-6px;right:-6px;top:-14px;height:14px;
+  font-size:10px;color:var(--g);letter-spacing:.5px;text-shadow:0 1px 3px #000}
+
+/* 경험치 — 띠 **위에** 얹히고 **칸이 나뉘어** 있다. 그 칸 나눔이 D2R 의 표시다. */
+body.t-d2r #gauge{top:auto;bottom:78px;left:98px;right:98px;gap:3px}
+body.t-d2r #gauge .res{font-size:10px;color:#9d907a;text-shadow:0 1px 3px #000}
+body.t-d2r #gauge .xp{height:8px;border-radius:0;background:#0a0806;
+  border-top:1px solid var(--g-d);border-bottom:1px solid var(--g-d);
+  border-left:none;border-right:none;box-shadow:inset 0 0 8px #000}
+body.t-d2r #gauge .xpFill{background:
+    repeating-linear-gradient(90deg, #0000 0 22px, #00000099 22px 23px),
+    linear-gradient(#ffd47a,#c8901e 60%,#8a5f10)}
+body.t-d2r #gauge .xp span{font-size:8px;color:#efe0bd;text-shadow:0 1px 2px #000}
+body.t-d2r #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
+  background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
