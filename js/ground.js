@@ -47,17 +47,27 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
   LOAD.total++;
   im.onload = () => {
     const t = im.width;
-    const made = [[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sy]) => {
-      const c = document.createElement("canvas");
-      c.width = t; c.height = t;
-      const g = c.getContext("2d");
-      g.imageSmoothingEnabled = false;
-      g.filter = `brightness(${boost}) saturate(0.9)`;
-      g.translate(sx < 0 ? t : 0, sy < 0 ? t : 0);
-      g.scale(sx, sy);
-      g.drawImage(im, 0, 0);
-      return c;
-    });
+    /* ★★ 병수님: "타일이 너무 단순 반복인거 같긴한데". 뒤집기 넷만으로는 모자랐다 —
+       **뒤집어도 밝기와 얼룩이 똑같아서** 눈이 같은 조각을 알아본다. 밝기를 세 단계로
+       흔든 것을 함께 구워 **열두 가지**로 늘린다. 굽는 것은 한 번뿐이라 공짜다
+       (매 프레임 filter 를 거는 것은 비싸다).
+       ★ 처음엔 ±12% 로 흔들고 **타일마다** 골랐더니 이번엔 **체커보드**가 됐다 —
+       반복 하나를 다른 반복으로 바꾼 셈이다. 폭을 ±6% 로 줄이고, 밝기는 타일이 아니라
+       **네 칸짜리 덩어리**로 고른다(아래 drawGround) — 실제 바닥의 얼룩도 타일 단위로
+       지지 않는다. */
+    const made = [];
+    for (const tone of [0.94, 1.0, 1.06])
+      for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
+        const c = document.createElement("canvas");
+        c.width = t; c.height = t;
+        const g = c.getContext("2d");
+        g.imageSmoothingEnabled = false;
+        g.filter = `brightness(${boost * tone}) saturate(0.9)`;
+        g.translate(sx < 0 ? t : 0, sy < 0 ? t : 0);
+        g.scale(sx, sy);
+        g.drawImage(im, 0, 0);
+        made.push(c);
+      }
     tileSets[name] = made;
     if (name === wanted || !tiles.length) { tiles = made; floorReady = true; }
     LOAD.done++;
@@ -82,7 +92,14 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
     const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
     for (let y = oy, gy = 0; y < h + t; y += t, gy++)
       for (let x = ox, gx = 0; x < w + t; x += t, gx++)
-        ctx.drawImage(tiles[(gx * 3 + gy * 7 + ((gx * gy) & 1)) & 3], x, y);
+        /* 뒤집기는 **타일마다**(무늬를 깬다), 밝기는 **덩어리로**(얼룩을 만든다).
+           둘의 주기가 다르면 어느 쪽도 격자로 안 읽힌다. */
+        ctx.drawImage(tiles[(hash2(gx >> 2, gy >> 2) % 3) * 4 + (hash2(gx, gy) % 4)], x, y);
+
+    /* ②' 얼룩 — **격자를 가로질러** 놓이는 것들. 타일을 아무리 늘려도 경계는 남는데,
+       경계를 넘어 걸치는 것이 하나 있으면 거기서 격자가 끊긴다(디아블로 1 트리스트람의
+       바닥이 그렇다: 같은 흙인데 밟아 닳은 길과 자국이 격자를 지운다). */
+    drawDecals(ctx, cx, cy, sc, squash, w, h);
   }
 
   /* ②' 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고 빛이 닿은
@@ -102,6 +119,61 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
      대신 **바닥 밝기 자체를 낮춰** 어두운 결은 지킨다(loadFloor 의 boost). */
 }
 
+
+/* ══ 바닥 얼룩 ══ 타일 위에 **평평하게** 얹는다(서 있는 물건이 아니므로 그림자도
+   접지도 없다). 자리는 소품과 같은 규칙 — 좌표로 정해서 늘 같고, 끝이 없다. */
+const DECAL = { crypt: ["dust", "crack", "stain", "pebble"],
+                town:  ["path", "grass", "mud", "pebble"] };
+const decalArt = {};
+export function loadDecals(dir = "assets/decal") {
+  const all = [...new Set([...DECAL.crypt, ...DECAL.town])];
+  for (const n of all) {
+    const im = new Image();
+    LOAD.total++;
+    im.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = im.width; c.height = im.height;
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      /* ★ 받은 얼룩이 **연녹색**으로 왔다(no green 을 적었는데도 — dust 105,127,102 ·
+         crack 71,108,96 · mud 32,94,84). 어두운 돌바닥 위에서 그건 이끼 반점처럼 튄다.
+         **색을 통째로 빼고**(grayscale) 우리 톤으로 다시 입힌다 — 얼룩에서 필요한 것은
+         색이 아니라 **모양**이고, 색은 바닥이 정해야 한다. */
+      g.filter = "grayscale(1) sepia(0.45) saturate(1.1) brightness(0.5)";
+      g.drawImage(im, 0, 0);
+      decalArt[n] = c; LOAD.done++;
+    };
+    im.onerror = () => { LOAD.done++; };
+    im.src = `${dir}/${n}.png`;
+  }
+}
+
+const DCELL = 150;                 // 얼룩 격자 — 소품(165)과 **어긋나게** 잡는다
+function drawDecals(ctx, cx, cy, sc, squash, w, h) {
+  const set = DECAL[wanted] || DECAL.crypt;
+  if (!set.some((n) => decalArt[n])) return;
+  const halfW = (w / 2) / sc, halfH = (h / 2) / (sc * squash);
+  const gx0 = Math.floor((-halfW) / DCELL) - 1, gx1 = Math.ceil((halfW) / DCELL) + 1;
+  const gy0 = Math.floor((-halfH) / DCELL) - 1, gy1 = Math.ceil((halfH) / DCELL) + 1;
+  ctx.save();
+  ctx.globalAlpha = 0.62;          // 바닥에 **스며든** 것이라 완전 불투명이면 스티커가 된다
+  for (let gy = gy0; gy <= gy1; gy++) {
+    for (let gx = gx0; gx <= gx1; gx++) {
+      const hsh = hash2(gx * 7 + 13, gy * 11 + 5);
+      if ((hsh % 100) >= 42) continue;                  // 칸 열에 넷 정도만
+      const name = set[(hsh >> 7) % set.length];
+      const im = decalArt[name]; if (!im) continue;
+      const wx = (gx + 0.5) * DCELL + ((hsh >> 11) % 90) - 45;
+      const wy = (gy + 0.5) * DCELL + ((hsh >> 17) % 90) - 45;
+      const px = Math.round(cx + wx * sc), py = Math.round(cy + wy * sc * squash);
+      const k = ART.s * (0.8 + ((hsh >> 23) % 5) * 0.1);
+      const dw = Math.round(im.width * k), dh = Math.round(im.height * k * squash);
+      ctx.drawImage(im, 0, 0, im.width, im.height,
+                    px - (dw >> 1), py - (dh >> 1), dw, dh);
+    }
+  }
+  ctx.restore();
+}
 
 /* ══ 던전 소품 ══ **바닥만 깔면 끝없는 벌판이다.**
    벽이 있어야 「방」이고, 세로로 선 것(기둥)이 있어야 공간에 높이가 생기고,

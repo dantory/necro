@@ -43,7 +43,7 @@ function fitNum(el, cur, max) {
   if (el._b !== b) { el._b = b; el.children[1].textContent = b; }
 }
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadFloor, loadDecor, useFloor } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadDecor, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -625,6 +625,7 @@ preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
 loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
 loadFloor("assets/floor/town_tile.png", 0.55, "town");
 loadDecor();
+loadDecals();                   // 바닥 얼룩 — 격자를 끊는다(js/ground.js)
 loadTown();
 watch($("xpWrap"), drawBar);
 fit(); belt(); newRun(); hud();
