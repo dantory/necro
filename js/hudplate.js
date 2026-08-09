@@ -54,10 +54,15 @@ export function drawPlate(cv, panel) {
              cy: (r.top - p.top + r.height / 2) / K,
              r: r.width / 2 / K };
   };
-  const hp = box(hpEl), mp = box(mpEl), mid = box(midEl);
+  const hp = box(hpEl), mp = box(mpEl);
+  /* ★ 예전엔 .mid 의 rect 하나로 띠를 잡았는데, 시체/군세와 경험치를 **띄우면서**
+     .mid 의 키가 칸 줄만 남았다 — 그러면 띠가 글자를 안 감싼다.
+     **감쌀 것들의 rect 를 합쳐서** 잡는다(무엇이 늘어나도 따라온다). */
+  const rows = [".res", ".xp", "#belt"].map((q) => panel.querySelector(q)).filter(Boolean).map(box);
+  const midT = Math.min(...rows.map((r) => r.y)), midB = Math.max(...rows.map((r) => r.y + r.h));
 
   /* 띠 — 스킬 칸과 경험치를 감싼다. 위아래로 조금 물려 **여백이 테가 되게** 한다. */
-  const barT = mid.y - 4, barB = Math.max(mid.y + mid.h + 3, hp.cy + hp.r * 0.35);
+  const barT = midT - 4, barB = midB + 3;
   const barL = hp.cx, barR = mp.cx;                  // 구슬 **속까지** 들어가야 이어진다
   const CH = 4;                                      // 띠 끝을 깎는다
 

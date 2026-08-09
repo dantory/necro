@@ -51,8 +51,13 @@
    판은 자리만 잡고, 실제로 보이는 것은 구슬과 가운데 판뿐이다. */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
   pointer-events:none;
-  display:flex;align-items:flex-end;justify-content:center;gap:16px;
-  padding:0 16px 9px;
+  /* ★★ 병수님: "체력/마나 구슬이 약간 위쪽으로 치우친 느낌은 일부러?" — 아니다.
+     **아래를 맞춰 놓은 것(flex-end)이 원인**이었다. 구슬(128)과 가운데 칸(키가 작다)의
+     밑변을 맞추면 가운데가 아래로 몰려서, 재 보니 **구슬 중심이 칸 줄 중심보다 34px
+     위**에 있었다. 한 묶음으로 보이려면 띠가 구슬의 **허리를 지나야** 한다 —
+     가운데를 맞춘다(align-items:center). */
+  display:flex;align-items:center;justify-content:center;gap:16px;
+  padding:0 16px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
@@ -121,11 +126,14 @@
    가린다. 디아블로 4 의 그 띠에는 **바탕이 없다**: 칸은 제 테를 하나씩 갖고,
    글자는 그림자로 읽히고, 그 사이로 바닥이 그대로 보인다.
    **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
-.mid{flex:1 1 auto;max-width:370px;min-width:0;
-  display:flex;flex-direction:column;gap:6px;padding:2px 8px 4px}
+/* ★ 가운데를 맞춰도 22px 이 남았다 — **칸 줄이 이 열의 맨 아래**에 있기 때문이다.
+   열 전체의 가운데가 아니라 **칸 줄**이 구슬 허리에 와야 한 묶음으로 보인다.
+   그래서 열의 키를 **칸 줄로만** 잡고, 시체/군세와 경험치는 그 위에 띄운다. */
+.mid{flex:1 1 auto;max-width:370px;min-width:0;position:relative;padding:0 8px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
+.mid .res{position:absolute;left:8px;right:8px;bottom:calc(100% + 26px);
+  display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
   letter-spacing:0;
   /* 바탕이 없으니 글자는 **제 그림자로** 바닥에서 떨어져야 읽힌다 */
   text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000}
@@ -138,7 +146,7 @@
    마개를 둔다. 마개가 있어야 띠가 어디서 끝나는지 읽힌다. */
 /* ★ D4 의 경험치 띠는 **실낱같이 가늘다** — 굵으면 그것이 볼거리가 되어 스킬바와
    다툰다. 늘 보되 안 읽어도 되는 값이라 가늘어도 된다. */
-.mid .xp{position:relative;height:7px;background:#0a0806;box-shadow:inset 0 0 6px #000}
+.mid .xp{position:absolute;left:8px;right:8px;bottom:calc(100% + 8px);height:7px;background:#0a0806;box-shadow:inset 0 0 6px #000}
 .mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:
