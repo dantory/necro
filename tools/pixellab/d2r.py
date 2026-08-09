@@ -58,6 +58,32 @@ PARTS = {
                "interior, a hairline gold bevel at the rim, flat and shallow, "
                "no ornament, no icon", 64, 64),
 }
+
+# ══ 통짜 판 ══ **조각을 CSS 로 조립하는 방식의 한계.**
+# 석상·띠·테·칸을 따로 구워 붙였더니 아무리 맞춰도 「짜깁기」로 보였다(병수님: "아직
+# 많이 아쉽구만"). 진짜 D2R 판은 **한 장으로 그린 아트**라 조각 사이 톤과 정렬이
+# 저절로 맞는다. 그러니 판 전체를 한 장으로 굽고, **변하는 것만**(구슬 채움 · 아이콘 ·
+# 숫자) 그 위에 CSS 로 얹는다. 구슬 자리는 그림을 픽셀로 훑어 재서 맞춘다.
+WHOLE = {
+  # ★ 1차는 **또 청보라**로 나왔고(설명 중간에 색을 적으면 묻힌다) 소켓마다 붉은 구슬이
+  # 이미 박혀 있었다 — 우리는 **빈 구멍**이 필요하다(채움을 CSS 로 얹으므로).
+  # 그래서 (1) 색을 **맨 앞에** 놓고 (2) 「구멍은 비어 있다」를 여러 번 되풀이한다.
+  "hud": ("SEPIA MONOCHROME, only black and dark warm brown and dull tarnished gold, "
+          "absolutely no blue, no purple, no violet, no teal, no cyan, "
+          "Diablo 2 Resurrected bottom control panel, one complete horizontal HUD bar, "
+          "a large EMPTY round hole at the far left and another EMPTY round hole at the far "
+          "right — both holes are pure transparency, nothing inside them, no gem, no orb, "
+          "no glass, just see-through openings, "
+          "a carved stone statue flanking each hole on the outer side, "
+          "between them a flat black iron strip with a thin gold line along top and bottom, "
+          "and five small EMPTY square holes in a row in the middle of that strip — "
+          "the square holes are flat black, nothing inside, no gems, no icons, "
+          "carved dark stone and black wrought iron, torchlit, grim gothic, "
+          "ONE single connected panel, not a sheet, no duplicates, no text, no numbers, "
+          "transparent background above and below the bar",
+          400, 112),
+}
+
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 
 
@@ -75,13 +101,16 @@ def path_of(k): return os.path.join(OUT, k + ".png")
 
 if __name__ == "__main__":
     force = "--force" in sys.argv
-    todo = [k for k in PARTS if force or not os.path.exists(path_of(k))]
+    ALL = dict(PARTS); ALL.update(WHOLE)
+    only = [a for a in sys.argv[1:] if not a.startswith("--")]
+    todo = [k for k in ALL if (not only or k in only)
+            and (force or not os.path.exists(path_of(k)))]
     if not todo:
         print("전부 이미 있음"); sys.exit(0)
 
     jobs = {}
     for k in todo:                                   # 먼저 전부 줄 세운다
-        desc, w, h = PARTS[k]
+        desc, w, h = ALL[k]
         try:
             t = text_of(mcp("create_map_object", {"description": desc,
                                                   "width": w, "height": h, **COMMON}))
@@ -110,5 +139,5 @@ if __name__ == "__main__":
         if any(not os.path.exists(path_of(k)) for k in jobs):
             time.sleep(15)
 
-    got = [k for k in PARTS if os.path.exists(path_of(k))]
-    print(f"══ {len(got)}/{len(PARTS)}장  " + " ".join(got), flush=True)
+    got = [k for k in ALL if os.path.exists(path_of(k))]
+    print(f"══ {len(got)}/{len(ALL)}장  " + " ".join(got), flush=True)

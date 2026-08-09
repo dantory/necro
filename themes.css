@@ -390,3 +390,67 @@ body.t-d2r .orb .ring{display:block;position:absolute;inset:-23px;pointer-events
    칸 자체는 보이게 한다 — 몇 칸인지가 안 읽히면 벨트가 아니다. */
 body.t-d2r .slot.off{opacity:1}
 body.t-d2r .slot.off > i{filter:grayscale(.8) brightness(.45)}
+
+/* ══════════════════════════════════════════════════════════════
+   아홉 — **통짜 판**(t-hud). 조각을 CSS 로 조립하는 방식을 접는다.
+   ──────────────────────────────────────────────────────────────
+   석상·띠·테·칸을 따로 구워 붙였더니 아무리 맞춰도 **짜깁기**로 보였다
+   (병수님: "아직 많이 아쉽구만"). 진짜 D2R 판은 **한 장으로 그린 아트**라
+   조각 사이 톤과 정렬이 저절로 맞는다.
+
+   그래서 판 전체를 한 장(400x112)으로 굽고, **변하는 것만** 그 위에 얹는다:
+   구슬 채움 · 스킬 아이콘 · 숫자. 자리는 눈대중이 아니라 **그림을 픽셀로 훑어 쟀다** —
+   구슬 알의 중심이 판 폭의 14.37% / 85.12%, 세로 47.77%, 지름 16.00%.
+
+   판 폭은 400px 로 고정한다(굽은 크기 그대로라 뭉개지지 않는다). 좁은 화면에서는
+   화면 폭에 맞춰 통째로 줄인다 — 조각이 아니라 한 장이므로 줄여도 안 무너진다.
+   ══════════════════════════════════════════════════════════ */
+body.t-hud{--panelH:118px;
+  --hudW:min(400px, 100vw);
+  --hudL:calc((100vw - min(400px, 100vw)) / 2);
+  /* ★ 16% 로 뒀더니 구슬이 소켓의 **금속 테까지 덮었다** — 잰 값이 테를 포함한 지름이었다.
+     안쪽 구멍만 채우도록 13.5% 로 줄인다. */
+  --orbD:calc(var(--hudW) * 0.135);
+  --orbY:calc(var(--hudW) * 0.112 * 2.5); /* 판 높이(112/400) × 세로중심 47.77% */
+  --g:#c8aa6e}
+body.t-hud #panel{background:linear-gradient(#0000,#000000cc 40%,#000000f0)}
+/* 판 그림 한 장 */
+body.t-hud #panel::before{content:"";display:block;position:absolute;
+  left:var(--hudL);bottom:0;width:var(--hudW);height:calc(var(--hudW) * 112 / 400);
+  border:none;border-image:none;pointer-events:none;z-index:1;
+  background:url("assets/ui/d2r/hud.png") center/100% 100% no-repeat;
+  image-rendering:pixelated}
+body.t-hud .statue{display:none}          /* 판 그림에 이미 들어 있다 */
+body.t-hud #beltArc{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--hudW) * 0.112);background:none;border:none;box-shadow:none;
+  padding:0;width:max-content;z-index:2}
+body.t-hud #belt{position:static;display:flex;gap:calc(var(--hudW) * 0.0175);justify-content:center}
+body.t-hud .slot{width:calc(var(--hudW) * 0.062);height:calc(var(--hudW) * 0.062);
+  background:none;border:none;box-shadow:none;font-size:0;image-rendering:pixelated}
+body.t-hud .slot > i{inset:1px}
+body.t-hud .slot.on{box-shadow:0 0 8px #c8aa6e88;border-radius:2px}
+body.t-hud .slot.off > i{filter:grayscale(.8) brightness(.5)}
+/* 구슬 — **판 그림의 구멍 자리에 정확히 얹는다.** 위치는 픽셀로 잰 값이다. */
+body.t-hud .orb{width:var(--orbD);height:var(--orbD);z-index:2;
+  left:calc(var(--hudL) + var(--hudW) * 0.1437 - var(--orbD) / 2);right:auto;
+  bottom:calc(var(--hudW) * 112 / 400 * 0.5223 - var(--orbD) / 2)}
+body.t-hud .orb.mp{left:calc(var(--hudL) + var(--hudW) * 0.8512 - var(--orbD) / 2);right:auto}
+body.t-hud .orb .glass{border-radius:50%;background:#0a0806;
+  box-shadow:inset 0 -6px 12px #000, inset 0 5px 9px #ffffff10, 0 0 0 1px #00000088}
+body.t-hud .orb .gloss{background:
+  radial-gradient(ellipse 26% 20% at 31% 22%,#ffffffbb,#ffffff33 42%,transparent 72%),
+  radial-gradient(circle at 50% 46%,transparent 46%,#000000aa 100%)}
+body.t-hud .orb.hp .fill{background:linear-gradient(#d83a3a,#8a1010 62%,#2a0606)}
+body.t-hud .orb.mp .fill{background:linear-gradient(#4a7ae0,#16268a 62%,#080e28)}
+body.t-hud .orb .ring{display:none}       /* 테는 판 그림에 있다 */
+body.t-hud .orb .num{position:absolute;left:-10px;right:-10px;top:-13px;height:13px;
+  font-size:9px;color:var(--g);text-shadow:0 1px 3px #000}
+body.t-hud #gauge{top:auto;bottom:calc(var(--hudW) * 0.112 + var(--hudW) * 0.075);
+  left:calc(var(--hudL) + var(--hudW) * 0.26);right:calc(var(--hudL) + var(--hudW) * 0.26);
+  gap:2px;z-index:2}
+body.t-hud #gauge .res{font-size:9px;color:#9d907a;text-shadow:0 1px 3px #000}
+body.t-hud #gauge .xp{height:6px;background:#0a0806aa;border:none;border-radius:0;box-shadow:none}
+body.t-hud #gauge .xpFill{background:linear-gradient(#ffd47a,#a06a10)}
+body.t-hud #gauge .xp span{font-size:8px}
+body.t-hud #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
+  background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
