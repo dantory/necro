@@ -3,6 +3,7 @@ import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./ba
 import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
+import { drawGround, drawHoldRing, loadFloor } from "./ground.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -147,25 +148,16 @@ function draw() {
   const py = (y) => cy + y * sc * SQUASH;
   /* 검수용 — 마지막으로 그린 판의 실제 기하(반지름·눌림·인물배율). 자(headless)가 화면 대비
      판이 얼마나 찼는지 재려면 그림값 자체가 필요하다. RING_SPAWN 은 battle.js 상수(300). */
+  window.__S = S;          // 검수용 — 자(headless)가 실제 개체 위치를 읽어야 겹침을 잰다
   window.__geo = { w, h, cx, cy, sc, squash: SQUASH, us,
                    ringW: 2 * RING_SPAWN * sc, ringH: 2 * RING_SPAWN * sc * SQUASH };
 
-  // 던전 바닥 — 어둡고, 빛은 가운데 한 점(본인이 든 횃불)에서만 온다
-  ctx.fillStyle = "#080605"; ctx.fillRect(0, 0, w, h);
-  const lg = ctx.createRadialGradient(cx, cy, 20, cx, cy, RING_SPAWN * sc * 1.15);
-  lg.addColorStop(0, "#241a11"); lg.addColorStop(0.55, "#140f0a"); lg.addColorStop(1, "#080605");
-  ctx.fillStyle = lg; ctx.fillRect(0, 0, w, h);
-
-  // 바닥 돌 — 타원 고리 몇 겹이면 "둥근 방"으로 읽힌다
-  ctx.strokeStyle = "#1d1610"; ctx.lineWidth = 1;
-  for (let r = 70; r <= RING_SPAWN + 40; r += 70) {
-    ctx.beginPath(); ctx.ellipse(cx, cy, r * sc, r * sc * SQUASH, 0, 0, 6.284); ctx.stroke();
-  }
+  /* 던전 바닥 — **돌 타일 위에 횃불빛 한 점.** 예전엔 검은 바탕 + 매끈한
+     라디얼 그라디언트였다. 화면을 전부 픽셀로 갈아 놓고 **제일 넓은 면만**
+     매끈하게 남아 있었고, 그래서 캐릭터가 허공에 떠 보였다(js/ground.js). */
+  drawGround(ctx, w, h, cx, cy, RING_SPAWN * sc * 1.15, SQUASH);
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
-  ctx.strokeStyle = "rgba(200,170,110,.16)"; ctx.setLineDash([5, 7]);
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, RING_HOLD * 1.2 * sc, RING_HOLD * 1.2 * sc * SQUASH, 0, 0, 6.284);
-  ctx.stroke(); ctx.setLineDash([]);
+  drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
 
   const bar = (x, y, wdt, pct, col) => {
     ctx.fillStyle = "#000a"; ctx.fillRect(x - wdt / 2, y, wdt, 3);
@@ -320,6 +312,7 @@ function loop(t) {
    「타격 시 깜빡임」이었다. 방향이 여덟이라 몸을 틀 때마다 되풀이됐다. */
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
+loadFloor("assets/floor/crypt_tile.png");
 watch($("xpWrap"), drawBar);
 fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);

@@ -1,4 +1,4 @@
-import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, goldFor, hpMaxOf, isGate, META,
+import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, goldFor, hpMaxOf, isGate, META, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
@@ -255,26 +255,37 @@ export function step(dt) {
      그래서 매 걸음 끝에 겹친 쌍을 **절반씩 밀어** 떼어 놓는다.
      한 번에 다 밀지 않고 60%만 미는 이유: 100% 로 밀면 서로 튕겨 부르르 떤다.
      쌍마다 도는 O(n²) 이지만 판에 서는 것이 많아야 마흔 남짓이라 값이 싸다. */
+  /* ★★ 세 번째로 지적받고서야 진짜 원인을 찾았다(병수님: "캐릭 안겹치게 좀,,").
+     반경도 키웠고 미는 양도 온전히 절반으로 했는데 **여전히 겹쳐 보였다.** 이유는
+     **판정을 월드 좌표의 원으로 했기 때문**이다. 화면은 위에서 비스듬히 내려다보는
+     그림이라 **세로가 눌린다**(squash 0.56~0.86). 월드에서 원으로 떨어뜨려 놔도
+     위아래로 선 둘은 화면에서 세로 간격이 절반으로 줄어 **그대로 포개진다.**
+
+     그래서 **화면에서 재고 화면에서 뗀다** — 세로 차이에 squash 를 곱해 거리를
+     구하고, 밀어낼 때 다시 나눠 월드로 돌린다. 눈이 보는 것과 자가 재는 것이
+     같아야 「안 겹친다」가 성립한다.
+
+     한 번 돌려서는 세 마리 이상 몰린 자리가 안 풀린다(A 를 떼면 B 에 붙는다).
+     **세 번 돌린다** — 마흔 남짓이라 값이 싸다. */
   const bodies = S.minions.concat(S.mobs);
-  for (let i = 0; i < bodies.length; i++) {
-    for (let j = i + 1; j < bodies.length; j++) {
-      const a = bodies[i], b = bodies[j];
-      let dx = b.x - a.x, dy = b.y - a.y;
-      let d = Math.hypot(dx, dy);
-      /* 처음엔 0.82 를 곱해 「어깨는 조금 겹쳐도 된다」고 뒀는데, 그 조금이 화면에서는
-         그대로 겹쳐 보였다(69% 프레임). 병수님이 원한 건 **겹침 없음**이라 1.0 으로 조인다. */
-      const min = a.r + b.r;
-      if (d >= min) continue;
-      if (d < 0.01) {                          // 완전히 포갠 경우 — 방향을 인덱스로 정해 흔들림 없이
-        const ang = (i * 2.399 + j * 0.618);
-        dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
+  const sq = SQUASH_VIEW;
+  for (let pass = 0; pass < 3; pass++) {
+    for (let i = 0; i < bodies.length; i++) {
+      for (let j = i + 1; j < bodies.length; j++) {
+        const a = bodies[i], b = bodies[j];
+        let dx = b.x - a.x, dy = (b.y - a.y) * sq;     // ← 화면에서 잰다
+        let d = Math.hypot(dx, dy);
+        const min = a.r + b.r;
+        if (d >= min) continue;
+        if (d < 0.01) {                        // 완전히 포갠 경우 — 방향을 인덱스로 정해 흔들림 없이
+          const ang = (i * 2.399 + j * 0.618);
+          dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
+        }
+        const push = (min - d) * 0.5;
+        const nx = dx / d, ny = dy / d;
+        a.x -= nx * push;  a.y -= ny * push / sq;      // ← 밀 때 월드로 되돌린다
+        b.x += nx * push;  b.y += ny * push / sq;
       }
-      /* 0.3(절반씩 × 0.6) 으로는 걸어오는 힘에 밀려 다시 붙었다. 0.5 = 절반씩 온전히
-         떼어 놓는다. 그래도 부르르 떨지 않는 건 **양쪽을 같은 양만큼** 밀기 때문이다. */
-      const push = (min - d) * 0.5;
-      const nx = dx / d, ny = dy / d;
-      a.x -= nx * push; a.y -= ny * push;
-      b.x += nx * push; b.y += ny * push;
     }
   }
 
