@@ -273,14 +273,22 @@ function draw(dt) {
                       · boulder 둘        — 마른 흙에 박힌 자연물, 바닥을 채운다
                       · banner 하나       — **표식은 드물어야 표식이다**(80x176 로
                                             세로가 길어 흔하면 깃발밭이 된다)
-                    45 칸 중 큰 것 여덟(천막 넷·짐수레·죽은나무·헛간·깃발) ≈ 18%. */
+                    51 칸 중 큰 것 여덟(천막 넷·짐수레·죽은나무·헛간·깃발) ≈ 16%.
+                    ★★★★ 4차 — 세 번 만에 나온 짚·잠자리를 넣는다. **잠자리는
+                    천막 다음으로 센 신호다**(사람이 여기서 잔다) — 둘씩 준다.
+                    숫돌·덮개짐은 하나씩: 있으면 반갑고 흔하면 지겹다. */
                  set: ["barrel", "barrel", "barrel", "crate", "crate", "crate",
                        "sacks", "sacks", "logs", "logs", "shrub", "shrub",
                        "rock", "rock", "stump", "stump", "boulder", "boulder",
+                       "hay", "hay", "bedroll", "bedroll",
                        "wall_a", "wall_a", "wall_b", "cart", "cart", "trough",
-                       "palisade", "palisade", "well",
+                       "palisade", "palisade", "well", "grindstone", "tarp",
                        "cookpot", "cookpot", "dryrack", "dryrack", "wrack",
-                       "torch", "torch", "torch", "firepit", "firepit",
+                       /* ★ 51 칸에 횃불 셋이면 한 화면에 하나 뜰까 말까라 **빛웅덩이가
+                          안 보인다** — 어젯밤 화면이 오히려 밋밋해진 이유다. 야영지에서
+                          불은 소품이 아니라 **조명**이니 개수를 따로 잡는다(3 → 8). */
+                       "torch", "torch", "torch", "torch",
+                       "torch", "torch", "torch", "torch", "firepit", "firepit",
                        "tent_a", "tent_a", "tent_b", "tent_b",
                        "wagon", "tree", "shed", "banner"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));

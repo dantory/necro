@@ -213,11 +213,18 @@ const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
    banner 는 붉은 깃발이라 야영지 표식으로 읽힌다 — 받되 드물게 뿌린다.
 
    **두 번 틀린 것은 값이 아니라 주문이 문제다**(hay/wall_c). 왜 틀렸는지는
-   tools/pixellab/camp_night3.py 머리에 적어 뒀다. */
+   tools/pixellab/camp_night3.py 머리에 적어 뒀다.
+
+   ★★★ 4차(01:40) — 그 진단이 맞았다. 짚과 잠자리를 망친 건 주문 본문이 아니라
+   **모두가 공유하던 TONE 의 「회색 돌과 나무」** 였다(돌이 없는 물건에까지 돌을
+   요구하니 모델이 옆에 돌집을 세웠다). 재질 구절을 뺀 TONE 으로 다시 구우니
+   세 번 만에 hay 가 **짚 더미**로, bedroll 이 **잠자리**로 나왔다.
+   같이 구운 grindstone(숫돌)·tarp(덮개 씌운 짐더미)도 받았다 — wall_c 자리다. */
 const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed",
                     "tent_a", "tent_b", "wagon", "trough", "palisade", "stump",
                     "tree", "firepit",
-                    "boulder", "cookpot", "wrack", "dryrack", "banner"];
+                    "boulder", "cookpot", "wrack", "dryrack", "banner",
+                    "hay", "bedroll", "grindstone", "tarp"];
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
