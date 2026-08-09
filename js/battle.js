@@ -32,20 +32,48 @@ const MOB_CD = 1.6;
 let seq = 0;
 export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
 
+/** 적이 나오는 **간격**. 병수님: "너무 한번에 짠! 하고 나오는듯".
+ *  한꺼번에 세워 놓으면 「배치된 것」으로 보이고, 하나씩 걸어 나오면 「몰려오는 것」이
+ *  된다 — 방치형은 보는 게임이라 **나타나는 순간 자체가 볼거리**다.
+ *  마릿수가 많은 층에서 줄이 너무 길어지지 않게 상한도 둔다. */
+const SPAWN_GAP = [0.55, 0.95];
+
 export function enterFloor(f) {
   S.floor = f;
   S.mobs = [];
   const n = floorN(f);
-  for (let i = 0; i < n; i++) spawnMob(f, i, n);
+
+  /* ★ 예전엔 여기서 `for` 한 줄로 **전부 한꺼번에** 세웠다. 그래서 층이 바뀌는
+     순간 적 예닐곱이 동시에 나타났다. 이제 **줄을 세우고**(S.spawnQ) step 이
+     하나씩 꺼낸다. 맨 앞 하나만 즉시 — 빈 판을 잠깐이라도 보면 멈춘 것 같다. */
+  S.spawnQ = [];
+  for (let i = 0; i < n; i++) S.spawnQ.push({ f, i, n, boss: false });
   if (isGate(f)) {
-    const b = spawnMob(f, 0, 1);
-    b.boss = true; b.kind = "boss"; b.hp = b.hpMax = floorHp(f) * 7;
-    b.dmg = floorDmg(f) * 2.1; b.h = MOB_H.boss; b.r = b.h * FOOT_R;
+    /* 관문은 **큰 놈이 먼저** 나온다. 졸개 뒤에 붙이면 이미 싸움이 붙은 뒤라
+       등장이 묻힌다. */
+    S.spawnQ.unshift({ f, i: 0, n: 1, boss: true });
     say(`<b style="color:#c8aa6e">${f}층 — 관문</b> 큰 놈이 지키고 있음`);
   } else {
     say(`<b>${f}층</b> 내려감`);
   }
+  S.spawnT = 0;                                // 첫 놈은 바로
   S.deepest = Math.max(S.deepest, f);
+}
+
+/** 줄에서 하나 꺼내 세운다. */
+function popSpawn() {
+  const q = S.spawnQ.shift();
+  const m = spawnMob(q.f, q.i, q.n);
+  if (q.boss) {
+    m.boss = true; m.kind = "boss";
+    m.hp = m.hpMax = floorHp(q.f) * 7;
+    m.dmg = floorDmg(q.f) * 2.1; m.h = MOB_H.boss; m.r = m.h * FOOT_R;
+  }
+  /* 나타나는 데 **잠깐 걸린다.** 시차만 두고 툭 나타나면 여전히 갑작스럽다 —
+     0.4초 동안 어둠에서 배어 나오게 한다(main.js 가 born 을 보고 흐리게 그린다). */
+  m.born = 0.4;
+  const [lo, hi] = SPAWN_GAP;
+  S.spawnT = lo + Math.random() * (hi - lo);
 }
 
 /* 적의 **얼굴은 깊이가 정한다.** 위층은 작은 것들, 아래로 갈수록 험한 것이 섞인다 —
@@ -134,7 +162,13 @@ export function step(dt) {
   if (S.dead) return;
   S.t += dt;
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
-  for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
+  for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
+
+  // ── 적은 **하나씩 걸어 나온다** ── 줄에 남은 것이 있으면 간격을 두고 꺼낸다
+  if (S.spawnQ && S.spawnQ.length) {
+    S.spawnT -= dt;
+    while (S.spawnQ.length && S.spawnT <= 0) popSpawn();
+  }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
   if (S.pswing > 0) S.pswing -= dt;
@@ -307,8 +341,10 @@ export function step(dt) {
     S.corpses++;                              // **내 소환수도 시체가 된다** — 다시 쓴다
   }
 
-  // ── 층이 비면 내려간다 ──
-  if (!S.mobs.length) {
+  /* ── 층이 비면 내려간다 ──
+     ★ **줄도 비어야 한다.** 판 위의 적만 보면, 첫 놈이 죽는 순간 아직 안 나온
+        나머지를 두고 다음 층으로 내려가 버린다. */
+  if (!S.mobs.length && !(S.spawnQ && S.spawnQ.length)) {
     saveMeta();
     enterFloor(S.floor + 1);
   }

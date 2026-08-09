@@ -19,7 +19,10 @@
      · 색은 검정 · 무쇠 · 어두운 금. 채도는 거의 없다
    ══════════════════════════════════════════════════════════ */
 
-:root{ --hudH:112px; --orb:74px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+/* ★ 구슬을 74px 로 박아 뒀더니 (1) 작아 보이고 (2) 체력이 네 자리가 되면 「2280/2280」
+   이 구슬 폭을 넘었다(병수님 지적). 화면 폭에 따라 자라게 하고, 숫자는 네 자리부터
+   k 로 줄인다(js/main.js) — **글자를 줄이는 게 아니라 값을 줄인다.** */
+:root{ --hudH:126px; --orb:clamp(72px, 20vw, 96px); --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
@@ -55,7 +58,7 @@
 /* ★ 숫자 자리를 세 번 옮겼다. 결론: **구슬 몸 안, 조금 아래.**
    한가운데면 알의 반사를 가리고, 바깥으로 빼면 글자만 붕 뜬다(병수님: "아니야").
    조금 아래로 내리면 위쪽 반사가 살고 글도 알 위에 얹힌 것으로 읽힌다. */
-.orb .num{position:absolute;left:0;right:0;top:56%;
+.orb .num{position:absolute;left:2px;right:2px;top:56%;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
   font-size:11px;color:#efe4cd;text-shadow:0 1px 2px #000,0 0 4px #000;
   white-space:nowrap;z-index:2}

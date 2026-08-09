@@ -68,6 +68,11 @@ function sprite(path) {
    여겼기 때문이다. 이제 걷기 6프레임·공격 6프레임이 8방향 전부로 실제로 구워져 있어
    그것을 그대로 튼다. 방향이 그림에 들어 있으니 **좌우 뒤집기는 하지 않는다.** */
 function drawOne(base, x, gy, h, fallback, e) {
+  /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
+     0.4초 동안 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다. */
+  const born = e && e.born > 0 ? 1 - e.born / 0.4 : 1;
+  if (born < 1) { ctx.save(); ctx.globalAlpha = Math.max(0.05, born); }
+
   // 상태: 휘두르는 중 > 걷는 중 > 서 있음. 방향은 dx,dy(공격 땐 내지르는 sdx,sdy).
   let state = "idle", dir = "south", frameIdx = 0;
   if (e) {
@@ -115,6 +120,7 @@ function drawOne(base, x, gy, h, fallback, e) {
     ctx.fillStyle = fallback;
     ctx.beginPath(); ctx.ellipse(x, gy - h * 0.4, h * 0.26, h * 0.4, 0, 0, 6.284); ctx.fill();
   }
+  if (born < 1) ctx.restore();
 }
 
 /* ══ 판을 **위에서 비스듬히** 본다 ══
@@ -279,8 +285,17 @@ function hud() {
   const hq = Math.round(hpPct * 30), mq = Math.round(mpPct * 30);
   if (hq !== hud._hq) { hud._hq = hq; drawOrb($("hpOrb"), "hp", hpPct); }
   if (mq !== hud._mq) { hud._mq = mq; drawOrb($("mpOrb"), "mp", mpPct); }
-  $("hpNum").textContent = `${Math.max(0, Math.round(S.hp))}/${hpMaxOf()}`;
-  $("mpNum").textContent = `${Math.round(S.mp)}/${mpMaxOf()}`;
+  /* ★ 값이 커지면 「2280/2280」 이 구슬 폭을 넘는다(병수님 지적). 글꼴은 11px 격자가
+     최소라 더 못 줄이므로 **값 쪽을 줄인다** — 네 자리부터 k 로 적는다.
+     1000 미만은 그대로 둔다(초반에 굳이 1.0k 로 적으면 오히려 안 읽힌다). */
+  const num = (v) => {
+    v = Math.max(0, Math.round(v));
+    return v < 1000 ? String(v)
+         : v < 10000 ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+         : Math.round(v / 1000) + "k";
+  };
+  $("hpNum").textContent = `${num(S.hp)}/${num(hpMaxOf())}`;
+  $("mpNum").textContent = `${num(S.mp)}/${num(mpMaxOf())}`;
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
      지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
   $("gCorpse").textContent = `시체 ${S.corpses}`;

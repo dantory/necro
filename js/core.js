@@ -82,6 +82,7 @@ export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
 /** 한 번의 내려감(run) 동안만 사는 값. **금·레벨은 여기 없다** — META 에 있다. */
 export const S = {
   floor: 1, t: 0, speed: 1, running: true, dead: false,
+  spawnQ: [], spawnT: 0,          // 적이 나오려고 서 있는 줄(한 번에 짠 하고 안 나온다)
   hp: 100, hpMax: 100, mp: 40, mpMax: 40,
   corpses: 0,                 // **시체가 자원이다**
   minions: [], mobs: [], fx: [],
