@@ -25,6 +25,12 @@ export const CORE_R     = 26;     // 여기까지 들어오면 본인이 맞는�
  *  제일 짧은 쿨다운(해골 1.5초)의 40% 라 다음 휘두름과 겹치지 않는다.
  *  ★ 그리는 쪽에서도 이 값을 쓴다 — 숫자를 양쪽에 적어 두면 한쪽만 고쳐 어긋난다. */
 export const SWING_T    = 0.6;
+/** 타격이 **어느 지점에서** 들어가는가(휘두름 진행도 0~1).
+ *  ★★ 여기가 「공격모션이 어색하다」의 뿌리였다. 예전엔 휘두름을 **시작하는 순간**
+ *  데미지·움찔·불꽃을 전부 넣었다 — 아직 팔을 들지도 않았는데 상대가 먼저 밀리고
+ *  불꽃이 튀었다. **원인보다 결과가 먼저 오면** 눈은 그것을 「어색하다」로 읽는다.
+ *  0.55 는 6프레임 중 **네 번째** 언저리 — 팔이 제일 뻗은 그 칸이다. */
+export const IMPACT_AT  = 0.55;
 /** 적이 때리는 주기. 소환수만 늦추면 **적만 연타로 보인다.** 같이 늦추되 한 방을
  *  그만큼 세게 해서(아래 `m.dmg * MOB_CD`) 받는 피해 총량은 그대로 둔다. */
 const MOB_CD = 1.6;
@@ -164,6 +170,26 @@ export function step(dt) {
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
+  /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
+     휘두름은 SWING_T 에서 0 으로 준다. 진행도가 IMPACT_AT 을 넘는 순간(=swing 이
+     SWING_T*(1-IMPACT_AT) 아래로 내려가는 순간) 데미지·움찔·불꽃이 한꺼번에 온다.
+     셋이 **같은 프레임에** 와야 「맞았다」로 읽힌다 — 하나라도 어긋나면 흩어진다. */
+  const impactAt = SWING_T * (1 - IMPACT_AT);
+  for (const u of S.minions.concat(S.mobs)) {
+    if (!u.pending || u.swing > impactAt) continue;
+    const { tgt, dmg, heal } = u.pending;
+    u.pending = null;
+    if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
+    tgt.hp -= dmg;
+    tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
+    tgt.kx = u.sdx; tgt.ky = u.sdy;
+    if (heal) u.hp = Math.min(u.hpMax, u.hp + dmg * 0.35);
+    /* 불꽃은 **닿는 자리**에 — 맞은 놈의 한가운데가 아니라 둘 사이 경계다.
+       가운데에 찍으면 몸에 파묻혀 안 보인다. */
+    S.fx.push({ t: 0.12, kind: "hit",
+                x: tgt.x - u.sdx * tgt.r * 0.8, y: tgt.y - u.sdy * tgt.r * 0.8 });
+  }
+
   // ── 적은 **하나씩 걸어 나온다** ── 줄에 남은 것이 있으면 간격을 두고 꺼낸다
   if (S.spawnQ && S.spawnQ.length) {
     S.spawnT -= dt;
@@ -253,12 +279,8 @@ export function step(dt) {
     u.atk = K.cd; u.swing = SWING_T;
     u.sdx = (tgt.x - u.x); u.sdy = (tgt.y - u.y);       // 내지르는 방향
     const sl = Math.hypot(u.sdx, u.sdy) || 1; u.sdx /= sl; u.sdy /= sl;
-    const d = K.dmg * dmgMulOf() * ampMul;
-    tgt.hp -= d;
-    tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
-    tgt.kx = u.sdx; tgt.ky = u.sdy;
-    if (u.kind === "ghoul") u.hp = Math.min(u.hpMax, u.hp + d * 0.35);
-    S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
+    /* **때는 아직이다.** 팔이 뻗는 칸에서 터지도록 적어만 둔다(위 IMPACT_AT). */
+    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * ampMul, heal: u.kind === "ghoul" };
   }
 
   /* ── 적 ── **가운데를 향해 온다.** 길목에 소환수가 있으면 그것부터 친다 —
@@ -271,7 +293,7 @@ export function step(dt) {
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
       const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
-      tgt.hp -= m.dmg * MOB_CD; tgt.flinch = 0.18; tgt.kx = m.sdx; tgt.ky = m.sdy;
+      m.pending = { tgt, dmg: m.dmg * MOB_CD, heal: false };
       S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
       continue;
     }

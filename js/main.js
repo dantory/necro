@@ -78,9 +78,13 @@ function drawOne(base, x, gy, h, fallback, e) {
   if (e) {
     if (e.swing > 0) {
       state = "attack";
-      /* 공격 프레임은 **swing 진행도**로. swing 은 SWING_T 에서 0 으로 준다 → 진행도(1-swing/SWING_T,
-         0→1)를 6프레임에 선형 배분하고 끝에서 넘치지 않게 clamp. */
-      frameIdx = Math.max(0, Math.min(5, Math.floor((1 - e.swing / SWING_T) * 6)));
+      /* 공격 프레임은 **swing 진행도**로. swing 은 SWING_T 에서 0 으로 준다.
+         ★ 예전엔 6프레임에 **똑같이** 나눴다. 그런데 실제 휘두름은 고르지 않다 —
+         **들었다가(느리게) · 후려치고(빠르게) · 거둔다(느리게).** 균등 배분하면 팔이
+         일정한 속도로 도는 기계가 된다. 타격 칸(3)에 제일 오래 머물게 나눈다. */
+      const p = 1 - e.swing / SWING_T;                 // 0 → 1
+      frameIdx = p < 0.18 ? 0 : p < 0.36 ? 1 : p < 0.50 ? 2
+               : p < 0.72 ? 3 : p < 0.86 ? 4 : 5;
       dir = e.sdx !== undefined ? dirName(e.sdx, e.sdy) : dirName(e.dx ?? 0, e.dy ?? 1);
     } else if (e.moving > 0) {
       state = "walk";
@@ -98,6 +102,18 @@ function drawOne(base, x, gy, h, fallback, e) {
   /* 맞은 순간엔 **뒤로 밀린다**(기존 그대로). 흰 번쩍임은 예전에 뺐다 — 밀림 + 닿는 자리의
      불꽃(fx)으로 충분하다. */
   let fx2 = 0, fy2 = 0;
+
+  /* **때리는 놈도 움직인다.** 붙어 서서 팔만 흔들면 그림이 제자리를 맴돈다 —
+     뒤로 몸을 빼며 들었다가(–) 타격 칸에서 앞으로 내지르고(+) 다시 돌아온다.
+     맞는 놈이 뒤로 밀리는 것과 **반대 방향**이라 둘이 합쳐져 부딪힌 느낌이 난다. */
+  if (e && e.swing > 0 && e.sdx !== undefined) {
+    const p = 1 - e.swing / SWING_T;
+    const push = p < 0.5 ? -0.05 * (p / 0.5)                    // 들면서 뒤로
+               : p < 0.62 ? -0.05 + 0.23 * ((p - 0.5) / 0.12)   // 후려치며 앞으로
+               : 0.18 * (1 - (p - 0.62) / 0.38);                // 거두며 제자리로
+    fx2 += e.sdx * h * push;
+    fy2 += e.sdy * h * push * 0.55;                             // 세로는 눌린 만큼 덜
+  }
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
     fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
