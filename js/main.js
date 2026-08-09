@@ -1,4 +1,4 @@
-import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap } from "./core.js";
+import { $, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, xpNeed } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step } from "./battle.js";
 import { dirName, drawSprite8, footMetrics } from "./sprite8.js";
 
@@ -246,11 +246,16 @@ function hud() {
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   $("hpFill").style.height = Math.max(0, S.hp / hpMaxOf()) * 100 + "%";
   $("mpFill").style.height = Math.max(0, S.mp / mpMaxOf()) * 100 + "%";
-  $("hpNum").textContent = `${Math.max(0, Math.round(S.hp))} / ${hpMaxOf()}`;
-  $("mpNum").textContent = `${Math.round(S.mp)} / ${mpMaxOf()}`;
-  $("log").innerHTML =
-    `<div>시체 <b style="color:#c8aa6e">${S.corpses}</b> · 군세 <b>${S.minions.length}</b>/${armyCap()}</div>` +
-    S.log.slice(0, 3).map(l => `<div>${l}</div>`).join("");
+  $("hpNum").textContent = `${Math.max(0, Math.round(S.hp))}/${hpMaxOf()}`;
+  $("mpNum").textContent = `${Math.round(S.mp)}/${mpMaxOf()}`;
+  /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
+     지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
+  $("gCorpse").textContent = `시체 ${S.corpses}`;
+  $("gArmy").textContent   = `군세 ${S.minions.length}/${armyCap()}`;
+  const need = xpNeed(META.lv);
+  $("xpFill").style.width = Math.min(100, (META.xp / need) * 100) + "%";
+  $("xpNum").textContent  = `Lv.${META.lv}  ${META.xp | 0}/${need}`;
+  $("log").innerHTML = S.log.slice(0, 3).map(l => `<div>${l}</div>`).join("");
   beltState();
 }
 
