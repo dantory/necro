@@ -19,7 +19,7 @@
      · 색은 검정 · 무쇠 · 어두운 금. 채도는 거의 없다
    ══════════════════════════════════════════════════════════ */
 
-:root{ --hudH:112px; --orb:74px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+:root{ --hudH:120px; --orb:74px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
@@ -27,16 +27,18 @@
   padding:0 10px 8px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
+  /* ★ 바탕을 화면 끝까지 검게 깔면 **바닥**이 되고, 가운데만 남기면 **아래에 놓인
+     물건**이 된다. D2R 이 그렇다 — 좌우가 비어야 전장이 이어지는 것으로 읽힌다.
+     그래서 세로(계단)와 가로(가운데만) 두 겹을 곱해 쓴다. */
   background:
     repeating-linear-gradient(90deg, #ffffff05 0 1px, #0000 1px 4px),
-    /* ★ 부드러운 그라디언트도 매끄러움의 원인이다. **계단으로 끊는다** —
-       픽셀아트는 색 단계가 몇 개뿐이고, 그 끊김이 결을 만든다. */
-    linear-gradient(#0000 0 18%, #00000088 18% 42%, #000000cc 42% 66%, #000000f2 66%);
+    linear-gradient(90deg, #0000 0 4%, #000000cc 14% 86%, #0000 96%),
+    linear-gradient(#0000 0 18%, #00000066 18% 42%, #000000aa 42% 66%, #000000dd 66%);
   border:none;box-shadow:none}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지
    눈이 못 잡는다. 가운데가 밝고 양끝이 사라지는 선 — 끝을 자르면 선이 뚝 끊겨 보인다. */
 #panel::before{content:"";position:absolute;left:0;right:0;top:0;height:1px;
-  background:linear-gradient(90deg,#0000, #c8aa6e55 22%, #c8aa6e88 50%, #c8aa6e55 78%, #0000)}
+  background:linear-gradient(90deg,#0000 6%, #c8aa6e44 20%, #c8aa6e77 50%, #c8aa6e44 80%, #0000 94%)}
 
 /* ── 구슬 ── 제 크기만 차지한다(flex:0 0 auto). 유리알은 셋이 같이 가야 한다:
    **작고 또렷한 반사** · 아래에서 올라오는 되비침 · 가장자리의 어두운 눌림.
@@ -51,8 +53,11 @@
   background:none;filter:drop-shadow(0 2px 4px #000c)}
 .orb canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 
-.orb .num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#efe4cd;text-shadow:0 1px 3px #000,0 0 5px #000;letter-spacing:0;
+/* ★ 숫자를 구슬 **한가운데**에 얹었더니 유리알을 가리고, 글자만 둥둥 떠 보였다.
+   D2R 도 Life/Mana 를 구슬 위 바깥에 적는다 — 알은 알대로 보이게 두고 글은 곁에. */
+.orb .num{position:absolute;left:-8px;right:-8px;top:-14px;height:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--gold);text-shadow:0 1px 3px #000,0 0 4px #000;
   white-space:nowrap;z-index:2}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서

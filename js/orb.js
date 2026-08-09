@@ -55,10 +55,23 @@ export function drawOrb(cv, kind, pct) {
   g.fillStyle = "#ffffff2a";
   g.fillRect(12, 25, 6, 1); g.fillRect(11, 24, 8, 1);
 
-  /* 테두리 한 겹 — 원의 바깥 계단을 어둡게 눌러 유리 두께를 만든다 */
-  g.fillStyle = "#00000066";
+  /* ── 금속 테 ── **구슬은 테가 있어야 「박힌 것」으로 읽힌다.** 벌거벗은 원은 공이다.
+     CSS 로 두르면 그 테만 다시 매끄러워지므로 **여기서 픽셀로 그린다.**
+     바깥 두 겹(밝은 위 · 어두운 아래)이 곧 두께다 — 위가 밝고 아래가 어두우면
+     빛이 위에서 온다는 뜻이고, 그것만으로 테가 둥글게 말려 보인다. */
   for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) {
     const dx = x - R + 0.5, dy = y - R + 0.5, d2 = dx * dx + dy * dy;
-    if (d2 <= R * R && d2 > (R - 1.2) * (R - 1.2)) g.fillRect(x, y, 1, 1);
+    const rr = Math.sqrt(d2);
+    if (rr > R || rr < R - 2.2) continue;
+    const up = dy < -2;                        // 위쪽 반인가
+    g.fillStyle = rr > R - 1.1 ? (up ? "#8a7448" : "#2a2016")   // 바깥 겹
+                               : (up ? "#c8aa6e" : "#4a3a22");  // 안쪽 겹
+    g.fillRect(x, y, 1, 1);
+  }
+  /* 리벳 넷 — 테를 붙들어 맨 못. **점 하나면 충분하다.** D2R 도 못이 박혀 있다. */
+  const rivets = [[15, 1], [15, 28], [1, 15], [28, 15]];
+  for (const [rx, ry] of rivets) {
+    g.fillStyle = "#e0c890"; g.fillRect(rx - 1, ry, 2, 1);
+    g.fillStyle = "#6b5730"; g.fillRect(rx - 1, ry + 1, 2, 1);
   }
 }
