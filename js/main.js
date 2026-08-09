@@ -182,7 +182,7 @@ function draw(dt) {
      서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
   /* ★ 인물 배율 상한 1.85 도 모바일에서 넘어온 값이다. 판을 키우고 시야를 넓혔는데
      인물만 작으면 **무엇이 싸우는지** 안 보인다. PC 는 크게 봐도 되는 화면이다. */
-  const us = Math.max(1, Math.min(1.8, sc / 0.44));
+  const us = Math.max(1, Math.min(1.35, sc / 0.44));
 
   const cx = w / 2, cy = h * 0.5;
   const px = (x) => cx + x * sc;

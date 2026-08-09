@@ -1,5 +1,5 @@
 import { LOAD } from "./sprite8.js";
-import { place } from "./ground.js";
+import { ART, place } from "./ground.js";
 
 /* ══════════════════════════════════════════════════════════════
    **마을** — 병수님: "마을도 만들어줘, 마을에서 던전으로 진입하는거고,
@@ -101,9 +101,12 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
     /* NPC 는 가게 **앞에** 선다 — 사람이 없으면 좌판이 아니라 폐허다. */
     const npcIm = npc[NPC_OF[id]];
     if (npcIm) place(ctx, npcIm, gx + Math.round(28 * sc), gy + Math.round(10 * sc * squash));
+    /* 누를 자리도 **그린 크기**로 잡는다 — 그림을 줄였는데 판정만 크면 엉뚱한 데가
+       눌린다(그림과 판정은 한 곳에서 나와야 한다). */
     const f = im._foot || { cx: im.width / 2, bot: im.height, w: im.width };
-    hits.push({ id, name, x: gx - f.cx, y: gy - f.bot, w: im.width, h: f.bot,
-                lx: gx, ly: gy });
+    const k = ART.s;
+    hits.push({ id, name, x: gx - f.cx * k, y: gy - f.bot * k,
+                w: im.width * k, h: f.bot * k, lx: gx, ly: gy });
   }
 }
 

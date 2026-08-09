@@ -249,21 +249,32 @@ export function footOf(cv) {
 
 /** 발을 지면에 맞춰 놓고, **발 폭에 맞춘 그림자**를 깐다.
  *  그림자를 이미지 폭으로 그리면 넓적한 놈은 그림자가 몸 밖으로 삐져나온다. */
+/* ★★ 병수님: "좀 더 축소 시켜야 할듯,, 아직도 확대된느낌".
+   **소품·건물은 배율과 무관하게 원본 크기로 그리고 있었다.** 캐릭터는 us 로 키우고
+   줄였는데 건물은 176px 그대로였다 — 그래서 화면을 아무리 넓혀도 건물만 커 보였다.
+   여기 공통 배율(ART)을 두고 **월드에 놓이는 모든 그림이 이걸 지난다.**
+   정수 배로만 줄인다 — 소수 배로 줄이면 픽셀이 뭉개진다(0.75 는 4px 이 3px 이 되어
+   그나마 규칙적이다). */
+export const ART = { s: 0.75 };
+
 export function place(ctx, cv, gx, gy, shadow = true) {
   const f = footOf(cv);
-  const px = Math.round(gx - f.cx), py = Math.round(gy - f.bot);
+  const k = ART.s;
+  const w = Math.round(cv.width * k), h = Math.round(cv.height * k);
+  const px = Math.round(gx - f.cx * k), py = Math.round(gy - f.bot * k);
   if (shadow) {
     ctx.save();
     ctx.fillStyle = "rgba(0,0,0,.42)";
     ctx.beginPath();
     /* ★ 그림자를 발 폭에 **비례**로만 그렸더니 건물(176px)에 반경 74 짜리 먹구름이
        깔렸다. 큰 것일수록 비율을 줄인다 — 큰 물건은 바닥에 닿는 면이 폭만큼 넓지 않다. */
-    const k = f.w > 96 ? 0.26 : f.w > 56 ? 0.34 : 0.42;
-    ctx.ellipse(Math.round(gx), Math.round(gy) - 1, f.w * k, f.w * k * 0.36, 0, 0, 6.284);
+    const sk = f.w > 96 ? 0.26 : f.w > 56 ? 0.34 : 0.42;
+    ctx.ellipse(Math.round(gx), Math.round(gy) - 1,
+                f.w * sk * k, f.w * sk * k * 0.36, 0, 0, 6.284);
     ctx.fill();
     ctx.restore();
   }
-  ctx.drawImage(cv, px, py);
+  ctx.drawImage(cv, 0, 0, cv.width, cv.height, px, py, w, h);
 }
 
 /** 좌표를 섞어 **늘 같은 값**을 낸다(난수가 아니다 — 난수면 매 프레임 자리가 바뀐다). */
