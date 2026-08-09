@@ -206,3 +206,74 @@ body.t-grim #gauge .xpFill{background:linear-gradient(#6b5730,#3a2f18)}
 body.t-grim #gauge .xp span{color:#efe0bd}
 body.t-grim #log{left:10px;right:10px;height:52px;background:#0a0806cc;
   box-shadow:inset 0 0 0 1px #6b5730;padding:4px 8px;color:#a89168}
+
+/* ══════════════════════════════════════════════════════════════
+   일곱 — **디아블로 3**(t-d3). 병수님이 참고 화면을 주셨다.
+   ──────────────────────────────────────────────────────────────
+   여섯 번 빗나간 뒤에야 원본을 봤다. 내가 만든 것들과 **근본이 달랐다**:
+
+     · 바닥에 깔린 판이 **없다.** 검은 배경 위에 요소만 떠 있다
+     · 가운데 스킬바를 **아치형 금속 틀**이 감싼다 ← 이것이 시그니처다
+     · 구슬은 그 아치의 **양 끝에 매달려** 유리알처럼 빛난다
+     · 폭이 화면의 60~65% 만 — 좌우가 비어 있어 전장이 숨을 쉰다
+     · 맨 아래를 **얇은 주황 경험치 띠**가 가로지른다
+
+   나는 계속 「아래에 깔린 판」을 만들고 있었다. D3 은 판을 깔지 않는다 —
+   **가운데에 물건 하나를 놓는다.** 그래서 화면이 안 답답하다.
+   ══════════════════════════════════════════════════════════ */
+body.t-d3{--panelH:128px;--d3-m:#6b5f4e;--d3-m-l:#a2917a;--d3-m-d:#2a241c}
+body.t-d3 #panel{background:linear-gradient(#0000,#0000000f 40%,#00000055)}
+
+/* 아치 — 벨트를 감싸는 금속 틀. 위쪽만 둥글게 솟는다.
+   ★ 폭을 화면에 꽉 채우면 D3 가 아니라 그냥 「판」이 된다. 가운데 62% 만 쓴다. */
+/* 금속은 **가로로 지나가는 밝은 띠 한 줄**이 있어야 금속으로 읽힌다.
+   단색 그라디언트만으로는 플라스틱처럼 보인다. */
+body.t-d3 #beltArc{position:absolute;left:50%;transform:translateX(-50%);bottom:24px;
+  padding:12px 11px 8px;border-radius:24px 24px 7px 7px;
+  background:
+    linear-gradient(#0000 0 34%, #ffffff14 34% 38%, #0000 38%),
+    linear-gradient(#574a39,#2a231b 42%,#0d0b08);
+  box-shadow:inset 0 1px 0 var(--d3-m-l), inset 0 -2px 3px #000,
+             0 0 0 2px var(--d3-m-d), 0 5px 16px #000c}
+/* 아치 위의 장식 한 점 — D3 는 아치 꼭대기에 문양이 박혀 있다 */
+body.t-d3 #beltArc::before{content:"";position:absolute;left:50%;top:-9px;
+  width:22px;height:18px;transform:translateX(-50%);
+  background:linear-gradient(var(--d3-m-l),var(--d3-m));
+  clip-path:polygon(50% 0,100% 45%,78% 100%,22% 100%,0 45%);
+  box-shadow:0 1px 3px #000}
+body.t-d3 #belt{position:static;display:flex;gap:5px;justify-content:center}
+body.t-d3 .slot{width:42px;height:42px;border-radius:3px;
+  background:radial-gradient(#1a1510,#0a0806);
+  border:1px solid #524636;box-shadow:inset 0 0 8px #000}
+body.t-d3 .slot.on{border-color:#c8aa6e;box-shadow:inset 0 0 8px #000,0 0 9px #c8aa6e66}
+body.t-d3 .slot.off{opacity:.42}
+
+/* 구슬 — 아치 양 끝에 매달린다. **유리알**이라 빛나는 겉면이 핵심이다. */
+body.t-d3 .orb{width:82px;height:82px;bottom:12px;left:4px;right:auto;z-index:2}
+body.t-d3 .orb.mp{left:auto;right:4px}
+/* 유리알로 읽히려면 셋이 같이 가야 한다: **위쪽의 밝은 반사** · **아래쪽에서
+   올라오는 되비침** · **테 안쪽의 어두운 띠**. 하나만 빠져도 그냥 동그라미다. */
+body.t-d3 .orb .glass{border-radius:50%;background:#0a0806;
+  box-shadow:inset 0 0 0 2px var(--d3-m), inset 0 0 0 4px var(--d3-m-d),
+             inset 0 -8px 16px #000, inset 0 6px 12px #ffffff14,
+             0 3px 14px #000c, 0 0 0 1px #000}
+body.t-d3 .orb .gloss{background:
+  radial-gradient(circle at 30% 20%,#ffffff88,#ffffff22 26%,transparent 48%),
+  radial-gradient(ellipse 60% 30% at 50% 112%,#ffffff2a,transparent 70%),
+  radial-gradient(circle at 50% 50%,transparent 62%,#00000066 100%)}
+body.t-d3 .orb.hp .fill{background:linear-gradient(#ff5a5a,#a01818 60%,#4a0c0c)}
+body.t-d3 .orb.mp .fill{background:linear-gradient(#6aa8ff,#2244aa 60%,#0e1a3a)}
+/* 숫자는 구슬 **위쪽 바깥**에 — D3 도 구슬 안이 아니라 곁에 적는다 */
+body.t-d3 .orb .num{position:absolute;left:0;right:0;top:-15px;height:14px;
+  font-size:10px;color:#cfc4ae;text-shadow:0 1px 3px #000}
+
+/* 시체·군세는 아치 위에 얹는다(스킬을 쓸지 정하는 값이라 벨트 곁이 맞다) */
+body.t-d3 #gauge{top:auto;bottom:96px;left:96px;right:96px;gap:0}
+body.t-d3 #gauge .res{font-size:10px;color:#9d907a;text-shadow:0 1px 3px #000}
+/* 경험치는 **화면 맨 아래를 가로지르는 얇은 띠** */
+body.t-d3 #gauge .xp{position:fixed;left:0;right:0;bottom:0;height:7px;
+  background:#0a0806;border:none;border-top:1px solid #3a3128;border-radius:0;box-shadow:none}
+body.t-d3 #gauge .xpFill{background:linear-gradient(#ffb14a,#a05f10)}
+body.t-d3 #gauge .xp span{font-size:8px;color:#e8dcc2}
+body.t-d3 #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
+  background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
