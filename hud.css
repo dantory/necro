@@ -51,13 +51,8 @@
    판은 자리만 잡고, 실제로 보이는 것은 구슬과 가운데 판뿐이다. */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
   pointer-events:none;
-  /* ★★ 병수님: "체력/마나 구슬이 약간 위쪽으로 치우친 느낌은 일부러?" — 아니다.
-     **아래를 맞춰 놓은 것(flex-end)이 원인**이었다. 구슬(128)과 가운데 칸(키가 작다)의
-     밑변을 맞추면 가운데가 아래로 몰려서, 재 보니 **구슬 중심이 칸 줄 중심보다 34px
-     위**에 있었다. 한 묶음으로 보이려면 띠가 구슬의 **허리를 지나야** 한다 —
-     가운데를 맞춘다(align-items:center). */
-  display:flex;align-items:center;justify-content:center;gap:16px;
-  padding:0 16px;
+  display:flex;align-items:flex-end;justify-content:center;gap:16px;
+  padding:0 16px 9px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
@@ -126,13 +121,8 @@
    가린다. 디아블로 4 의 그 띠에는 **바탕이 없다**: 칸은 제 테를 하나씩 갖고,
    글자는 그림자로 읽히고, 그 사이로 바닥이 그대로 보인다.
    **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
-/* ★★ 한때 **칸 줄만** 구슬 허리에 맞추려고 글자·경험치를 띄웠는데, 병수님이 가리킨
-   것은 그게 아니었다 — "UI 배경보다 구슬이 조금 위에 있는거 같았다".
-   즉 문제는 **판과 구슬**이지 칸 줄이 아니었다. 띄워 놓으면 열의 키가 칸 줄만 남아
-   판이 내용을 헐겁게 감싼다. 다시 흐름에 넣어 **열 전체가 구슬 중심**에 오게 하고,
-   판은 구슬 중심 대칭으로 잡는다(js/hudplate.js) — 그러면 딱 맞게 감싼다. */
 .mid{flex:1 1 auto;max-width:370px;min-width:0;
-  display:flex;flex-direction:column;gap:6px;padding:0 8px}
+  display:flex;flex-direction:column;gap:6px;padding:2px 8px 4px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
 .mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
