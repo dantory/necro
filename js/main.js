@@ -3,7 +3,7 @@ import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./ba
 import { dirName, drawSprite8, footMetrics, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGround, drawHoldRing, loadFloor } from "./ground.js";
+import { drawGround, drawHoldRing, loadFloor, loadDecor } from "./ground.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -155,7 +155,11 @@ function draw() {
   /* 던전 바닥 — **돌 타일 위에 횃불빛 한 점.** 예전엔 검은 바탕 + 매끈한
      라디얼 그라디언트였다. 화면을 전부 픽셀로 갈아 놓고 **제일 넓은 면만**
      매끈하게 남아 있었고, 그래서 캐릭터가 허공에 떠 보였다(js/ground.js). */
-  drawGround(ctx, w, h, cx, cy, RING_SPAWN * sc * 1.15, SQUASH);
+  /* ★ 빛 반경을 싸움터(RING_SPAWN)에만 맞췄더니 세로로 긴 화면에서는 위아래가
+     통째로 검게 남고 **벽도 소품도 안 보였다.** 방 전체가 어렴풋이라도 보이도록
+     화면 크기에도 맞춘다 — 둘 중 큰 쪽. */
+  const lightR = Math.max(RING_SPAWN * sc * 1.15, Math.min(w, h) * 0.62);
+  drawGround(ctx, w, h, cx, cy, lightR, SQUASH, sc);
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
 
@@ -313,6 +317,7 @@ function loop(t) {
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
          "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
 loadFloor("assets/floor/crypt_tile.png");
+loadDecor();
 watch($("xpWrap"), drawBar);
 fit(); belt(); newRun(); hud();
 requestAnimationFrame(loop);
