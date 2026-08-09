@@ -38,10 +38,19 @@
    구슬을 82 → **112**, 숫자를 9 → **18px**(9격자의 두 배라 선명하다).
    판도 116 → **124** 로 올려 구슬이 들어갈 자리를 만든다 —
    판(124) − 아래 여백(9) = 115 ≥ 구슬(112). 눈대중이 아니라 계산으로 맞춘다. */
-:root{ --hudH:140px; --orb:128px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+:root{ /* ★ 판 높이는 구슬(128) + 아래 여백(9) + **구슬 위 숫자**(약 36) 이다.
+   숫자를 위로 뺐으니 그만큼 자리를 잡아 줘야 자가 「넘쳤다」고 하지 않는다. */
+  --hudH:176px; --orb:128px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
-/* ── 판 ── flex 한 줄. **이것이 전부다.** */
+/* ── 판 ── flex 한 줄. **이것이 전부다.**
+   ★★ 병수님: "하단UI 영역을 맵이랑 구분해놔서 어색한듯, 화면에 UI가 떠있는
+   느낌으로 구현해줘". 화면을 가로지르는 불투명한 띠를 깔면 **맵이 거기서 끝나고**
+   아래는 다른 세계가 된다 — 「맵 + UI 영역」 두 칸짜리 화면이 된다.
+   디아블로는 그렇지 않다: **세상은 화면 끝까지 이어지고**, UI 는 그 위에 얹힌
+   물건들이다(구슬 둘 + 가운데 판). 그래서 여기서는 **바탕을 지운다** —
+   판은 자리만 잡고, 실제로 보이는 것은 구슬과 가운데 판뿐이다. */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
+  pointer-events:none;
   display:flex;align-items:flex-end;justify-content:center;gap:16px;
   padding:0 16px 9px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
@@ -49,13 +58,16 @@
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
      좌우를 흐리면 **떠 있는 물건**이 아니라 **끝이 어중간하게 잘린 판**으로 보인다.
      판은 화면 끝까지 간다. 뜬 느낌은 위쪽 그라디언트가 이미 내고 있다. */
-  /* ★ 바탕은 이제 **캔버스가 돌로 깎는다**(js/panel.js) — CSS 그라디언트는 매끄러워
-     픽셀 화면에서 거기만 종이가 된다. 여기서는 자리만 잡는다. */
-  background:#14110d;border:none;box-shadow:none}
-#panelBg{position:absolute;inset:0;width:100%;height:100%;
-  image-rendering:pixelated;pointer-events:none;z-index:0}
-/* 판 위에 놓이는 것들은 바탕보다 위 — 바탕이 절대배치라 안 올리면 가려진다. */
-#panel > .orb, #panel > .mid, #panel > .slots{position:relative;z-index:1}
+  background:none;border:none;box-shadow:none}
+/* 판 자체는 클릭을 안 먹고(맵이 그 뒤로 이어진다), 얹힌 물건만 먹는다. */
+#panel > .orb, #panel > .mid{position:relative;z-index:1;pointer-events:auto}
+/* 가운데 판의 돌 바탕 — **가운데만** 깐다. 여백을 조금 넉넉히 물려 테가 글자에
+   안 닿게 한다(js/panel.js 가 그린다). */
+/* ★ canvas 는 **대체 요소**라 inset 만 주고 width:auto 로 두면 안 늘어난다
+   (제 고유 크기 8x8 그대로 남는다 — 재 보고 알았다). 퍼센트로 못박는다. */
+#panelBg{position:absolute;left:-14px;top:-9px;box-sizing:border-box;
+  width:calc(100% + 28px);height:calc(100% + 15px);
+  image-rendering:pixelated;pointer-events:none;z-index:-1}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지
    눈이 못 잡는다. 가운데가 밝고 양끝이 사라지는 선 — 끝을 자르면 선이 뚝 끊겨 보인다. */
 /* 위 경계선은 **난간을 캔버스가 그리므로** 뺐다 — 두 곳에서 같은 것을 그리면
@@ -89,19 +101,24 @@
    크기를 바꿔도 안 흔들린다: 구슬 전체를 그릇으로 두고 가운데 정렬한 뒤,
    ★ 네모가 되면서 아래로 밀 이유도 사라졌다 — 원은 아래로 갈수록 좁아져서
    가운데 글자가 반사를 가렸지만, 네모는 위아래 폭이 같아 **한가운데가 맞다**. */
-.orb .num{position:absolute;left:4px;right:4px;top:0;bottom:0;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  font-size:27px;color:#efe4cd;text-shadow:0 2px 3px #000,0 0 5px #000;
-  white-space:nowrap;z-index:2;flex-direction:column;line-height:1;gap:1px;
-  padding-top:14px}   /* 왼쪽 위 정반사를 안 가리게 조금 아래로 */
-/* 현재값은 크게(27), 최대치는 곁다리라 작게(18). 둘 다 9격자의 배수라 선명하다. */
+/* ★★ 병수님: "디아2 체력/마나 구슬보면 구슬안에 텍스트가 있는게 아니라 위쪽에
+   텍스트가 있음". 맞다 — **유리 안에 글자를 넣으면 액체가 안 보인다.** 차오르고
+   줄어드는 것이 이 UI 의 전부인데 그 위에 숫자를 얹으면 제일 중요한 것을 가린다.
+   위로 빼면 구슬은 구슬대로, 숫자는 숫자대로 읽힌다. */
+.orb .num{position:absolute;left:-24px;right:-24px;bottom:100%;margin-bottom:5px;
+  display:flex;align-items:baseline;justify-content:center;gap:3px;
+  color:#d8c9a8;text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000;
+  white-space:nowrap;z-index:2;line-height:1}
+/* 위로 나왔으니 한 줄이다. 현재값은 크게(27), 최대치는 곁다리라 작게(18). */
 .orb .num b{font-weight:400;font-size:27px}
-.orb .num i{font-style:normal;font-size:18px;color:#b3a488}
+.orb .num i{font-style:normal;font-size:18px;color:#9d8f74}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
 .mid{flex:1 1 auto;max-width:370px;min-width:0;
-  display:flex;flex-direction:column;gap:5px;padding-bottom:4px}
+  /* ★ 돌 판이 생기면서 글자가 **테에 닿았다**(「시체」의 첫 자가 물렸다).
+     판은 바깥으로 물려 있으니 안쪽 여백은 여기서 준다. */
+  display:flex;flex-direction:column;gap:5px;padding:2px 8px 4px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
 .mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9d907a;
@@ -128,7 +145,9 @@
 
 /* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
-#belt{display:flex;gap:6px}
+/* ★ 판이 가운데 조각이 되면서 **오른쪽 절반이 비어** 보였다 — 칸 셋이 왼쪽에만
+   몰려 있었기 때문이다. 가운데로 모은다(칸이 늘어나도 가운데를 지킨다). */
+#belt{display:flex;gap:6px;justify-content:center}
 /* 칸의 **바탕과 테두리는 캔버스가 그린다.** 여기서는 자리와 겹 순서만 맡는다 —
    폭이 화면마다 30~68px 로 변하므로 캔버스는 **실제 크기와 1:1** 로 그린다
    (작은 캔버스를 늘리면 배율이 소수가 되어 픽셀이 들쭉날쭉해진다). */
@@ -158,7 +177,9 @@
 #log b{color:#c9bda4;font-weight:400}
 
 /* 전장은 판만큼 비켜 선다 */
-#stage{height:calc(100% - var(--hudH))}
+/* ★ 맵은 **화면 끝까지** 간다 — UI 는 그 위에 떠 있는 물건이다. 잘라 놓으면
+   화면이 「맵 칸 + UI 칸」으로 읽힌다(병수님 지적). */
+#stage{height:100%}
 .win{inset:38px 0 var(--hudH) 0}
 
 

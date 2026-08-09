@@ -27,7 +27,7 @@ import base64, json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 MCP  = os.path.join(HERE, "mcp_call.py")
-OUT  = os.path.join(ROOT, "assets", "town_v2")
+OUT  = os.path.join(ROOT, "assets", os.environ.get("D2_OUT", "town_v2"))
 
 # ── 결 ── 액트1 을 액트1 로 만드는 것은 **재료와 상태**다. 매 프롬프트에 붙인다.
 TONE = ("Diablo II Act 1 Rogue Encampment, grim gothic dark fantasy pixel art, "
@@ -36,26 +36,34 @@ TONE = ("Diablo II Act 1 Rogue Encampment, grim gothic dark fantasy pixel art, "
         "desaturated earth palette of grey stone brown wood and dull ochre, "
         "only firelight is warm, evenly lit, no vignette, no baked shadows, not dark, "
         "absolutely no blue, no purple, no violet, no teal, no bright green")
+# ★★ 첫 판에서 나온 것들이 **제 바닥을 달고** 왔다(돌판·풀밭·받침). 우리 바닥 타일
+# 위에 얹으면 그 자리만 다른 바닥이 되어 **스티커**가 된다. 「바닥을 그리지 말라」를
+# 문장으로 못박는다 — 접지는 place() 가 알파 경계로 맡는다(js/ground.js).
 ONE  = ("ONE single object only, centered, transparent background, "
         "seen from above at a steep angle, "
+        "NO GROUND UNDER IT: no floor tiles, no paving, no grass, no dirt patch, "
+        "no base platform, no shadow on the ground, the object alone on empty transparency, "
         "not a sheet, no grid of items, no duplicates, no text, no numbers, no characters")
 
 OBJ = {
   # ── 던전 입구 ── 마을의 목적. **아래로 내려간다**가 보여야 한다
-  "gate":  (f"{TONE}, {ONE}, the entrance to an underground crypt: a wide stone stairway "
-            "descending into blackness, framed by a heavy carved stone arch of stacked "
-            "fieldstone with a weathered keystone, an iron lantern hanging from the arch, "
-            "moss in the joints, broken flagstones around the opening", 176, 176),
+  # ★ 첫 판의 입구는 **평평한 문**이었다 — 「내려간다」가 안 보이면 던전 입구가 아니다.
+  "gate":  (f"{TONE}, {ONE}, a hole in the ground with stone steps going DOWN into total "
+            "blackness, the steps recede downward away from the viewer and you can count "
+            "them, a heavy carved stone arch of stacked fieldstone stands over the hole "
+            "with an iron lantern hanging from it, moss in the joints", 176, 176),
   # ── 상인 ── 카샤/아크라의 그 좌판. 천막이 아니라 **장사하는 자리**
   "shop":  (f"{TONE}, {ONE}, a trader's stall in a war camp: a long plank counter on trestles "
             "under a patched canvas awning slung from crooked poles, shelves of clay pots "
             "bundles and rolled scrolls behind, sacks and crates stacked at the sides, "
             "a lantern hooked on a pole", 208, 168),
   # ── 대장간 ── 차시의 대장간. **불이 살아 있어야** 한다
-  "forge": (f"{TONE}, {ONE}, a blacksmith's open-air forge: a squat stone furnace with "
-            "glowing orange coals and a short chimney, a heavy iron anvil on a tree stump "
-            "in front, bellows at the side, a rack of tongs and hammers, a water trough, "
-            "horseshoes and scrap iron on the ground", 208, 168),
+  # ★ 첫 판의 대장간은 **너무 작고 헐거웠다.** 상인 좌판과 나란히 설 덩치가 필요하다.
+  "forge": (f"{TONE}, {ONE}, a large blacksmith's workshop, big and imposing: a tall stone "
+            "furnace with a chimney and a wide mouth full of glowing orange coals, a "
+            "timber roof on posts over it, a heavy iron anvil on a stump in front, big "
+            "bellows at the side, a rack of tongs and hammers, a water trough, "
+            "the whole structure fills the frame", 208, 168),
   # ── 모닥불 ── 야영지의 심장
   "fire":  (f"{TONE}, {ONE}, a campfire of split logs inside a ring of blackened stones, "
             "tall warm orange flame, a blackened iron cooking pot on a tripod beside it, "
@@ -67,8 +75,9 @@ OBJ = {
   "cart":  (f"{TONE}, {ONE}, a wooden handcart with iron-rimmed wheels, tilted with one "
             "shaft resting on the ground, loaded with sacks and a barrel, "
             "planks worn and grey", 128, 96),
-  "barrel": (f"{TONE}, {ONE}, a single wooden barrel with rusted iron hoops, staves worn "
-             "and stained, standing upright", 72, 80),
+  "barrel": (f"{TONE}, {ONE}, a single wooden barrel with three rusted iron hoops, thick "
+             "staves worn and water-stained, a wooden lid on top, strong side lighting "
+             "so the curve of the barrel reads", 88, 96),
   "crate":  (f"{TONE}, {ONE}, a single wooden crate of rough planks, iron corner brackets, "
              "one plank cracked", 72, 72),
   "sacks":  (f"{TONE}, {ONE}, two burlap sacks tied with rope, one leaning on the other, "

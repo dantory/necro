@@ -2,9 +2,15 @@
    아래 **판을 깎은 돌로** 그린다.
    ──────────────────────────────────────────────────────────────
    병수님이 보내 주신 D2R 화면과 나란히 놓고 보면, 구슬보다 먼저 눈에 걸리는 것이
-   **판 그 자체**였다. 저쪽은 손으로 깎은 석재 벨트에 쇠를 박아 놓았고, 이쪽은
+   **판 그 자체**였다. 저쪽은 손으로 깎은 석재에 쇠를 박아 놓았고, 이쪽은
    **까만 띠 하나**였다. 구슬을 아무리 잘 그려도 그것이 놓인 자리가 검은 종이면
    구슬만 붕 뜬다 — 물건은 **놓인 자리와 함께** 보인다.
+
+   ★★ 그런데 처음엔 이 돌을 **화면 폭 전체**에 깔았다. 그러자 병수님: "하단UI
+   영역을 맵이랑 구분해놔서 어색한듯, 화면에 UI가 떠있는 느낌으로 구현해줘".
+   맞다 — 가로지르는 띠는 **맵을 거기서 끝낸다.** 화면이 「맵 칸 + UI 칸」 둘로
+   쪼개진다. 디아블로는 세상이 화면 끝까지 이어지고 UI 는 그 위에 얹힌 물건이다.
+   그래서 돌은 **가운데 판 하나**만 깐다(구슬은 제 테를 이미 갖고 있다).
 
    돌이 돌로 보이는 조건 넷:
      · **결(noise)** — 고른 색은 종이다. 다만 결이 보이면 시끄러우니 세 단계만
@@ -33,56 +39,51 @@ const STONE = ["#242220", "#1f1d1b", "#1a1917", "#151413"];
 const SEAM  = "#0d0c0b";           // 이음매(그늘)
 const LIP   = "#2c2a27";           // 이음매 위쪽 깎인 면(빛 받는 쪽)
 
-/** 판 바탕을 그린다. w,h 는 **화면 픽셀**. */
+/** 가운데 판을 **돌 조각 하나로** 깎는다. w,h 는 화면 픽셀.
+ *  화면을 가로지르지 않으므로 네 변에 전부 테가 필요하다(띠일 때는 위쪽만 있었다). */
 export function drawPanel(cv, w, h) {
-  const pw = Math.ceil(w / K), ph = Math.ceil(h / K);
+  const pw = Math.max(8, Math.ceil(w / K)), ph = Math.max(8, Math.ceil(h / K));
   if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
   const g = cv.getContext("2d");
   g.clearRect(0, 0, pw, ph);
 
-  /* ★ 켜를 8(화면 32px)로 잡았더니 판 하나에 네 층이 쌓여 담벼락이 됐다.
-     판은 **한 덩어리의 석재 벨트**여야 한다 — 층을 크게 잡아 두 켜만 보이게. */
-  const COURSE = 14;               // 켜 하나의 높이(픽셀 단위 → 화면 56px)
-  const TOP = 3;                   // 위쪽 쇠 난간
+  const CH = 3;                    // 모서리를 깎는 깊이 — 직각은 판에서 제일 싸구려로 보인다
+  const depth = (x, y) => {
+    const r = pw - 1 - x, b = ph - 1 - y;
+    return Math.min(x, r, y, b, x + y - CH, r + y - CH, x + b - CH, r + b - CH);
+  };
 
   for (let y = 0; y < ph; y++) {
-    const cy = Math.floor((y - TOP) / COURSE);          // 몇 번째 켜인가
-    const inCourse = (y - TOP) - cy * COURSE;
     for (let x = 0; x < pw; x++) {
-      /* 켜마다 **세로 이음매를 어긋나게** — 안 어긋나면 격자무늬가 되어 벽지가 된다. */
-      const off = (cy & 1) ? 16 : 0;
-      const bx = Math.floor((x + off) / 32);
+      const d = depth(x, y);
+      if (d < 0) continue;                              // 깎인 모서리 바깥
+      const up = y < ph / 2;                            // 빛은 위에서 온다
       let col;
-      if (inCourse === 0) col = SEAM;                    // 가로 이음매
-      else if (inCourse === 1) col = LIP;                // 그 아래 깎인 면(밝다)
-      else if (((x + off) % 32) === 0) col = SEAM;       // 세로 이음매
+      if (d === 0) col = "#0a0806";                     // 바깥 한 겹
+      else if (d === 1) col = up ? "#3a332a" : "#181310";   // 무쇠
+      else if (d === 2) col = up ? "#6b5730" : "#3a2c18";   // 금 실선
+      else if (d === 3) col = SEAM;                     // 안쪽 그늘
       else {
-        const n = hash2(bx * 31 + x, cy * 17 + y) % 100;
-        /* 아래로 갈수록 어둡다 — 판이 바닥에 눌려 있는 것으로 읽힌다. */
-        const deep = y > ph * 0.72 ? 1 : 0;
+        /* 돌결 — 고른 색은 종이다. 다만 결이 보이면 시끄러우니 세 단계만. */
+        const n = hash2(x, y) % 100;
+        const deep = y > ph * 0.72 ? 1 : 0;             // 아래로 갈수록 어둡다
         col = STONE[Math.min(3, (n < 46 ? 0 : n < 78 ? 1 : 2) + deep)];
       }
       g.fillStyle = col; g.fillRect(x, y, 1, 1);
     }
   }
 
-  /* ── 쇠 난간 ── 판이 **시작되는 자리**. 위 두 줄은 쇠, 그 아래 한 줄이 금 실선.
-     경계를 안 그으면 어디부터가 판인지 눈이 못 잡는다. */
-  g.fillStyle = "#0a0806"; g.fillRect(0, 0, pw, 1);
-  g.fillStyle = "#3a332a"; g.fillRect(0, 1, pw, 1);
-  g.fillStyle = "#6b5730"; g.fillRect(0, 2, pw, 1);
-  g.fillStyle = "#0e0b09"; g.fillRect(0, 3, pw, 1);
-
-  /* ── 못 ── 난간에 일정 간격으로. 「박아 놓은 판」이라는 표시다. */
-  for (let x = 8; x < pw; x += 40) {
-    g.fillStyle = "#a98d58"; g.fillRect(x, 1, 2, 2);
-    g.fillStyle = "#4a3a22"; g.fillRect(x, 3, 2, 1);
+  /* ── 못 ── 네 귀퉁이에 하나씩. 「박아 놓은 판」이라는 표시다. */
+  for (const [rx, ry] of [[4, 4], [pw - 6, 4], [4, ph - 6], [pw - 6, ph - 6]]) {
+    g.fillStyle = "#a98d58"; g.fillRect(rx, ry, 2, 2);
+    g.fillStyle = "#3a2c18"; g.fillRect(rx, ry + 2, 2, 1);
   }
 }
 
-/** 창 크기가 바뀌면 다시 그린다. 판은 늘 화면 폭을 꽉 채운다. */
-export function watchPanel(cv, el) {
-  const redraw = () => drawPanel(cv, el.clientWidth, el.clientHeight);
+/** 크기가 바뀌면 다시 그린다. 판은 **제 칸(.mid)** 을 따라간다 —
+ *  캔버스의 화면 크기는 CSS(inset)가 정하므로 여기서 재기만 하면 된다. */
+export function watchPanel(cv) {
+  const redraw = () => drawPanel(cv, cv.clientWidth, cv.clientHeight);
   redraw();
-  new ResizeObserver(redraw).observe(el);
+  new ResizeObserver(redraw).observe(cv);
 }

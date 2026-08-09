@@ -619,7 +619,7 @@ loadFloor("assets/floor/town_tile.png", 0.55, "town");
 loadDecor();
 loadTown();
 watch($("xpWrap"), drawBar);
-watchPanel($("panelBg"), $("panel"));   // 판 바탕을 돌로 깎는다(js/panel.js)
+watchPanel($("panelBg"));       // 가운데 판을 돌로 깎는다(js/panel.js)
 fit(); belt(); newRun(); hud();
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 requestAnimationFrame(loop);
