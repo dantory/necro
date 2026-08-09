@@ -22,12 +22,16 @@
 /* ★ 구슬을 74px 로 박아 뒀더니 (1) 작아 보이고 (2) 체력이 네 자리가 되면 「2280/2280」
    이 구슬 폭을 넘었다(병수님 지적). 화면 폭에 따라 자라게 하고, 숫자는 네 자리부터
    k 로 줄인다(js/main.js) — **글자를 줄이는 게 아니라 값을 줄인다.** */
-:root{ --hudH:126px; --orb:clamp(72px, 20vw, 96px); --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+/* ★★ 병수님: "모바일 버리고 PC 기준으로만 만들어줘".
+   모바일 때문에 눌러 놓았던 것들을 전부 걷는다 — 11px 글꼴 · clamp/vw 로 줄어드는
+   구슬 · 62px 로 묶어 둔 칸 · 얇은 판. **PC 는 화면이 넓은 게 아니라 「크게 봐도
+   되는」 것**이다. D2 의 판은 화면 아래를 묵직하게 차지한다. */
+:root{ --hudH:184px; --orb:150px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
-  display:flex;align-items:flex-end;justify-content:center;gap:10px;
-  padding:0 10px 8px;
+  display:flex;align-items:flex-end;justify-content:center;gap:22px;
+  padding:0 24px 14px;
   /* **바탕에 아주 옅은 세로 결**을 깐다. 평평한 검정은 종이처럼 보이고, 결이 한 겹
      있으면 금속으로 읽힌다 — 다만 눈에 띄면 시끄러우니 알파 0.02 로 거의 안 보이게. */
   /* ★ 「가운데만 남기고 좌우를 흐린다」를 해 봤다가 물렸다(병수님: "아니야").
@@ -58,18 +62,18 @@
 /* ★ 숫자 자리를 세 번 옮겼다. 결론: **구슬 몸 안, 조금 아래.**
    한가운데면 알의 반사를 가리고, 바깥으로 빼면 글자만 붕 뜬다(병수님: "아니야").
    조금 아래로 내리면 위쪽 반사가 살고 글도 알 위에 얹힌 것으로 읽힌다. */
-.orb .num{position:absolute;left:2px;right:2px;top:56%;overflow:hidden;
+.orb .num{position:absolute;left:4px;right:4px;top:57%;overflow:hidden;
   display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#efe4cd;text-shadow:0 1px 2px #000,0 0 4px #000;
+  font-size:22px;color:#efe4cd;text-shadow:0 2px 3px #000,0 0 6px #000;
   white-space:nowrap;z-index:2}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
-.mid{flex:1 1 auto;max-width:360px;min-width:0;
-  display:flex;flex-direction:column;gap:4px;padding-bottom:2px}
+.mid{flex:1 1 auto;max-width:560px;min-width:0;
+  display:flex;flex-direction:column;gap:8px;padding-bottom:6px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{display:flex;justify-content:space-between;font-size:11px;color:#9d907a;
+.mid .res{display:flex;justify-content:space-between;font-size:22px;color:#9d907a;
   letter-spacing:0;text-shadow:0 1px 2px #000}
 .mid .res .xpTxt{color:#8a7c60}
 
@@ -78,7 +82,7 @@
 /* ★ 위아래 실선을 `border` 로 두면 언제나 정확히 1px 이라 픽셀아트 옆에서 매끈하게
    튄다. **테두리도 캔버스가 그린다**(js/frame.js drawBar) — 두 단계로 나누고 양 끝에
    마개를 둔다. 마개가 있어야 띠가 어디서 끝나는지 읽힌다. */
-.mid .xp{position:relative;height:11px;background:#080706;box-shadow:inset 0 0 8px #000}
+.mid .xp{position:relative;height:18px;background:#080706;box-shadow:inset 0 0 8px #000}
 .mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:
@@ -93,21 +97,21 @@
 
 /* ── 스킬 벨트 ── 다섯 칸이 남는 폭을 고르게 나눠 갖는다.
    **칸 크기를 px 로 박지 않는다** — 박으면 좁은 화면에서 넘친다. */
-#belt{display:flex;gap:5px}
+#belt{display:flex;gap:9px}
 /* 칸의 **바탕과 테두리는 캔버스가 그린다.** 여기서는 자리와 겹 순서만 맡는다 —
    폭이 화면마다 30~68px 로 변하므로 캔버스는 **실제 크기와 1:1** 로 그린다
    (작은 캔버스를 늘리면 배율이 소수가 되어 픽셀이 들쭉날쭉해진다). */
 /* ★ 넓은 화면에서 칸이 끝없이 커져 아이콘이 화면을 잡아먹었다(PC 1440 에서 100px 넘음).
    칸에도 상한을 둔다 — 판은 「도구」지 볼거리가 아니다. */
-.slot{flex:1 1 0;max-width:62px;aspect-ratio:1;position:relative;cursor:pointer;
+.slot{flex:1 1 0;max-width:104px;aspect-ratio:1;position:relative;cursor:pointer;
   background:none;border:none;box-shadow:none;
   display:flex;align-items:center;justify-content:center}
 .slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
 .slot > i, .slot .k, .slot .cd{z-index:1}
 .slot:active{filter:brightness(1.25)}
-.slot > i{position:absolute;inset:5px;background:center/contain no-repeat;
+.slot > i{position:absolute;inset:8px;background:center/contain no-repeat;
   image-rendering:pixelated}
-.slot .k{position:absolute;right:2px;bottom:0;font-size:11px;color:#6b5f4e}
+.slot .k{position:absolute;right:4px;bottom:0;font-size:22px;color:#6b5f4e}
 .slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
 .slot.on{animation:slotBreath 2.4s ease-in-out infinite}
 /* **쓸 수 있다**를 숨결로 알린다. 깜빡이면 시끄러우니 2.4초에 한 번, 아주 옅게. */
@@ -117,9 +121,9 @@
 
 /* ── 로그 ── 판 위에 얹지 않고 **전장 아래쪽에 글자만** 띄운다.
    상자를 두면 그것이 또 하나의 볼거리가 되어 판과 눈을 다툰다. */
-#log{position:fixed;left:12px;right:12px;bottom:calc(var(--hudH) + 4px);height:52px;
+#log{position:fixed;left:24px;right:24px;bottom:calc(var(--hudH) + 8px);height:96px;
   z-index:15;overflow:hidden;padding:0;border:none;background:none;
-  font-size:11px;line-height:1.45;color:#8c8271;text-shadow:0 1px 3px #000}
+  font-size:22px;line-height:1.4;color:#8c8271;text-shadow:0 2px 3px #000}
 #log b{color:#c9bda4;font-weight:400}
 
 /* 전장은 판만큼 비켜 선다 */
@@ -149,17 +153,17 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
      · **이름의 색이 곧 등급**이다(흰 → 파랑 → 노랑 → 금갈 → 초록).
        D2 를 해 본 사람은 색만 보고 안다 — 이 한 가지가 「디아블로답다」의 절반이다
    ══════════════════════════════════════════════════════════ */
-.wSub{margin:-4px 0 12px;text-align:center;color:#6b5f4e}
+.wSub{margin:-6px 0 18px;text-align:center;color:#6b5f4e}
 
 /* 좌판 — 인벤토리 격자. 빈 칸도 그린다: **빈 칸이 있어야 격자로 읽힌다** */
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:18px}
 .cell{aspect-ratio:1;position:relative;cursor:pointer;
   background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
   box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #4a3a28}
 .cell.empty{cursor:default;background:linear-gradient(#150c08 0 40%,#0e0806 40%);
   box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #2a2016}
 .cell.sel{box-shadow:inset 0 0 8px #000, inset 0 0 0 1px var(--gold), 0 0 8px #c8aa6e44}
-.cell i{position:absolute;inset:4px;background:center/contain no-repeat;
+.cell i{position:absolute;inset:6px;background:center/contain no-repeat;
   image-rendering:pixelated}
 .cell i.gear-wand { background-image:url("assets/ui/gear/wand.png") }
 .cell i.gear-robe { background-image:url("assets/ui/gear/robe.png") }
@@ -167,12 +171,12 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 /* 칸 구석의 작은 숫자 = 등급. D2 도 수량·소켓을 구석에 적는다 */
 .cell .q{position:absolute;right:2px;bottom:0}
 .cell .lvl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:20px;color:var(--gold);font-weight:400}
+  font-size:36px;color:var(--gold);font-weight:400}
 .cell .cn{position:absolute;left:0;right:0;bottom:1px;text-align:center;color:#6b5f4e}
 
 /* ── 툴팁 ── 검은 판에 글만. **테두리는 얇게** — D2 툴팁은 장식이 없다 */
-.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:9px 11px}
-.tipName{font-size:11px;margin-bottom:1px}
+.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:16px 20px}
+.tipName{font-size:22px;margin-bottom:2px}
 .tipName .lv{color:#8a7c60}
 .tipKind{color:#6b5f4e;margin-bottom:6px}
 .tipStat{color:#9d907a;margin-top:2px}
@@ -181,11 +185,11 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .tipStat.up b{color:#8ac06a}
 .tipNext{margin-top:8px;padding-top:7px;border-top:1px solid #241d16}
 .tipNote{margin-top:8px;color:#6b5f4e}
-.tipBuy{margin-top:9px;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.tipBuy{margin-top:16px;display:flex;align-items:center;justify-content:flex-end;gap:18px}
 .tipBuy .cost{color:var(--gold)}
 .tipBuy .cost.no{color:#7a4a4a}
-.tipPips{display:flex;gap:3px;margin-top:9px}
-.pip{width:7px;height:7px;background:#241d16;box-shadow:inset 0 0 0 1px #3e3324}
+.tipPips{display:flex;gap:5px;margin-top:14px}
+.pip{width:12px;height:12px;background:#241d16;box-shadow:inset 0 0 0 1px #3e3324}
 .pip.on{background:var(--gold);box-shadow:inset 0 0 0 1px #6b5730}
 
 /* ★★ **등급 색이 디아블로의 얼굴이다.** 흰(일반) · 파랑(매직) · 노랑(레어) ·
@@ -197,15 +201,17 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .t3{color:#bfa06a}
 .t4{color:#00c000}
 
-.winFoot{margin-top:12px;display:flex;align-items:center;justify-content:space-between}
+.winFoot{margin-top:18px;display:flex;align-items:center;justify-content:space-between}
 .purse{color:#9d907a}
 .purse b{color:var(--gold);font-weight:400}
 
 /* 단추 — 판의 칸과 같은 결(깎인 모서리 · 몇 단계 색)로. 화면에 결이 둘이면 안 된다. */
 /* ★ nowrap 이 없으면 좁은 화면에서 **「사기」가 세로로 쪼개진다** — 두 글자짜리
    단추라 폭이 조금만 모자라도 글자 사이에서 줄이 바뀐다. */
-.btn{white-space:nowrap;font:11px/1 "Galmuri11",monospace;color:#efe4cd;cursor:pointer;
-  padding:7px 11px;border:1px solid #5a4a34;background:#241410;
+/* ★ style.css 에서 22px 로 키웠는데 여기가 11px 로 덮고 있었다 — **같은 것을 두 곳에서
+   정하면 한쪽만 고치게 된다.** 크기는 style.css 의 .btn 을 따르고 여기서는 결만 준다. */
+.btn{white-space:nowrap;font-family:"Galmuri11",monospace;font-size:22px;line-height:1;
+  color:#efe4cd;cursor:pointer;padding:11px 20px;border:1px solid #5a4a34;background:#241410;
   box-shadow:inset 0 0 8px #000}
 .btn:hover{border-color:var(--gold)}
 .btn:active{filter:brightness(1.25)}
@@ -230,14 +236,14 @@ body.in-town #stage{cursor:pointer}
   justify-content:center;background:#070504;
   transition:opacity .45s ease}
 #loading.gone{opacity:0;pointer-events:none}
-.lWrap{width:min(280px,72vw);text-align:center}
-.lTitle{font-size:22px;color:var(--gold);letter-spacing:6px;margin-bottom:16px;
+.lWrap{width:420px;text-align:center}
+.lTitle{font-size:44px;color:var(--gold);letter-spacing:6px;margin-bottom:16px;
   text-shadow:0 2px 0 #000, 0 0 12px #c8aa6e33}
 /* 막대 — 경험치 띠와 **같은 결**로. 화면에 결이 둘이면 안 된다 */
-.lBar{position:relative;height:11px;background:#080706;box-shadow:inset 0 0 8px #000;
+.lBar{position:relative;height:18px;background:#080706;box-shadow:inset 0 0 8px #000;
   border-top:1px solid var(--gold-d);border-bottom:1px solid var(--gold-d)}
 .lFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .2s linear;
   background:
     repeating-linear-gradient(90deg, #0000 0 10%, #00000099 calc(10% - 1px) 10%),
     linear-gradient(#ffd47a 0 34%, #c8901e 34% 68%, #8a5f10 68%)}
-.lTxt{margin-top:10px;font-size:11px;color:#8a7c60}
+.lTxt{margin-top:14px;font-size:22px;color:#8a7c60}

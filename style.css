@@ -39,7 +39,7 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
-  font:11px/1.6 "Galmuri11","Galmuri9",monospace;
+  font:22px/1.5 "Galmuri11","Galmuri9",monospace;
   letter-spacing:0;-webkit-font-smoothing:none;font-smooth:never;-webkit-user-select:none;user-select:none}
 
 /* ── 던전 — 위쪽 전부 ──
@@ -50,11 +50,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   background:#0a0806;display:block}
 
 /* ── 위쪽 얇은 띠: 층·이름 ── */
-#top{position:fixed;top:0;left:0;right:0;height:42px;display:flex;align-items:center;gap:12px;
-  padding:0 16px;z-index:20;pointer-events:none;
+#top{position:fixed;top:0;left:0;right:0;height:56px;display:flex;align-items:center;gap:20px;
+  padding:0 24px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000d8,#00000000)}
-#top .floor{color:var(--gold);letter-spacing:4px;font-size:17px;text-shadow:0 0 8px #c8aa6e40}
-#top .left{font-size:11px;color:var(--dim);letter-spacing:1px}
+#top .floor{color:var(--gold);letter-spacing:5px;font-size:28px;text-shadow:0 0 8px #c8aa6e40}
+#top .left{font-size:22px;color:var(--dim);letter-spacing:1px}
 #top .sp{flex:1}
 #top .who{font-size:12.5px;color:var(--dim);letter-spacing:.5px}
 
@@ -69,23 +69,28 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
 .it-set{color:var(--it-set)} .it-uniq{color:var(--it-uniq)} .it-craft{color:var(--it-craft)}
 
 /* ── 창(인벤토리·능력치) — 양피지 위의 돌판 ── */
-.win{position:fixed;inset:38px 0 var(--panelH,196px) 0;z-index:25;display:none;
-  padding:12px;overflow:auto}
-.win.on{display:block}
+/* ★★ 병수님: "모바일 버리고 PC 기준으로만 만들어줘".
+   창은 화면 한가운데 **떠 있는 판**이다 — 예전엔 화면 전체를 덮었다(좁은 폭에서는
+   그럴 수밖에 없었다). PC 에서는 D2 처럼 화면의 일부만 차지하고 뒤가 비쳐야
+   「게임 위에 열린 창」으로 읽힌다. */
+.win{position:fixed;inset:0;z-index:25;display:none;
+  align-items:center;justify-content:center;padding:24px}
+.win.on{display:flex}
 /* 틀은 window.png 를 9-slice 로. 모서리 넝쿨 장식이 안 눌리게 모서리를 통째로 남기고
    가운데 나무결만 늘린다(잰 값: 모서리 장식이 대략 왼/오 120px, 위 105 · 아래 110px). */
-.win .frame{max-width:520px;margin:0 auto;background:linear-gradient(#161009,#0b0806);
+.win .frame{width:100%;max-width:760px;max-height:86vh;overflow:auto;margin:0 auto;background:linear-gradient(#161009,#0b0806);
   background-clip:padding-box;image-rendering:pixelated;
   border-style:solid;border-width:22px 26px;border-color:transparent;
-  border-image:url("assets/ui/window.png") 105 120 110 120 fill / 22px 26px / 0 stretch;
-  box-shadow:0 10px 30px #000c;padding:14px}
-.win h2{margin:0 0 10px;color:var(--gold);letter-spacing:4px;font-size:22px;font-weight:400;
+  border-image:url("assets/ui/window.png") 105 120 110 120 fill / 34px 40px / 0 stretch;
+  border-width:34px 40px;
+  box-shadow:0 16px 50px #000e;padding:22px}
+.win h2{margin:0 0 14px;color:var(--gold);letter-spacing:8px;font-size:34px;font-weight:400;
   text-align:center;text-shadow:0 0 8px #c8aa6e40}
 .row{display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #1d160f;
-  font-size:11px}
+  font-size:22px}
 .row .v{color:var(--gold)}
 .btn{background:linear-gradient(#241c13,#120d09);color:var(--ink);border:1px solid var(--gold-d);
-  padding:7px 14px;font:inherit;font-size:11px;letter-spacing:2px;cursor:pointer}
+  padding:10px 22px;font:inherit;font-size:22px;letter-spacing:2px;cursor:pointer}
 .btn:active{background:#2e241a}
 .btn:disabled{color:#4a4034;border-color:#241d16;cursor:default}
 
@@ -97,14 +102,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
    시체·군세는 흘러가는 로그가 아니라 늘 봐야 하는 값이라 여기가 맞다. */
 #gauge{position:absolute;top:56px;left:104px;right:104px;
   display:flex;flex-direction:column;gap:3px;pointer-events:none}
-#gauge .res{display:flex;justify-content:space-between;font-size:11px;color:var(--ink);
+#gauge .res{display:flex;justify-content:space-between;font-size:22px;color:var(--ink);
   letter-spacing:1px;text-shadow:0 1px 2px #000}
 #gauge .xp{position:relative;height:11px;background:#0a0806;
   border:1px solid var(--gold-d);box-shadow:inset 0 0 8px #000,0 0 0 1px #0a0705}
 #gauge .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;
   background:linear-gradient(#c8aa6e,#6b5730);transition:width .3s}
 #gauge .xp span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  font-size:11px;color:#e8dcc2;letter-spacing:1px;text-shadow:0 1px 2px #000}
+  font-size:22px;color:#e8dcc2;letter-spacing:1px;text-shadow:0 1px 2px #000}
 
 /* ── 스킬 아이콘 ── PixelLab 으로 구운 그림. 칸 안쪽에 여백을 두고 앉힌다.
    못 쓸 만큼 못 구워진 것은 background 가 비어 칸만 남을 뿐, 깨진 이미지가 뜨지 않는다. */
