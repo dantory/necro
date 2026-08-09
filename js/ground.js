@@ -194,7 +194,17 @@ const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
    ★ 이것들을 **둘레에 두르지 않는다.** 예전에 「마을에 테두리같은건 없애라」를
    들었고, 맵은 끝이 없는 것이 규칙이다. 그래서 담장도 **들판에 흩어진 잔해**로
    뿌린다 — 어휘는 야영지인데 경계는 안 생긴다. */
-const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed"];
+/* ★ 2차 — 담장·통나무만으로는 「폐허」지 **사람이 자는 곳**이 아니었다. 야영지가
+   야영지로 읽히려면 **잠자리(천막) · 불(모닥불) · 살림(수레·구유·건초)** 이 있어야
+   한다. 열두 개를 더 구워 눈으로 골랐고, 셋은 버렸다:
+     · hay     — 돌벽 안에 통이 박힌 이상한 합성. 무엇인지 안 읽힌다
+     · wall_c  — 조각조각 부서져 담으로 안 보인다(wall_a 가 이미 그 일을 한다)
+     · boulder — 주문과 달리 **초록 풀이 붙은 돌 폐허**다. 마른 야영지 색과 안 맞고
+                 바위는 rock 이 이미 제대로 한다
+   로그만 보고 넣었으면 셋 다 들어갔다 — **합성 시트로 눈으로 본다.** */
+const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed",
+                    "tent_a", "tent_b", "wagon", "trough", "palisade", "stump",
+                    "tree", "firepit"];
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
@@ -402,6 +412,10 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
          **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).
          그림을 바꾸면 이 값도 다시 재야 한다 — town.js 대장간에서 같은 걸 겪었다. */
       if (name === "torch") addGlow(px2, py2 - 101 * ART.s, 150 * sc, 1.15);
+      /* 모닥불 — 불이 **땅에 있다.** 횃불의 -101 을 그대로 쓰면 빛이 허공에 뜬다.
+         같은 자로 쟀다(따뜻한 화소 무게중심, 104x80 원본 기준 발에서 -24px).
+         반경은 횃불보다 넓게 — 야영지의 불은 사람이 모이는 자리다. */
+      if (name === "firepit") addGlow(px2, py2 - 24 * ART.s, 175 * sc, 1.1);
       /* 장대 횃불은 불그릇이 **꼭대기**에 있다 — 빛의 자리도 그만큼 위로. */
       if (name === "torch") addGlow(px2, py2 - 130 * ART.s * squash, 170 * sc, 1.0);
     }

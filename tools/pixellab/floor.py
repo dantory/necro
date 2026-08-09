@@ -53,6 +53,19 @@ TILESETS = {
                        "by boots, small pebbles and wheel ruts, no grass"),
     transition_description="ragged edge where the grass has been worn away into bare dirt",
   ),
+  # ── 마을 2차 ── 1차 camp 은 all-lower 가 **무늬 없는 단색**이었다(통짜 갈색).
+  # 「풀」이라고만 적으면 평평한 색을 준다 — **무엇이 보이는지**를 세어서 적는다.
+  "camp2": dict(
+    lower_description=("MUTED OLIVE AND KHAKI DRY GRASS, desaturated, medium brightness, "
+                       "strong visible texture: individual grass blades and clumps, "
+                       "scattered small grey pebbles, patches of bare soil between tufts, "
+                       "high contrast between blade and shadow, "
+                       "no blue, no purple, no teal, no bright saturated green, "
+                       "Diablo 2 Rogue Encampment meadow seen straight from above"),
+    upper_description=("MEDIUM BROWN PACKED EARTH, desaturated, a footpath trodden bare, "
+                       "small pebbles, faint wheel ruts, no grass at all"),
+    transition_description="ragged edge where the grass thins out into bare trodden dirt",
+  ),
   # 깊은 층 — 뼛조각이 섞인 흙바닥. 네크로멘서의 소굴.
   "bone": dict(
     lower_description=f"{TONE}, packed brown earth floor littered with small pale bone "

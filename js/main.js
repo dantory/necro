@@ -257,8 +257,22 @@ function draw(dt) {
                     같은 이름을 두 번 적으면 두 배로 나온다. 헛간은 224x168 로 크니
                     열둘에 하나만(흔하면 마을이 헛간 밭이 된다), 횃불은 곧 조명이라
                     둘을 준다. */
-                 set: ["barrel", "crate", "torch", "cart", "wall_a", "well",
-                       "torch", "sacks", "wall_a", "barrel", "shed", "crate"] });
+                 /* ★★ 2차 — 천막·모닥불·수레가 들어왔다. **큰 것일수록 드물게.**
+                    셈으로 무게를 준다(37 칸 중 몇 칸을 차지하느냐가 곧 빈도다):
+                      · 잔 것(통·상자·자루·통나무·덤불·바위·그루터기) 16 — 바닥을 채운다
+                      · 중간(담·수레·구유·목책·우물)              9
+                      · 불(횃불·모닥불)                          5 — 조명이라 넉넉히
+                      · 큰 것(천막 넷·짐수레·죽은나무·헛간)        7 ≈ 19%
+                    천막 넷은 일부러다 — **자는 자리가 보여야 야영지로 읽힌다.**
+                    죽은나무(160x200)·헛간(224x168)은 하나씩만: 흔하면 밭이 된다. */
+                 set: ["barrel", "barrel", "barrel", "crate", "crate", "crate",
+                       "sacks", "sacks", "logs", "logs", "shrub", "shrub",
+                       "rock", "rock", "stump", "stump",
+                       "wall_a", "wall_a", "wall_b", "cart", "cart", "trough",
+                       "palisade", "palisade", "well",
+                       "torch", "torch", "torch", "firepit", "firepit",
+                       "tent_a", "tent_a", "tent_b", "tent_b",
+                       "wagon", "tree", "shed"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
