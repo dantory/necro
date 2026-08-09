@@ -189,6 +189,12 @@ const DECOR = ["pillar", "coffin", "bones", "brazier", "rubble"];
 /* ★ 마을에 관·뼈무더기를 뿌린 것이 잘못이었다(병수님: "쓸데 없는 무덤 같은거 없애라").
    **관이 굴러다니는 곳은 마을이 아니라 공동묘지다.** 마을에는 마을 것을 둔다. */
 const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
+/* ★★ 야영지 소품 — 병수님이 준 D2 로그 야영지 화면의 어휘다: **낮은 야석 돌담 ·
+   장대 횃불 · 지붕만 있는 헛간 · 통나무 더미 · 마른 덤불 · 바위.**
+   ★ 이것들을 **둘레에 두르지 않는다.** 예전에 「마을에 테두리같은건 없애라」를
+   들었고, 맵은 끝이 없는 것이 규칙이다. 그래서 담장도 **들판에 흩어진 잔해**로
+   뿌린다 — 어휘는 야영지인데 경계는 안 생긴다. */
+const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed"];
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
@@ -212,6 +218,7 @@ function loadOne(n, dir) {
 
 export function loadDecor(dir = "assets/decor") {
   for (const n of TOWN_DECOR) loadOne(n, "assets/town");
+  for (const n of CAMP_DECOR) loadOne(n, "assets/camp");
   for (const n of DECOR) {
     const im = new Image();
     LOAD.total++;
@@ -390,6 +397,13 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       place(ctx, im, px2, py2);
       // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
       if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
+      /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
+         고여 「바닥이 밝고 불은 캄캄한」 그림이 된다. 높이는 눈대중이 아니라
+         **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).
+         그림을 바꾸면 이 값도 다시 재야 한다 — town.js 대장간에서 같은 걸 겪었다. */
+      if (name === "torch") addGlow(px2, py2 - 101 * ART.s, 150 * sc, 1.15);
+      /* 장대 횃불은 불그릇이 **꼭대기**에 있다 — 빛의 자리도 그만큼 위로. */
+      if (name === "torch") addGlow(px2, py2 - 130 * ART.s * squash, 170 * sc, 1.0);
     }
   }
 }

@@ -251,7 +251,14 @@ function draw(dt) {
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
     drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc,
                { clear: 300, density: 26, town: true,
-                 set: ["barrel", "crate", "cart", "well", "sacks", "barrel", "crate"] });
+                 /* ★ 통·상자·수레만 뿌리면 **창고 앞마당**이다. 야영지로 읽히려면
+                    경계(wall_a)·불(torch)·지붕(shed)이 섞여야 한다.
+                    **개수로 무게를 준다** — set 에서 고르는 것은 균등 추첨이라
+                    같은 이름을 두 번 적으면 두 배로 나온다. 헛간은 224x168 로 크니
+                    열둘에 하나만(흔하면 마을이 헛간 밭이 된다), 횃불은 곧 조명이라
+                    둘을 준다. */
+                 set: ["barrel", "crate", "torch", "cart", "wall_a", "well",
+                       "torch", "sacks", "wall_a", "barrel", "shed", "crate"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
