@@ -1,0 +1,31 @@
+<!doctype html><meta charset=utf-8>
+<style>
+ @font-face{font-family:"Galmuri11";src:url("/assets/font/Galmuri11.woff2") format("woff2")}
+ body{margin:0;background:#0a0806;color:#c8aa6e;font:11px "Galmuri11",monospace;
+   -webkit-font-smoothing:none;padding:14px}
+ .row{display:flex;gap:16px;flex-wrap:wrap}
+ .c{text-align:center}
+ .pair{display:flex;gap:6px}
+ .row{gap:22px}
+ canvas{width:96px;height:96px;image-rendering:pixelated;display:block;
+   filter:drop-shadow(0 2px 4px #000c)}
+ .l{margin-top:5px;color:#9d907a}
+</style>
+<div class=row id=r></div>
+<script type="module">
+import { drawOrb } from "/js/orb.js";
+const NAMES = {a:"가 · 금 두 겹(지금)", b:"나 · 쇠+금 상감", c:"다 · 뼈",
+               d:"라 · 두꺼운 금 베벨", e:"마 · 발톱 넷", f:"바 · 테 없음"};
+const r = document.getElementById("r");
+for (const k of ["a","b","c","d","e","f"]) {
+  const d = document.createElement("div"); d.className="c";
+  const pair = document.createElement("div"); pair.className="pair";
+  for (const kind of ["hp","mp"]) {
+    const cv = document.createElement("canvas"); cv.width=30; cv.height=30;
+    pair.appendChild(cv); drawOrb(cv, kind, kind==="hp"?0.72:0.45, k);
+  }
+  d.appendChild(pair);
+  const l = document.createElement("div"); l.className="l"; l.textContent=NAMES[k];
+  d.appendChild(l); r.appendChild(d);
+}
+</script>

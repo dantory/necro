@@ -21,7 +21,7 @@ const RAMP = {
 };
 const EMPTY = ["#241c16", "#181210", "#0e0a08"];   // 안 찬 부분(빈 유리)
 
-export function drawOrb(cv, kind, pct) {
+export function drawOrb(cv, kind, pct, rim = "a") {
   const g = cv.getContext("2d");
   const ramp = RAMP[kind] || RAMP.hp;
   g.clearRect(0, 0, 30, 30);
@@ -55,23 +55,85 @@ export function drawOrb(cv, kind, pct) {
   g.fillStyle = "#ffffff2a";
   g.fillRect(12, 25, 6, 1); g.fillRect(11, 24, 8, 1);
 
-  /* ── 금속 테 ── **구슬은 테가 있어야 「박힌 것」으로 읽힌다.** 벌거벗은 원은 공이다.
-     CSS 로 두르면 그 테만 다시 매끄러워지므로 **여기서 픽셀로 그린다.**
-     바깥 두 겹(밝은 위 · 어두운 아래)이 곧 두께다 — 위가 밝고 아래가 어두우면
-     빛이 위에서 온다는 뜻이고, 그것만으로 테가 둥글게 말려 보인다. */
+  RIM[rim] ? RIM[rim](g) : RIM.a(g);
+}
+
+/* ══ 테 여섯 갈래 ══ **하나씩 던져서는 못 맞힌다.** 오늘 판을 열두 번 고치는 동안
+   좋아졌다 나빠졌다를 왕복했다 — 나란히 놓고 고르는 편이 빠르다.
+   전부 **픽셀로** 그린다. CSS 로 두르면 그 테만 다시 매끄러워진다. */
+
+/** 원의 띠를 훑는다 — 반지름 [lo,hi) 안의 픽셀에 색을 준다.
+ *  `f(rr, ang, dx, dy)` 가 색을 정한다. null 이면 안 찍는다. */
+function band(g, lo, hi, f) {
   for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) {
-    const dx = x - R + 0.5, dy = y - R + 0.5, d2 = dx * dx + dy * dy;
-    const rr = Math.sqrt(d2);
-    if (rr > R || rr < R - 2.2) continue;
-    const up = dy < -2;                        // 위쪽 반인가
-    g.fillStyle = rr > R - 1.1 ? (up ? "#8a7448" : "#2a2016")   // 바깥 겹
-                               : (up ? "#c8aa6e" : "#4a3a22");  // 안쪽 겹
-    g.fillRect(x, y, 1, 1);
-  }
-  /* 리벳 넷 — 테를 붙들어 맨 못. **점 하나면 충분하다.** D2R 도 못이 박혀 있다. */
-  const rivets = [[15, 1], [15, 28], [1, 15], [28, 15]];
-  for (const [rx, ry] of rivets) {
-    g.fillStyle = "#e0c890"; g.fillRect(rx - 1, ry, 2, 1);
-    g.fillStyle = "#6b5730"; g.fillRect(rx - 1, ry + 1, 2, 1);
+    const dx = x - R + 0.5, dy = y - R + 0.5;
+    const rr = Math.sqrt(dx * dx + dy * dy);
+    if (rr >= hi || rr < lo) continue;
+    const col = f(rr, Math.atan2(dy, dx), dx, dy);
+    if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }
 }
+
+const RIM = {
+  /* 가 — **금 두 겹.** 위가 밝고 아래가 어두우면 빛이 위에서 온다는 뜻이고,
+     그것만으로 테가 둥글게 말려 보인다. 리벳 넷은 점 하나씩. */
+  a(g) {
+    band(g, R - 2.2, R, (rr, _a, _dx, dy) => {
+      const up = dy < -2;
+      return rr > R - 1.1 ? (up ? "#8a7448" : "#2a2016") : (up ? "#c8aa6e" : "#4a3a22");
+    });
+    for (const [rx, ry] of [[15, 1], [15, 28], [1, 15], [28, 15]]) {
+      g.fillStyle = "#e0c890"; g.fillRect(rx - 1, ry, 2, 1);
+      g.fillStyle = "#6b5730"; g.fillRect(rx - 1, ry + 1, 2, 1);
+    }
+  },
+
+  /* 나 — **무쇠에 금 실선 한 줄.** 금을 넓게 바르면 장신구가 되고, 실선 한 줄만
+     남기면 「쇠에 금을 상감한 것」이 된다. 채도가 낮아 전장과 안 다툰다. */
+  b(g) {
+    band(g, R - 3.2, R, (rr, _a, _dx, dy) => {
+      if (rr > R - 1) return dy < 0 ? "#3a332a" : "#15110d";
+      if (rr > R - 2) return dy < 0 ? "#c8aa6e" : "#6b5730";   // 상감 실선
+      return dy < 0 ? "#241e18" : "#0e0b09";
+    });
+  },
+
+  /* 다 — **뼈.** 네크로멘서의 구슬이 금테일 이유가 없다. 마디를 낸 아이보리 —
+     각도마다 어두운 틈을 넣으면 「뼈를 이어 붙인 고리」로 읽힌다. */
+  c(g) {
+    band(g, R - 3, R, (rr, ang, _dx, dy) => {
+      const seg = (ang + Math.PI) / (Math.PI * 2) * 14;        // 열네 마디
+      if (seg % 1 < 0.16) return "#4a4438";                    // 마디 사이 틈
+      if (rr > R - 1) return dy < 0 ? "#6b6558" : "#3a352c";
+      return dy < 0 ? "#d8d2c4" : "#8a8477";
+    });
+  },
+
+  /* 라 — **두꺼운 금 베벨.** 네 단계로 깎아 두께를 세게 낸다. 화려한 쪽 —
+     D2 의 그 묵직한 금테에 제일 가깝다. */
+  d(g) {
+    const up = ["#f0dca8", "#c8aa6e", "#8a7448", "#4a3a22"];
+    const dn = ["#6b5730", "#4a3a22", "#2a2016", "#15100a"];
+    band(g, R - 4, R, (rr, _a, _dx, dy) => {
+      const i = Math.min(3, Math.floor(R - rr));               // 바깥부터 0,1,2,3
+      return (dy < -1 ? up : dn)[i];
+    });
+  },
+
+  /* 마 — **발톱 넷.** 테는 어두운 쇠로 얇게 두고, 네 방향에만 금 고정쇠를 물린다.
+     보석을 물린 반지가 이렇게 생겼다 — 금이 적어도 「박혔다」가 제일 세게 읽힌다. */
+  e(g) {
+    band(g, R - 1.8, R, (rr, _a, _dx, dy) => (dy < 0 ? "#2f2820" : "#12100c"));
+    band(g, R - 4, R, (rr, ang) => {
+      const a = ((ang + Math.PI * 2.25) % (Math.PI / 2)) / (Math.PI / 2);
+      if (a > 0.14) return null;                               // 네 자리에만
+      return rr > R - 1.6 ? "#f0dca8" : rr > R - 2.8 ? "#c8aa6e" : "#8a7448";
+    });
+  },
+
+  /* 바 — **테를 없앤다.** 어두운 눌림 한 겹만 남긴다. 판이 조용해지고 구슬이
+     알맹이로만 보인다 — 장식을 걷는 쪽이 옳을 때도 있다. */
+  f(g) {
+    band(g, R - 1.6, R, (rr) => (rr > R - 0.8 ? "#00000099" : "#00000055"));
+  },
+};
