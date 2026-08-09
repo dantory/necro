@@ -124,7 +124,10 @@
    글자는 그림자로 읽히고, 그 사이로 바닥이 그대로 보인다.
    **떠 있음은 바탕을 그리는 게 아니라 안 그리는 것이다.** */
 .mid{flex:1 1 auto;max-width:370px;min-width:0;
-  display:flex;flex-direction:column;gap:6px;padding:2px 8px 4px}
+  /* ★ 경험치 띠도 칸 줄에 붙어 있었다(6px) → 18px. 가운데는 볼 것이 셋이나
+     겹쳐 있어 **간격이 곧 읽는 순서**가 된다(병수님: "중앙 부분의 간격이 좀
+     있어야할듯"). */
+  display:flex;flex-direction:column;gap:18px;padding:2px 8px 4px}
 /* ★ 띠 밑변이 구슬 밑변보다 4px 아래여서, 구슬 밑으로 **띠 조각이 삐져나왔다** —
    그게 병수님이 본 「하단 중간에 잘린 부분」이다. 칸 줄을 그만큼 올려 띠가 구슬
    안에서 끝나게 한다(띠 끝은 구슬이 덮어 안 보여야 한다). */

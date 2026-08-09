@@ -80,7 +80,12 @@ export function drawPlate(cv, panel) {
      **띠 밑변 874 vs 구슬 밑변 888** — 구슬이 14px 더 내려와 양옆에 턱이 진다.
      띠 밑변을 **구슬 밑변에 정확히** 맞춘다. 고리가 없으니 썰릴 것도 없고,
      띠 끝은 구슬에 가려지므로 밑변 한 줄만 남는다. */
-  const barT = belt.y - 3;
+  /* ★ 병수님: "스킬 부분 위아래 공간이 너무 딱 붙어서 좀 넓히면 좋겠고".
+     ★★ 여기 단위를 틀렸다 — barT 는 **아트 픽셀**이라 `- 7` 이 화면에서는 21px 이고,
+     판이 위로 올라가 **경험치 띠를 삼켰다**(판 805 · 띠 807~814). 눈에 보이는 값은
+     화면 픽셀이니 **화면 기준으로 적고 K 로 나눈다.** */
+  const PAD_TOP = 10;                                // 칸 줄 위 여백(화면 px)
+  const barT = belt.y - PAD_TOP / K;
   const barB = Math.max(belt.y + belt.h + 3, hp.cy + hp.r, mp.cy + mp.r);
   /* 띠는 구슬 **한가운데까지** 들어간다 — 끝이 구슬에 완전히 가려져 이음매가 안 보인다. */
   const barL = hp.cx, barR = mp.cx;
