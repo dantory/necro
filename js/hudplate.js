@@ -76,7 +76,12 @@ export function drawPlate(cv, panel) {
   /* 띠는 **칸 줄만** 감싼다(위 ★★★). 글자와 경험치는 띠 위에 그냥 얹힌다. */
   const beltEl = panel.querySelector("#belt");
   const belt = box(beltEl || midEl);
-  const barT = belt.y - 3, barB = belt.y + belt.h + 3;
+  /* ★ 픽셀을 열마다 훑어 보니 판 자체엔 끊긴 데가 없었다(아래턱 0). 남은 것은
+     **띠 밑변 874 vs 구슬 밑변 888** — 구슬이 14px 더 내려와 양옆에 턱이 진다.
+     띠 밑변을 **구슬 밑변에 정확히** 맞춘다. 고리가 없으니 썰릴 것도 없고,
+     띠 끝은 구슬에 가려지므로 밑변 한 줄만 남는다. */
+  const barT = belt.y - 3;
+  const barB = Math.max(belt.y + belt.h + 3, hp.cy + hp.r, mp.cy + mp.r);
   /* 띠는 구슬 **한가운데까지** 들어간다 — 끝이 구슬에 완전히 가려져 이음매가 안 보인다. */
   const barL = hp.cx, barR = mp.cx;
   const CH = 4;                                      // 띠 끝을 깎는다
