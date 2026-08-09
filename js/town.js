@@ -110,13 +110,13 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
 /** 장소 이름표. **조명 뒤에** 그려야 어둠에 안 잠긴다 — 글자는 읽으라고 있는 것이다. */
 export function drawTownLabels(ctx) {
   ctx.save();
-  ctx.font = '22px "Galmuri11", monospace';
+  ctx.font = '18px "Galmuri9", monospace';
   ctx.textAlign = "center";
   for (const p of hits) {
-    const y = p.ly + 26;
+    const y = p.ly + 22;
     ctx.fillStyle = "#000000cc";
     const tw = ctx.measureText(p.name).width;
-    ctx.fillRect(Math.round(p.lx - tw / 2) - 6, y - 18, Math.round(tw) + 12, 25);
+    ctx.fillRect(Math.round(p.lx - tw / 2) - 5, y - 15, Math.round(tw) + 10, 21);
     ctx.fillStyle = "#c8aa6e";
     ctx.fillText(p.name, p.lx, y);
   }
