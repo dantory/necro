@@ -91,6 +91,9 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
      보였다. 부르는 곳이 둘이면 순서도 둘이 된다 — 여기 하나로 모은다. */
   if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
                            scatter.clear, scatter.density, scatter.set);
+  /* 빛은 **소품을 다 놓은 뒤** 한 번에 얹는다(더하기라 순서가 결과를 안 바꾸지만,
+     한 곳에서 부르면 빠뜨릴 일이 없다). */
+  drawGlows(ctx, squash);
 
   /* ★★ 병수님: "지도 내 주위로 광원? 같은거 없애면 안됨?"
      **횃불빛을 걷는다.** 어둠은 분위기를 만들지만 **볼 것을 가린다** — 소품을 뿌려도
@@ -175,7 +178,9 @@ export function loadDecor(dir = "assets/decor") {
    ══════════════════════════════════════════════════════════ */
 
 const CELL = 165;                      // 칸 하나의 월드 크기
-const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "bones", "rubble"];
+/* ★ 화로를 일곱에 하나만 뿌렸더니 **한 화면에 한두 개**뿐이라 던전이 여전히 캄캄했다.
+   불이 곧 조명이니 **불의 밀도가 곧 밝기**다 — 둘로 늘린다. */
+const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "brazier", "rubble"];
 
 /* ══ 접지 ══ 병수님: "던전입구/상인/대장간 같은거또 둥둥 떠잇네".
    ★★ **캐릭터에는 이미 고쳤던 것을 소품·건물에는 안 옮겼다.** PixelLab 이 준 그림은
@@ -232,6 +237,55 @@ export function place(ctx, cv, gx, gy, shadow = true) {
   ctx.drawImage(cv, 0, 0, cv.width, cv.height, px, py, w, h);
 }
 
+/* ══ 불빛 ══ 병수님: "조명이 너무 없으니까 허전하긴하네".
+   ★★ 앞서 **화면 전체를 덮는 어둠**을 걷어냈다 — 그건 볼 것을 가렸기 때문이다.
+   그렇다고 아무 빛도 없으면 평평한 그림이 된다. **답은 반대쪽에 있다:
+   어둠을 덮지 말고, 불이 있는 자리에서 빛이 「나오게」 한다.**
+     · 가리는 게 아니라 **더하는** 것이라(lighter) 어두워지는 곳이 없다
+     · 불이 있는 곳에만 있으니 **왜 밝은지**가 화면에 보인다(모닥불·화로·화덕)
+     · 계단으로 그린다 — 부드러운 원은 이 화면에서 유일한 매끈함이 된다 */
+/* ★ 8px 칸에 세 단계로 그렸더니 **경계가 네모로 각졌다**. 칸을 줄이고(6) 단계를
+   늘려(다섯) 가장자리를 완만하게 — 계단은 남기되 「덩어리」로는 안 보이게. */
+const GLOW_PX = 6;                    // 빛 한 칸(화면 픽셀)
+let glows = [];                       // 이번 프레임에 빛날 자리
+
+export function addGlow(gx, gy, r, warm = 1) { glows.push([gx, gy, r, warm]); }
+
+/** 쌓인 빛을 한 번에 얹는다. **부르는 시점이 중요하다** — addGlow 를 부른 뒤에
+ *  불러야 그 프레임에 그려진다(마을은 drawTown 이 끝난 뒤 main 이 부른다). */
+export function drawGlows(ctx, squash) {
+  if (!glows.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (const [gx, gy, r, warm] of glows) {
+    /* 저해상도 격자에 **계단으로** 찍는다. 가운데가 제일 밝고 네 단계로 떨어진다. */
+    const n = Math.ceil(r / GLOW_PX);
+    for (let iy = -n; iy <= n; iy++) {
+      /* ★ 높이를 `ceil(GLOW_PX*squash)` 로 잡았더니 **줄마다 1px 씩 겹쳤다.**
+         더하기 합성이라 겹친 줄만 두 배로 밝아져 **가로줄무늬**가 보였다.
+         칸의 위/아래를 각각 반올림해서 잡으면 위칸의 끝과 아랫칸의 시작이
+         정확히 맞물린다 — 겹침도 틈도 없다. */
+      const y0 = Math.round(gy + iy * GLOW_PX * squash);
+      const y1 = Math.round(gy + (iy + 1) * GLOW_PX * squash);
+      if (y1 === y0) continue;
+      for (let ix = -n; ix <= n; ix++) {
+        /* 화면에서의 세로 거리는 이미 squash 가 곱해져 있다(y0). 그러니 여기서
+           또 나누면 **두 번 눌린 타원**이 된다 — r 로만 나눈다. */
+        const dx = (ix * GLOW_PX) / r, dy = (iy * GLOW_PX) / r;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d > 1) continue;
+        const step = d < 0.28 ? 5 : d < 0.45 ? 4 : d < 0.62 ? 3 : d < 0.78 ? 2 : d < 0.92 ? 1 : 0;
+        if (!step) continue;
+        const a = [0, 0.022, 0.042, 0.068, 0.10, 0.14][step] * warm;
+        ctx.fillStyle = `rgba(255,180,90,${a})`;
+        ctx.fillRect(Math.round(gx + ix * GLOW_PX), y0, GLOW_PX, y1 - y0);
+      }
+    }
+  }
+  ctx.restore();
+  glows = [];
+}
+
 /** 좌표를 섞어 **늘 같은 값**을 낸다(난수가 아니다 — 난수면 매 프레임 자리가 바뀐다). */
 function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -260,7 +314,10 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       if (clear && Math.hypot(wxw, wyw) < clear) continue;   // 싸움터는 비운다
       /* ★ 여기도 place() 로 통일한다 — 이미지 바닥을 지면으로 삼으면 그림 아래
          투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
-      place(ctx, im, cx + wxw * sc, cy + wyw * sc * squash);
+      const px2 = cx + wxw * sc, py2 = cy + wyw * sc * squash;
+      place(ctx, im, px2, py2);
+      // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
+      if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
     }
   }
 }

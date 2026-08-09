@@ -1,5 +1,5 @@
 import { LOAD } from "./sprite8.js";
-import { ART, place } from "./ground.js";
+import { addGlow, ART, place } from "./ground.js";
 
 /* ══════════════════════════════════════════════════════════════
    **마을** — 병수님: "마을도 만들어줘, 마을에서 던전으로 진입하는거고,
@@ -95,6 +95,8 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   if (fire) {
     const bob = Math.sin(t * 1.9) > 0.4 ? 1 : 0;
     place(ctx, fire, wx(FIRE[0]), wy(FIRE[1]) + bob, false);
+    // ★ 정작 **모닥불에 빛을 안 넣고** 있었다 — 불이 있는데 안 밝으면 그림일 뿐이다
+    addGlow(wx(FIRE[0]), wy(FIRE[1]) - 12 * sc * squash, 210 * sc, 1.15);
   }
 
   /* 장소 셋 — 그리면서 **누를 자리를 함께 적어 둔다.** 그림과 판정이 한 곳에서 나와야
@@ -106,6 +108,9 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
     const im = art[key]; if (!im) continue;
     const gx = wx(rx), gy = wy(ry);
     place(ctx, im, gx, gy);
+    // 대장간 화덕과 입구 등불은 **제 둘레를 밝힌다**
+    if (id === "forge") addGlow(gx + 14 * sc, gy - 46 * sc * squash, 150 * sc, 1.0);
+    if (id === "gate")  addGlow(gx, gy - 70 * sc * squash, 90 * sc, 0.7);
     /* NPC 는 가게 **앞에** 선다 — 사람이 없으면 좌판이 아니라 폐허다. */
     const npcIm = npc[NPC_OF[id]];
     if (npcIm) place(ctx, npcIm, gx + Math.round(28 * sc), gy + Math.round(10 * sc * squash));

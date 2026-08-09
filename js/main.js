@@ -3,7 +3,7 @@ import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./ba
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGround, drawHoldRing, loadFloor, loadDecor, useFloor } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadFloor, loadDecor, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -212,6 +212,9 @@ function draw(dt) {
                { clear: 300, density: 26, town: true,
                  set: ["barrel", "crate", "cart", "well", "sacks", "barrel", "crate"] });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
+    /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
+       (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
+    drawGlows(ctx, SQUASH);
     drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
     drawTownLabels(ctx);
     return;
