@@ -169,7 +169,9 @@ function draw() {
     ctx.fillStyle = "#000a"; ctx.fillRect(x - wdt / 2, y, wdt, 3);
     ctx.fillStyle = col; ctx.fillRect(x - wdt / 2, y, wdt * Math.max(0, pct), 3);
   };
-  const HGT = { skel: 52, ghoul: 58, golem: 84 };
+  /* 그림 높이는 이제 **개체가 들고 있다**(core.js 의 MINIONS.h · MOB_H).
+     예전엔 적 크기를 충돌 반경에서 뽑아 썼는데, 반경을 그림에 맞추려 하면
+     그림이 따라 커지는 고리에 걸려서 갈라 뒀다. */
 
   /* **뒤에 있는 것부터 그린다.** 안 그러면 위쪽(먼) 적이 아래쪽(가까운) 소환수를 덮어
      앞뒤가 뒤집힌 그림이 된다. */

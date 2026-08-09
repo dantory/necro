@@ -1,5 +1,5 @@
-import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, goldFor, hpMaxOf, isGate, META,
-         MINIONS, mpMaxOf, S, saveMeta, SKILLS, xpNeed } from "./core.js";
+import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, goldFor, hpMaxOf, isGate, META,
+         MINIONS, MOB_H, mpMaxOf, S, saveMeta, SKILLS, xpNeed } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -40,7 +40,7 @@ export function enterFloor(f) {
   if (isGate(f)) {
     const b = spawnMob(f, 0, 1);
     b.boss = true; b.kind = "boss"; b.hp = b.hpMax = floorHp(f) * 7;
-    b.dmg = floorDmg(f) * 2.1; b.r = 22;
+    b.dmg = floorDmg(f) * 2.1; b.h = MOB_H.boss; b.r = b.h * FOOT_R;
     say(`<b style="color:#c8aa6e">${f}층 — 관문</b> 큰 놈이 지키고 있음`);
   } else {
     say(`<b>${f}층</b> 내려감`);
@@ -68,11 +68,12 @@ function spawnMob(f, i, n) {
   const kind = mobKindFor(f);
   const a = (i / Math.max(1, n)) * 6.2832 + (Math.random() - 0.5) * 0.8;
   const rad = RING_SPAWN + Math.random() * 50;
-  const m = { id: ++seq, kind, a,
+  const h = MOB_H[kind] || 48;
+  const m = { id: ++seq, kind, a, h,
               x: Math.cos(a) * rad, y: Math.sin(a) * rad,
               hp: floorHp(f), hpMax: floorHp(f),
               dmg: floorDmg(f), spd: 22 + Math.random() * 10,
-              r: kind === "brute" ? 15 : kind === "fallen" ? 10 : 12, atk: 0, boss: false };
+              r: h * FOOT_R, atk: 0, boss: false };
   S.mobs.push(m);
   return m;
 }
@@ -92,9 +93,9 @@ export function summon(kind) {
   }
   // 골렘은 안쪽(벽), 해골은 바깥(먼저 붙는다) — 반지름이 곧 역할이다
   const rad = RING_HOLD * (kind === "golem" ? 0.72 : kind === "ghoul" ? 0.95 : 1.15);
-  S.minions.push({ id: ++seq, kind, home: best, rad,
+  S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h,
                    x: Math.cos(best) * rad * 0.4, y: Math.sin(best) * rad * 0.4,
-                   hp: K.hp, hpMax: K.hp, atk: 0, r: kind === "golem" ? 16 : 10 });
+                   hp: K.hp, hpMax: K.hp, atk: 0, r: K.h * FOOT_R });
   return true;
 }
 
@@ -214,6 +215,34 @@ export function step(dt) {
       if ((m.atk -= dt) > 0) continue;
       m.atk = MOB_CD; S.hp -= m.dmg * MOB_CD;   // 주기를 늘린 만큼 한 방을 세게
       if (S.hp <= 0) { S.hp = 0; die(); return; }
+    }
+  }
+
+  /* ── 서로 밀어낸다 ── **겹치면 몇 마리인지 안 읽힌다.**
+     반경을 그림에 맞춘 것만으로는 부족하다 — 둘 다 같은 자리를 향해 걸으면 결국 포갠다.
+     그래서 매 걸음 끝에 겹친 쌍을 **절반씩 밀어** 떼어 놓는다.
+     한 번에 다 밀지 않고 60%만 미는 이유: 100% 로 밀면 서로 튕겨 부르르 떤다.
+     쌍마다 도는 O(n²) 이지만 판에 서는 것이 많아야 마흔 남짓이라 값이 싸다. */
+  const bodies = S.minions.concat(S.mobs);
+  for (let i = 0; i < bodies.length; i++) {
+    for (let j = i + 1; j < bodies.length; j++) {
+      const a = bodies[i], b = bodies[j];
+      let dx = b.x - a.x, dy = b.y - a.y;
+      let d = Math.hypot(dx, dy);
+      /* 처음엔 0.82 를 곱해 「어깨는 조금 겹쳐도 된다」고 뒀는데, 그 조금이 화면에서는
+         그대로 겹쳐 보였다(69% 프레임). 병수님이 원한 건 **겹침 없음**이라 1.0 으로 조인다. */
+      const min = a.r + b.r;
+      if (d >= min) continue;
+      if (d < 0.01) {                          // 완전히 포갠 경우 — 방향을 인덱스로 정해 흔들림 없이
+        const ang = (i * 2.399 + j * 0.618);
+        dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
+      }
+      /* 0.3(절반씩 × 0.6) 으로는 걸어오는 힘에 밀려 다시 붙었다. 0.5 = 절반씩 온전히
+         떼어 놓는다. 그래도 부르르 떨지 않는 건 **양쪽을 같은 양만큼** 밀기 때문이다. */
+      const push = (min - d) * 0.5;
+      const nx = dx / d, ny = dy / d;
+      a.x -= nx * push; a.y -= ny * push;
+      b.x += nx * push; b.y += ny * push;
     }
   }
 
