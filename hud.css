@@ -59,6 +59,9 @@
      좌우를 흐리면 **떠 있는 물건**이 아니라 **끝이 어중간하게 잘린 판**으로 보인다.
      판은 화면 끝까지 간다. 뜬 느낌은 위쪽 그라디언트가 이미 내고 있다. */
   background:none;border:none;box-shadow:none}
+/* 이어 주는 판 — 화면 전체를 덮지 않고 **구슬~띠~구슬 실루엣만** 칠한다. */
+#hudPlate{position:absolute;inset:0;width:100%;height:100%;
+  image-rendering:pixelated;pointer-events:none;z-index:0}
 /* 판 자체는 클릭을 안 먹고(맵이 그 뒤로 이어진다), 얹힌 물건만 먹는다. */
 #panel > .orb, #panel > .mid{position:relative;z-index:1;pointer-events:auto}
 /* 판이 **시작되는 자리**를 한 줄로 긋는다. 그라디언트로만 풀면 어디부터가 판인지

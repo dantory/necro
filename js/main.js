@@ -2,6 +2,7 @@ import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
+import { watchPlate } from "./hudplate.js";
 
 /* 값 표기 — 네 자리부터 k, 백만부터 M. 1000 미만은 그대로 둔다(초반에 1.0k 는 안 읽힌다). */
 const num = (v) => {
@@ -628,6 +629,7 @@ loadDecor();
 loadDecals();                   // 바닥 얼룩 — 격자를 끊는다(js/ground.js)
 loadTown();
 watch($("xpWrap"), drawBar);
+watchPlate($("hudPlate"), $("panel"));   // 구슬~띠~구슬을 한 덩어리로 잇는다
 fit(); belt(); newRun(); hud();
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 requestAnimationFrame(loop);
