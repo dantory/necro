@@ -292,7 +292,15 @@ body.t-d3 #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px
    D2R 쪽이 이 게임에 더 맞다 — 아치는 곡선이라 픽셀아트와 결이 다르고,
    평평한 띠는 **가로로 긴 화면 아래**에 얌전히 눕는다.
    ══════════════════════════════════════════════════════════ */
-body.t-d2r{--panelH:118px;--g:#c8aa6e;--g-d:#6b5730;--g-l:#e8d5a0}
+/* ★ **가로 화면에서 통째로 무너졌다.** 띠와 경험치 바를 `left:118px;right:118px` 로
+   잡아 뒀더니 넓은 화면에서 폭을 따라 끝없이 늘어나, 반복되는 철판이 **빈 칸 여러 개**처럼
+   보였다(병수님이 데스크톱 화면을 보내 주셨다). D2R 도 가로에서는 하단이 화면 폭을
+   안 쓰고 **가운데에 고정 폭으로 모인다.**
+   그래서 「판 묶음의 폭」을 하나 정하고 모든 자리를 거기서 잰다 —
+   세로폰(414)에서는 hudW = 화면폭이라 지금까지와 똑같고, 가로에서만 가운데로 모인다. */
+body.t-d2r{--panelH:118px;--g:#c8aa6e;--g-d:#6b5730;--g-l:#e8d5a0;
+  --hudW:min(560px, 100vw);          /* 판 묶음의 폭 */
+  --hudL:calc((100vw - min(560px, 100vw)) / 2)}   /* 그 묶음의 왼쪽 여백 */
 body.t-d2r #panel{background:linear-gradient(#0000,#000000cc 30%,#000000f2)}
 
 /* 가운데 띠 — **평평하다.** 검은 바탕에 위아래 금색 선 두 줄이 D2R 의 얼굴이다. */
@@ -331,7 +339,7 @@ body.t-d2r .orb .num{position:absolute;left:-6px;right:-6px;top:-14px;height:14p
   font-size:10px;color:var(--g);letter-spacing:.5px;text-shadow:0 1px 3px #000}
 
 /* 경험치 — 띠 **위에** 얹히고 **칸이 나뉘어** 있다. 그 칸 나눔이 D2R 의 표시다. */
-body.t-d2r #gauge{top:auto;bottom:78px;left:98px;right:98px;gap:3px}
+body.t-d2r #gauge{top:auto;bottom:78px;left:calc(var(--hudL) + 118px);right:calc(var(--hudL) + 118px);gap:3px}
 body.t-d2r #gauge .res{font-size:10px;color:#9d907a;text-shadow:0 1px 3px #000}
 body.t-d2r #gauge .xp{height:8px;border-radius:0;background:#0a0806;
   border-top:1px solid var(--g-d);border-bottom:1px solid var(--g-d);
@@ -340,7 +348,7 @@ body.t-d2r #gauge .xpFill{background:
     repeating-linear-gradient(90deg, #0000 0 22px, #00000099 22px 23px),
     linear-gradient(#ffd47a,#c8901e 60%,#8a5f10)}
 body.t-d2r #gauge .xp span{font-size:8px;color:#efe0bd;text-shadow:0 1px 2px #000}
-body.t-d2r #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52px;
+body.t-d2r #log{left:calc(var(--hudL) + 10px);right:calc(var(--hudL) + 10px);bottom:calc(var(--panelH) + 2px);height:52px;
   background:none;font-size:11px;color:#8c8271;text-shadow:0 1px 3px #000;padding:0}
 
 /* ── D2R : PixelLab 으로 구운 조각을 끼운다 ──
@@ -351,22 +359,26 @@ body.t-d2r #log{left:10px;right:10px;bottom:calc(var(--panelH) + 2px);height:52p
 body.t-d2r .statue{position:absolute;bottom:0;width:54px;height:74px;z-index:3;
   background:center/contain no-repeat;image-rendering:pixelated;pointer-events:none;
   filter:drop-shadow(0 2px 4px #000)}
-body.t-d2r .statue.l{left:0;background-image:url("assets/ui/d2r/statue_l.png")}
-body.t-d2r .statue.r{right:0;background-image:url("assets/ui/d2r/statue_r.png")}
+body.t-d2r .statue.l{left:var(--hudL);background-image:url("assets/ui/d2r/statue_l.png")}
+body.t-d2r .statue.r{right:var(--hudL);background-image:url("assets/ui/d2r/statue_r.png")}
 /* 가운데 띠 — 이어 붙일 수 있게 구웠으므로 **repeat-x** 로 깐다(9-slice 불필요) */
-body.t-d2r #beltArc{left:118px;right:118px;
+/* ★ 띠를 좌우 여백으로 잡아 늘렸더니 **슬롯 뒤로 빈 철판이 반복돼 「빈 칸」처럼**
+   보였다. 띠는 **담는 것만큼만** 넓어야 한다 — 내용 크기에 맞추고 가운데 세운다. */
+body.t-d2r #beltArc{left:50%;right:auto;transform:translateX(-50%);width:max-content;
   background:url("assets/ui/d2r/bar.png") left center/auto 100% repeat-x, #0000;
   image-rendering:pixelated;border:none;
   box-shadow:0 2px 10px #000a}
-body.t-d2r .slot{width:38px;height:38px;background:url("assets/ui/d2r/slot.png") center/100% 100% no-repeat;
+/* 세로폰(414)에서 구슬 사이에 남는 폭은 **206px** 이다. 칸 38px 로는 띠가 218px 이라
+   구슬을 파고들었다 — 34px 로 내리면 198px 로 8px 여유를 두고 들어간다. */
+body.t-d2r .slot{width:34px;height:34px;background:url("assets/ui/d2r/slot.png") center/100% 100% no-repeat;
   image-rendering:pixelated;border:none;box-shadow:none;font-size:0}
 body.t-d2r .slot > i{inset:4px}
 body.t-d2r .slot.on{box-shadow:0 0 8px #c8aa6e66}
 body.t-d2r #belt{gap:3px}
 /* 석상이 폭을 먹지 않게 구슬을 안쪽으로 들인다 */
-body.t-d2r .orb{left:44px}
-body.t-d2r .orb.mp{left:auto;right:44px}
-body.t-d2r #gauge{left:118px;right:118px}
+body.t-d2r .orb{left:calc(var(--hudL) + 38px)}
+body.t-d2r .orb.mp{left:auto;right:calc(var(--hudL) + 38px)}
+body.t-d2r #gauge{left:calc(var(--hudL) + 118px);right:calc(var(--hudL) + 118px)}
 
 /* ── 구슬 테 ── 재굽기 끝에 구멍이 **59.4%** 인 것이 나왔다(1차는 32.8% 라 못 썼다).
    그러니 구슬 66px 이 구멍에 맞으려면 테는 66/0.594 = 111px → inset 은 -(111-66)/2 = -23px.
