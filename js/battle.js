@@ -1,5 +1,5 @@
 import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, goldFor, hpMaxOf, isGate, META,
-         MINIONS, MOB_H, mpMaxOf, S, saveMeta, SKILLS, xpNeed } from "./core.js";
+         MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -167,6 +167,38 @@ export function step(dt) {
     }
   };
 
+  /* ── 본인의 기본공격 ── **뼈를 던진다.**
+     가만히 서서 구경만 하면 "부리는 자"가 아니라 장식이 된다. 제일 가까운 적에게
+     자동으로 던지되, 화력은 해골 한 기보다 조금 위다 — 군대를 대신하면 안 된다. */
+  if ((S.natk -= dt) <= 0) {
+    let t = null, td = NECRO_ATK.range;
+    for (const m of S.mobs) { const d = Math.hypot(m.x, m.y); if (d < td) { td = d; t = m; } }
+    if (t) {
+      S.natk = NECRO_ATK.cd;
+      S.pswing = SWING_T;                              // 던지는 자세
+      const d = Math.hypot(t.x, t.y) || 1;
+      S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d,
+                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf(), life: 2 });
+    }
+  }
+  /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.
+     날아가는 길에 걸리는 첫 놈을 맞힌다. */
+  for (let i = S.bolts.length - 1; i >= 0; i--) {
+    const b = S.bolts[i];
+    const st = NECRO_ATK.speed * dt;
+    b.x += b.dx * st; b.y += b.dy * st;
+    b.life -= dt;
+    let hit = null;
+    for (const m of S.mobs) if (Math.hypot(m.x - b.x, m.y - b.y) < m.r * 0.7) { hit = m; break; }
+    if (hit) {
+      hit.hp -= b.dmg * ampMul;
+      hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy;
+      S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
+      S.bolts.splice(i, 1); continue;
+    }
+    if (b.life <= 0 || Math.hypot(b.x, b.y) > RING_SPAWN + 80) S.bolts.splice(i, 1);
+  }
+
   /* ── 소환수 ── **제 자리를 지키되 가까이 온 적은 마중 나간다.**
      사방 판에서 전원이 한 적에게 몰려가면 그 순간 나머지 방향이 통째로 비어 본체가 맞는다.
      그래서 "내 구역"(제 각도)에서 제일 가까운 적만 본다. */
@@ -284,7 +316,8 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], cd: {}, log: [], killed: 0, deepest: 1, amp: 0, pswing: 0,
+    minions: [], mobs: [], fx: [], bolts: [], cd: {}, log: [], killed: 0, deepest: 1,
+    amp: 0, pswing: 0, natk: 0,
   });
   enterFloor(1);
 }

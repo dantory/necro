@@ -136,7 +136,7 @@ function draw() {
                    (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
   const sc = Math.min(scByW, (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
   const SQUASH = squash;
-  /* 인물 크기(HGT)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
+  /* 인물 크기(개체가 든 h)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
      서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
   const us = Math.max(1, Math.min(1.85, sc / 0.44));
 
@@ -193,14 +193,27 @@ function draw() {
       continue;
     }
     if (it.u) {
-      const u = it.u, hh = (HGT[u.kind] || 40) * us, x = px(u.x), y = py(u.y);
+      const u = it.u, hh = (u.h || 40) * us, x = px(u.x), y = py(u.y);
       drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u);
       if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
       continue;
     }
-    const m = it.m, hh = (m.boss ? 104 : 48 + (m.r - 10) * 2.6) * us, x = px(m.x), y = py(m.y);
+    const m = it.m, hh = (m.h || 48) * us, x = px(m.x), y = py(m.y);
     drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m);
     if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
+  }
+
+  /* ── 날아가는 뼈 ── 본인의 기본공격. **꼬리를 남긴다** — 작은 점 하나는 30fps 에서
+     그냥 깜빡이는 것으로 보인다. 진행 방향으로 늘린 선이 있어야 "날아간다"로 읽힌다. */
+  for (const b of S.bolts) {
+    const x = px(b.x), y = py(b.y);
+    const tx = px(b.x - b.dx * 26), ty = py(b.y - b.dy * 26);
+    const g = ctx.createLinearGradient(tx, ty, x, y);
+    g.addColorStop(0, "rgba(150,190,230,0)"); g.addColorStop(1, "#cfe2f5");
+    ctx.strokeStyle = g; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(x, y); ctx.stroke();
+    ctx.fillStyle = "#e8f2ff";
+    ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.284); ctx.fill();
   }
 
   for (const f of S.fx) {
