@@ -38,7 +38,7 @@
    구슬을 82 → **112**, 숫자를 9 → **18px**(9격자의 두 배라 선명하다).
    판도 116 → **124** 로 올려 구슬이 들어갈 자리를 만든다 —
    판(124) − 아래 여백(9) = 115 ≥ 구슬(112). 눈대중이 아니라 계산으로 맞춘다. */
-:root{ --hudH:124px; --orb:112px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+:root{ --hudH:124px; --orb:112px; --orbw:157px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.** */
 #panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
@@ -67,7 +67,10 @@
    ★ 테를 `border-radius:50%` + box-shadow 로 두르면 그 테만 다시 매끄러워진다 —
    그래서 테도 **네모 모서리를 조금 굴린 것**으로 두고, 둥근 것은 캔버스가 그린
    구슬 자신이 맡게 한다. */
-.orb{position:relative;flex:0 0 auto;width:var(--orb);height:var(--orb);
+/* ★ 병수님: "구슬 너비를 넓힌순없나". 가로만 CSS 로 늘리면 픽셀이 눌리므로
+   **캔버스를 42x30 으로 그려서**(js/orb.js) 여기서는 42:30 비율 그대로 키운다 —
+   157/42 = 3.74, 112/30 = 3.73. 가로세로 배율이 같으니 픽셀은 정사각형이다. */
+.orb{position:relative;flex:0 0 auto;width:var(--orbw);height:var(--orb);
   background:none;filter:drop-shadow(0 2px 4px #000c)}
 .orb canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
 
@@ -77,9 +80,14 @@
 /* ★ 구슬을 82px 로 줄이자 「284/284」(76px)가 테에 닿았다. 글꼴을 **9px 격자의
    한 칸 아래**로 내린다 — 픽셀 글꼴이라 12px 같은 어중간한 값은 흐려지고, 9 는
    9격자의 제 크기라 선명하다. 구슬 안 숫자는 곁다리이므로 작아도 된다. */
-.orb .num{position:absolute;left:5px;right:5px;top:57%;overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  font-size:18px;color:#efe4cd;text-shadow:0 2px 3px #000,0 0 5px #000;
+/* ★ 넓힌 이유가 숫자다 — 한 격자 올린다(18 → 27px, 둘 다 9격자의 배수라 선명). */
+/* ★★ `top:57%` 는 글자의 **윗변**을 거기 놓는다 — 글자를 18 → 27px 로 키우자
+   중심이 72% 까지 내려가 **아래 테를 밟았다.** 위치는 **중심으로** 잡아야 글자
+   크기를 바꿔도 안 흔들린다: 구슬 전체를 그릇으로 두고 가운데 정렬한 뒤,
+   위쪽 반사를 살릴 만큼만 아래로 민다(padding-top). */
+.orb .num{position:absolute;left:4px;right:4px;top:0;bottom:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;padding-top:14px;
+  font-size:27px;color:#efe4cd;text-shadow:0 2px 3px #000,0 0 5px #000;
   white-space:nowrap;z-index:2}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서

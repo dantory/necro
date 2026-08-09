@@ -12,7 +12,15 @@
      · 표면의 빛도 점 몇 개로 찍는다
    ══════════════════════════════════════════════════════════ */
 
-const R = 15;                      // 30x30 캔버스의 반지름
+/* ★★ 병수님: "구슬 너비를 넓힌순없나" — **가로로 넓힌다.**
+   그런데 30x30 을 CSS 로 가로만 늘리면 **픽셀이 찌그러진다**(가로로 눌린 직사각형
+   픽셀). 픽셀아트에서 그건 곧 「해상도가 안 맞는 그림」으로 읽힌다.
+   그래서 **캔버스 자체를 넓게 그린다** — 42x30 타원. 화면 배율은 가로세로가 같으니
+   픽셀은 여전히 정사각형이고, 구슬만 넓어진다.
+   숫자도 한 격자 올린다(18 → 27px). 넓힌 이유가 그것이다. */
+const W = 42, H = 30;              // 캔버스 크기(가로가 넓다)
+const RX = W / 2, RY = H / 2;      // 타원의 두 반지름
+const R = RY;                      // 테 두께를 재는 기준(세로 반지름 = 예전 그대로)
 /** 색을 **몇 단계로 자른다.** 픽셀아트가 픽셀아트인 이유의 절반이 이것이다 —
  *  부드럽게 흐르는 색은 아무리 잘 골라도 사진처럼 보인다. */
 const RAMP = {
@@ -27,15 +35,15 @@ const EMPTY = ["#241c16", "#181210", "#0e0a08"];   // 안 찬 부분(빈 유리)
 export function drawOrb(cv, kind, pct, rim = "b") {
   const g = cv.getContext("2d");
   const ramp = RAMP[kind] || RAMP.hp;
-  g.clearRect(0, 0, 30, 30);
-  const fillTop = 30 - Math.round(pct * 30);       // 여기서부터 아래가 채워져 있다
+  g.clearRect(0, 0, W, H);
+  const fillTop = H - Math.round(pct * H);         // 여기서부터 아래가 채워져 있다
 
-  for (let y = 0; y < 30; y++) {
-    for (let x = 0; x < 30; x++) {
-      const dx = x - R + 0.5, dy = y - R + 0.5;
-      const d2 = dx * dx + dy * dy;
-      if (d2 > R * R) continue;                    // **원 밖은 안 찍는다** — 이 판정이 계단을 만든다
-      const d = Math.sqrt(d2) / R;                 // 0(가운데) ~ 1(가장자리)
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      /* 타원은 **각 축으로 나눈 뒤 재면** 원과 똑같이 다룰 수 있다. */
+      const dx = (x - RX + 0.5) / RX, dy = (y - RY + 0.5) / RY;
+      const d = Math.sqrt(dx * dx + dy * dy);      // 0(가운데) ~ 1(가장자리)
+      if (d > 1) continue;                         // **타원 밖은 안 찍는다** — 이 판정이 계단을 만든다
 
       let col;
       if (y >= fillTop) {
@@ -51,12 +59,13 @@ export function drawOrb(cv, kind, pct, rim = "b") {
   }
   /* 표면의 빛 — **점 몇 개로 찍는다.** 번지는 빛은 유리가 아니라 플라스틱이 된다.
      왼쪽 위 한 덩이(반사)와 아래쪽 한 줄(되비침), 그게 전부다. */
+  const ox = (W - 30) / 2;                         // 넓어진 만큼 오른쪽으로 민다
   g.fillStyle = "#ffffff";
-  g.fillRect(8, 6, 2, 1); g.fillRect(7, 7, 3, 1); g.fillRect(7, 8, 2, 1);
+  g.fillRect(ox + 8, 6, 2, 1); g.fillRect(ox + 7, 7, 3, 1); g.fillRect(ox + 7, 8, 2, 1);
   g.fillStyle = "#ffffff55";
-  g.fillRect(10, 6, 1, 1); g.fillRect(6, 9, 1, 1); g.fillRect(9, 9, 1, 1);
+  g.fillRect(ox + 10, 6, 1, 1); g.fillRect(ox + 6, 9, 1, 1); g.fillRect(ox + 9, 9, 1, 1);
   g.fillStyle = "#ffffff2a";
-  g.fillRect(12, 25, 6, 1); g.fillRect(11, 24, 8, 1);
+  g.fillRect(ox + 10, 25, 10, 1); g.fillRect(ox + 9, 24, 12, 1);
 
   RIM[rim] ? RIM[rim](g) : RIM.a(g);
 }
@@ -68,10 +77,14 @@ export function drawOrb(cv, kind, pct, rim = "b") {
 /** 원의 띠를 훑는다 — 반지름 [lo,hi) 안의 픽셀에 색을 준다.
  *  `f(rr, ang, dx, dy)` 가 색을 정한다. null 이면 안 찍는다. */
 function band(g, lo, hi, f) {
-  for (let y = 0; y < 30; y++) for (let x = 0; x < 30; x++) {
-    const dx = x - R + 0.5, dy = y - R + 0.5;
-    const rr = Math.sqrt(dx * dx + dy * dy);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const ux = (x - RX + 0.5) / RX, uy = (y - RY + 0.5) / RY;
+    /* **테 두께는 세로 반지름 기준**으로 잰다(rr = 정규화거리 x R). 그래야 예전에
+       고른 두께 값(R-3.2 등)이 그대로 살고, 넓힌 쪽만 테가 조금 두꺼워진다 —
+       실제 유리알도 넓은 축의 테가 두꺼워 보이니 그쪽이 자연스럽다. */
+    const rr = Math.sqrt(ux * ux + uy * uy) * R;
     if (rr >= hi || rr < lo) continue;
+    const dx = ux * RX, dy = uy * RY;
     const col = f(rr, Math.atan2(dy, dx), dx, dy);
     if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }
@@ -85,7 +98,7 @@ const RIM = {
       const up = dy < -2;
       return rr > R - 1.1 ? (up ? "#8a7448" : "#2a2016") : (up ? "#c8aa6e" : "#4a3a22");
     });
-    for (const [rx, ry] of [[15, 1], [15, 28], [1, 15], [28, 15]]) {
+    for (const [rx, ry] of [[RX, 1], [RX, H - 2], [1, RY], [W - 2, RY]]) {
       g.fillStyle = "#e0c890"; g.fillRect(rx - 1, ry, 2, 1);
       g.fillStyle = "#6b5730"; g.fillRect(rx - 1, ry + 1, 2, 1);
     }
