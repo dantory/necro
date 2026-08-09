@@ -379,57 +379,74 @@ const closeAll = () => { win("winShop", false); win("winForge", false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
-/** 등급을 **점으로** 보인다. 숫자(3/5)보다 점이 한눈에 들어오고, 다음 칸이 비어 있는
- *  것이 곧 「더 살 수 있다」는 뜻이 된다. */
-const pips = (n, max) => Array.from({ length: max }, (_, i) =>
-  `<i class="pip${i < n ? " on" : ""}"></i>`).join("");
+/* ══ 디아블로식 상점 ══ 병수님: "디아블로 스타일 모르냐고,,"
+   ──────────────────────────────────────────────────────────────
+   **내가 만든 것은 「설정 목록」이었다.** 이름·설명·단추가 세로로 늘어선 표.
+   디아블로의 상점은 그렇게 생기지 않았다:
+
+     · 물건이 **격자 칸**에 놓여 있다. 목록이 아니라 **좌판**이다
+     · 고르면 **툴팁**이 뜬다 — 검은 판에 이름 한 줄, 그 아래 능력치 줄들
+     · **이름의 색이 곧 등급**이다. 흰 → 파랑(매직) → 노랑(레어) → 금갈(유니크).
+       D2 를 해 본 사람은 색만 보고 안다. 이 한 가지가 「디아블로답다」의 절반이다
+
+   그래서 격자 + 툴팁으로 다시 짠다. 좁은 화면에서 마우스 호버가 없으므로
+   **누르면 아래에 툴팁이 선다**(고른 것이 무엇인지 칸에도 표시된다). */
+
+/** 등급 색 — D2 의 규칙 그대로. */
+const TIER_CLS = ["t0", "t1", "t2", "t3", "t4"];
+
+let shopPick = "wand";                       // 좌판에서 고른 것
 
 function drawShop() {
-  $("shopBody").innerHTML = Object.entries(GEAR).map(([k, g]) => {
-    const t = META.gear[k] | 0, nx = gearNext(k), max = g.tiers.length - 1;
-    const now = g.val[t], next = nx === null ? null : g.val[nx];
-    /* 값은 **지금 → 다음**으로 보인다. 「최대 체력」만 적으면 얼마나 좋아지는지 모른다. */
-    const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
-              : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
-    const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
-    return `<div class="item${nx === null ? " maxed" : ""}">
-      <div class="ico gear-${k}"></div>
-      <div class="col">
-        <div class="ttl">${g.tiers[t]}<span class="sub">${g.n}</span></div>
-        <div class="pips">${pips(t, max)}</div>
-        <div class="eff">${g.d} <span class="num"><b>${fmt(now)}</b>${
-          next === null ? "" : ` <span class="up">→ ${fmt(next)}</span>`}</span></div>
-      </div>
-      ${nx === null
-        ? `<div class="buy"><span class="max">최고 등급</span></div>`
-        : `<div class="buy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
-             <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`}
-    </div>`;
-  }).join("");
+  /* ① 좌판 — 파는 물건이 칸에 놓여 있다 */
+  $("shopGrid").innerHTML = Object.entries(GEAR).map(([k, g]) => {
+    const t = META.gear[k] | 0;
+    return `<div class="cell${k === shopPick ? " sel" : ""}" data-pick="${k}">
+      <i class="gear-${k}"></i><span class="q ${TIER_CLS[t]}">${t}</span></div>`;
+  }).join("") + '<div class="cell empty"></div>'.repeat(5);
+
+  /* ② 툴팁 — 고른 것의 이름과 능력치. **이름 색이 등급**이다 */
+  const k = shopPick, g = GEAR[k];
+  const t = META.gear[k] | 0, nx = gearNext(k), max = g.tiers.length - 1;
+  const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
+            : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
+  const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
+  $("shopTip").innerHTML =
+    `<div class="tipName ${TIER_CLS[t]}">${g.tiers[t]}</div>
+     <div class="tipKind">${g.n}</div>
+     <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
+    (nx === null
+      ? `<div class="tipNote">더 나은 것은 없다</div>`
+      : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
+         <div class="tipStat up">${g.d} <b>${fmt(g.val[nx])}</b></div>
+         <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+           <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`) +
+    `<div class="tipPips">${Array.from({ length: max }, (_, i) =>
+        `<i class="pip${i < t ? " on" : ""}"></i>`).join("")}</div>`;
   $("shopGold").textContent = (META.gold | 0).toLocaleString();
 }
 
-/** 대장간 — **몸을 키운다.** 장비와 축이 다르다: 이쪽은 조금씩 여러 번. */
+let forgePick = "hp";
+
 function drawForge() {
-  /* 지금 몸이 어떤지 **총합으로** 먼저 보인다 — 무엇을 올릴지는 지금 값을 알아야 정한다. */
-  $("forgeBody").innerHTML =
-    `<div class="stats">
-       <span>체력 <b>${hpMaxOf()}</b></span>
-       <span>마나 <b>${mpMaxOf()}</b></span>
-       <span>군세 <b>${armyCap()}</b></span>
-     </div>` +
-    Object.entries(UPS).map(([k, u]) => {
-      const cost = upCost(k), can = META.gold >= cost, lv = META.up[k] | 0;
-      return `<div class="item">
-        <div class="ico up-${k}"><span>${lv}</span></div>
-        <div class="col">
-          <div class="ttl">${u.n}<span class="sub">+${lv}</span></div>
-          <div class="eff">${u.d}</div>
-        </div>
-        <div class="buy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
-          <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>
-      </div>`;
-    }).join("");
+  /* 대장간도 같은 결 — **칸에 놓고 고르면 툴팁**. 다만 파는 물건이 아니라 «몸»이라
+     칸에 그림 대신 **지금 단계**를 적는다. */
+  $("forgeGrid").innerHTML = Object.entries(UPS).map(([k, u]) => {
+    const lv = META.up[k] | 0;
+    return `<div class="cell${k === forgePick ? " sel" : ""}" data-fpick="${k}">
+      <b class="lvl">${lv}</b><span class="cn">${u.n}</span></div>`;
+  }).join("") + '<div class="cell empty"></div>'.repeat(4);
+
+  const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
+  const cost = upCost(k), can = META.gold >= cost;
+  $("forgeTip").innerHTML =
+    `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
+     <div class="tipKind">대장간</div>
+     <div class="tipStat">${u.d}</div>
+     <div class="tipStat up">지금 · 체력 <b>${hpMaxOf()}</b> · 마나 <b>${mpMaxOf()}</b>
+       · 군세 <b>${armyCap()}</b></div>
+     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+       <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
 
@@ -437,6 +454,10 @@ function drawForge() {
 document.addEventListener("click", (e) => {
   const t = e.target;
   if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
+  const pick = t.closest && t.closest("[data-pick]");
+  if (pick) { shopPick = pick.getAttribute("data-pick"); drawShop(); return; }
+  const fpick = t.closest && t.closest("[data-fpick]");
+  if (fpick) { forgePick = fpick.getAttribute("data-fpick"); drawForge(); return; }
   const buy = t.getAttribute && t.getAttribute("data-buy");
   if (buy) {
     const nx = gearNext(buy); if (nx === null) return;

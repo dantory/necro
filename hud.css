@@ -138,54 +138,64 @@
    있어야 「같은 화면의 다른 장면」으로 읽힌다. 못 쓰는 것은 흐리게만 한다. */
 body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 
-/* ══ 창 안의 물건 한 칸 ══ 병수님: "메뉴가 너무 단조로운느낌".
-   **글자만 있는 줄은 표지고, 그림이 붙으면 물건이다.** 상점이 「목록」이 아니라
-   「가게」로 읽히려면 살 것이 눈에 보여야 한다. 한 칸에 넷을 담는다:
-   그림 · 이름과 등급 · 무엇이 얼마나 좋아지는가 · 값과 단추. */
+/* ══════════════════════════════════════════════════════════════
+   디아블로식 좌판 — 병수님: "디아블로 스타일 모르냐고,,"
+   ──────────────────────────────────────────────────────────────
+   앞서 만든 것은 **설정 목록**이었다(이름·설명·단추가 세로로 늘어선 표).
+   디아블로의 상점은 그렇게 생기지 않았다:
+
+     · 물건이 **격자 칸**에 놓여 있다 — 목록이 아니라 **좌판**이다
+     · 고르면 **툴팁**이 선다: 검은 판, 이름 한 줄, 그 아래 능력치 줄들
+     · **이름의 색이 곧 등급**이다(흰 → 파랑 → 노랑 → 금갈 → 초록).
+       D2 를 해 본 사람은 색만 보고 안다 — 이 한 가지가 「디아블로답다」의 절반이다
+   ══════════════════════════════════════════════════════════ */
 .wSub{margin:-4px 0 12px;text-align:center;color:#6b5f4e}
-.item{display:flex;align-items:center;gap:10px;padding:9px 4px;
-  border-bottom:1px solid #241d16}
-.item:last-child{border-bottom:none}
-.item.maxed{opacity:.62}
 
-/* 그림 자리 — 칸의 결은 스킬 칸과 같게(파인 홈). 아직 안 구워졌으면 빈 홈만 보인다. */
-.item .ico{flex:0 0 42px;height:42px;position:relative;
+/* 좌판 — 인벤토리 격자. 빈 칸도 그린다: **빈 칸이 있어야 격자로 읽힌다** */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px}
+.cell{aspect-ratio:1;position:relative;cursor:pointer;
   background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
-  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #4a3a28;
-  background-size:contain;background-repeat:no-repeat;background-position:center;
+  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #4a3a28}
+.cell.empty{cursor:default;background:linear-gradient(#150c08 0 40%,#0e0806 40%);
+  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #2a2016}
+.cell.sel{box-shadow:inset 0 0 8px #000, inset 0 0 0 1px var(--gold), 0 0 8px #c8aa6e44}
+.cell i{position:absolute;inset:4px;background:center/contain no-repeat;
   image-rendering:pixelated}
-.item .ico.gear-wand { background-image:url("assets/ui/gear/wand.png") }
-.item .ico.gear-robe { background-image:url("assets/ui/gear/robe.png") }
-.item .ico.gear-charm{ background-image:url("assets/ui/gear/charm.png") }
-/* 대장간은 물건이 아니라 «몸»이라 그림 대신 **지금 단계**를 큼직하게 적는다 */
-.item .ico[class*="up-"] span{position:absolute;inset:0;display:flex;
-  align-items:center;justify-content:center;font-size:22px;color:var(--gold)}
+.cell i.gear-wand { background-image:url("assets/ui/gear/wand.png") }
+.cell i.gear-robe { background-image:url("assets/ui/gear/robe.png") }
+.cell i.gear-charm{ background-image:url("assets/ui/gear/charm.png") }
+/* 칸 구석의 작은 숫자 = 등급. D2 도 수량·소켓을 구석에 적는다 */
+.cell .q{position:absolute;right:2px;bottom:0}
+.cell .lvl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:20px;color:var(--gold);font-weight:400}
+.cell .cn{position:absolute;left:0;right:0;bottom:1px;text-align:center;color:#6b5f4e}
 
-.item .col{flex:1 1 auto;min-width:0}
-.item .ttl{color:#efe4cd}
-.item .ttl .sub{margin-left:6px;color:#6b5f4e}
-/* ★ 「설명 +값 → +값」을 한 줄에 흘렸더니 좁은 화면에서 **화살표와 다음 값이 갈라졌다.**
-   값 묶음은 통째로 nowrap 으로 묶어, 넘칠 거면 **묶음째** 다음 줄로 내려가게 한다 —
-   줄바꿈은 막을 수 없어도 **어디서 끊길지는 정할 수 있다.** */
-.item .eff{margin-top:3px;color:#9d907a}
-.item .eff .num{white-space:nowrap}
-.item .eff b{color:#c9bda4;font-weight:400}
-.item .eff .up{color:#8ac06a}          /* 좋아지는 쪽은 **한 색으로만** 알린다 */
-
-/* 등급 — 숫자보다 점이 한눈에 들어오고, 빈 칸이 곧 「더 살 수 있다」가 된다 */
-.pips{display:flex;gap:3px;margin-top:4px}
+/* ── 툴팁 ── 검은 판에 글만. **테두리는 얇게** — D2 툴팁은 장식이 없다 */
+.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:9px 11px}
+.tipName{font-size:11px;margin-bottom:1px}
+.tipName .lv{color:#8a7c60}
+.tipKind{color:#6b5f4e;margin-bottom:6px}
+.tipStat{color:#9d907a;margin-top:2px}
+.tipStat b{color:#c9bda4;font-weight:400}
+.tipStat.up{color:#8ac06a}
+.tipStat.up b{color:#8ac06a}
+.tipNext{margin-top:8px;padding-top:7px;border-top:1px solid #241d16}
+.tipNote{margin-top:8px;color:#6b5f4e}
+.tipBuy{margin-top:9px;display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.tipBuy .cost{color:var(--gold)}
+.tipBuy .cost.no{color:#7a4a4a}
+.tipPips{display:flex;gap:3px;margin-top:9px}
 .pip{width:7px;height:7px;background:#241d16;box-shadow:inset 0 0 0 1px #3e3324}
 .pip.on{background:var(--gold);box-shadow:inset 0 0 0 1px #6b5730}
 
-.item .buy{flex:0 0 auto;text-align:right}
-.item .buy .cost{display:block;margin-bottom:4px;color:var(--gold)}
-.item .buy .cost.no{color:#7a4a4a}     /* 모자라면 **값이** 붉어진다(단추가 아니라) */
-.item .buy .max{color:#6b5f4e}
-
-/* 대장간 머리 — 지금 몸이 어떤지 총합으로 먼저 보인다 */
-.stats{display:flex;justify-content:center;gap:16px;margin:0 0 10px;
-  padding-bottom:9px;border-bottom:1px solid #241d16;color:#9d907a}
-.stats b{color:var(--gold);font-weight:400}
+/* ★★ **등급 색이 디아블로의 얼굴이다.** 흰(일반) · 파랑(매직) · 노랑(레어) ·
+   금갈(유니크) · 초록(세트). 화면 톤에서 파랑을 뺐지만 **여기서는 넣는다** —
+   이 색들은 「분위기」가 아니라 **약속**이라, 바꾸면 못 알아본다. */
+.t0{color:#d6d0c4}
+.t1{color:#6a6aff}
+.t2{color:#ffff64}
+.t3{color:#bfa06a}
+.t4{color:#00c000}
 
 .winFoot{margin-top:12px;display:flex;align-items:center;justify-content:space-between}
 .purse{color:#9d907a}
