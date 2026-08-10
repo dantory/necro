@@ -17,13 +17,21 @@ import base64, json, os, re, subprocess, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 MCP  = os.path.join(HERE, "mcp_call.py")
-OUT  = os.path.join(ROOT, "assets", "decal")
+# 받는 곳은 바꿔 낄 수 있게 둔다 — 새로 구운 것은 **스테이징에 받아 놓고**
+# 눈으로 보고 나서 갈아 낀다(파이프라인: 생성 → 스테이징 → 선택 → 적용).
+OUT  = os.path.join(ROOT, "assets", os.environ.get("DECAL_OUT", "decal"))
 
+# ★★ 첫 판이 **입체로 구워졌다.** 확대해 보니 웅덩이가 검은 테를 두른 접시였고
+# 가운데엔 정반사까지 박혀 있었다 — 풀밭에 프라이팬을 얹어 놓은 꼴이다.
+# 얼룩은 물건이 아니라 **땅의 변색**이다. 그러니 테도, 두께도, 하이라이트도 없어야
+# 한다. outline 을 lineless 로 두는 것이 핵심이다(흙길 타일에서 배운 것과 같다).
 BASE = ("grim gothic dark fantasy pixel art, top-down view straight down at the ground, "
         "desaturated earth palette, evenly lit, no vignette, "
         "absolutely no blue, no purple, no violet, no teal, no bright green, "
-        "FLAT on the ground with no height and no object standing up, "
-        "irregular organic outline with soft ragged edges, "
+        "this is only a DISCOLOURATION OF THE GROUND, not an object: "
+        "perfectly flat with zero depth, no rim, no lip, no bowl, no crater, "
+        "no highlight, no specular, no gloss, no cast shadow, no outline at all, "
+        "irregular organic blotch with soft ragged fading edges that dissolve into nothing, "
         "transparent background outside the patch, "
         "ONE patch only, no grid, no tiling, no border, no frame, no text")
 
@@ -42,8 +50,8 @@ OBJ = {
   "mud":    (f"{BASE}, a shallow muddy puddle in packed dirt with a darker wet rim", 112, 96),
 }
 
-COMMON = {"outline": "single color outline", "shading": "detailed shading",
-          "detail": "high detail"}
+# ★ outline **lineless** — 얼룩에 선이 그어지면 그 순간 「물건」이 된다.
+COMMON = {"outline": "lineless", "shading": "medium shading", "detail": "medium detail"}
 
 
 def mcp(tool, args, timeout=300):

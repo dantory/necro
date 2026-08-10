@@ -1,5 +1,5 @@
 import { LOAD } from "./sprite8.js";
-import { addGlow, ART, place } from "./ground.js";
+import { addGlow, ART, place, decorOf } from "./ground.js";
 
 /* ══════════════════════════════════════════════════════════════
    **마을** — 병수님: "마을도 만들어줘, 마을에서 던전으로 진입하는거고,
@@ -23,6 +23,16 @@ const PLACES = [
   ["forge", "forge",  0.62, -0.05, "대장간"],
 ];
 const FIRE = [0.00, 0.30];
+
+/* 건물 **앞에** 걸치는 것들 — [조각, 발에서의 x, y]. 살짝 겹쳐야 겹침이 보인다
+   (완전히 떨어지면 그냥 옆에 놓인 물건이고, 너무 겹치면 입구를 막는다). */
+/* ★ 처음에 원본 크기로 놓았더니 **덤불이 대장간보다 컸다** — 앞에 걸치는 것은
+   눈에 띄면 안 되고 「거기 원래 있던 것」이어야 하므로 크기를 따로 줄인다. */
+const FRONT = {
+  shop:  [["shrub", -66, -2, 0.34], ["rock", 54, 5, 0.30]],
+  forge: [["shrub", 74, -2, 0.32], ["rock", -62, 3, 0.34], ["shrub", -12, 10, 0.26]],
+  gate:  [["shrub", -52, 2, 0.30], ["rock", 46, -1, 0.32]],
+};
 
 /* ★ 울타리를 뺀다 — 병수님: "마을에 테두리같은건 없애라". 경계를 그리면 그것이
    **테두리**가 되고, 화면이 커질 때마다 「여기가 끝」이 보인다. 마을도 던전과 같이
@@ -109,23 +119,21 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   for (const [id, key, rx, ry, name] of PLACES) {
     const im = art[key]; if (!im) continue;
     const gx = wx(rx), gy = wy(ry);
-    /* ★ 건물 발치에 **넓고 옅은 그늘**을 한 겹 더 깐다. place() 의 그림자는 발 너비에
-       맞춘 것이라, 제 바닥판을 달고 있는 건물(상인의 돌판·대장간의 흙판)에서는 판에
-       가려 안 보인다. 판보다 넓게 깔면 판의 가장자리가 어둠에 잠겨 **땅에 눌린 것**
-       으로 읽힌다 — 뜬 느낌의 마지막 10% 가 여기서 온다. */
-    {
-      const f = im._foot || { cx: im.width / 2, bot: im.height, w: im.width };
-      const rw = f.w * ART.s * 0.78, rh = rw * 0.30;
-      const g2 = ctx.createRadialGradient(gx, gy, 0, gx, gy, rw);
-      g2.addColorStop(0, "rgba(0,0,0,0.34)");
-      g2.addColorStop(0.65, "rgba(0,0,0,0.16)");
-      g2.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.save(); ctx.translate(gx, gy); ctx.scale(1, rh / rw); ctx.translate(-gx, -gy);
-      ctx.fillStyle = g2;
-      ctx.beginPath(); ctx.arc(gx, gy, rw, 0, Math.PI * 2); ctx.fill();
-      ctx.restore();
-    }
+    /* ★ 여기 있던 **넓고 옅은 그늘**은 걷어냈다. 그건 스프라이트가 제 바닥판을
+       달고 있을 때 판 가장자리를 어둠에 잠그려던 임시 처방이었는데, 이제 판 자체를
+       잘라냈고(tools/cut_plate.py) place() 의 그림자가 **실루엣을 따라** 흐른다.
+       덧칠할 이유가 사라졌다 — 원인을 없앴으면 처방도 걷는다. */
     place(ctx, im, gx, gy);
+    /* ★★★ **아무것도 건물을 가리지 않는 것** — 이게 마지막으로 남은 「붙여 놓은 티」다.
+       소품은 전부 바닥과 함께(drawGround) 먼저 그리므로 언제나 건물 **뒤**에 선다.
+       그래서 건물의 아랫변이 늘 한 줄로 깨끗하게 잘려 보인다. 실제 풍경에서는 발치에
+       뭔가가 **걸쳐** 있다 — 자란 풀, 굴러온 돌, 쌓아 둔 것. 그 겹침 하나가
+       「같은 공간에 있다」를 만든다. 그래서 건물마다 두엇을 **앞에** 덧놓는다. */
+    for (const [dn, ox, oy, dk] of FRONT[id] || []) {
+      const dim = decorOf(dn); if (!dim) continue;
+      place(ctx, dim, gx + Math.round(ox * sc),
+            gy + Math.round(oy * sc * squash), true, dk);
+    }
     // 대장간 화덕과 입구 등불은 **제 둘레를 밝힌다**
     /* ★ 대장간 그림을 **바깥에서 본 건물**로 바꾸면서(예전 것은 벽이 잘린 실내라
        마을 한복판에 방이 하나 떠 있는 꼴이었다) 불이 있는 자리가 오른쪽으로 옮겨갔다.

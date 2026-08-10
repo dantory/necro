@@ -259,6 +259,40 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
 
 /* ══ 바닥 얼룩 ══ 타일 위에 **평평하게** 얹는다(서 있는 물건이 아니므로 그림자도
    접지도 없다). 자리는 소품과 같은 규칙 — 좌표로 정해서 늘 같고, 끝이 없다. */
+/** 가장자리 `n` 겹의 알파를 안쪽으로 갈수록 되살린다 — **끝이 없는 얼룩**을 만든다.
+ *  경계에 붙은 픽셀부터 층을 세어 들어가고(투명 이웃이 있으면 1층), 층 수에 비례해
+ *  알파를 남긴다. 외곽선처럼 경계에 딱 붙은 것은 거의 지워진다. */
+function feather(g, cv, n) {
+  const img = g.getImageData(0, 0, cv.width, cv.height);
+  const a = img.data, W = cv.width, H = cv.height;
+  const lay = new Int16Array(W * H).fill(-1);
+  let cur = [];
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    if (a[i * 4 + 3] === 0) continue;
+    const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1 ||
+      a[(i - 1) * 4 + 3] === 0 || a[(i + 1) * 4 + 3] === 0 ||
+      a[(i - W) * 4 + 3] === 0 || a[(i + W) * 4 + 3] === 0;
+    if (edge) { lay[i] = 1; cur.push(i); }
+  }
+  for (let k = 2; k <= n && cur.length; k++) {
+    const nxt = [];
+    for (const i of cur) {
+      for (const j of [i - 1, i + 1, i - W, i + W]) {
+        if (j < 0 || j >= W * H || lay[j] !== -1 || a[j * 4 + 3] === 0) continue;
+        lay[j] = k; nxt.push(j);
+      }
+    }
+    cur = nxt;
+  }
+  for (let i = 0; i < W * H; i++) {
+    if (a[i * 4 + 3] === 0) continue;
+    const k = lay[i] === -1 ? n : lay[i];
+    a[i * 4 + 3] = Math.round(a[i * 4 + 3] * (k / n) * (k / n));
+  }
+  g.putImageData(img, 0, 0);
+}
+
 const DECAL = { crypt: ["dust", "crack", "stain", "pebble"],
                 town:  ["path", "grass", "mud", "pebble"] };
 const decalArt = {};
@@ -278,6 +312,11 @@ export function loadDecals(dir = "assets/decal") {
          색이 아니라 **모양**이고, 색은 바닥이 정해야 한다. */
       g.filter = "grayscale(1) sepia(0.45) saturate(1.1) brightness(0.5)";
       g.drawImage(im, 0, 0);
+      /* ★★ 병수님: "여전히 떠있어 보이는데". 건물만의 문제가 아니었다 —
+         확대해 보니 얼룩이 **검은 외곽선을 두른 접시**였다(PixelLab 이 「웅덩이」를
+         입체로 그렸다). 바닥에 스민 자국은 **끝이 있으면 안 된다.** 가장자리
+         몇 겹의 알파를 깎아 땅으로 흘려보낸다 — 외곽선도 여기서 같이 녹는다. */
+      feather(g, c, 7);
       decalArt[n] = c; LOAD.done++;
     };
     im.onerror = () => { LOAD.done++; };
@@ -367,6 +406,8 @@ const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed"
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
+/** 조각 한 장을 이름으로 꺼낸다 — 건물 **앞에** 덧놓을 때 쓴다(js/town.js). */
+export const decorOf = (n) => decor[n];
 let decorLeft = DECOR.length, decorReady = false;
 
 /* ★ **표식은 눈에 띄어야 표식이다.** 야영지의 색보정(sepia .42 / brightness .72)은
@@ -472,22 +513,89 @@ export function footOf(cv) {
    그나마 규칙적이다). */
 export const ART = { s: 0.75 };
 
-export function place(ctx, cv, gx, gy, shadow = true) {
+/** **실루엣을 따라 흐르는** 접지 그림자를 한 번 구워 둔다.
+ *
+ *  ★★★ 병수님: "여전히 떠있어 보이는데". 타원 하나로는 안 된다 —
+ *  타원은 **발이 어디에 닿는지**를 모른다. 상인은 네 기둥으로, 대장간은 벽 한 줄과
+ *  앞에 놓인 통들로 땅에 닿는데, 그 전부를 한 덩이 타원으로 뭉개면 그림자가 물건과
+ *  따로 논다. 게다가 스프라이트가 판을 달고 있던 동안에는 그 타원이 **판 밑에 깔려
+ *  한 번도 보이지 않았다** — 그리고 있었지만 없는 것과 같았다.
+ *
+ *  **열마다 맨 아래 픽셀이 그 열의 접지점이다.** 그 점마다 작고 납작한 얼룩을 찍어
+ *  합치면 그림자가 실루엣을 따라 흐른다 — 기둥 밑은 갈라지고, 벽 밑은 이어진다.
+ *  두 겹으로 찍는다: 넓고 옅은 것(주변광이 막힌 그늘)과 좁고 짙은 것(닿은 자리). */
+function shadowOf(cv) {
+  if (cv._shad) return cv._shad;
+  const g0 = cv.getContext("2d");
+  const d = g0.getImageData(0, 0, cv.width, cv.height).data;
+  const PAD = 12;
+  const sh = document.createElement("canvas");
+  sh.width = cv.width + PAD * 2; sh.height = cv.height + PAD * 2;
+  const g = sh.getContext("2d");
+
+  const pts = [];
+  for (let x = 0; x < cv.width; x++) {
+    for (let y = cv.height - 1; y >= 0; y--) {
+      if (d[(y * cv.width + x) * 4 + 3] > 24) { pts.push([x, y]); break; }
+    }
+  }
+  const base = pts.length ? Math.max(...pts.map(p => p[1])) : cv.height;
+  for (const [ax, ay, aa] of [[9, 3.2, 0.16], [4.5, 1.7, 0.30]]) {
+    g.fillStyle = `rgba(0,0,0,${aa})`;
+    for (const [x, y] of pts) {
+      /* 발보다 **한참 위**에 있는 열은 공중이다(처마·굴뚝) — 그림자를 안 만든다. */
+      if (base - y > cv.height * 0.28) continue;
+      g.beginPath();
+      g.ellipse(x + PAD, y + PAD, ax, ay, 0, 0, 6.284);
+      g.fill();
+    }
+  }
+  cv._shad = { cv: sh, pad: PAD };
+  return cv._shad;
+}
+
+/** 물건의 **검은 실루엣** 한 장. 이걸 눕히고 기울여 던지면 드리운 그림자가 된다. */
+function siloOf(cv) {
+  if (cv._silo) return cv._silo;
+  const s = document.createElement("canvas");
+  s.width = cv.width; s.height = cv.height;
+  const g = s.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(cv, 0, 0);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, s.width, s.height);
+  cv._silo = s;
+  return s;
+}
+
+/* 드리운 그림자 — **빛은 왼쪽 위에서 온다**(모든 스프라이트의 명암이 그렇게 그려져
+   있다). 그러니 그림자는 오른쪽 아래로 눕는다. 기울기와 납작함은 해가 낮게 걸린
+   저녁의 값이다 — 너무 짧으면 발에 눌어붙고, 너무 길면 물건이 누워 보인다. */
+const CAST_SKEW = 0.62, CAST_FLAT = 0.44, CAST_A = 0.30;
+
+/** @param kMul 이 한 번만 크기를 줄이고 싶을 때(건물 앞에 걸치는 풀·돌 따위).
+ *  공통 배율 ART.s 를 건드리면 화면의 모든 것이 같이 움직인다. */
+export function place(ctx, cv, gx, gy, shadow = true, kMul = 1) {
   const f = footOf(cv);
-  const k = ART.s;
+  const k = ART.s * kMul;
   const w = Math.round(cv.width * k), h = Math.round(cv.height * k);
   const px = Math.round(gx - f.cx * k), py = Math.round(gy - f.bot * k);
   if (shadow) {
+    /* ① **드리운 그림자** — 실루엣을 눕혀 오른쪽 아래로 던진다. 이게 있어야
+       「무엇이 서 있다」가 되고, 없으면 아무리 발밑을 어둡게 해도 스티커다. */
     ctx.save();
-    ctx.fillStyle = "rgba(0,0,0,.42)";
-    ctx.beginPath();
-    /* ★ 그림자를 발 폭에 **비례**로만 그렸더니 건물(176px)에 반경 74 짜리 먹구름이
-       깔렸다. 큰 것일수록 비율을 줄인다 — 큰 물건은 바닥에 닿는 면이 폭만큼 넓지 않다. */
-    const sk = f.w > 96 ? 0.26 : f.w > 56 ? 0.34 : 0.42;
-    ctx.ellipse(Math.round(gx), Math.round(gy) - 1,
-                f.w * sk * k, f.w * sk * k * 0.36, 0, 0, 6.284);
-    ctx.fill();
+    ctx.globalAlpha = CAST_A;
+    ctx.transform(1, 0, -CAST_SKEW, CAST_FLAT, gx, gy);
+    ctx.drawImage(siloOf(cv), 0, 0, cv.width, cv.height,
+                  -f.cx * k, -f.bot * k, w, h);
     ctx.restore();
+    /* ② **발밑 그늘** — 드리운 그림자는 물건에서 떨어져 나가므로, 닿은 자리
+       자체는 따로 눌러 준다(주변광이 막힌 틈). 실루엣을 따라 흐른다. */
+    const s = shadowOf(cv);
+    ctx.drawImage(s.cv, 0, 0, cv._shad.cv.width, cv._shad.cv.height,
+                  px - Math.round(cv._shad.pad * k), py - Math.round(cv._shad.pad * k),
+                  Math.round(cv._shad.cv.width * k), Math.round(cv._shad.cv.height * k));
   }
   ctx.drawImage(cv, 0, 0, cv.width, cv.height, px, py, w, h);
 }
