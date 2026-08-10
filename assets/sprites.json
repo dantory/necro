@@ -1,0 +1,38 @@
+{
+ "char/necro": {
+  "attack": 6,
+  "walk": 6
+ },
+ "minion/ghoul": {
+  "attack": 7,
+  "walk": 7
+ },
+ "minion/golem": {
+  "attack": 5,
+  "walk": 7
+ },
+ "minion/skel": {
+  "attack": 7,
+  "walk": 7
+ },
+ "mob/boss": {
+  "attack": 6,
+  "walk": 6
+ },
+ "mob/brute": {
+  "attack": 6,
+  "walk": 6
+ },
+ "mob/fallen": {
+  "attack": 6,
+  "walk": 6
+ },
+ "mob/skelarch": {
+  "attack": 7,
+  "walk": 6
+ },
+ "mob/zombie": {
+  "attack": 6,
+  "walk": 6
+ }
+}

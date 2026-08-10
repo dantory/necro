@@ -26,6 +26,29 @@ export function dirName(dx, dy) {
 const CACHE = {};
 export const MAX_FRAMES = 10;
 
+/* ══ 목록 ══ **몇 장인지는 구운 쪽이 안다.**
+   전에는 브라우저가 0,1,2… 로 두드려 보고 404 가 나면 거기가 끝인 줄 알았다.
+   종마다 프레임 수가 달라서(해골 7 · 골렘 공격 5) 코드에 박을 수도 없었기 때문인데,
+   그 대가로 판을 한 번 열 때 **404 가 수백 번** 났다. 이제 `assets/sprites.json`
+   에 적어 두고 그대로 부른다 — 없는 파일은 아예 안 부른다.
+   ★ 에셋을 새로 구우면 `python3 tools/make_manifest.py` 를 다시 돌려야 한다.
+   목록이 없거나 못 받으면 **옛 방식(두드려 보기)으로 되돌아간다** — 목록 하나 때문에
+   그림이 통째로 안 나오면 안 된다. */
+let SHEET = null;
+export async function loadManifest(url = "assets/sprites.json") {
+  try {
+    const r = await fetch(url, { cache: "no-cache" });
+    if (r.ok) SHEET = await r.json();
+  } catch (e) { SHEET = null; }
+  return !!SHEET;
+}
+/** 목록이 아는 프레임 수. 모르면 -1(=두드려 보라). */
+function listed(base, state, dir) {
+  const e = SHEET && SHEET[base] && SHEET[base][state];
+  if (e === undefined || e === null) return -1;
+  return typeof e === "number" ? e : (e[dir] ?? -1);
+}
+
 /** 다음 프레임을 **앞 장이 왔을 때만** 이어 부른다.
  *  없는 것을 미리 다 두드리면 404 만 쌓이고 로딩이 길어진다. */
 function chain(base, state, dir, f) {
@@ -47,6 +70,8 @@ const COUNT = {};
 export function frameCount(base, state, dir = "south") {
   const k = `${base}/${state}`;
   if (COUNT[k]) return COUNT[k];
+  const l = listed(base, state, dir);          // 목록이 알면 세지 않는다
+  if (l > 0) { COUNT[k] = l; return l; }
   let n = 0;
   while (n < MAX_FRAMES && CACHE[`assets/${base}/${state}/${dir}/${n}.png`]) n++;
   if (n > 0) COUNT[k] = n;
@@ -151,12 +176,15 @@ export function preload(bases) {
          요청하게 된다(404 가 그만큼 나고 로딩이 그만큼 느려진다).
          그래서 **여섯 장은 그냥 부르고, 그다음은 앞 장이 실제로 왔을 때만 이어 부른다** —
          있는 데까지만 두드린다. */
-      for (let f = 0; f < 6; f++) {
-        img(`assets/${base}/walk/${d}/${f}.png`);
-        img(`assets/${base}/attack/${d}/${f}.png`);
+      for (const st of ["walk", "attack"]) {
+        const n = listed(base, st, d);
+        if (n >= 0) {                                   // 목록이 안다 — 있는 만큼만 부른다
+          for (let f = 0; f < n; f++) img(`assets/${base}/${st}/${d}/${f}.png`);
+        } else {                                        // 목록에 없는 종 — 옛 방식
+          for (let f = 0; f < 6; f++) img(`assets/${base}/${st}/${d}/${f}.png`);
+          chain(base, st, d, 6);
+        }
       }
-      chain(base, "walk", d, 6);
-      chain(base, "attack", d, 6);
     }
   }
 }

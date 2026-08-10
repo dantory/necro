@@ -80,6 +80,26 @@ if (MODE === "foot") { const g = ev.result.value.geo; clip = { x: g.cx - 58, y: 
 const shot = await S("Page.captureScreenshot", clip ? { format: "png", clip } : { format: "png" });
 fs.writeFileSync(OUT, Buffer.from(shot.data, "base64"));
 
-console.log(JSON.stringify({ mode: MODE, errors, netfail, measure: ev.result.value }, null, 2));
+/* ══ 목록이 낡았나 ══ `assets/sprites.json` 은 손으로 다시 만들어야 하는 파일이라
+   **에셋을 갈아 끼우고 잊으면 조용히 어긋난다** — 프레임이 늘었는데 안 불러오거나,
+   줄었는데 404 가 다시 난다. 화면으로는 「좀 뻣뻣하네」 정도로만 보여서 못 잡는다.
+   그래서 잴 때마다 디스크와 맞춰 본다. 어긋나면 `python3 tools/make_manifest.py`. */
+const DIRS8 = ["east","south-east","south","south-west","west","north-west","north","north-east"];
+const stale = [];
+try {
+  // ★ 이 파일 맨 위에서 URL 을 상수로 덮어써서 new URL() 이 안 된다 — dirname 을 쓴다
+  const root = import.meta.dirname + "/../";
+  const sheet = JSON.parse(fs.readFileSync(root + "assets/sprites.json", "utf8"));
+  for (const [base, states] of Object.entries(sheet))
+    for (const [state, c] of Object.entries(states))
+      for (const d of DIRS8) {
+        const want = typeof c === "number" ? c : (c[d] ?? 0);
+        let n = 0;
+        while (fs.existsSync(`${root}assets/${base}/${state}/${d}/${n}.png`)) n++;
+        if (n !== want) stale.push(`${base}/${state}/${d}: 목록 ${want} · 디스크 ${n}`);
+      }
+} catch (e) { stale.push("목록을 못 읽음 — " + e.message); }
+
+console.log(JSON.stringify({ mode: MODE, errors, netfail, manifestStale: stale, measure: ev.result.value }, null, 2));
 await raw("Target.closeTarget", { targetId });
 bws.close();
