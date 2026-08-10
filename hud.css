@@ -394,37 +394,54 @@ body.in-town #stage{cursor:pointer}
 /* 줄기를 잇는 선 — **무엇이 무엇을 여는지**가 이 선 하나로 읽힌다.
    ★ 처음엔 #3a3226 한 색이었는데 배경에 묻혀 **아예 안 보였다**. 선은 굵기가 아니라
    대비가 있어야 선이다. 그리고 선행을 찍으면 **불이 들어온다** — 뚫린 길이 보인다. */
-.tLink{height:11px;margin:0 auto;width:4px;background:#4a4030;
-  box-shadow:0 0 0 1px #16100a}
-.tLink.lit{background:var(--gold);box-shadow:0 0 0 1px #16100a, 0 0 6px #c8aa6e66}
+/* ══ 잇는 화살표 ══ 디아블로 2 는 칸과 칸을 **화살표**로 잇는다 — 선만 있으면
+   「붙어 있다」이지만 화살표는 「이쪽이 저쪽을 연다」를 말한다.
+   선행을 찍으면 불이 들어온다. */
+.tLink{position:relative;height:14px;margin:0 auto;width:3px;background:#4a4030}
+.tLink::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-top:6px solid #4a4030}
+.tLink.lit{background:var(--br, #c8aa6e)}
+.tLink.lit::after{border-top-color:var(--br, #c8aa6e)}
 
-.tNode{position:relative;padding:9px 7px 8px;cursor:pointer;text-align:center;
-  background:linear-gradient(#1a120c,#120b07);
-  box-shadow:inset 0 0 0 1px #2c2419, inset 0 0 10px #000}
-/* ★ 「구울 되살리 / 기」 — 한글이 낱말 가운데서 끊겼다. 낱말째로 넘긴다. */
-.tNode .tn{display:block;font-size:14px;line-height:1.3;color:#6b5f4e;word-break:keep-all}
-/* 랭크는 점으로. 읽는 게 아니라 보는 것이라 **글자보다 크고 성글게** 둔다. */
-.tNode .tp{display:block;margin-top:5px;font-size:11px;letter-spacing:3px;color:#4a4133}
-.tNode .tp.one{font-size:11px;letter-spacing:1px;color:#4a4133}
+/* ══ 칸 ══ **네모난 아이콘 단추.** 저쪽 트리에서 칸은 글자 상자가 아니라 단추다.
+   벽감처럼 파인 테(assets/ui/slot.png — 벨트 칸과 같은 돌)를 두르고 그 안에 그림을
+   앉힌다. 이름은 단추 밑에 작게 — 한글을 아예 빼면 처음 여는 사람이 못 읽는다. */
+/* 붙어 있는 머리글 밑으로 끌려 들어가지 않게 — scrollIntoView 는 머리글을 모른다 */
+.tNode{scroll-margin-top:38px;scroll-margin-bottom:6px;
+  position:relative;padding:0 2px 2px;cursor:pointer;text-align:center;
+  background:none;box-shadow:none}
+.tTile{position:relative;display:block;width:52px;height:52px;margin:0 auto 3px;
+  box-sizing:border-box;
+  background:linear-gradient(#1c150e,#0d0906);
+  border-style:solid;border-width:9px;border-color:transparent;
+  border-image:url("assets/ui/slot.png") 34 fill / 9px / 0 stretch;
+  image-rendering:pixelated}
+.tIco{position:absolute;inset:0;margin:auto;width:34px;height:34px;
+  image-rendering:pixelated;pointer-events:none;
+  opacity:.34;filter:grayscale(1) brightness(.75)}
+/* 랭크는 **모서리의 숫자**다(디아블로 2 그대로). 점 열다섯 줄보다 조용하고 정확하다. */
+.tRank{position:absolute;right:-4px;bottom:-5px;font-weight:400;font-size:13px;
+  min-width:15px;padding:0 2px;line-height:15px;
+  color:#ffe6a8;background:#1a1208;box-shadow:inset 0 0 0 1px #6b5423}
+/* 레벨이 모자란 칸은 그 자리에 필요한 레벨을 건다 */
+.tGate{position:absolute;left:50%;bottom:-6px;transform:translateX(-50%);
+  font-style:normal;font-size:10px;line-height:13px;padding:0 3px;white-space:nowrap;
+  color:#9a7c3c;background:#160f08;box-shadow:inset 0 0 0 1px #3d3116}
 
-/* 상태 셋 — **색으로 갈린다.** 아직 못 찍는 것 · 찍을 수 있는 것 · 찍은 것 */
-/* ★ 「찍을 수 있음」이 「아직」과 너무 닮아 있었다 — 지금 무엇을 누를 수 있는지가
-   창을 연 첫 순간에 보여야 한다. 테를 밝히고 바탕을 한 단 올린다. */
-.tNode.open{background:linear-gradient(#221a12,#150e09);
-  box-shadow:inset 0 0 0 1px #9a834f, inset 0 0 10px #000}
-.tNode.open .tn{color:#c3ae86}
-.tNode.open .tp{color:#7d6c4d}
-.tNode.some{background:linear-gradient(#241a10,#170f09);
-  box-shadow:inset 0 0 0 1px var(--gold), inset 0 0 10px #000}
-.tNode.some .tn{color:#c8aa6e}
-.tNode.some .tp{color:#c8aa6e}
-.tNode.full{background:linear-gradient(#2a2010,#1a1209);
-  box-shadow:inset 0 0 0 1px #e0c07a, inset 0 0 12px #000, 0 0 8px #c8aa6e33}
-.tNode.full .tn,.tNode.full .tp{color:#ffe6a8}
-/* **줄기의 끝**은 크게. 마지막 한 칸이 그 줄기를 고른 이유가 되어야 한다 */
-.tNode.big .tn{font-size:15px}
-.tNode.big{padding-top:12px;padding-bottom:11px}
-.tNode.sel{outline:2px solid #c8aa6e;outline-offset:2px}
+.tNode .tn{display:block;font-size:12px;line-height:1.25;color:#6b5f4e;word-break:keep-all}
+
+/* 상태 셋 — **밝기로 갈린다**(저쪽도 못 쓰는 스킬은 어둡게 눌러 둔다) */
+.tNode.open  .tIco{opacity:.95;filter:none}
+.tNode.some  .tIco,.tNode.full .tIco{opacity:1;filter:none}
+.tNode.open  .tn{color:#c3ae86}
+.tNode.open  .tTile{box-shadow:0 0 9px #c8aa6e33}
+.tNode.some  .tn{color:#c8aa6e}
+.tNode.full  .tn{color:#ffe6a8}
+.tNode.full  .tTile{box-shadow:0 0 10px #e0c07a44}
+.tNode.big .tTile{width:60px;height:60px}
+.tNode.big .tIco{width:40px;height:40px}
+.tNode.sel .tTile{outline:2px solid #e0c07a;outline-offset:1px}
 
 /* ══ 줄기마다 제 빛깔 ══ 세 칸이 다 금색이면 **어느 줄기를 파고 있는지**가 색으로는
    안 읽히고 위치로만 읽힌다. 굴리면 그 위치마저 사라진다.
@@ -436,15 +453,11 @@ body.in-town #stage{cursor:pointer}
 /* ★ 여기서 `opacity:.72` 를 걸었더니 **배경까지 반투명**이 되어, 붙어 있는 머리글
    뒤로 굴러가는 아이콘이 비쳤다. 흐리게 하고 싶은 건 글자뿐이니 색으로 낮춘다. */
 .tCol h3{color:color-mix(in srgb, var(--br) 70%, #4a4133)}
-.tCol .tNode.some{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 10px #000}
-.tCol .tNode.some .tn,.tCol .tNode.some .tp{color:var(--br)}
-.tCol .tNode.full{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 12px #000, 0 0 9px color-mix(in srgb, var(--br) 34%, transparent)}
-.tCol .tNode.full .tn,.tCol .tNode.full .tp{color:var(--br)}
-.tCol .tLink.lit{background:var(--br);box-shadow:0 0 0 1px #16100a, 0 0 6px color-mix(in srgb, var(--br) 45%, transparent)}
+.tCol .tNode.some .tn{color:var(--br)}
+.tCol .tNode.full .tn{color:var(--br)}
+
 
 /* 레벨이 모자란 칸은 점 대신 **필요한 레벨**을 적는다(랭크가 늘 0 이라 점은 빈 정보) */
-.tNode .tp.need{color:#9a7c3c;letter-spacing:0;font-size:11px}
-.tNode.open .tp.need{color:#c9a24a}
 
 /* ══ 칸의 그림 ══ 병수님: "픽셀랩 에셋좀 활용해서 더 이쁘게 못만드니?"
    ★ 한 번 붙였다 뺀 자리다. 그때 문제는 **그림이 아니라 자리**였다 — 넷에만 붙이니
@@ -520,13 +533,14 @@ body.in-town #stage{cursor:pointer}
   .wSub{margin:-4px 0 8px;font-size:13px}
   #treeCols{gap:7px}
   .tCol h3{font-size:12px;letter-spacing:2px}
-  .tNode{padding:6px 4px 6px}
-  .tNode .tn{font-size:13px}
-  .tNode.big .tn{font-size:14px}
-  /* 폰에선 그림을 조금 줄인다 — 34 로 두면 한 줄에 12px 씩, 다섯 줄이면 60px 다 */
-  .tIco{width:28px;height:28px;margin-bottom:3px}
-  .tNode.big .tIco{width:32px;height:32px}
-  .tLink{height:8px}
+  .tNode .tn{font-size:11px}
+  .tNode.big .tn{font-size:12px}
+  /* 폰에선 단추를 한 치수 줄인다 — 다섯 줄이면 그만큼이 통째로 남는다 */
+  .tTile{width:46px;height:46px}
+  .tIco{width:30px;height:30px}
+  .tNode.big .tTile{width:52px;height:52px}
+  .tNode.big .tIco{width:34px;height:34px}
+  .tLink{height:11px}
   .tip{padding:9px 11px;max-height:38vh;overflow-y:auto}
   .tip .tipName{font-size:17px}
   .tip .tipStat{font-size:14px}

@@ -26,27 +26,21 @@ export function drawTree() {
       /* 잇는 선은 **선행을 찍었을 때 불이 들어온다** — 어디까지 길이 뚫렸는지가
          글자를 읽지 않아도 보인다. */
       const lit = i && rank(col.nodes[i - 1].id) > 0 ? " lit" : "";
-      /* 랭크는 **점으로** 보인다. 「3/5」는 읽어야 알지만 ●●●○○ 는 보면 안다 —
-         칸이 열다섯이라 하나하나 읽게 하면 판 전체가 표가 된다.
-         한 칸짜리(끝 노드)는 점 하나 대신 열렸는지를 말로 적는다. */
-      /* 레벨이 모자란 칸은 랭크가 언제나 0 이라 **점을 찍어 봐야 다 빈 동그라미**다.
-         그 자리에 「Lv.18」을 대신 적는다 — 없는 정보를 지우고 필요한 정보를 넣는다.
-         (처음엔 배지를 칸 모서리에 얹었는데 이름을 덮었다: 「영혼 흡 |Lv.13|」) */
-      const pips = META.lv < nd.lv
-        ? `<span class="tp need">Lv.${nd.lv} 필요</span>`
-        : nd.max > 1
-        ? `<span class="tp">${"●".repeat(r)}${"○".repeat(nd.max - r)}</span>`
-        : `<span class="tp one">${r ? "열림" : "잠김"}</span>`;
-      /* 그림은 **열다섯 칸 전부**가 가진다(assets/ui/tree/<id>.png).
-         전에 넷에만 붙였다가 그 칸만 키가 커져 줄이 어긋났다 — 모두가 가지면
-         줄은 저절로 맞는다. 한 장이 없어도 자리는 남긴다(visibility). */
+      /* ══ 디아블로 2 의 그 칸 ══ 병수님: "디2 스타일로".
+         저쪽 트리는 **네모난 아이콘 단추**가 전부다. 이름은 칸에 없고(뜰 때만 나온다),
+         칸에는 그림과 **모서리의 랭크 숫자**만 있다. 그리고 칸과 칸은 **화살표**로 잇는다.
+         우리는 한글 이름을 아예 빼면 처음 여는 사람이 못 읽으니 작게 밑에 붙인다. */
+      const rankBadge = r > 0 ? `<b class="tRank">${r}</b>` : "";
+      const gate = META.lv < nd.lv ? `<i class="tGate">Lv.${nd.lv}</i>` : "";
       return `${i ? `<div class="tLink${lit}"></div>` : ""}
         <div class="tNode ${cls}${nd.id === pick ? " sel" : ""}${nd.big ? " big" : ""}"
              data-tn="${nd.id}">
-          <img class="tIco" src="assets/ui/tree/${nd.id}.png" alt=""
-               onerror="this.style.visibility='hidden'">
+          <span class="tTile">
+            <img class="tIco" src="assets/ui/tree/${nd.id}.png" alt=""
+                 onerror="this.style.visibility='hidden'">
+            ${rankBadge}${gate}
+          </span>
           <span class="tn">${nd.n}</span>
-          ${pips}
         </div>`;
     }).join("");
     return `<div class="tCol" data-k="${col.k}"><h3>${col.n}</h3>${cells}</div>`;
