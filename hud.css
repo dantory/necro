@@ -370,7 +370,11 @@ body.in-town #stage{cursor:pointer}
 #treeWrap.atEnd::after{opacity:0}
 
 #treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
-  height:100%;overflow-y:auto;align-content:start;padding-bottom:4px}
+  height:100%;overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:4px;
+  scrollbar-width:thin;scrollbar-color:#4a4030 transparent}
+#treeCols::-webkit-scrollbar{width:6px}
+#treeCols::-webkit-scrollbar-thumb{background:#4a4030}
+#treeCols::-webkit-scrollbar-track{background:transparent}
 .tCol{display:flex;flex-direction:column;align-items:stretch}
 /* 머리글은 **붙어 있다** — 굴리는 중에 어느 줄기인지 놓치면 세 칸이 다 같아 보인다 */
 .tCol h3{position:sticky;top:0;z-index:2;margin:0 0 9px;padding:3px 0 5px;
@@ -411,6 +415,28 @@ body.in-town #stage{cursor:pointer}
 .tNode.big .tn{font-size:15px}
 .tNode.big{padding-top:12px;padding-bottom:11px}
 .tNode.sel{outline:2px solid #c8aa6e;outline-offset:2px}
+
+/* ══ 줄기마다 제 빛깔 ══ 세 칸이 다 금색이면 **어느 줄기를 파고 있는지**가 색으로는
+   안 읽히고 위치로만 읽힌다. 굴리면 그 위치마저 사라진다.
+     군세 = 뼈(흰빛) · 시체 = 썩은 풀(녹) · 주술 = 어둠(보라)
+   찍은 칸에만 물들인다 — 안 찍은 칸까지 물들이면 판이 알록달록해져 되레 안 읽힌다. */
+.tCol[data-k="army"]  { --br:#e6dcc4 }
+.tCol[data-k="corpse"]{ --br:#8fbe72 }
+.tCol[data-k="hex"]   { --br:#b98ae0 }
+.tCol h3{color:var(--br);opacity:.72}
+.tCol .tNode.some{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 10px #000}
+.tCol .tNode.some .tn,.tCol .tNode.some .tp{color:var(--br)}
+.tCol .tNode.full{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 12px #000, 0 0 9px color-mix(in srgb, var(--br) 34%, transparent)}
+.tCol .tNode.full .tn,.tCol .tNode.full .tp{color:var(--br)}
+.tCol .tLink.lit{background:var(--br);box-shadow:0 0 0 1px #16100a, 0 0 6px color-mix(in srgb, var(--br) 45%, transparent)}
+
+/* 레벨이 모자란 칸은 점 대신 **필요한 레벨**을 적는다(랭크가 늘 0 이라 점은 빈 정보) */
+.tNode .tp.need{color:#9a7c3c;letter-spacing:0;font-size:11px}
+.tNode.open .tp.need{color:#c9a24a}
+
+/* ★ 끝 칸에 스킬 아이콘을 넣어 봤다가 **뺐다.** 이름 위에 얹으니 그 칸만 키가 커져
+   줄이 어긋났고, 바탕에 깔았더니 글자 뒤에서 얼룩처럼 비쳐 되레 시끄러웠다.
+   줄기 색이 이미 「어느 갈래인가」를 말하고 있어서 그림은 더할 게 없었다. */
 
 /* ══ 설명 ══ 세 줄이 **서로 다른 일**을 한다: 무엇인가 · 조건 · 효과.
    전에는 셋이 같은 크기라 눈이 어디부터 볼지 몰랐다. */

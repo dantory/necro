@@ -453,7 +453,7 @@ function hud() {
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
   const left = S.mobs.length;
-  $("hLeft").textContent = left ? `남은 적 ${left}` : "정리 중";
+  $("hLeft").textContent = left ? `남은 적 ${left}` : "다음 층 준비 중";
   }
   $("hLv").firstChild.nodeValue = "Lv." + META.lv;
   markSp();
@@ -553,7 +553,7 @@ function drawShop() {
      <div class="tipKind">${g.n}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
     (nx === null
-      ? `<div class="tipNote">더 나은 것은 없다</div>`
+      ? `<div class="tipNote">최고 등급 · 더 살 것 없음</div>`
       : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
          <div class="tipStat up">${g.d} <b>${fmt(g.val[nx])}</b></div>
          <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>

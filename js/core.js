@@ -23,13 +23,13 @@ export const $ = (id) => document.getElementById(id);
    즉 강해지지도 약해지지도 않고 **손맛만 무거워진다.** */
 export const MINIONS = {
   skel:  { n:"해골 전사", ico:"☠", cost:1, hp:26,  dmg:12, spd:34, cd:1.5, h:52,
-           d:"싸고 빠름 · 수로 민다" },
+           d:"가장 싸고 빠름 · 머릿수로 미는 병력" },
   /* ↓ 접어 둔 둘. 소환 스킬에서 빠져 있어 지금은 판에 안 나온다(위 SKILLS 주석).
      해골이 만족스러워지면 같은 방식으로 다시 구워 되살린다. */
   ghoul: { n:"구울",     ico:"✦", cost:2, hp:64,  dmg:26, spd:30, cd:1.8, h:58,
-           d:"물면 제 피가 찬다" },
+           d:"물어뜯을 때마다 피해량의 35% 회복" },
   golem: { n:"흙 골렘",   ico:"◆", cost:5, hp:260, dmg:36, spd:19, cd:2.4, h:84,
-           d:"느리지만 앞을 막는다" },
+           d:"느린 대신 두꺼움 · 앞을 막는 벽" },
 };
 export const MINION_IDS = Object.keys(MINIONS);
 
@@ -82,11 +82,11 @@ export const SQUASH_VIEW = 0.78;
    **찍은 것만**이다(syncSkills). 배열을 바꿔 끼우지 않고 **속을 갈아 끼운다** —
    여기저기서 `SKILLS` 를 import 해 두었으므로 참조가 살아 있어야 한다. */
 const ALL_SKILLS = [
-  { id:"raise", n:"해골 되살리기", ico:"☠", mp:6,  cd:1.2, corpse:1, d:"시체 하나 → 해골 전사" },
-  { id:"ghoul", n:"구울 되살리기", ico:"✦", mp:12, cd:2.0, corpse:1, d:"시체 하나 → 구울", need:"ghoul" },
-  { id:"golem", n:"흙 골렘",      ico:"◆", mp:30, cd:6.0, corpse:1, d:"시체 하나 → 흙 골렘", need:"golem" },
-  { id:"nova",  n:"시체 폭발",    ico:"✹", mp:18, cd:2.2, corpse:1, d:"시체를 터뜨려 주위를 태움" },
-  { id:"amp",   n:"약화의 저주",  ico:"✜", mp:12, cd:8,   corpse:0, d:"적이 받는 피해 ↑" },
+  { id:"raise", n:"해골 되살리기", ico:"☠", mp:6,  cd:1.2, corpse:1, d:"시체 1 → 해골 전사 1" },
+  { id:"ghoul", n:"구울 되살리기", ico:"✦", mp:12, cd:2.0, corpse:1, d:"시체 1 → 구울 1", need:"ghoul" },
+  { id:"golem", n:"흙 골렘",      ico:"◆", mp:30, cd:6.0, corpse:1, d:"시체 1 → 흙 골렘 1", need:"golem" },
+  { id:"nova",  n:"시체 폭발",    ico:"✹", mp:18, cd:2.2, corpse:1, d:"시체 1 → 주위 광역 피해" },
+  { id:"amp",   n:"약화의 저주",  ico:"✜", mp:12, cd:8,   corpse:0, d:"일정 시간 적이 받는 피해 증가" },
 ];
 export const SKILLS = [];
 export function syncSkills() {
@@ -158,7 +158,7 @@ export const upCost = (k) => Math.round(UPS[k].base * Math.pow(1.55, META.up[k] 
    상점에 갈 이유가 「다음 등급이 열렸다」로 분명해진다.
    등급마다 값이 뛰므로 **한 번의 구매가 사건**이 된다 — 조금씩 오르는 강화와 다른 맛. */
 export const GEAR = {
-  wand:  { n:"지팡이", d:"본인 기본공격 피해",
+  wand:  { n:"지팡이", d:"본인 기본 공격력",
            tiers:["뼈 지팡이","녹슨 홀","흑요석 홀","심장의 홀","왕의 홀"],
            cost:[0, 90, 320, 1100, 3800], val:[0, 0.25, 0.6, 1.1, 1.9] },
   robe:  { n:"망토",   d:"최대 체력",
@@ -216,23 +216,23 @@ export const TREE = [
   { k:"army", n:"군 세", nodes:[
     { id:"bone",   n:"뼈의 힘",    max:5, lv:1,  d:"소환수 피해 +10%" },
     { id:"armor",  n:"뼈 갑주",    max:5, lv:3,  req:"bone",   d:"소환수 체력 +12%" },
-    { id:"ghoul",  n:"구울 되살리기", max:1, lv:6,  req:"armor",  d:"구울을 소환할 수 있다 — 물면 제 피가 찬다", big:1 },
+    { id:"ghoul",  n:"구울 되살리기", max:1, lv:6,  req:"armor",  d:"구울 소환 해금 · 물어뜯을 때마다 체력 회복", big:1 },
     { id:"legion", n:"군단",      max:3, lv:10, req:"ghoul",  d:"소환수 상한 +1" },
-    { id:"golem",  n:"흙 골렘",    max:1, lv:16, req:"legion", d:"골렘을 소환할 수 있다 — 느리지만 앞을 막는다", big:1 },
+    { id:"golem",  n:"흙 골렘",    max:1, lv:16, req:"legion", d:"흙 골렘 소환 해금 · 느린 대신 두꺼운 벽", big:1 },
   ]},
   { k:"corpse", n:"시 체", nodes:[
     { id:"rot",     n:"부패",      max:5, lv:1,  d:"시체 폭발 피해 +15%" },
-    { id:"harvest", n:"시체 수확",  max:5, lv:4,  req:"rot",     d:"처치 시 12% 확률로 시체 하나 더" },
+    { id:"harvest", n:"시체 수확",  max:5, lv:4,  req:"rot",     d:"적 처치 시 12% 확률로 시체 1 추가" },
     { id:"cheap",   n:"값싼 죽음",  max:4, lv:8,  req:"harvest", d:"모든 스킬 마나 소모 -10%" },
     { id:"chain",   n:"연쇄 폭발",  max:3, lv:12, req:"cheap",   d:"시체 폭발 범위 +25%" },
-    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수를 치유하고 — 먹은 만큼 <b>몸이 커진다</b>", big:1 },
+    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수 체력 회복 · 먹을수록 <b>몸집 성장</b>(최대 +40%)", big:1 },
   ]},
   { k:"hex", n:"주 술", nodes:[
-    { id:"wand",   n:"뼈 다루기",  max:5, lv:1,  d:"본인 기본공격 피해 +12%" },
+    { id:"wand",   n:"뼈 다루기",  max:5, lv:1,  d:"본인 기본 공격력 +12%" },
     { id:"swift",  n:"빠른 손",    max:4, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
     { id:"deep",   n:"깊은 저주",  max:4, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
-    { id:"spirit", n:"영혼 흡수",  max:4, lv:13, req:"deep",   d:"처치 시 마나 +2" },
-    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"쓰러진 적이 <b>내 편으로 일어선다</b>(30%) — 상한 밖에 넷까지", big:1 },
+    { id:"spirit", n:"영혼 흡수",  max:4, lv:13, req:"deep",   d:"적 처치 시 마나 +2" },
+    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"적 처치 시 30% 확률로 <b>아군화</b> · 상한 밖 최대 4기", big:1 },
   ]},
 ];
 const NODE = {};
@@ -248,10 +248,10 @@ export const spLeft  = () => spTotal() - spUsed();
 /** 찍을 수 있나. 못 찍으면 **왜 못 찍는지**를 돌려준다 — 회색으로만 두면 답답하다. */
 export function takeWhy(id) {
   const nd = NODE[id]; if (!nd) return "없는 것";
-  if (rank(id) >= nd.max) return "끝까지 찍음";
-  if (META.lv < nd.lv) return `레벨 ${nd.lv} 필요`;
-  if (nd.req && rank(nd.req) === 0) return `먼저 「${NODE[nd.req].n}」`;
-  if (spLeft() <= 0) return "점수 없음";
+  if (rank(id) >= nd.max) return "최대 단계";
+  if (META.lv < nd.lv) return `레벨 ${nd.lv} 이상 필요`;
+  if (nd.req && rank(nd.req) === 0) return `선행 필요 · ${NODE[nd.req].n}`;
+  if (spLeft() <= 0) return "남은 점수 없음";
   return null;
 }
 export function take(id) {

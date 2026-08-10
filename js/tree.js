@@ -15,6 +15,7 @@ import { $, META, TREE, nodeOf, rank, spLeft, spTotal, spUsed, take, takeWhy } f
 
 let pick = "bone";                 // 고른 칸
 
+
 /** 판을 다시 그린다. **상태에서 통째로 뽑는다** — 부분 갱신은 어긋날 자리를 만든다. */
 export function drawTree() {
   $("treeCols").innerHTML = TREE.map((col) => {
@@ -28,9 +29,15 @@ export function drawTree() {
       /* 랭크는 **점으로** 보인다. 「3/5」는 읽어야 알지만 ●●●○○ 는 보면 안다 —
          칸이 열다섯이라 하나하나 읽게 하면 판 전체가 표가 된다.
          한 칸짜리(끝 노드)는 점 하나 대신 열렸는지를 말로 적는다. */
-      const pips = nd.max > 1
+      /* 레벨이 모자란 칸은 랭크가 언제나 0 이라 **점을 찍어 봐야 다 빈 동그라미**다.
+         그 자리에 「Lv.18」을 대신 적는다 — 없는 정보를 지우고 필요한 정보를 넣는다.
+         (처음엔 배지를 칸 모서리에 얹었는데 이름을 덮었다: 「영혼 흡 |Lv.13|」) */
+      const pips = META.lv < nd.lv
+        ? `<span class="tp need">Lv.${nd.lv} 필요</span>`
+        : nd.max > 1
         ? `<span class="tp">${"●".repeat(r)}${"○".repeat(nd.max - r)}</span>`
         : `<span class="tp one">${r ? "열림" : "잠김"}</span>`;
+      const need = META.lv < nd.lv ? `<i class="tNeed">Lv.${nd.lv}</i>` : "";
       return `${i ? `<div class="tLink${lit}"></div>` : ""}
         <div class="tNode ${cls}${nd.id === pick ? " sel" : ""}${nd.big ? " big" : ""}"
              data-tn="${nd.id}">
@@ -38,7 +45,7 @@ export function drawTree() {
           ${pips}
         </div>`;
     }).join("");
-    return `<div class="tCol"><h3>${col.n}</h3>${cells}</div>`;
+    return `<div class="tCol" data-k="${col.k}"><h3>${col.n}</h3>${cells}</div>`;
   }).join("");
 
   /* 툴팁 — 고른 칸이 **지금 무엇을 주고 있고 한 점 더 넣으면 무엇이 되는지.**
@@ -51,8 +58,8 @@ export function drawTree() {
      <div class="tipKind">요구 레벨 ${nd.lv}${nd.req ? ` · 선행 ${nodeOf(nd.req).n}` : ""}</div>
      <div class="tipStat">${nd.d}</div>` +
     (maxed
-      ? `<div class="tipNote">끝까지 찍었다</div>`
-      : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${why || "점수 1"}</span>
+      ? `<div class="tipNote">최대 단계 · 더 올릴 수 없음</div>`
+      : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${why || "점수 1 소모"}</span>
            <button class="btn" data-tk="${pick}" ${why ? "disabled" : ""}>찍기</button></div>`);
 
   $("treeSp").textContent = spLeft();

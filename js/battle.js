@@ -61,9 +61,9 @@ export function enterFloor(f) {
     /* 관문은 **큰 놈이 먼저** 나온다. 졸개 뒤에 붙이면 이미 싸움이 붙은 뒤라
        등장이 묻힌다. */
     S.spawnQ.unshift({ f, i: 0, n: 1, boss: true });
-    say(`<b style="color:#c8aa6e">${f}층 — 관문</b> 큰 놈이 지키고 있음`);
+    say(`<b style="color:#c8aa6e">${f}층 · 관문</b> 층의 주인이 지키는 중`);
   } else {
-    say(`<b>${f}층</b> 내려감`);
+    say(`<b>${f}층</b> 진입`);
   }
   S.spawnT = 0;                                // 첫 놈은 바로
   S.deepest = Math.max(S.deepest, f);
@@ -150,7 +150,7 @@ export function cast(id) {
   if (isRaise(id) && armyN() >= armyCap()) return false;
 
   S.mp -= mpNeed; S.corpses -= sk.corpse; S.cd[id] = sk.cd * cdMul();
-  if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 일어섬`); }
+  if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
     const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * novaDmgMul();
@@ -173,9 +173,9 @@ export function cast(id) {
       }
     }
     S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova", rad });
-    say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리에 ${Math.round(dmg)}`);
+    say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
   }
-  if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초`); }
+  if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`); }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
      자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
      그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */
@@ -386,7 +386,7 @@ export function step(dt) {
                        own: { dmg: m.dmg * MOB_CD, spd: m.spd, cd: MOB_CD, h: m.h },
                        home: Math.atan2(m.y, m.x), rad: Math.min(RING_HOLD * 1.15, Math.hypot(m.x, m.y)),
                        h: m.h, x: m.x, y: m.y, hp: hp0, hpMax: hp0, atk: 0, r: m.r });
-      say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 이(가) 내 편으로 일어섬`);
+      say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 지배 · 아군 합류`);
     } else S.corpses++;
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
@@ -396,7 +396,7 @@ export function step(dt) {
     META.xp += (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hp = hpMaxOf(); S.mp = mpMaxOf();
-      say(`<b style="color:#ffff64">레벨 ${META.lv}</b> — 몸이 회복됨`); }
+      say(`<b style="color:#ffff64">레벨 ${META.lv}</b> 달성 · 체력·마나 회복`); }
   }
   for (let i = S.minions.length - 1; i >= 0; i--) {
     if (S.minions[i].hp > 0) continue;
@@ -418,7 +418,7 @@ function die() {
   META.runs = (META.runs | 0) + 1;
   META.deepest = Math.max(META.deepest | 0, S.floor);
   saveMeta();
-  say(`<b style="color:#8b1a1a">쓰러짐</b> — ${S.floor}층`);
+  say(`<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`);
 }
 
 export function newRun() {
