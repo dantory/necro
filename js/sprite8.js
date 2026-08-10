@@ -118,7 +118,13 @@ export function footMetrics(base) {
     let bottom = -1;
     for (let y = H - 1; y >= 0 && bottom < 0; y--)
       for (let x = 0; x < W; x++) if (data[(y * W + x) * 4 + 3] > 24) { bottom = y; break; }
-    if (bottom < 0) { out = { footFrac: 0, footWidthFrac: 0.4 }; }   // 전부 투명(있을 리 없지만)
+    /* 머리끝도 잰다 — **체력바를 그림 상자가 아니라 머리 위에** 놓으려면 위쪽
+       투명 여백을 알아야 한다. 상자 기준으로 놓으면 바가 몸에서 멀찍이 떠서
+       누구 것인지 안 읽힌다(병수님이 본 「허공에 뜬 막대」가 이것이다). */
+    let top = -1;
+    for (let y = 0; y < H && top < 0; y++)
+      for (let x = 0; x < W; x++) if (data[(y * W + x) * 4 + 3] > 24) { top = y; break; }
+    if (bottom < 0) { out = { footFrac: 0, footWidthFrac: 0.4, headFrac: 0, bodyWidthFrac: 0.4 }; }
     else {
       const footTop = Math.max(0, bottom - Math.round(H * 0.12));    // 발 부근(아래 12%)만
       let left = W, right = -1;
@@ -126,8 +132,15 @@ export function footMetrics(base) {
         for (let x = 0; x < W; x++) if (data[(y * W + x) * 4 + 3] > 24) {
           if (x < left) left = x; if (x > right) right = x;
         }
+      let bl = W, br = -1;                                           // 몸 전체 가로폭
+      for (let y = Math.max(0, top); y <= bottom; y++)
+        for (let x = 0; x < W; x++) if (data[(y * W + x) * 4 + 3] > 24) {
+          if (x < bl) bl = x; if (x > br) br = x;
+        }
       out = { footFrac: (H - 1 - bottom) / H,
-              footWidthFrac: right >= left ? (right - left + 1) / H : 0.4 };
+              footWidthFrac: right >= left ? (right - left + 1) / H : 0.4,
+              headFrac: Math.max(0, top) / H,                          // 위 투명 여백
+              bodyWidthFrac: br >= bl ? (br - bl + 1) / H : 0.5 };
     }
   } catch (e) { out = null; }                // 오염(taint) 등 — 재지 못하면 기존대로
   FOOT.set(base, out);

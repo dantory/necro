@@ -334,9 +334,43 @@ function draw(dt) {
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
 
-  const bar = (x, y, wdt, pct, col) => {
-    ctx.fillStyle = "#000a"; ctx.fillRect(x - wdt / 2, y, wdt, 3);
-    ctx.fillStyle = col; ctx.fillRect(x - wdt / 2, y, wdt * Math.max(0, pct), 3);
+  /* ══ 체력바 ══ **몸에 붙여 놓는다.**
+     ★★ 병수님: "전투화면 처음부터 다시 재검토". 화면을 3배로 늘려 보고서야 알았다 —
+     바를 `y - 그림높이` 에 놓고 있었는데, PixelLab 캔버스는 **머리 위에도 투명 여백**이
+     있어서(종마다 6~20%) 바가 몸에서 한참 떠올라 있었다. 여럿이 섞이면 어느 바가
+     누구 것인지 못 읽는다(허공에 막대만 떠 있는 것으로 보인다).
+     이제 알파로 잰 **진짜 머리끝** 바로 위에 놓고, 폭도 **몸 폭**에 맞춘다. */
+  const barAt = (base, x, y, hh, pct, col) => {
+    const fm = footMetrics(base);
+    const headY = y - hh * (1 - (fm ? fm.headFrac : 0)) + (fm ? hh * fm.footFrac : 0);
+    const wdt = Math.max(14, hh * (fm ? fm.bodyWidthFrac : 0.5) * 0.9);
+    const top = Math.round(headY - 6 * us);
+    const h = Math.max(3, Math.round(3 * us));
+    ctx.fillStyle = "#000c"; ctx.fillRect(Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2);
+    ctx.fillStyle = "#1a1410"; ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt), h);
+    ctx.fillStyle = col;
+    ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt * Math.max(0, Math.min(1, pct))), h);
+  };
+
+  /* ══ 내 편 표시 ══ **이 게임은 아군과 적이 같은 종족이다.**
+     내 해골 전사와 적 해골 궁수가 둘 다 해골이고, 내 구울과 적 좀비가 둘 다 썩은
+     인간형이다. 그림만 보면 누가 내 편인지 알 수가 없다 — 체력바 색은 **다쳐야**
+     보이므로 답이 못 된다. 그래서 **아군 발밑에 룬 고리**를 깐다(적에게는 없다).
+     지배한 놈은 보라 — 원래 적이었다는 것이 색으로 남는다. */
+  const RUNE = { skel: "#6fa8d8", ghoul: "#6fa8d8", golem: "#6fa8d8" };
+  const footRune = (x, y, hh, col) => {
+    /* ★ 처음엔 진한 파란 테를 둘렀더니 **요즘 게임의 선택 표시**처럼 보였다(디아블로 2
+       라기보다 RTS 다). 테는 아주 얇게 낮추고 **땅에서 배어 나오는 빛** 쪽으로 옮긴다 —
+       「내 것」이 읽히기만 하면 되지, 눈을 끌 필요는 없다. */
+    const rx = hh * 0.30, ry = rx * SQUASH;
+    ctx.save();
+    const g = ctx.createRadialGradient(x, y, rx * 0.15, x, y, rx);
+    g.addColorStop(0, col + "3a"); g.addColorStop(0.70, col + "1c"); g.addColorStop(1, col + "00");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.30; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, us * 0.7);
+    ctx.beginPath(); ctx.ellipse(x, y, rx * 0.88, ry * 0.88, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore();
   };
   /* 그림 높이는 이제 **개체가 들고 있다**(core.js 의 MINIONS.h · MOB_H).
      예전엔 적 크기를 충돌 반경에서 뽑아 썼는데, 반경을 그림에 맞추려 하면
@@ -379,21 +413,17 @@ function draw(dt) {
       /* ★ 지배한 놈은 **적과 그림이 똑같다** — 화면만 보면 내 편인지 알 수가 없다
          (첫 판을 찍어 보고 알았다: 붉은 타락자가 사방에 섞여 누가 누군지 안 읽혔다).
          발밑에 보라 테를 둘러 「이건 내 것」을 그림 없이 말한다. */
-      if (u.own) {
-        ctx.save();
-        ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.thrall; ctx.lineWidth = Math.max(1, us);
-        ctx.beginPath();
-        ctx.ellipse(x, y, hh * 0.30, hh * 0.30 * SQUASH, 0, 0, 6.2832);
-        ctx.stroke();
-        ctx.restore();
-      }
-      drawOne(u.art || ("minion/" + u.kind), x, y, hh, COL[u.kind] || COL.thrall, u);
-      if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
+      footRune(x, y, hh, u.own ? COL.thrall : (RUNE[u.kind] || "#9fd7ff"));
+      const ubase = u.art || ("minion/" + u.kind);
+      drawOne(ubase, x, y, hh, COL[u.kind] || COL.thrall, u);
+      if (u.hp < u.hpMax) barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069");
       continue;
     }
     const m = it.m, hh = (m.h || 48) * us, x = px(m.x), y = py(m.y);
-    drawOne(m.kind ? "mob/" + m.kind : "mob/fallen", x, y, hh, m.boss ? COL.boss : COL.mob, m);
-    if (m.hp < m.hpMax) bar(x, y - hh - 6, hh * 0.62, m.hp / m.hpMax, "#8b1a1a");
+    const mbase = m.kind ? "mob/" + m.kind : "mob/fallen";
+    drawOne(mbase, x, y, hh, m.boss ? COL.boss : COL.mob, m);
+    /* 관문의 주인은 **다치기 전부터** 바를 보인다 — 얼마나 남았는지가 관문의 전부다 */
+    if (m.hp < m.hpMax || m.boss) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#d05353" : "#8b1a1a");
   }
 
   /* ── 날아가는 뼈 ── 본인의 기본공격. **꼬리를 남긴다** — 작은 점 하나는 30fps 에서
