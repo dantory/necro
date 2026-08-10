@@ -72,7 +72,23 @@ export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop();
  *  마릿수가 많은 층에서 줄이 너무 길어지지 않게 상한도 둔다. */
 const SPAWN_GAP = [0.55, 0.95];
 
+/** 「들어섰다」 연출이 사는 시간 — main.js draw 가 이 안에서 비네트를 걷고 명패를 앉힌다.
+ *  ★ 그리는 쪽도 이 값으로 진행도를 재므로 export 한다(양쪽에 숫자를 박으면 어긋난다). */
+export const ARRIVE_T = 1.6;
+/** 층이 넘어갈 때 **앞 층 시체 그림**이 어둠에 잠겨 걷히는 시간. 개수(S.corpses)가 아니라
+ *  그림(S.piles)만 걷는 것이라, 그리는 쪽도 이 값으로 알파를 재려고 export 한다. */
+export const PILE_FADE = 1.0;
+/** 관문 보스 자리에 퍼졌다 조여드는 붉은 고리의 수명. 그리는 쪽(fx "bossring")도 이 값을 쓴다. */
+export const BOSSRING_T = 0.7;
+
 export function enterFloor(f) {
+  /* ── 앞 층 시체 그림을 걷는다 ── ②는 「개수 S.corpses 와 그림 S.piles 는
+     addCorpse/useCorpse 두 길로만 움직인다」가 규칙이다. **여기가 그 유일한 예외.**
+     자원을 쓰는 게 아니라 **새 층으로 내려온 것**이라, 앞 층 시체가 새 판에 깔려 있으면
+     「내려왔다」가 깨진다. 그래서 개수는 한 톨도 안 건드리고(가진 시체 수는 그대로),
+     판 위 그림에만 fade 를 걸어 어둠에 잠기게 지운다(step 이 다 잠기면 배열에서 뺀다). */
+  for (const p of S.piles) p.fade = PILE_FADE;
+
   S.floor = f;
   S.mobs = [];
   const n = floorN(f);
@@ -98,14 +114,24 @@ export function enterFloor(f) {
 function popSpawn() {
   const q = S.spawnQ.shift();
   const m = spawnMob(q.f, q.i, q.n);
+  /* 나타나는 데 **잠깐 걸린다.** 시차만 두고 툭 나타나면 여전히 갑작스럽다 —
+     어둠에서 배어 나오게 한다(main.js 가 born 을 보고 흐리게 그린다). ★ 배어 나오는
+     시간을 born0 에 함께 적어 둔다 — 그리는 쪽이 관문 보스(0.8)와 졸개(0.4)를
+     같은 식으로 재려면 「얼마 동안」을 알아야 한다(예전엔 0.4 를 박아 뒀다). */
   if (q.boss) {
     m.boss = true; m.kind = "boss";
     m.hp = m.hpMax = floorHp(q.f) * 7;
     m.dmg = floorDmg(q.f) * 2.1; m.h = MOB_H.boss; m.r = m.h * FOOT_R;
+    /* 관문 보스는 **더 길게** 배어 나온다(0.8 — 졸개의 두 배). 서기 직전 그 자리
+       바닥에 붉은 고리가 퍼졌다 조여들고(fx), 서는 순간 판이 아주 짧게 흔들린다 —
+       관문이 졸개 층과 똑같이 생긴 것을 「여기 주인이 선다」로 가른다. */
+    m.born0 = 0.8;
+    S.fx.push({ t: BOSSRING_T, x: m.x, y: m.y, kind: "bossring" });
+    S.shake = 0.25;
+  } else {
+    m.born0 = 0.4;
   }
-  /* 나타나는 데 **잠깐 걸린다.** 시차만 두고 툭 나타나면 여전히 갑작스럽다 —
-     0.4초 동안 어둠에서 배어 나오게 한다(main.js 가 born 을 보고 흐리게 그린다). */
-  m.born = 0.4;
+  m.born = m.born0;
   const [lo, hi] = SPAWN_GAP;
   S.spawnT = lo + Math.random() * (hi - lo);
 }
@@ -285,7 +311,17 @@ export function step(dt) {
   if (S.dead) return;
   S.t += dt;
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
-  for (const p of S.piles) { if (p.born > 0) p.born -= dt; }   // 갓 생긴 시체가 스르르 나타난다
+  if (S.shake > 0) S.shake -= dt;                  // 관문 보스가 설 때의 짧은 흔들림
+  /* 「들어섰다」 연출이 스스로 꺼진다 — 켠 곳(enterFloor)과 끄는 곳을 한 군데로 모아,
+     그리는 쪽은 S.arrive 가 있으면 그리고 없으면 안 그리기만 하면 된다. */
+  if (S.arrive) { S.arrive.t -= dt; if (S.arrive.t <= 0) S.arrive = null; }
+  /* 갓 생긴 시체는 스르르 나타나고(born), 앞 층 시체 그림은 어둠에 잠겨 걷힌다(fade).
+     fade 가 다 되면 배열에서 뺀다 — **개수 S.corpses 는 안 건드린다**(enterFloor 의 예외). */
+  for (let i = S.piles.length - 1; i >= 0; i--) {
+    const p = S.piles[i];
+    if (p.born > 0) p.born -= dt;
+    if (p.fade !== undefined && (p.fade -= dt) <= 0) S.piles.splice(i, 1);
+  }
   for (let i = S.nums.length - 1; i >= 0; i--) if ((S.nums[i].t -= dt) <= 0) S.nums.splice(i, 1);
   for (let i = S.falling.length - 1; i >= 0; i--) if ((S.falling[i].t -= dt) <= 0) S.falling.splice(i, 1);
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
@@ -575,7 +611,7 @@ export function newRun() {
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], cd: {}, log: [], killed: 0, deepest: 1,
-    amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0,
+    amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   enterFloor(1);
 }

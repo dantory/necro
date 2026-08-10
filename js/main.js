@@ -1,5 +1,5 @@
-import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
-import { cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
+import { $, GEAR, gearNext, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
+import { ARRIVE_T, BOSSRING_T, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -136,8 +136,11 @@ export function swingFrame(p, nf) {
 
 function drawOne(base, x, gy, h, fallback, e) {
   /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
-     0.4초 동안 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다. */
-  const born = e && e.born > 0 ? 1 - e.born / 0.4 : 1;
+     배어 나오는 내내 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다.
+     ★ 배어 나오는 시간은 개체마다 다르다(관문 보스 0.8 · 졸개 0.4) — born0 로 잰다.
+     예전엔 0.4 를 박아 둬서 보스를 길게 배어 나오게 해도 앞 절반이 통째로 옅게 눌렸다. */
+  const bd = (e && e.born0) || 0.4;
+  const born = e && e.born > 0 ? 1 - e.born / bd : 1;
   if (born < 1) { ctx.save(); ctx.globalAlpha = Math.max(0.05, born); }
 
   // 상태: 휘두르는 중 > 걷는 중 > 서 있음. 방향은 dx,dy(공격 땐 내지르는 sdx,sdy).
@@ -230,6 +233,16 @@ function draw(dt) {
   const w = cv.clientWidth, h = cv.clientHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
+
+  /* ══ 판 흔들림 ══ 관문 보스가 서는 순간(S.shake) **캔버스 전체를** 아주 짧게 흔든다.
+     ★ 여기 draw 초입에서 translate 로 **한 번만** 준다 — px()/py() 를 쓰는 자리를
+     각각 고치면 소환진·체력바·숫자가 따로 놀아 어긋난다. HUD·벨트는 DOM 이라 저절로
+     안 흔들린다(캔버스만). 명패 오버레이는 아래 drawArrive 가 좌표계를 다시 고정해 뺀다. */
+  if (S.shake > 0) {
+    const s = S.shake / 0.25;                       // 1 → 0 으로 잦아든다
+    const amp = 4 * s;                              // 최대 4px(스크린), 끝에서 0
+    ctx.translate(Math.cos(S.t * 90) * amp, Math.sin(S.t * 118) * amp);
+  }
 
   /* ══ 화면을 꽉 채우는 스케일 ══ 세로 화면에서는 **폭이 스케일을 묶는다**(판이 가로로 먼저
      꽉 찬다). 그러면 세로가 통째로 남아 인물이 가운데 눌리고 위아래가 검다 — 병수님이 본 그것.
@@ -399,10 +412,13 @@ function draw(dt) {
     /* 갓 생긴 것은 스르르 나타난다 — **쓰러지는 몸이 옅어지는 만큼**(CORPSE_FADE 는
        DEATH_T 와 같은 값) 짙어져, 몸이 시체로 바뀌는 한 동작이 된다. */
     const grow = p.born > 0 ? 1 - p.born / CORPSE_FADE : 1;
+    /* 층이 넘어가면 앞 층 그림이 **어둠에 잠긴다** — 개수는 그대로, 그림만(enterFloor 가
+       fade 를 걸고 step 이 다 잠기면 뺀다). 새 층 시체는 fade 가 없어 그대로 짙다. */
+    const fade = p.fade !== undefined ? Math.max(0, p.fade / PILE_FADE) : 1;
     const ph = 26 * us;   // 밟고 다니는 것이므로 산 것보다 확실히 작게
     const im = sprite("fx/corpse_" + p.sort);
     ctx.save();
-    ctx.globalAlpha = 0.34 + 0.44 * grow;   // 바닥에 스며든 만큼 눌러 둔다
+    ctx.globalAlpha = (0.34 + 0.44 * grow) * fade;   // 바닥에 스며든 만큼 · 걷히는 만큼 눌러 둔다
     if (im) {
       ctx.imageSmoothingEnabled = false;
       const w = ph * (im.width / im.height);
@@ -628,6 +644,24 @@ function draw(dt) {
   }
 
   for (const f of S.fx) {
+    if (f.kind === "bossring") {
+      /* ══ 관문 보스가 서는 자리 ══ **여긴 다르다.** 관문은 색이 다른 글줄 하나 말고는
+         졸개 층과 똑같이 생겼다 — 보스가 배어 나오기 직전 그 자리 바닥에 붉은 고리를
+         크게 퍼뜨렸다가 조여든다(전반은 커지고 후반은 조인다). 「저기 주인이 선다」. */
+      const p = 1 - Math.max(0, f.t) / BOSSRING_T;          // 0 → 1
+      const x = px(f.x || 0), y = py(f.y || 0);
+      const rr = 96 * us * (p < 0.5 ? p * 2 : 1 - (p - 0.5) * 1.5);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.6 * (1 - p * p));
+      ctx.strokeStyle = "#c83232"; ctx.lineWidth = Math.max(1.5, 3 * us * (1 - p * 0.5));
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = Math.max(0, 0.2 * (1 - p));
+      ctx.fillStyle = "#5a1010";
+      ctx.beginPath(); ctx.ellipse(x, y, rr * 0.8, rr * 0.8 * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     if (f.kind === "rise") {
       /* ══ 시체를 쓴 자리 ══ **땅이 터지며 먼지가 인다.** 예전엔 이걸 타격 불꽃 그림으로
          그리고 있었다 — 시체가 없어진 자리에서 「맞았다」가 번쩍이니 뜻이 반대였다.
@@ -654,6 +688,98 @@ function draw(dt) {
       ctx.beginPath(); ctx.arc(x, y - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill(); }
     ctx.globalAlpha = 1;
   }
+
+  /* ══ 들어섰다 ══ 판 위의 모든 것(①~⑤) 위에 마지막으로 얹는다 — 층이 바뀌는 순간·
+     관문에 들어선 순간을 화면에 남긴다. 흔들림 밖에서 그리므로(drawArrive 가 좌표계를
+     다시 고정한다) 명패는 떨지 않는다. */
+  drawArrive(w, h);
+}
+
+/* ══ 층이 바뀌는 순간 · 관문에 들어서는 순간 ══
+   층이 바뀌는 일이 로그 글줄 하나로만 지나갔다(enterFloor 의 say 한 줄). 방치형은
+   **보는 게임**인데, 판에서 가장 큰 사건(내려간다·관문이다)이 화면에 아무 흔적도
+   안 남겼다. 세 겹을 얹어 「지금 뭔가 달라졌다」를 판에 만든다:
+     · 비네트 — 가장자리가 잠깐 어두워졌다 걷힌다(관문은 검붉게, 걷힌 뒤에도 옅게 남는다)
+     · 명패   — 위쪽 가운데에 층수가 내려앉는다(관문은 두 줄 + 이중 테두리)
+     · 빛의 띠 — 판을 위→아래로 한 번 훑는다(「내려가고 있다」)
+   상태는 둘로 나뉜다: S.arrive(한 번 켜지고 step 이 끄는 것 — 걷히는 연출)와,
+   「지금이 관문 층인가」(isGate — 층 내내 상시로 남는 옅은 비네트).
+   ★ 흔들림(draw 초입 translate) 밖에 둔다 — 명패가 떨면 못 읽는다. setTransform 으로
+     좌표계를 화면에 다시 고정해 캔버스 흔들림을 무른다. */
+function drawArrive(w, h) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const cx = w / 2;
+  const vignette = (alpha, rgb) => {
+    const g = ctx.createRadialGradient(cx, h / 2, Math.min(w, h) * 0.32,
+                                       cx, h / 2, Math.max(w, h) * 0.72);
+    g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(1, `rgba(${rgb},${alpha})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  };
+
+  /* 관문 층 **내내** — 옅은 검붉은 비네트가 상시로 남는다. arrive 와 무관하게 isGate 로
+     걸어야 층이 넘어가는 순간 저절로 사라진다(「여긴 다르다」가 상시로 읽혀야 한다). */
+  if (isGate(S.floor)) vignette(0.12, "78,10,12");
+
+  const a = S.arrive;
+  if (!a) return;
+  const e = ARRIVE_T - a.t;                           // 경과(0 → ARRIVE_T)
+
+  /* 들어선 순간의 비네트 — 0.2초 안에 가장 어둡고 1.4초에 걸쳐 걷힌다. 관문은 더
+     무겁고 검붉다(위 상시 비네트에 겹쳐 더 짙어진다). */
+  const vig = e < 0.2 ? e / 0.2 : Math.max(0, 1 - (e - 0.2) / 1.4);
+  if (vig > 0) vignette((a.gate ? 0.52 : 0.42) * vig, a.gate ? "52,6,8" : "0,0,0");
+
+  /* 빛의 띠 — 위→아래로 한 번 훑는다. 조금 일찍 끝나(0.8배) 명패만 남는다.
+     과하면 안 된다 — 알파 0.15 언저리에서 끝으로 갈수록 옅어진다. */
+  const sweep = e / (ARRIVE_T * 0.8);
+  if (sweep < 1) {
+    const by = sweep * (h * 1.1) - h * 0.05, bh = h * 0.13;
+    const g = ctx.createLinearGradient(0, by - bh, 0, by + bh);
+    g.addColorStop(0, "rgba(210,188,128,0)");
+    g.addColorStop(0.5, `rgba(214,192,132,${0.15 * (1 - sweep * 0.4)})`);
+    g.addColorStop(1, "rgba(210,188,128,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, by - bh, w, bh * 2);
+  }
+
+  /* 층 명패 — 살짝 위에서 내려앉아 멈췄다가 사라진다. D2 금색(#c8aa6e — 관문 로그·
+     상점 유니크와 같은 색), 캔버스에 이미 쓰는 픽셀 글꼴(Galmuri9)로 판과 결을 맞춘다. */
+  const drop = Math.min(1, e / 0.35), yoff = -20 * (1 - drop) * (1 - drop);   // ease-out
+  const alpha = Math.max(0, Math.min(1, e < 0.2 ? e / 0.2 : (a.t < 0.45 ? a.t / 0.45 : 1)));
+  const k = Math.max(1, Math.min(1.7, w / 420));      // 넓은 화면에서 명패도 같이 큰다
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.lineJoin = "round";
+  const topY = h * 0.15 + yoff;
+
+  if (a.gate) {
+    const big = Math.round(28 * k), sub = Math.round(12 * k);
+    const padX = 20 * k, padY = 12 * k, gap = 7 * k;
+    const l1 = `${a.f}층`, l2 = "관문 · 층의 주인";
+    ctx.font = `${big}px "Galmuri9", monospace`; const wbig = ctx.measureText(l1).width;
+    ctx.font = `${sub}px "Galmuri9", monospace`; const wsub = ctx.measureText(l2).width;
+    const boxW = Math.max(wbig, wsub) + padX * 2, boxH = big + gap + sub + padY * 2;
+    const bx = cx - boxW / 2;
+    /* 검붉은 판 위에 **얇은 이중 테두리**(금선 둘) — 관문임을 테두리로도 말한다. */
+    ctx.fillStyle = "rgba(20,8,8,0.62)"; ctx.fillRect(bx, topY, boxW, boxH);
+    ctx.strokeStyle = "#c8aa6e"; ctx.lineWidth = Math.max(1, 1.4 * k);
+    ctx.strokeRect(bx, topY, boxW, boxH);
+    ctx.save(); ctx.globalAlpha = alpha * 0.6; ctx.lineWidth = Math.max(1, k);
+    ctx.strokeRect(bx + 4 * k, topY + 4 * k, boxW - 8 * k, boxH - 8 * k); ctx.restore();
+    const y1 = topY + padY + big, y2 = y1 + gap + sub;
+    ctx.strokeStyle = "#1a0c06"; ctx.lineWidth = Math.max(2, 2 * k);
+    ctx.font = `${big}px "Galmuri9", monospace`; ctx.fillStyle = "#e6c988";
+    ctx.strokeText(l1, cx, y1); ctx.fillText(l1, cx, y1);
+    ctx.font = `${sub}px "Galmuri9", monospace`; ctx.fillStyle = "#c8aa6e";
+    ctx.strokeText(l2, cx, y2); ctx.fillText(l2, cx, y2);
+  } else {
+    const big = Math.round(30 * k), txt = `${a.f}층`;
+    ctx.font = `${big}px "Galmuri9", monospace`;
+    ctx.strokeStyle = "#160f04"; ctx.lineWidth = Math.max(2, 2.4 * k);
+    ctx.fillStyle = "#c8aa6e";
+    const y1 = topY + big;
+    ctx.strokeText(txt, cx, y1); ctx.fillText(txt, cx, y1);
+  }
+  ctx.restore();
 }
 
 /* ══ 벨트 ══ D2 의 그 띠. 쓸 수 있으면 금테가 살고, 못 쓰면 죽는다 —

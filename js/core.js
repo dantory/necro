@@ -121,6 +121,14 @@ export const S = {
   natk: 0,                    // 다음 기본공격까지 남은 시간
   hurt: 0, hkx: 0, hky: 0,    // 본인이 맞고 움찔하는 시간·밀리는 방향
   cd: {}, log: [], killed: 0, deepest: 1,
+  /** ══ 「들어섰다」 ══ **한 번 켜지고 스스로 꺼지는 상태.** 층이 바뀌는 가장 큰
+   *  사건(내려간다·관문이다)이 로그 글줄 하나로만 지나갔다 — 방치형은 보는 게임이라
+   *  판에 흔적이 남아야 한다. enterFloor 가 켜고(= {t,f,gate}), step 이 t 를 줄여
+   *  0 이 되면 스스로 null 로 꺼진다. main.js draw 마지막이 이걸 보고 비네트·명패·
+   *  빛의 띠를 얹는다. */
+  arrive: null,
+  /** 관문 보스가 서는 순간 판이 아주 짧게 흔들리는 시간(캔버스만 — HUD·벨트는 DOM). */
+  shake: 0,
 };
 
 export const META_KEY = "necro.meta.v1";
