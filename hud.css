@@ -379,3 +379,55 @@ body.in-town #stage{cursor:pointer}
 #spDot.on{display:inline-block;margin-left:4px;padding:0 4px;font-style:normal;
   background:#8a2b1e;color:#ffd9a0;box-shadow:inset 0 0 0 1px #c8aa6e}
 .purse .dim{margin-left:6px;color:#5a5040}
+
+
+/* ══════════════════════════════════════════════════════════════
+   **좁은 화면** — 폰으로 하는 경우
+   ──────────────────────────────────────────────────────────────
+   ★★ 배포 전에 390px 로 열어 보고서야 알았다. 판이 **고정 크기**여서
+   구슬 둘(128×2) + 사이(16) + 좌우 여백(32) = 320px 를 먼저 먹고, 가운데는
+   `min-width:0` 이라 0 까지 눌린다. 그 결과:
+
+     · 구슬 위 숫자가 좌우로 24px 씩 삐져나가 **화면 밖으로 잘렸다**
+     · 가운데 글줄(시체·레벨·군세)이 서로 겹쳐 읽을 수 없었다
+     · 스킬 칸이 남은 폭으로 밀려 사실상 사라졌다
+
+   데스크톱 값은 병수님과 여러 번 맞춘 것이라 **건드리지 않는다.** 좁을 때만
+   같은 비율로 줄인다 — 구슬을 줄이면 판 높이도 같이 줄어야 하므로 둘을 함께 잡는다
+   (판 높이 = 구슬 + 아래 여백 + 구슬 위 숫자, 위 :root 의 계산과 같은 식).
+   ══════════════════════════════════════════════════════════ */
+@media (max-width: 560px) {
+  :root{ --hudH:126px; --orb:88px; }
+  #panel{gap:8px;padding:0 8px 8px}
+  /* 숫자는 구슬 밖으로 나가되 **화면 밖으로는 못 나간다** */
+  .orb .num{left:-8px;right:-8px;margin-bottom:3px}
+  .orb .num b{font-size:19px}
+  .orb .num i{font-size:13px}
+  .mid{padding-bottom:9px;gap:12px}
+  .mid .res{font-size:13px;gap:6px;white-space:nowrap}
+  .xpNumFrac{display:none}   /* 숫자가 길어 줄을 접는다 — 막대가 대신 말한다 */
+  .slot{max-width:38px}
+  #belt{gap:4px}
+  #log{left:8px;right:8px;height:46px}
+
+  /* 위 줄도 **한 줄로.** 접히면 「마 을 / 가장 깊이」처럼 낱말이 갈라져
+     읽기 전에 눈이 먼저 걸린다. 자간을 먼저 줄이고, 그래도 모자라면 글자를 줄인다. */
+  #top{gap:8px;padding:0 10px;height:34px}
+  #top .floor{font-size:14px;letter-spacing:1px;white-space:nowrap}
+  #top .left{font-size:13px;letter-spacing:0;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis}
+  #top .who{font-size:13px;white-space:nowrap}
+  .win{inset:34px 0 var(--hudH) 0}
+
+  /* 창 — 폰에서는 **가로가 모자라다.** 트리 세 줄기를 그대로 두되 글자를 줄이고,
+     창은 화면을 꽉 쓰게 한다(가운데 정렬로 남는 여백을 만들 때가 아니다). */
+  .win .frame{max-width:none;max-height:calc(100% - 8px);margin:0 6px;padding:14px 12px}
+  .win h2{font-size:20px;letter-spacing:3px}
+  .wSub{margin:-4px 0 12px;font-size:13px}
+  #treeCols{gap:6px}
+  .tCol h3{font-size:11px;letter-spacing:1px}
+  .tNode{padding:5px 3px 4px}
+  .tNode .tn{font-size:11px}
+  .tNode .tr,.tNode .tr i{font-size:11px}
+  .tLink{height:8px}
+}

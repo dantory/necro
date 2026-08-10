@@ -471,7 +471,10 @@ function hud() {
   $("gArmy").textContent   = `군세 ${S.minions.length}/${armyCap()}`;
   const need = xpNeed(META.lv);
   $("xpFill").style.width = Math.min(100, (META.xp / need) * 100) + "%";
-  $("xpNum").textContent  = `Lv.${META.lv}  ${META.xp | 0}/${need}`;
+  /* ★ 경험치 **분수**는 따로 감싼다 — 폰에서는 이 한 줄이 「시체·레벨·군세」를
+     두 줄로 접어 버린다(129/120423 처럼 길어질수록 심해진다). 숨길 수 있으려면
+     따로 있어야 한다(hud.css 의 좁은 화면 규칙). 막대가 이미 진행을 보여 준다. */
+  $("xpNum").innerHTML = `Lv.${META.lv} <span class="xpNumFrac">${META.xp | 0}/${need}</span>`;
   $("log").innerHTML = S.log.slice(0, 3).map(l => `<div>${l}</div>`).join("");
   beltState();
 }
