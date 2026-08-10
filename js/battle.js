@@ -258,7 +258,9 @@ export function cast(id) {
        끝 노드를 찍었는지 안 찍었는지 보고도 모른다. 먹인 놈은 **커진다**: 크기와
        힘이 같이 오르고, 여덟 번까지만(끝없이 크면 둘레를 몸으로 덮어 버린다). */
     if (feastOn()) for (const e of S.minions) {
-      e.hp = Math.min(e.hpMax, e.hp + dmg * 0.4);
+      /* 먹인 만큼 **초록 숫자**로 — 폭발이 회복이기도 하다는 걸 체력바만으로는 못 읽는다.
+         소환수 한 기당 하나만 뜬다(전원이라 한꺼번에 여럿이지만 상한 44 가 받아 낸다). */
+      const g = Math.min(e.hpMax - e.hp, dmg * 0.4); e.hp += g; popNum(e.x, e.y, g, "heal");
       if ((e.fed | 0) < FEED_MAX) {
         e.fed = (e.fed | 0) + 1;
         const grow = 1 + 0.05;                 // 이번 한 입만큼 체력 그릇도 같이 큰다
@@ -296,8 +298,24 @@ export function step(dt) {
   const impactAt = SWING_T * (1 - IMPACT_AT);
   for (const u of S.minions.concat(S.mobs)) {
     if (!u.pending || u.swing > impactAt) continue;
-    const { tgt, dmg, heal } = u.pending;
+    const p = u.pending;
     u.pending = null;
+    /* ── 본인이 맞는다 ── 표적이 따로 없다(판 가운데의 네크로다). 예전엔 이 한 방만
+       적이 CORE_R 에 닿는 **그 자리에서 즉시** S.hp 를 깎고 불꽃을 뿌렸다 — 다른 모든
+       타격은 pending 으로 미뤄 팔이 뻗는 칸에서 터지는데, 이 게임에서 **제일 중요한
+       타격만** 아직도 「원인보다 결과가 먼저」였다(팔을 들기도 전에 체력이 닳았다).
+       그래서 같은 길로 옮겨 여기서 푼다: 체력·움찔·불꽃·숫자·죽음 판정이 한 프레임에 온다.
+       ★ 숫자는 "core" — 곧 게임이 끝난다는 뜻이라 다른 어떤 숫자보다 눈에 띄어야 한다. */
+    if (p.core) {
+      S.hp -= p.dmg;
+      popNum(0, 0, p.dmg, "core");
+      S.hurt = 0.18; S.hkx = u.sdx; S.hky = u.sdy;
+      /* 불꽃은 본인 둘레의 **적이 선 쪽**에 — u.sdx 는 적→가운데 방향이라 반대로 민다 */
+      S.fx.push({ t: 0.12, kind: "hit", x: -u.sdx * CORE_R * 0.8, y: -u.sdy * CORE_R * 0.8 });
+      if (S.hp <= 0) { S.hp = 0; die(); return; }
+      continue;
+    }
+    const { tgt, dmg, heal } = p;
     if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
     tgt.hp -= dmg;
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
@@ -305,7 +323,9 @@ export function step(dt) {
     popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
     tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
     tgt.kx = u.sdx; tgt.ky = u.sdy;
-    if (heal) u.hp = Math.min(u.hpMax, u.hp + dmg * 0.35);
+    /* 구울의 흡혈 — **회복도 숫자로 보인다**(초록, 앞에 +). 실제로 찬 만큼만 띄운다:
+       가득 찬 구울이 문 것을 큰 숫자로 띄우면 거짓말이 된다. */
+    if (heal) { const g = Math.min(u.hpMax - u.hp, dmg * 0.35); u.hp += g; popNum(u.x, u.y, g, "heal"); }
     /* 불꽃은 **닿는 자리**에 — 맞은 놈의 한가운데가 아니라 둘 사이 경계다.
        가운데에 찍으면 몸에 파묻혀 안 보인다. */
     S.fx.push({ t: 0.12, kind: "hit",
@@ -441,19 +461,14 @@ export function step(dt) {
     toward(m, 0, 0, m.spd, dt);
     if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
       if ((m.atk -= dt) > 0) continue;
-      /* ★★ **이 게임에서 제일 중요한 타격에 모션이 없었다.** 소환수를 칠 때는 팔을
-         휘두르는데, 정작 본인을 칠 때는 체력만 조용히 깎였다 — 죽는 이유가 화면에
-         안 나온다. 같은 안무를 태운다: 휘두름 · 내지르는 방향 · 닿는 자리의 불꽃,
-         그리고 본인도 움찔한다(그리는 쪽이 S.hurt 를 보고 뒤로 민다). */
+      /* ★★ 소환수를 칠 때와 **똑같은 안무**를 태운다: 휘두름 · 내지르는 방향, 그리고
+         팔이 뻗는 칸에서 체력·움찔·불꽃·숫자가 한꺼번에 온다. 여기서는 **예약만** 하고
+         (m.pending.core), 실제 타격과 죽음 판정은 위 impactAt 루프가 푼다 — 그래야 이
+         한 방도 다른 모든 타격과 같은 「원인 → 결과」 순서로 읽힌다. */
       const ml = Math.hypot(m.x, m.y) || 1;
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
-      S.hp -= m.dmg * MOB_CD;                        // 주기를 늘린 만큼 한 방을 세게
-      popNum(0, 0, m.dmg * MOB_CD, "hurt");
-      S.hurt = 0.18; S.hkx = m.sdx; S.hky = m.sdy;
-      S.fx.push({ t: 0.12, kind: "hit",
-                  x: m.x * (CORE_R * 0.8 / ml), y: m.y * (CORE_R * 0.8 / ml) });
-      if (S.hp <= 0) { S.hp = 0; die(); return; }
+      m.pending = { core: true, dmg: m.dmg * MOB_CD };
     }
   }
 

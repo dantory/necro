@@ -1,5 +1,5 @@
 import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
-import { cast, CORE_R, CORPSE_FADE, DEATH_T, newRun, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
+import { cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -412,6 +412,38 @@ function draw(dt) {
     ctx.restore();
   }
 
+  /* ══ 누가 누구를 노리는가 ══ **휘두름이 시작되고 닿기 전까지**(pending 이 살아 있는
+     동안) 때리는 놈과 맞을 놈을 가느다란 선으로 잇는다. 닿는 순간 pending 이 null 이 되며
+     선이 저절로 사라지므로 — **선은 예고, 숫자는 결과**다. 원인 → 결과가 화면 순서로 읽힌다.
+     편은 색으로 가른다: 소환수가 노리면 푸른빛, 적이 노리면 붉은빛. 본인을 노리는 것(core)은
+     **가장 굵고 붉게** — 판 가운데로 붉은 선이 모이면 「뚫렸다」가 한눈에 온다.
+     타격이 가까울수록 또렷해진다(진행도로 알파·굵기를 올린다) — 그게 「온다」는 신호다.
+     맞을 놈 발밑엔 **얇은 표적 고리**를 얹는다(아군 룬은 은은한 빛, 이건 얇은 선이라 안 헷갈린다).
+     ★ 좌표는 반드시 px()/py() 를 거친다 — 세로가 SQUASH 로 눌려 있어 직접 계산하면 어긋난다. */
+  const aimLine = (ax, ay, bx, by, prog, col, wide) => {
+    const x0 = px(ax), y0 = py(ay), x1 = px(bx), y1 = py(by);
+    ctx.save();
+    ctx.strokeStyle = col; ctx.lineCap = "round";
+    ctx.globalAlpha = 0.15 + 0.5 * prog;
+    ctx.lineWidth = Math.max(1, wide * us * (0.5 + 0.5 * prog));
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+    const rr = 9 * us * (0.7 + 0.5 * prog);
+    ctx.globalAlpha = 0.2 + 0.55 * prog; ctx.lineWidth = Math.max(1, us);
+    ctx.beginPath(); ctx.ellipse(x1, y1, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore();
+  };
+  for (const u of S.minions) {
+    if (!u.pending || !u.pending.tgt) continue;
+    const t = u.pending.tgt, prog = Math.min(1, (1 - u.swing / SWING_T) / IMPACT_AT);
+    aimLine(u.x, u.y, t.x, t.y, prog, "#6fb2ff", 1.6);
+  }
+  for (const m of S.mobs) {
+    if (!m.pending) continue;
+    const prog = Math.min(1, (1 - m.swing / SWING_T) / IMPACT_AT);
+    if (m.pending.core) aimLine(m.x, m.y, 0, 0, prog, "#ff3030", 2.8);
+    else if (m.pending.tgt) aimLine(m.x, m.y, m.pending.tgt.x, m.pending.tgt.y, prog, "#e05a5a", 1.5);
+  }
+
   /* **뒤에 있는 것부터 그린다.** 안 그러면 위쪽(먼) 적이 아래쪽(가까운) 소환수를 덮어
      앞뒤가 뒤집힌 그림이 된다. */
   const all = [];
@@ -497,20 +529,25 @@ function draw(dt) {
   }
 
   /* ══ 떠오르는 피해 숫자 ══ **몸보다 위에** 그린다 — 가려지면 없는 것과 같다.
-     적이 받은 것은 뼈빛(흰), 내 편·본인이 받은 것은 붉은빛, 시체 폭발은 주황.
-     ★ 폰에서도 읽히게 **테두리를 두른다** — 어두운 바닥에 얇은 글자는 묻힌다. */
-  const NUMC = { dmg: ["#f2e9d0", "#000"], hurt: ["#e06666", "#160404"], nova: ["#ffa53c", "#180c02"] };
+     색으로 **누가 아픈지**를 가른다: 적이 맞음 = 뼈빛, 내 편이 맞음 = 탁한 주홍,
+     본인이 맞음 = 진한 빨강(제일 큼 — 곧 게임이 끝난다는 뜻이다), 회복 = 초록, 폭발 = 주황.
+     ★ 폰에서도, 밝은 불꽃 위에서도 읽히게 **검은 외곽선**을 두른다(어두운 바닥에 얇은 글자는 묻힌다). */
+  const NUMC = { dmg: ["#f2e9d0", "#000"], hurt: ["#d98a5a", "#160804"],
+                 core: ["#ff2d2d", "#1a0000"], heal: ["#7fe07f", "#04160a"],
+                 nova: ["#ffa53c", "#180c02"] };
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   for (const n of S.nums) {
     const p = 1 - Math.max(0, n.t) / 0.9;                 // 0 → 1
     const x = px(n.x) + n.vx * p * us, y = py(n.y) - (16 + 30 * p) * us;
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
-    const size = Math.round((n.kind === "nova" ? 15 : 13) * us);
+    const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
+    const size = Math.round(base * us);
+    const txt = n.kind === "heal" ? "+" + n.v : "" + n.v;    // 회복은 깎임과 반대라 + 를 앞에
     ctx.save();
     ctx.globalAlpha = p < 0.12 ? p / 0.12 : Math.max(0, 1 - (p - 0.12) / 0.88);
     ctx.font = `${size}px "Galmuri9", monospace`;
     ctx.lineWidth = Math.max(2, us * 2); ctx.strokeStyle = bg; ctx.lineJoin = "round";
-    ctx.strokeText(n.v, x, y); ctx.fillStyle = fg; ctx.fillText(n.v, x, y);
+    ctx.strokeText(txt, x, y); ctx.fillStyle = fg; ctx.fillText(txt, x, y);
     ctx.restore();
   }
 
