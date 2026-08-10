@@ -334,33 +334,64 @@ body.in-town #stage{cursor:pointer}
    ══════════════════════════════════════════════════════════ */
 .frame.wide{max-width:640px}
 
-/* ★ 화면을 찍어 보고 알았다: 설명이 길어지면 **「찍기」 단추가 창 밖으로 밀려** 나갔다
-   (끝 노드 셋이 특히 길다). 창 전체가 스크롤되니 눌리기는 하지만, 처음 열었을 때
-   제일 중요한 단추가 반쯤 잘려 있으면 그건 고장으로 읽힌다.
-   **줄기만 스크롤하고 설명과 발치는 자리에 붙여 둔다** — 어느 칸을 골라도 단추는
-   같은 자리에 있다. */
-.frame.wide{display:flex;flex-direction:column;max-height:86vh}
-.frame.wide > h2, .frame.wide > .wSub, .frame.wide > .tip, .frame.wide > .winFoot{flex:0 0 auto}
+/* 세 창 모두 **발치(가진 금 · 나가기)는 자리에 붙인다.** 트리에서 고친 것과 같은
+   문제가 상인·대장간에도 있었다(360×640 에서 「나가기」가 창 아래로 밀려났다) —
+   목록이 길어질 수 있는 곳은 목록만 구르게 두는 게 맞다. */
+.win .frame{display:flex;flex-direction:column}
+.win .frame > h2, .win .frame > .wSub,
+.win .frame > .tip, .win .frame > .winFoot{flex:0 0 auto}
+/* 목록은 **안 줄인다** — 살 것이 안 보이면 상점이 아니다(퍼센트 상한을 걸었더니
+   설명이 자리를 다 먹고 목록이 0 이 됐다: 높이가 확정되지 않은 부모에선 % 가 안 먹는다).
+   줄어드는 쪽은 설명이고, 넘치면 설명이 구른다 — 발치를 밀어내던 건 언제나 설명이었다. */
+.win .frame > .grid{flex:0 0 auto}
+.win .frame > .tip{flex:1 1 auto;min-height:0;overflow-y:auto}
 
-#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:13px;
-  flex:1 1 auto;min-height:0;overflow-y:auto;align-content:start}
+/* ══ 자리부터 만든다 ══
+   처음엔 **비좁은 창에 열다섯 칸을 우겨 넣으려고** 글자와 여백을 계속 깎았다.
+   그러다 보니 이름이 「구울 되살리 / 기」로 끊기고 글자가 11px 까지 내려갔다.
+   병수님: "스크롤이 되더라도 좀 가독성 있게".
+
+   그래서 방향을 뒤집었다 — **글자를 먼저 정하고, 모자라면 스크롤한다.**
+   ① 트리 창만 판(구슬·벨트) 위까지 덮는다. 어차피 보는 동안은 안 싸운다 —
+      그 자리가 통째로 세로 190px 다. 대개 이것만으로 다 들어간다.
+   ② 그래도 넘치면 줄기만 구른다. 설명과 발치는 언제나 제자리다.
+   ③ 구르는 게 **보여야** 구른다 — 머리글은 붙어 있고, 아래 끝은 흐려진다. */
+/* 판(#panel, z-index 30)보다 위에 서야 덮는다 — 안 그러면 구슬이 발치를 뚫고 올라온다.
+   보는 동안은 안 싸우므로 구슬을 가려도 잃을 게 없다. */
+#winTree{inset:38px 0 0 0;z-index:35}
+.frame.wide{display:flex;flex-direction:column;max-height:calc(100% - 10px)}
+.frame.wide > h2, .frame.wide > .wSub, .frame.wide > .winFoot{flex:0 0 auto}
+.frame.wide > .tip{flex:0 0 auto;max-height:40vh}
+
+#treeWrap{position:relative;flex:1 1 auto;min-height:0;margin-bottom:12px}
+/* 아래 끝이 흐려진다 = 더 있다. 스크롤바는 폰에서 안 보일 때가 많다. */
+#treeWrap::after{content:"";position:absolute;left:0;right:0;bottom:0;height:26px;
+  pointer-events:none;background:linear-gradient(#0b080600,#0b0806)}
+#treeWrap.atEnd::after{opacity:0}
+
+#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  height:100%;overflow-y:auto;align-content:start;padding-bottom:4px}
 .tCol{display:flex;flex-direction:column;align-items:stretch}
-.tCol h3{margin:0 0 8px;text-align:center;font-size:13px;letter-spacing:2px;
-  color:#8a7c60;font-weight:normal}
+/* 머리글은 **붙어 있다** — 굴리는 중에 어느 줄기인지 놓치면 세 칸이 다 같아 보인다 */
+.tCol h3{position:sticky;top:0;z-index:2;margin:0 0 9px;padding:3px 0 5px;
+  text-align:center;font-size:14px;letter-spacing:3px;color:#a08f6c;font-weight:normal;
+  background:linear-gradient(#0e0a06 70%,#0e0a0600)}
 
 /* 줄기를 잇는 선 — **무엇이 무엇을 여는지**가 이 선 하나로 읽힌다.
    ★ 처음엔 #3a3226 한 색이었는데 배경에 묻혀 **아예 안 보였다**. 선은 굵기가 아니라
    대비가 있어야 선이다. 그리고 선행을 찍으면 **불이 들어온다** — 뚫린 길이 보인다. */
-.tLink{height:12px;margin:0 auto;width:4px;background:#4a4030;
+.tLink{height:11px;margin:0 auto;width:4px;background:#4a4030;
   box-shadow:0 0 0 1px #16100a}
 .tLink.lit{background:var(--gold);box-shadow:0 0 0 1px #16100a, 0 0 6px #c8aa6e66}
 
-.tNode{position:relative;padding:7px 6px 6px;cursor:pointer;text-align:center;
+.tNode{position:relative;padding:9px 7px 8px;cursor:pointer;text-align:center;
   background:linear-gradient(#1a120c,#120b07);
   box-shadow:inset 0 0 0 1px #2c2419, inset 0 0 10px #000}
-.tNode .tn{display:block;font-size:12px;line-height:1.25;color:#6b5f4e}
-.tNode .tr{display:block;margin-top:3px;font-size:12px;color:#5a5040}
-.tNode .tr i{font-style:normal;color:#463d30}
+/* ★ 「구울 되살리 / 기」 — 한글이 낱말 가운데서 끊겼다. 낱말째로 넘긴다. */
+.tNode .tn{display:block;font-size:14px;line-height:1.3;color:#6b5f4e;word-break:keep-all}
+/* 랭크는 점으로. 읽는 게 아니라 보는 것이라 **글자보다 크고 성글게** 둔다. */
+.tNode .tp{display:block;margin-top:5px;font-size:11px;letter-spacing:3px;color:#4a4133}
+.tNode .tp.one{font-size:11px;letter-spacing:1px;color:#4a4133}
 
 /* 상태 셋 — **색으로 갈린다.** 아직 못 찍는 것 · 찍을 수 있는 것 · 찍은 것 */
 /* ★ 「찍을 수 있음」이 「아직」과 너무 닮아 있었다 — 지금 무엇을 누를 수 있는지가
@@ -368,18 +399,24 @@ body.in-town #stage{cursor:pointer}
 .tNode.open{background:linear-gradient(#221a12,#150e09);
   box-shadow:inset 0 0 0 1px #9a834f, inset 0 0 10px #000}
 .tNode.open .tn{color:#c3ae86}
-.tNode.open .tr{color:#8a7c60}
+.tNode.open .tp{color:#7d6c4d}
 .tNode.some{background:linear-gradient(#241a10,#170f09);
   box-shadow:inset 0 0 0 1px var(--gold), inset 0 0 10px #000}
 .tNode.some .tn{color:#c8aa6e}
-.tNode.some .tr{color:#c8aa6e}
+.tNode.some .tp{color:#c8aa6e}
 .tNode.full{background:linear-gradient(#2a2010,#1a1209);
   box-shadow:inset 0 0 0 1px #e0c07a, inset 0 0 12px #000, 0 0 8px #c8aa6e33}
-.tNode.full .tn,.tNode.full .tr{color:#ffe6a8}
+.tNode.full .tn,.tNode.full .tp{color:#ffe6a8}
 /* **줄기의 끝**은 크게. 마지막 한 칸이 그 줄기를 고른 이유가 되어야 한다 */
-.tNode.big .tn{font-size:13px}
-.tNode.big{padding-top:10px;padding-bottom:9px}
-.tNode.sel{outline:1px solid #c8aa6e;outline-offset:2px}
+.tNode.big .tn{font-size:15px}
+.tNode.big{padding-top:12px;padding-bottom:11px}
+.tNode.sel{outline:2px solid #c8aa6e;outline-offset:2px}
+
+/* ══ 설명 ══ 세 줄이 **서로 다른 일**을 한다: 무엇인가 · 조건 · 효과.
+   전에는 셋이 같은 크기라 눈이 어디부터 볼지 몰랐다. */
+.tip .tipName{font-size:19px}
+.tip .tipKind{font-size:12px}
+.tip .tipStat{font-size:15px;line-height:1.45;color:#b7a88c}
 
 /* 레벨 옆의 점 — **찍을 게 생겼다**를 창을 안 열어도 안다 */
 .lvBtn{cursor:pointer;position:relative}
@@ -428,32 +465,21 @@ body.in-town #stage{cursor:pointer}
   #top .who{font-size:13px;white-space:nowrap}
   .win{inset:34px 0 var(--hudH) 0}
 
-  /* 창 — 폰에서는 **가로가 모자라다.** 트리 세 줄기를 그대로 두되 글자를 줄이고,
-     창은 화면을 꽉 쓰게 한다(가운데 정렬로 남는 여백을 만들 때가 아니다). */
-  .win .frame{max-width:none;max-height:calc(100% - 8px);margin:0 6px;padding:14px 12px}
-  .win h2{font-size:19px;letter-spacing:3px;margin-bottom:6px}
-  .wSub{margin:-4px 0 6px;font-size:13px}
-  #treeCols{gap:6px}
-  .tCol h3{font-size:11px;letter-spacing:1px;margin-bottom:5px}
-  .tNode{padding:3px 3px 2px}
-  .tNode .tn{font-size:11px}
-  .tNode .tr,.tNode .tr i{font-size:11px}
-  .tLink{height:5px}
-  /* ★ 툴팁을 데스크톱 크기로 두면 **줄기가 설 자리를 다 먹는다** — 세 칸만 보이고
-     나머지는 스크롤 밖으로 나갔다. 트리는 앞날이 보여야 계획을 세우는 화면이므로
-     줄기가 먼저다. 설명은 줄이고, 그래도 길면 설명 쪽이 스크롤된다. */
-  .tip{padding:6px 9px;max-height:34vh;overflow-y:auto}
-  .tipName{font-size:15px}
-  .tipKind{font-size:12px;margin-bottom:4px}
-  .tipStat{font-size:12px}
-  .tipBuy{margin-top:7px;gap:12px}
-  .winFoot{margin-top:8px}
-}
-
-/* 제일 좁은 폰(390px, iPhone 12~15) — 24px 이 모자라 **끝 노드 줄이 잘렸다.**
-   하필 그 줄이 트리에서 제일 중요한 칸이다. 곁말(부제)을 접어 자리를 만든다 —
-   장식이 본문을 밀어내면 접는 쪽은 장식이다. */
-@media (max-width:400px){
-  #winTree .wSub{display:none}
-  #winTree h2{margin-bottom:4px}
+  /* 창 — 폰에서는 **가로가 모자라다.** 창을 화면 폭에 붙이고 줄기 사이만 좁힌다.
+     ★ 예전엔 여기서 글자까지 11px 로 깎았다(세로를 맞추려고). 그래서 이름이
+       「구울 되살리 / 기」로 끊기고 판이 표처럼 보였다 — 병수님: "스크롤이 되더라도
+       좀 가독성 있게". **글자는 안 건드린다.** 세로가 모자라면 줄기를 구른다. */
+  .win .frame{max-width:none;max-height:calc(100% - 8px);margin:0 6px;padding:14px 10px}
+  .win h2{font-size:21px;letter-spacing:3px;margin-bottom:6px}
+  .wSub{margin:-4px 0 8px;font-size:13px}
+  #treeCols{gap:7px}
+  .tCol h3{font-size:12px;letter-spacing:2px}
+  .tNode{padding:8px 4px 7px}
+  .tNode .tn{font-size:13px}
+  .tNode.big .tn{font-size:14px}
+  .tip{padding:9px 11px;max-height:38vh;overflow-y:auto}
+  .tip .tipName{font-size:17px}
+  .tip .tipStat{font-size:14px}
+  .tipBuy{margin-top:9px;gap:14px}
+  .winFoot{margin-top:9px}
 }

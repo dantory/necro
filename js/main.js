@@ -616,6 +616,11 @@ document.addEventListener("click", (e) => {
 
 /* 마을에서 **화면 안의 것을 눌러** 움직인다. 큰 단추를 따로 두는 것보다
    「거기 있는 곳」으로 읽힌다. */
+/* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
+window.__openWin = (which) => {
+  if (which === "shop")  { drawShop();  win("winShop", true);  win("winForge", false); }
+  if (which === "forge") { drawForge(); win("winForge", true); win("winShop", false); }
+};
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
   const r = $("stage").getBoundingClientRect();
