@@ -1,5 +1,5 @@
 import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
-import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
+import { cast, CORE_R, CORPSE_FADE, DEATH_T, newRun, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
@@ -192,12 +192,22 @@ function drawOne(base, x, gy, h, fallback, e) {
   /* 접지 그림자 — 스프라이트보다 **먼저**, 발밑에 깐다(그림이 그 위에 온다). 밀림(flinch)과
      무관하게 바닥에 고정한다 — 몸만 뒤로 밀리고 그림자는 제자리라야 맞은 티가 난다.
      폭은 발 폭(footWidthFrac)에 맞춘다 — 골렘은 넓게, 해골은 좁게. */
+  /* **땅을 뚫고 올라오는 중**이면 아직 반쯤 묻혀 있다 — 그림자도 그만큼 작다.
+     (시체를 써서 세운 것이므로 그 자리에는 먼지도 같이 인다 — fx "rise") */
+  const rise = e && e.rise > 0 ? 1 - e.rise / RISE_T : 1;
   const fm = footMetrics(base);
-  const shr = fm ? h * fm.footWidthFrac * 0.55 : h * 0.3;
+  const shr = (fm ? h * fm.footWidthFrac * 0.55 : h * 0.3) * (0.35 + 0.65 * rise);
   ctx.fillStyle = "rgba(0,0,0,.42)";
   ctx.beginPath(); ctx.ellipse(x, gy, shr, shr * 0.34, 0, 0, 6.284); ctx.fill();
 
   ctx.save();
+  if (rise < 1) {
+    /* **바닥선 아래를 잘라 내고** 몸을 그만큼 내려 그린다 — 땅에서 솟는 것으로 보인다.
+       툭 나타나는 것과의 차이는 이 반 초뿐인데, 그 반 초가 「내가 불러냈다」를 만든다. */
+    ctx.beginPath(); ctx.rect(x - h, gy - h * 1.8, h * 2, h * 1.8); ctx.clip();
+    ctx.translate(0, h * (1 - rise) * 0.95);
+    ctx.globalAlpha *= 0.5 + 0.5 * rise;
+  }
   ctx.translate(fx2, fy2);
   const drew = drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h);
   ctx.restore();
@@ -382,7 +392,9 @@ function draw(dt) {
        통째로 안 보이면 안 된다(에셋을 굽는 동안에도 굴러가야 한다). */
   for (const p of S.piles) {
     const x = px(p.x), y = py(p.y);
-    const grow = p.born > 0 ? 1 - p.born / 0.25 : 1;       // 갓 생긴 것은 스르르 나타난다
+    /* 갓 생긴 것은 스르르 나타난다 — **쓰러지는 몸이 옅어지는 만큼**(CORPSE_FADE 는
+       DEATH_T 와 같은 값) 짙어져, 몸이 시체로 바뀌는 한 동작이 된다. */
+    const grow = p.born > 0 ? 1 - p.born / CORPSE_FADE : 1;
     const ph = 26 * us;   // 밟고 다니는 것이므로 산 것보다 확실히 작게
     const im = sprite("fx/corpse_" + p.sort);
     ctx.save();
@@ -405,9 +417,31 @@ function draw(dt) {
   all.push({ y: 0, kind: "necro" });
   for (const u of S.minions) all.push({ y: u.y, u });
   for (const m of S.mobs)    all.push({ y: m.y, m });
+  /* 쓰러지는 중인 몸도 **같은 줄에 세워 정렬한다** — 따로 그리면 앞뒤가 뒤집힌다 */
+  for (const g of S.falling)  all.push({ y: g.y, g });
   all.sort((a, b) => a.y - b.y);
 
   for (const it of all) {
+    if (it.g) {
+      /* ══ 무너지는 몸 ══ **때린 쪽에서 밀려 넘어간다.**
+         발끝을 축으로 기울이고(넘어짐), 가라앉히고(작아짐), 옅어진다. 그 아래에서
+         시체가 같은 속도로 짙어지므로 눈에는 「몸이 시체가 되었다」 한 동작이다. */
+      const g = it.g, p = 1 - g.t / DEATH_T;                 // 0 → 1
+      const hh = g.hh * us, x = px(g.x), y = py(g.y);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - p * p);              // 끝에서 빠르게 사라진다
+      ctx.translate(x, y);
+      /* 넘어지는 각도: 처음이 빠르고 끝은 눕는다. 밀린 방향을 모르면 오른쪽으로. */
+      const side = (g.kx || 0) < 0 ? -1 : 1;
+      ctx.rotate(side * 1.25 * Math.min(1, Math.pow(p * 1.4, 0.65)));
+      ctx.scale(1, 1 - 0.28 * p);                            // 눕는 만큼 눌린다
+      if (!drawSprite8(ctx, g.base, dirName(g.dx, g.dy), "idle", 0, 0, 0, hh)) {
+        ctx.fillStyle = "#1a1210";
+        ctx.beginPath(); ctx.ellipse(0, -hh * 0.4, hh * 0.26, hh * 0.4, 0, 0, 6.284); ctx.fill();
+      }
+      ctx.restore();
+      continue;
+    }
     if (it.kind === "necro") {
       /* 네크로는 원점(0,0)에 **고정** — 이동이 없으니 걷지 않는다. 가장 가까운 적을 보는
          idle 로 세우고, 스킬을 시전한 순간(S.pswing)만 attack 으로 바꾼다. 바라보는
@@ -463,6 +497,23 @@ function draw(dt) {
   }
 
   for (const f of S.fx) {
+    if (f.kind === "rise") {
+      /* ══ 시체를 쓴 자리 ══ **땅이 터지며 먼지가 인다.** 예전엔 이걸 타격 불꽃 그림으로
+         그리고 있었다 — 시체가 없어진 자리에서 「맞았다」가 번쩍이니 뜻이 반대였다.
+         바닥에 퍼지는 고리 하나면 「여기 것을 썼다」가 읽힌다. */
+      const p = 1 - Math.max(0, f.t) / RISE_T;               // 0 → 1
+      const x = px(f.x || 0), y = py(f.y || 0), rr = 30 * us * (0.35 + 0.9 * p);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 0.55 * (1 - p));
+      ctx.strokeStyle = "#6f5a3c"; ctx.lineWidth = Math.max(1, 2.4 * us * (1 - p * 0.7));
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH * 0.9, 0, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = Math.max(0, 0.30 * (1 - p));
+      ctx.fillStyle = "#2a2018";
+      ctx.beginPath(); ctx.ellipse(x, y, rr * 0.75, rr * 0.75 * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     const im = sprite("fx/" + (f.kind === "nova" ? "nova" : "hit"));
     ctx.globalAlpha = Math.max(0, Math.min(1, f.t * 3));
     const hh = f.kind === "nova" ? 190 : 28;

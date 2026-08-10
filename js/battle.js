@@ -38,6 +38,31 @@ export const IMPACT_AT  = 0.55;
  *  그만큼 세게 해서(아래 `m.dmg * MOB_CD`) 받는 피해 총량은 그대로 둔다. */
 const MOB_CD = 1.6;
 
+/* ══ 죽는 순간 · 일어서는 순간 ══
+   병수님: "전투화면 처음부터 다시 재검토". 화면을 늘려 보니 **죽는 게 안 보였다** —
+   체력이 0 이 되는 프레임에 몸이 통째로 없어지고 다음 프레임에 시체가 놓여 있었다.
+   방금 그 자리에서 무엇이 죽었는지, 내가 이겼는지가 **화면에 한 프레임도 안 남는다.**
+   소환도 같다: 시체는 여기서 없어지는데 해골은 저쪽에 툭 나타났다(둘 사이가 안 이어짐).
+
+   그래서 반 초를 준다. 죽으면 **무너지고**(기울며 가라앉고 옅어진다) 그 자리에
+   시체가 배어 나온다 — 몸이 옅어지는 만큼 시체가 짙어져 하나가 다른 하나로 바뀐다.
+   일어설 때는 **쓴 시체의 그 자리에서** 땅을 뚫고 올라온다.
+   ★ 쓰러지는 몸은 셈에서 이미 빠져 있다(S.falling) — 때리지도 맞지도 않는다.
+     그림만 남기는 것이므로 자(funtest)가 재는 숫자는 하나도 안 바뀐다. */
+export const DEATH_T  = 0.5;
+export const RISE_T   = 0.55;
+/** 시체가 배어 나오는 시간. **죽는 시간과 같아야** 몸과 시체가 교대한다 —
+ *  짧으면 몸이 아직 서 있는데 시체가 먼저 놓이고, 길면 잠깐 아무것도 없다. */
+export const CORPSE_FADE = DEATH_T;
+
+/** 쓰러진 몸을 화면에만 남긴다. 밀린 방향(kx,ky)으로 넘어간다 — 때린 쪽에서 밀려
+ *  넘어져야 「저놈이 죽였다」가 읽힌다. */
+function fall(e, base, hh) {
+  S.falling.push({ base, hh, x: e.x, y: e.y,
+                   dx: e.dx ?? 0, dy: e.dy ?? 1,
+                   kx: e.kx || 0, ky: e.ky || 0, t: DEATH_T });
+}
+
 let seq = 0;
 export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
 
@@ -133,7 +158,7 @@ export function addCorpse(x, y, sort, n = 1) {
   for (let i = 0; i < n; i++) {
     S.corpses++;
     S.piles.push({ x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 6,
-                   sort, t: 0, born: 0.25, rot: (Math.random() - 0.5) * 0.5 });
+                   sort, t: 0, born: CORPSE_FADE, rot: (Math.random() - 0.5) * 0.5 });
     if (S.piles.length > PILE_MAX) S.piles.shift();
   }
 }
@@ -152,13 +177,17 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0) {
     if (bi >= 0) {
       const p = S.piles.splice(bi, 1)[0];
       if (!at) at = { x: p.x, y: p.y };
-      S.fx.push({ t: 0.3, x: p.x, y: p.y, kind: "rise" });   // 먼지가 인다
+      /* 먼지는 **일어서는 내내** 인다 — 몸이 다 올라오기 전에 먼지가 걷히면
+         둘이 남남으로 보인다(그리는 쪽이 RISE_T 로 진행도를 잰다). */
+      S.fx.push({ t: RISE_T, x: p.x, y: p.y, kind: "rise" });
     }
   }
   return at;
 }
 
-export function summon(kind) {
+/** @param at 쓴 시체의 자리. **거기서 일어선다** — 시체는 여기서 없어지는데 해골은
+ *  저쪽에 나타나면 둘이 남남이라 「시체로 만들었다」가 안 읽힌다. */
+export function summon(kind, at) {
   const K = MINIONS[kind];
   if (armyN() >= armyCap()) return false;
   /* **둘레에 고르게 세운다.** 사방에서 오는 판이므로 한쪽에 몰아 세우면 반대쪽이 그냥
@@ -175,8 +204,12 @@ export function summon(kind) {
   const rad = RING_HOLD * (kind === "golem" ? 0.72 : kind === "ghoul" ? 0.95 : 1.15);
   /* ★ 뼈 갑주(트리)가 체력을 올린다 — **소환되는 순간에** 정한다. */
   const hp0 = Math.round(K.hp * minionHpMul());
+  /* 선 자리는 **쓴 시체의 자리**, 없으면 예전처럼 제 구역 안쪽. 어느 쪽이든 곧
+     제 자리(home)로 걸어간다 — 그 걸음까지가 「불려 나왔다」로 읽힌다. */
+  const sx = at ? at.x : Math.cos(best) * rad * 0.4;
+  const sy = at ? at.y : Math.sin(best) * rad * 0.4;
   S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h,
-                   x: Math.cos(best) * rad * 0.4, y: Math.sin(best) * rad * 0.4,
+                   x: sx, y: sy, rise: RISE_T,
                    hp: hp0, hpMax: hp0, atk: 0, r: K.h * FOOT_R });
   return true;
 }
@@ -196,7 +229,7 @@ export function cast(id) {
   /* 시체를 쓰면 **판 위의 그것이 없어진다.** 어디 것을 썼는지가 보여야 자원이 된다.
      시체 폭발은 본인 둘레를 쓸므로 가운데에서, 소환은 세울 자리에서 가까운 것을 쓴다. */
   const usedAt = sk.corpse ? useCorpse(sk.corpse, 0, 0) : null;
-  if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
+  if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
     const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * novaDmgMul();
@@ -236,7 +269,8 @@ export function step(dt) {
   S.t += dt;
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   for (const p of S.piles) { if (p.born > 0) p.born -= dt; }   // 갓 생긴 시체가 스르르 나타난다
-  for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
+  for (let i = S.falling.length - 1; i >= 0; i--) if ((S.falling[i].t -= dt) <= 0) S.falling.splice(i, 1);
+  for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
   /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
@@ -447,6 +481,7 @@ export function step(dt) {
     const m = S.mobs[i];
     S.mobs.splice(i, 1);
     S.killed++;
+    fall(m, "mob/" + m.kind, m.h || 48);          // 몸은 반 초 더 남아 무너진다
     /* ── 어둠의 지배(트리 끝) ── **쓰러진 자리에서 일어선다.**
        시체를 써서 세우는 것이므로 이때는 시체가 안 남는다. 서는 각도도 쓰러진 각도
        그대로다 — 압력이 센 쪽에서 죽으니 그 쪽이 저절로 두꺼워진다. */
@@ -455,7 +490,11 @@ export function step(dt) {
       S.minions.push({ id: ++seq, kind: m.kind, art: "mob/" + m.kind,
                        own: { dmg: m.dmg * MOB_CD, spd: m.spd, cd: MOB_CD, h: m.h },
                        home: Math.atan2(m.y, m.x), rad: Math.min(RING_HOLD * 1.15, Math.hypot(m.x, m.y)),
-                       h: m.h, x: m.x, y: m.y, hp: hp0, hpMax: hp0, atk: 0, r: m.r });
+                       h: m.h, x: m.x, y: m.y, hp: hp0, hpMax: hp0, atk: 0, r: m.r,
+                       /* 넘어진 그 자리에서 **다시 일어선다** — 쓰러지는 몸과 겹쳐
+                          올라오므로 「죽었다가 내 편으로 섰다」가 한 동작으로 읽힌다. */
+                       rise: RISE_T });
+      S.fx.push({ t: RISE_T, x: m.x, y: m.y, kind: "rise" });
       say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 지배 · 아군 합류`);
     } else addCorpse(m.x, m.y, m.boss ? "large" : (m.h >= 58 ? "large" : "small"));
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
@@ -472,6 +511,7 @@ export function step(dt) {
     if (S.minions[i].hp > 0) continue;
     const dead = S.minions[i];
     S.minions.splice(i, 1);
+    fall(dead, dead.art || ("minion/" + dead.kind), (dead.h || 40) * feedMul(dead));
     /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
     addCorpse(dead.x, dead.y, "bones");
   }
@@ -498,7 +538,7 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], cd: {}, log: [], killed: 0, deepest: 1,
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], cd: {}, log: [], killed: 0, deepest: 1,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0,
   });
   enterFloor(1);
