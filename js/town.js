@@ -46,7 +46,9 @@ export function loadTown(dir = "assets/town") {
       c.width = im.width; c.height = im.height;
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = false;
-      g.filter = "sepia(0.42) saturate(1.05) brightness(0.80)";
+      /* ★ 건물만 0.80 이고 소품은 0.72 라 **건물이 혼자 밝아** 떠 보였다 —
+         한 화면에 있는 것은 같은 자로 눌러야 한 지역이 된다. */
+      g.filter = "sepia(0.42) saturate(1.05) brightness(0.72)";
       g.drawImage(im, 0, 0);
       art[n] = c;
       if (--left === 0) ready = true;
@@ -107,6 +109,22 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   for (const [id, key, rx, ry, name] of PLACES) {
     const im = art[key]; if (!im) continue;
     const gx = wx(rx), gy = wy(ry);
+    /* ★ 건물 발치에 **넓고 옅은 그늘**을 한 겹 더 깐다. place() 의 그림자는 발 너비에
+       맞춘 것이라, 제 바닥판을 달고 있는 건물(상인의 돌판·대장간의 흙판)에서는 판에
+       가려 안 보인다. 판보다 넓게 깔면 판의 가장자리가 어둠에 잠겨 **땅에 눌린 것**
+       으로 읽힌다 — 뜬 느낌의 마지막 10% 가 여기서 온다. */
+    {
+      const f = im._foot || { cx: im.width / 2, bot: im.height, w: im.width };
+      const rw = f.w * ART.s * 0.78, rh = rw * 0.30;
+      const g2 = ctx.createRadialGradient(gx, gy, 0, gx, gy, rw);
+      g2.addColorStop(0, "rgba(0,0,0,0.34)");
+      g2.addColorStop(0.65, "rgba(0,0,0,0.16)");
+      g2.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.save(); ctx.translate(gx, gy); ctx.scale(1, rh / rw); ctx.translate(-gx, -gy);
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.arc(gx, gy, rw, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     place(ctx, im, gx, gy);
     // 대장간 화덕과 입구 등불은 **제 둘레를 밝힌다**
     /* ★ 대장간 그림을 **바깥에서 본 건물**로 바꾸면서(예전 것은 벽이 잘린 실내라

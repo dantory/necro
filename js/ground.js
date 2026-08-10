@@ -164,6 +164,12 @@ function dirtAt(vx, vy, wx, wy) {
       for (let j = i + 1; j < anchors.length; j++)
         best = Math.min(best, distSeg(wx, wy, anchors[i][0], anchors[i][1],
                                               anchors[j][0], anchors[j][1]));
+    /* ★★ 건물이 지형에서 뜬다(병수님: "건물이 지형과 너무 동떨어진 느낌"). 원인은
+       **에셋이 제 바닥을 달고 있는 것**이다 — 상인은 돌바닥판, 대장간은 풀+흙 판.
+       판을 잘라내면 그림이 상하니 **그 판이 놓일 땅을 만든다**: 건물 발치를 통째로
+       흙으로 만들면 판이 풀과 부딪히지 않고 「닳아서 드러난 땅」으로 읽힌다. */
+    if (nearAnchor(wx, wy) < 110) return true;       // 건물 발치는 맨땅
+    if (nearAnchor(wx, wy) < 165) return edge < 78;  // 그 둘레는 반쯤
     if (best < 26) return edge < 92;                 // 길 한복판
     if (best < 52) return edge < 52;                 // 길가
     if (best < 80) return edge < 16;                 // 밟힌 자국
