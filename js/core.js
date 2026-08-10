@@ -113,6 +113,7 @@ export const S = {
   minions: [], mobs: [], fx: [],
   bolts: [],                  // **본인이 던진 뼈** — 날아가는 중인 것
   natk: 0,                    // 다음 기본공격까지 남은 시간
+  hurt: 0, hkx: 0, hky: 0,    // 본인이 맞고 움찔하는 시간·밀리는 방향
   cd: {}, log: [], killed: 0, deepest: 1,
 };
 

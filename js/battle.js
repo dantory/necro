@@ -188,6 +188,7 @@ export function cast(id) {
 export function step(dt) {
   if (S.dead) return;
   S.t += dt;
+  if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
@@ -320,14 +321,27 @@ export function step(dt) {
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
       const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
       m.pending = { tgt, dmg: m.dmg * MOB_CD, heal: false };
-      S.fx.push({ t: 0.12, x: tgt.x, y: tgt.y, kind: "hit" });
+      /* ★★ 여기서 불꽃을 **바로** 뿌리고 있었다. 피해는 팔이 뻗는 칸(impactAt)에서
+         들어가는데 불꽃만 0.33초 먼저 터진 것이다 — 소환수 쪽에서 고쳤던
+         「원인보다 결과가 먼저」가 적 쪽에는 그대로 남아 있었다. 게다가 pending 이
+         풀릴 때 또 뿌리므로 **한 번 칠 때 두 번 번쩍였다.** 예약만 하고 넘긴다. */
       continue;
     }
     if (tgt) { toward(m, tgt.x, tgt.y, m.spd, dt); continue; }
     toward(m, 0, 0, m.spd, dt);
     if (Math.hypot(m.x, m.y) <= CORE_R) {            // 둘레가 뚫렸다 — 본인이 맞는다
       if ((m.atk -= dt) > 0) continue;
-      m.atk = MOB_CD; S.hp -= m.dmg * MOB_CD;   // 주기를 늘린 만큼 한 방을 세게
+      /* ★★ **이 게임에서 제일 중요한 타격에 모션이 없었다.** 소환수를 칠 때는 팔을
+         휘두르는데, 정작 본인을 칠 때는 체력만 조용히 깎였다 — 죽는 이유가 화면에
+         안 나온다. 같은 안무를 태운다: 휘두름 · 내지르는 방향 · 닿는 자리의 불꽃,
+         그리고 본인도 움찔한다(그리는 쪽이 S.hurt 를 보고 뒤로 민다). */
+      const ml = Math.hypot(m.x, m.y) || 1;
+      m.atk = MOB_CD; m.swing = SWING_T;
+      m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
+      S.hp -= m.dmg * MOB_CD;                        // 주기를 늘린 만큼 한 방을 세게
+      S.hurt = 0.18; S.hkx = m.sdx; S.hky = m.sdy;
+      S.fx.push({ t: 0.12, kind: "hit",
+                  x: m.x * (CORE_R * 0.8 / ml), y: m.y * (CORE_R * 0.8 / ml) });
       if (S.hp <= 0) { S.hp = 0; die(); return; }
     }
   }
@@ -427,7 +441,7 @@ export function newRun() {
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], cd: {}, log: [], killed: 0, deepest: 1,
-    amp: 0, pswing: 0, natk: 0,
+    amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0,
   });
   enterFloor(1);
 }

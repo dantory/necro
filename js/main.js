@@ -111,6 +111,28 @@ function sprite(path) {
    전에는 한 장을 부위로 잘라 흔들었다(js/rig.js) — PixelLab 8방향 프레임이 못 쓸 것이라
    여겼기 때문이다. 이제 걷기 6프레임·공격 6프레임이 8방향 전부로 실제로 구워져 있어
    그것을 그대로 튼다. 방향이 그림에 들어 있으니 **좌우 뒤집기는 하지 않는다.** */
+/** 휘두름 진행도(p 0→1)를 **프레임 번호**로. 들었다가(느리게) · 후려치고(빠르게) ·
+ *  거둔다(느리게) — 그 결이 비율에 있다.
+ *
+ *  ★★ 예전엔 이 결을 **여섯 칸으로 못박고** 종의 프레임 수에 나눠 맞췄다:
+ *      `idx = round(k * (nf-1) / 5)`.
+ *      6장짜리는 맞았지만 **7장짜리는 3번이 영영 안 나왔다**(0,1,2,4,5,6).
+ *      해골·구울·해골궁수가 다 7장이라, 셋 다 휘두름 한가운데가 빠진 채 돌고 있었다.
+ *      결을 칸이 아니라 **곡선**으로 두고 프레임 수만큼 다시 뽑는다 — 몇 장이든
+ *      한 장도 안 빠지고, 타격 칸에 오래 머무는 성질은 그대로다. */
+const SWING_SHAPE = [0, 0.18, 0.36, 0.50, 0.72, 0.86];   // 여섯 점을 지나는 곡선
+export function swingFrame(p, nf) {
+  if (nf <= 1) return 0;
+  let idx = 0;
+  for (let j = 1; j < nf; j++) {
+    const x = j / (nf - 1) * (SWING_SHAPE.length - 1);   // 곡선 위의 자리
+    const i = Math.min(SWING_SHAPE.length - 2, Math.floor(x)), t = x - i;
+    const start = SWING_SHAPE[i] + (SWING_SHAPE[i + 1] - SWING_SHAPE[i]) * t;
+    if (p >= start) idx = j;
+  }
+  return idx;
+}
+
 function drawOne(base, x, gy, h, fallback, e) {
   /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
      0.4초 동안 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다. */
@@ -131,9 +153,7 @@ function drawOne(base, x, gy, h, fallback, e) {
          섞여 있어서(v3 애니는 종마다 다르다) 숫자를 박으면 한쪽이 어긋난다.
          타격 칸이 제일 길다는 성질은 비율에 있으므로 장수가 늘어도 유지된다. */
       const nf = frameCount(base, "attack");
-      const seq = [0, 0.18, 0.36, 0.50, 0.72, 0.86];    // 여섯 구간(타격 칸 = 세 번째)
-      let k = 0; while (k < 5 && p >= seq[k + 1]) k++;
-      frameIdx = Math.min(nf - 1, Math.round(k * (nf - 1) / 5));
+      frameIdx = swingFrame(p, nf);
       dir = e.sdx !== undefined ? dirName(e.sdx, e.sdy) : dirName(e.dx ?? 0, e.dy ?? 1);
     } else if (e.moving > 0) {
       state = "walk";
@@ -344,8 +364,11 @@ function draw(dt) {
          **새 기능이 기존 호출자의 가정을 깬 것** — 방향 벡터는 언제나 길이 1 로 준다. */
       const nl = Math.hypot(nx, ny) || 1;
       nx /= nl; ny /= nl;
+      /* 맞으면 본인도 움찔한다 — 소환수·적은 되는데 본인만 안 되면 「내가 맞았다」가
+         숫자로만 온다(그리는 쪽은 flinch 하나로 셋 다 같은 안무를 쓴다). */
       drawOne("char/necro", px(0), py(0), 58 * us, COL.necro,
-              { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0 });
+              { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0,
+                flinch: S.hurt || 0, kx: S.hkx, ky: S.hky });
       continue;
     }
     if (it.u) {
