@@ -158,11 +158,25 @@ export function drawTownLabels(ctx) {
   ctx.save();
   ctx.font = '18px "Galmuri9", monospace';
   ctx.textAlign = "center";
+  /* ★ 병수님: "텍스트와 주변 테두리? 배경?의 간격이 없어서 딱 붙은 느낌".
+     맞다 — 세로 여백을 **글꼴 크기에서 어림잡아** 21px 로 박아 뒀는데, 한글은 글자
+     상자를 거의 꽉 채워서 위아래로 1~2px 밖에 안 남았다. 어림잡지 말고 **실제로
+     찍히는 잉크의 범위**를 재서(actualBoundingBox) 사방에 같은 여백을 준다.
+     그러면 글자가 바뀌어도, 글꼴이 바뀌어도 여백은 그대로다. */
+  const PADX = 10, PADY = 7;
   for (const p of hits) {
-    const y = p.ly + 22;
+    const y = p.ly + 24;
+    const m = ctx.measureText(p.name);
+    /* ★ 없을 때만 대신 쓴다 — `|| 4` 로 적었더니 **한글의 descent 가 0** 이라
+       매번 4 가 들어가 아래쪽만 4px 더 벌어졌다(위 7 · 아래 11). 0 은 없는 값이
+       아니라 **잰 값**이다. */
+    const num = (v, d) => (typeof v === "number" ? v : d);
+    const asc = num(m.actualBoundingBoxAscent, 14), des = num(m.actualBoundingBoxDescent, 4);
+    const l = num(m.actualBoundingBoxLeft, m.width / 2);
+    const r = num(m.actualBoundingBoxRight, m.width / 2);
     ctx.fillStyle = "#000000cc";
-    const tw = ctx.measureText(p.name).width;
-    ctx.fillRect(Math.round(p.lx - tw / 2) - 5, y - 15, Math.round(tw) + 10, 21);
+    ctx.fillRect(Math.round(p.lx - l) - PADX, Math.round(y - asc) - PADY,
+                 Math.round(l + r) + PADX * 2, Math.round(asc + des) + PADY * 2);
     ctx.fillStyle = "#c8aa6e";
     ctx.fillText(p.name, p.lx, y);
   }

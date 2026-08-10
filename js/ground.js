@@ -259,6 +259,25 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
 
 /* ══ 바닥 얼룩 ══ 타일 위에 **평평하게** 얹는다(서 있는 물건이 아니므로 그림자도
    접지도 없다). 자리는 소품과 같은 규칙 — 좌표로 정해서 늘 같고, 끝이 없다. */
+/** 얼룩에서 **입체를 걷어낸다.**
+ *
+ *  ★ 다시 구워 봤지만 더 나빴다(초록·청록·분홍이 섞여 나오고 웅덩이는 검은 구멍이
+ *  됐다 — assets/decal_v2). 바꿔서 나아지지 않는 것은 안 바꾼다. 대신 여기서 편다.
+ *
+ *  「접시」로 읽히는 이유는 **밝은 쪽**에 있다 — 테두리 하이라이트와 가운데 정반사가
+ *  볼록한 면을 만든다. 그래서 밝을수록 알파를 깎는다. 남는 것은 어두운 부분,
+ *  곧 **땅에 스민 자국**뿐이다. */
+function flatten(g, cv) {
+  const img = g.getImageData(0, 0, cv.width, cv.height);
+  const a = img.data;
+  for (let i = 0; i < a.length; i += 4) {
+    if (a[i + 3] === 0) continue;
+    const l = (a[i] * 299 + a[i + 1] * 587 + a[i + 2] * 114) / 255000;   // 0~1
+    a[i + 3] = Math.round(a[i + 3] * Math.max(0, 1 - l * 1.35));
+  }
+  g.putImageData(img, 0, 0);
+}
+
 /** 가장자리 `n` 겹의 알파를 안쪽으로 갈수록 되살린다 — **끝이 없는 얼룩**을 만든다.
  *  경계에 붙은 픽셀부터 층을 세어 들어가고(투명 이웃이 있으면 1층), 층 수에 비례해
  *  알파를 남긴다. 외곽선처럼 경계에 딱 붙은 것은 거의 지워진다. */
@@ -316,6 +335,7 @@ export function loadDecals(dir = "assets/decal") {
          확대해 보니 얼룩이 **검은 외곽선을 두른 접시**였다(PixelLab 이 「웅덩이」를
          입체로 그렸다). 바닥에 스민 자국은 **끝이 있으면 안 된다.** 가장자리
          몇 겹의 알파를 깎아 땅으로 흘려보낸다 — 외곽선도 여기서 같이 녹는다. */
+      flatten(g, c);
       feather(g, c, 7);
       decalArt[n] = c; LOAD.done++;
     };
