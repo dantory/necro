@@ -376,6 +376,29 @@ function draw(dt) {
      예전엔 적 크기를 충돌 반경에서 뽑아 썼는데, 반경을 그림에 맞추려 하면
      그림이 따라 커지는 고리에 걸려서 갈라 뒀다. */
 
+  /* ══ 바닥에 누운 시체 ══ **몸들보다 먼저** 그린다 — 산 것이 시체를 밟고 선다.
+     자원이 판 위에 쌓이는 것이 보여야 「시체가 자원」이 말이 아니라 그림이 된다.
+     ★ 그림이 아직 안 왔으면 **어두운 얼룩**으로 대신한다 — 한 장이 없다고 자원이
+       통째로 안 보이면 안 된다(에셋을 굽는 동안에도 굴러가야 한다). */
+  for (const p of S.piles) {
+    const x = px(p.x), y = py(p.y);
+    const grow = p.born > 0 ? 1 - p.born / 0.25 : 1;       // 갓 생긴 것은 스르르 나타난다
+    const ph = 26 * us;   // 밟고 다니는 것이므로 산 것보다 확실히 작게
+    const im = sprite("fx/corpse_" + p.sort);
+    ctx.save();
+    ctx.globalAlpha = 0.34 + 0.44 * grow;   // 바닥에 스며든 만큼 눌러 둔다
+    if (im) {
+      ctx.imageSmoothingEnabled = false;
+      const w = ph * (im.width / im.height);
+      ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(1, SQUASH);
+      ctx.drawImage(im, -w / 2, -ph * 0.5, w, ph);
+    } else {
+      ctx.fillStyle = "#100a08";
+      ctx.beginPath(); ctx.ellipse(x, y, ph * 0.42, ph * 0.42 * SQUASH, p.rot, 0, 6.2832); ctx.fill();
+    }
+    ctx.restore();
+  }
+
   /* **뒤에 있는 것부터 그린다.** 안 그러면 위쪽(먼) 적이 아래쪽(가까운) 소환수를 덮어
      앞뒤가 뒤집힌 그림이 된다. */
   const all = [];

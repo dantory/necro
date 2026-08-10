@@ -115,6 +115,49 @@ function spawnMob(f, i, n) {
   return m;
 }
 
+
+/* ══ 시체는 **판 위에 실물로 남는다** ══
+   병수님: "전투화면 처음부터 다시 재검토". 이 게임의 엔진은 시체인데, 화면에는 시체가
+   한 구도 없고 판 아래 「시체 7」 이라는 숫자만 있었다 — 자원이 어디에 얼마나 쌓였는지
+   눈에 안 보이니 「시체가 자원」이 말로만 있는 셈이었다.
+
+   ★ 개수(S.corpses)와 그림(S.piles)이 **어긋나면 안 된다.** 둘을 따로 세면 언젠가
+     반드시 벌어진다(오늘 하루에만 자가 어긋난 자리를 셋 봤다). 그래서 더하고 빼는
+     길을 **여기 둘로만** 낸다 — addCorpse / useCorpse. 다른 데서 S.corpses 를
+     직접 만지지 않는다. */
+/* 화면에 남기는 최대 구수. ★ 40 으로 뒀다가 재 보니 깊은 층에서 시체가 109 구까지
+   쌓여 **그림이 개수의 3분의 1**밖에 안 됐다 — 자원을 눈으로 세라고 그려 놓고 정작
+   눈이 세는 수가 틀린다. 작은 스프라이트 백 장은 값이 싸므로 상한을 올린다. */
+const PILE_MAX = 140;
+export function addCorpse(x, y, sort, n = 1) {
+  for (let i = 0; i < n; i++) {
+    S.corpses++;
+    S.piles.push({ x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 6,
+                   sort, t: 0, born: 0.25, rot: (Math.random() - 0.5) * 0.5 });
+    if (S.piles.length > PILE_MAX) S.piles.shift();
+  }
+}
+/** 시체 n 구를 쓴다. **쓴 자리**를 돌려준다(거기서 소환수가 일어서게) */
+export function useCorpse(n = 1, nearX = 0, nearY = 0) {
+  let at = null;
+  for (let i = 0; i < n; i++) {
+    if (S.corpses <= 0) break;
+    S.corpses--;
+    /* 쓸 것은 **가까운 것부터** — 눈은 제일 가까운 시체가 사라지기를 기대한다 */
+    let bi = -1, bd = 1e9;
+    for (let j = 0; j < S.piles.length; j++) {
+      const d = Math.hypot(S.piles[j].x - nearX, (S.piles[j].y - nearY) * SQUASH_VIEW);
+      if (d < bd) { bd = d; bi = j; }
+    }
+    if (bi >= 0) {
+      const p = S.piles.splice(bi, 1)[0];
+      if (!at) at = { x: p.x, y: p.y };
+      S.fx.push({ t: 0.3, x: p.x, y: p.y, kind: "rise" });   // 먼지가 인다
+    }
+  }
+  return at;
+}
+
 export function summon(kind) {
   const K = MINIONS[kind];
   if (armyN() >= armyCap()) return false;
@@ -149,7 +192,10 @@ export function cast(id) {
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < sk.corpse) return false;
   if (isRaise(id) && armyN() >= armyCap()) return false;
 
-  S.mp -= mpNeed; S.corpses -= sk.corpse; S.cd[id] = sk.cd * cdMul();
+  S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul();
+  /* 시체를 쓰면 **판 위의 그것이 없어진다.** 어디 것을 썼는지가 보여야 자원이 된다.
+     시체 폭발은 본인 둘레를 쓸므로 가운데에서, 소환은 세울 자리에서 가까운 것을 쓴다. */
+  const usedAt = sk.corpse ? useCorpse(sk.corpse, 0, 0) : null;
   if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
@@ -189,6 +235,7 @@ export function step(dt) {
   if (S.dead) return;
   S.t += dt;
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
+  for (const p of S.piles) { if (p.born > 0) p.born -= dt; }   // 갓 생긴 시체가 스르르 나타난다
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
@@ -410,10 +457,10 @@ export function step(dt) {
                        home: Math.atan2(m.y, m.x), rad: Math.min(RING_HOLD * 1.15, Math.hypot(m.x, m.y)),
                        h: m.h, x: m.x, y: m.y, hp: hp0, hpMax: hp0, atk: 0, r: m.r });
       say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 지배 · 아군 합류`);
-    } else S.corpses++;
+    } else addCorpse(m.x, m.y, m.boss ? "large" : (m.h >= 58 ? "large" : "small"));
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
-    if (harvestPct() && Math.random() < harvestPct()) S.corpses++;
+    if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small");
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
     META.gold += goldFor(S.floor) * (m.boss ? 8 : 1);
     META.xp += (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
@@ -423,8 +470,10 @@ export function step(dt) {
   }
   for (let i = S.minions.length - 1; i >= 0; i--) {
     if (S.minions[i].hp > 0) continue;
+    const dead = S.minions[i];
     S.minions.splice(i, 1);
-    S.corpses++;                              // **내 소환수도 시체가 된다** — 다시 쓴다
+    /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
+    addCorpse(dead.x, dead.y, "bones");
   }
 
   /* ── 층이 비면 내려간다 ──
@@ -449,7 +498,7 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], bolts: [], cd: {}, log: [], killed: 0, deepest: 1,
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], cd: {}, log: [], killed: 0, deepest: 1,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0,
   });
   enterFloor(1);

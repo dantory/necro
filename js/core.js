@@ -110,6 +110,7 @@ export const S = {
   spawnQ: [], spawnT: 0,          // 적이 나오려고 서 있는 줄(한 번에 짠 하고 안 나온다)
   hp: 100, hpMax: 100, mp: 40, mpMax: 40,
   corpses: 0,                 // **시체가 자원이다**
+  piles: [],                  // 판 위에 실제로 누워 있는 시체들 — 개수는 corpses 와 함께 움직인다
   minions: [], mobs: [], fx: [],
   bolts: [],                  // **본인이 던진 뼈** — 날아가는 중인 것
   natk: 0,                    // 다음 기본공격까지 남은 시간
