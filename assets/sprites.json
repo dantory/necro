@@ -28,7 +28,7 @@
   "walk": 6
  },
  "mob/skelarch": {
-  "attack": 7,
+  "attack": 5,
   "walk": 6
  },
  "mob/zombie": {
