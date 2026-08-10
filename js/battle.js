@@ -225,7 +225,16 @@ export function step(dt) {
 
   const ampMul = S.amp > 0 ? ampPower() : 1;
 
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  /* ══ 닿았나 ══ **떼어 놓는 자와 닿았다는 자가 같은 자를 써야 한다.**
+     ★★ 병수님: "하수인들 공격 못션 안하는데". 재 보니 소환수가 휘두르는 건
+     **전체 프레임의 1.9%** 뿐이었고, 적 옆에 붙어 있는데도 사거리 밖인 순간이
+     사거리 안인 순간의 **6.6배**였다(8524 대 1299).
+     원인은 자가 둘이었던 것이다 — 겹침을 푸는 곳은 **화면 거리**(세로에 squash 를
+     곱한 것)로 떼어 놓는데, 닿았는지 보는 곳은 **월드 거리**로 쟀다. 위아래로 선 쌍은
+     화면에서 딱 붙여 놔도 월드로는 1/0.78 = 1.28배 멀어서, 「닿을 만큼 떼어 놓고
+     닿지 않았다고 판정」하는 고리에 갇힌다. 그래서 서로 밀치며 영영 안 때렸다.
+     겹침을 화면에서 푸니(그게 눈이 보는 것이므로) **닿는 것도 화면에서 잰다.** */
+  const dist = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * SQUASH_VIEW);
   const toward = (e, tx, ty, sp, dt) => {
     const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
     const step = Math.min(d, sp * dt);
@@ -291,7 +300,7 @@ export function step(dt) {
     const hx = Math.cos(u.home) * u.rad, hy = Math.sin(u.home) * u.rad;
     let tgt = null, td = 1e9;
     for (const m of S.mobs) {
-      const d = Math.hypot(m.x - hx, m.y - hy);
+      const d = Math.hypot(m.x - hx, (m.y - hy) * SQUASH_VIEW);   // ← 화면에서 잰다
       if (d < td && d < 130) { td = d; tgt = m; }       // 제 구역 안에서만
     }
     if (!tgt) { toward(u, hx, hy, K.spd, dt); continue; }
@@ -329,7 +338,7 @@ export function step(dt) {
     }
     if (tgt) { toward(m, tgt.x, tgt.y, m.spd, dt); continue; }
     toward(m, 0, 0, m.spd, dt);
-    if (Math.hypot(m.x, m.y) <= CORE_R) {            // 둘레가 뚫렸다 — 본인이 맞는다
+    if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
       if ((m.atk -= dt) > 0) continue;
       /* ★★ **이 게임에서 제일 중요한 타격에 모션이 없었다.** 소환수를 칠 때는 팔을
          휘두르는데, 정작 본인을 칠 때는 체력만 조용히 깎였다 — 죽는 이유가 화면에
