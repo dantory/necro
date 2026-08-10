@@ -15,7 +15,7 @@
     <span class="floor" id="hFloor">1층</span>
     <span class="left" id="hLeft"></span>
     <span class="sp"></span>
-    <span class="who"><b id="hName">네크로멘서</b> <span id="hLv">Lv.1</span> · 금 <span id="hGold">0</span></span>
+    <span class="who"><b id="hName">네크로멘서</b> <span id="hLv" class="lvBtn">Lv.1<i id="spDot"></i></span> · 금 <span id="hGold">0</span></span>
   </div>
 
   <!-- 로그 — 판 안이 아니라 전장 아래쪽에 반투명으로 겹친다(판 바로 위) -->
@@ -73,6 +73,18 @@
     <div class="grid" id="forgeGrid"></div>
     <div class="tip" id="forgeTip"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="forgeGold">0</b></span>
+      <button class="btn" data-close>나가기</button></div>
+  </div></div>
+
+  <!-- 스킬 트리 — **레벨로 사는 것.** 금으로 사는 둘(상인·대장간)과 축이 다르고,
+       되돌릴 수 없어서 「나만의 빌드」가 된다 -->
+  <div class="win" id="winTree"><div class="frame wide">
+    <h2>어 둠 의 길</h2>
+    <div class="wSub">「점수는 모자란다. 그러니 고르는 것이다.」</div>
+    <div id="treeCols"></div>
+    <div class="tip" id="treeTip"></div>
+    <div class="winFoot"><span class="purse">남은 점수 <b id="treeSp">0</b>
+      <span class="dim" id="treeSpAll">0/0</span></span>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 

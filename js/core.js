@@ -71,11 +71,28 @@ export const SQUASH_VIEW = 0.78;
    구울·골렘 소환을 **뺀다.** 지운 게 아니라 접어 둔 것이다 — 해골이 만족스러워지면
    그 방식(v3 8방향 · 무기를 든 채 휘두르는 공격 애니)을 그대로 따라 되살린다.
    MINIONS 표의 ghoul/golem 도 남겨 둔다. 되살릴 때 수치를 다시 정하지 않아도 되게. */
-export const SKILLS = [
+/* ★★ 병수님: "레벨이 오르면서 더 좋은 소환수를 뽑을 수 있게 (스킬트리 형태로)
+   ... 내가 직접 스킬트리를 찍어서 나만의 빌드를 구성하는거지".
+
+   구울·골렘은 **지우지 않고 접어 뒀던 것**이라 여기서 그대로 되살아난다 —
+   스프라이트 8방향도 아이콘도 이미 구워져 있다. 벨트에 나오는 스킬은 이제
+   **찍은 것만**이다(syncSkills). 배열을 바꿔 끼우지 않고 **속을 갈아 끼운다** —
+   여기저기서 `SKILLS` 를 import 해 두었으므로 참조가 살아 있어야 한다. */
+const ALL_SKILLS = [
   { id:"raise", n:"해골 되살리기", ico:"☠", mp:6,  cd:1.2, corpse:1, d:"시체 하나 → 해골 전사" },
+  { id:"ghoul", n:"구울 되살리기", ico:"✦", mp:12, cd:2.0, corpse:1, d:"시체 하나 → 구울", need:"ghoul" },
+  { id:"golem", n:"흙 골렘",      ico:"◆", mp:30, cd:6.0, corpse:1, d:"시체 하나 → 흙 골렘", need:"golem" },
   { id:"nova",  n:"시체 폭발",    ico:"✹", mp:18, cd:2.2, corpse:1, d:"시체를 터뜨려 주위를 태움" },
   { id:"amp",   n:"약화의 저주",  ico:"✜", mp:12, cd:8,   corpse:0, d:"적이 받는 피해 ↑" },
 ];
+export const SKILLS = [];
+export function syncSkills() {
+  SKILLS.length = 0;
+  for (const s of ALL_SKILLS) if (!s.need || rank(s.need) > 0) SKILLS.push(s);
+}
+/** 소환 스킬인가 — 군세 상한을 보는 것들. */
+export const isRaise = (id) => id === "raise" || id === "ghoul" || id === "golem";
+export const MINION_OF = { raise:"skel", ghoul:"ghoul", golem:"golem" };
 
 /* ══ 층 ══ 깊이가 곧 난이도이자 보상이다. 5층마다 **관문**(보스). */
 export const floorHp   = (f) => Math.round(30 * Math.pow(1.19, f - 1));
@@ -101,7 +118,11 @@ export const META = load();
 function load() {
   const base = { gold: 0, lv: 1, xp: 0, deepest: 1, runs: 0,
                  up: { hp:0, mp:0, dmg:0, army:0 },
-                 gear: { wand:0, robe:0, charm:0 } };
+                 gear: { wand:0, robe:0, charm:0 },
+                 /* 찍은 것 — { 노드id: 랭크 }. **남은 점수는 저장하지 않는다**(아래
+                    spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
+                    옛 저장에도 저절로 맞고 어긋날 여지가 없다. */
+                 tree: {} };
   /* ★ 얕은 Object.assign 이라 **중첩된 것은 통째로 덮인다** — 예전 저장에 gear 가 없으면
      통째로 사라지는 게 아니라, 있으면 통째로 옛것이 된다. up/gear 는 따로 합친다.
      안 그러면 새 항목을 더할 때마다 기존 사용자에게 undefined 가 간다. */
@@ -110,6 +131,7 @@ function load() {
     const m = Object.assign(base, raw);
     m.up   = Object.assign({}, base.up,   raw.up   || {});
     m.gear = Object.assign({}, base.gear, raw.gear || {});
+    m.tree = Object.assign({}, base.tree, raw.tree || {});
     return m;
   }
   catch { return base; }
@@ -153,5 +175,96 @@ export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8 + 
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
 /** 마나가 차는 속도 — 부적이 올린다. */
 export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm");
-export const dmgMulOf = () => 1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03;
-export const armyCap  = () => 6 + (META.up.army | 0);
+export const dmgMulOf = () => (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
+                            * (1 + rank("bone") * 0.10) * (rank("dark") ? 1.25 : 1);
+export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion") + rank("dark") * 2;
+
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 스킬 트리 ══ 병수님: "레벨이 오르면서 더 좋은 소환수를 뽑을 수 있게
+   (스킬트리 형태로) ... 내가 직접 스킬트리를 찍어서 나만의 빌드를 구성하는거지"
+   ──────────────────────────────────────────────────────────────
+   **강화(대장간)·장비(상인)와 축이 겹치면 안 된다.** 셋을 이렇게 나눈다:
+
+     대장간 = «몸»을 키운다 (금, 무한, 조금씩)
+     상인   = «손에 든 것»을 바꾼다 (금, 다섯 등급, 한 번이 사건)
+     트리   = «무엇을 할 수 있는가»를 정한다 (레벨, **되돌릴 수 없음**, 갈림길)
+
+   되돌릴 수 없어야 빌드다. 금으로 사는 것은 결국 다 사게 되지만, 레벨에서 나오는
+   점수는 **모자라므로 골라야 한다** — 그 모자람이 「나만의 빌드」를 만든다.
+   세 줄기를 서로 다른 놀이로 잡았다:
+
+     군세 — 소환수를 늘리고 종류를 연다(구울·골렘). 물량으로 미는 빌드
+     시체 — 시체를 더 얻고 더 크게 터뜨린다. 시체가 자원이라는 축을 끝까지 민다
+     주술 — 본인이 싸우고 저주로 판을 흔든다. 손이 바쁜 빌드
+
+   요구 레벨과 선행이 걸려 있어 **아래로 파려면 위를 찍어야** 한다 — 그래서 셋 다
+   반쯤 찍는 것보다 하나를 깊게 파는 쪽이 세다. 그게 선택이 되는 조건이다.
+   ══════════════════════════════════════════════════════════ */
+export const TREE = [
+  { k:"army", n:"군 세", nodes:[
+    { id:"bone",   n:"뼈의 힘",    max:5, lv:1,  d:"소환수 피해 +10%" },
+    { id:"armor",  n:"뼈 갑주",    max:5, lv:3,  req:"bone",   d:"소환수 체력 +12%" },
+    { id:"ghoul",  n:"구울 되살리기", max:1, lv:6,  req:"armor",  d:"구울을 소환할 수 있다 — 물면 제 피가 찬다", big:1 },
+    { id:"legion", n:"군단",      max:3, lv:10, req:"ghoul",  d:"소환수 상한 +1" },
+    { id:"golem",  n:"흙 골렘",    max:1, lv:16, req:"legion", d:"골렘을 소환할 수 있다 — 느리지만 앞을 막는다", big:1 },
+  ]},
+  { k:"corpse", n:"시 체", nodes:[
+    { id:"rot",     n:"부패",      max:5, lv:1,  d:"시체 폭발 피해 +15%" },
+    { id:"harvest", n:"시체 수확",  max:5, lv:4,  req:"rot",     d:"처치 시 12% 확률로 시체 하나 더" },
+    { id:"cheap",   n:"값싼 죽음",  max:4, lv:8,  req:"harvest", d:"모든 스킬 마나 소모 -10%" },
+    { id:"chain",   n:"연쇄 폭발",  max:3, lv:12, req:"cheap",   d:"시체 폭발 범위 +25%" },
+    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수를 피해의 40%만큼 치유", big:1 },
+  ]},
+  { k:"hex", n:"주 술", nodes:[
+    { id:"wand",   n:"뼈 다루기",  max:5, lv:1,  d:"본인 기본공격 피해 +12%" },
+    { id:"swift",  n:"빠른 손",    max:4, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
+    { id:"deep",   n:"깊은 저주",  max:4, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
+    { id:"spirit", n:"영혼 흡수",  max:4, lv:13, req:"deep",   d:"처치 시 마나 +2" },
+    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"소환수 피해 +25% · 상한 +2", big:1 },
+  ]},
+];
+const NODE = {};
+for (const c of TREE) for (const nd of c.nodes) NODE[nd.id] = nd;
+export const nodeOf = (id) => NODE[id];
+
+export const rank = (id) => META.tree[id] | 0;
+/** 점수는 **레벨에서 나온다** — 레벨 2부터 한 점씩. */
+export const spTotal = () => Math.max(0, META.lv - 1);
+export const spUsed  = () => Object.values(META.tree).reduce((a, b) => a + (b | 0), 0);
+export const spLeft  = () => spTotal() - spUsed();
+
+/** 찍을 수 있나. 못 찍으면 **왜 못 찍는지**를 돌려준다 — 회색으로만 두면 답답하다. */
+export function takeWhy(id) {
+  const nd = NODE[id]; if (!nd) return "없는 것";
+  if (rank(id) >= nd.max) return "끝까지 찍음";
+  if (META.lv < nd.lv) return `레벨 ${nd.lv} 필요`;
+  if (nd.req && rank(nd.req) === 0) return `먼저 「${NODE[nd.req].n}」`;
+  if (spLeft() <= 0) return "점수 없음";
+  return null;
+}
+export function take(id) {
+  if (takeWhy(id)) return false;
+  META.tree[id] = rank(id) + 1;
+  syncSkills(); saveMeta();
+  return true;
+}
+
+/* ── 트리가 판에 미치는 값들 ── **한 곳에 모아 둔다.** 흩어 놓으면 노드를 더할 때마다
+   어디를 고쳐야 하는지 찾아다니게 된다. */
+export const minionHpMul = () => 1 + rank("armor") * 0.12;
+export const novaDmgMul  = () => 1 + rank("rot") * 0.15;
+export const novaRadMul  = () => 1 + rank("chain") * 0.25;
+export const mpCostMul   = () => Math.pow(0.90, rank("cheap"));
+/** 스킬 한 번의 **실제** 마나. 쓸 수 있는지 보는 곳(벨트)과 빼는 곳(cast)이
+ *  반드시 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
+export const mpCost = (sk) => Math.round(sk.mp * mpCostMul());
+export const cdMul       = () => Math.pow(0.93, rank("swift"));
+export const wandMul     = () => 1 + rank("wand") * 0.12;
+export const ampSecs     = () => 8 + rank("deep") * 3;
+export const ampPower    = () => 1.4 + rank("deep") * 0.08;   // 저주가 올리는 피해 배수
+export const harvestPct  = () => rank("harvest") * 0.12;
+export const spiritMp    = () => rank("spirit") * 2;
+export const feastOn     = () => rank("feast") > 0;
+
+syncSkills();

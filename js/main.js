@@ -1,8 +1,9 @@
-import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed } from "./core.js";
+import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
+import { drawTree, markSp } from "./tree.js";
 
 /* 값 표기 — 네 자리부터 k, 백만부터 M. 1000 미만은 그대로 둔다(초반에 1.0k 는 안 읽힌다). */
 const num = (v) => {
@@ -414,7 +415,7 @@ function beltState() {
   for (const s of SKILLS) {
     const el = document.querySelector(`[data-sk="${s.id}"]`);
     if (!el) continue;
-    const ok = (S.cd[s.id] || 0) <= 0 && S.mp >= s.mp && S.corpses >= s.corpse;
+    const ok = (S.cd[s.id] || 0) <= 0 && S.mp >= mpCost(s) && S.corpses >= s.corpse;
     if (el.classList.contains("on") !== ok) {          // **바뀔 때만** 다시 그린다
       el.classList.toggle("on", ok);
       el.classList.toggle("off", !ok);
@@ -439,7 +440,8 @@ function hud() {
   const left = S.mobs.length;
   $("hLeft").textContent = left ? `남은 적 ${left}` : "정리 중";
   }
-  $("hLv").textContent = "Lv." + META.lv;
+  $("hLv").firstChild.nodeValue = "Lv." + META.lv;
+  markSp();
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
      띠는 가로로 차오르는데, 어느 쪽을 쓸지는 판의 결(테마)이 정한다 — 여기서는 둘 다 준다. */
@@ -491,7 +493,7 @@ export const MODE = { at: "town" };
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
 const win = (id, on) => $(id).classList.toggle("on", on);
-const closeAll = () => { win("winShop", false); win("winForge", false); };
+const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
@@ -694,9 +696,19 @@ loadDecals();                   // 바닥 얼룩 — 격자를 끊는다(js/grou
 loadTown();
 watch($("xpWrap"), drawBar);
 watchPlate($("hudPlate"), $("panel"));   // 구슬~띠~구슬을 한 덩어리로 잇는다
-fit(); belt(); newRun(); hud();
+fit(); belt(); newRun(); hud(); markSp();
+
+/* ══ 스킬 트리를 여는 곳 ══ **레벨 옆이다.** 점수가 레벨에서 나오므로 거기가
+   제자리이고, 마을이 아니어도 열려야 한다 — 층을 내려가다 레벨이 올랐는데
+   마을까지 돌아와야 찍을 수 있으면 그건 벌이다. */
+$("hLv").addEventListener("click", () => {
+  const on = !$("winTree").classList.contains("on");
+  closeAll(); if (on) { drawTree(); win("winTree", true); }
+});
+/* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
+document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits, LOAD });
+Object.assign(window, { syncTest: () => { syncSkills(); drawTree(); belt(); }, S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, spLeft, drawTree, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits, LOAD });

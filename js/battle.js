@@ -1,5 +1,7 @@
 import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
-         MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed } from "./core.js";
+         MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
+         isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
+         wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -127,9 +129,11 @@ export function summon(kind) {
   }
   // 골렘은 안쪽(벽), 해골은 바깥(먼저 붙는다) — 반지름이 곧 역할이다
   const rad = RING_HOLD * (kind === "golem" ? 0.72 : kind === "ghoul" ? 0.95 : 1.15);
+  /* ★ 뼈 갑주(트리)가 체력을 올린다 — **소환되는 순간에** 정한다. */
+  const hp0 = Math.round(K.hp * minionHpMul());
   S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h,
                    x: Math.cos(best) * rad * 0.4, y: Math.sin(best) * rad * 0.4,
-                   hp: K.hp, hpMax: K.hp, atk: 0, r: K.h * FOOT_R });
+                   hp: hp0, hpMax: hp0, atk: 0, r: K.h * FOOT_R });
   return true;
 }
 
@@ -137,21 +141,29 @@ export function summon(kind) {
  *  "시체가 자원"이 손끝에서 느껴진다. */
 export function cast(id) {
   const sk = SKILLS.find(s => s.id === id);
-  if (!sk || (S.cd[id] || 0) > 0 || S.mp < sk.mp || S.corpses < sk.corpse) return false;
-  if (id === "raise" && S.minions.length >= armyCap()) return false;
+  /* ★ 값과 재사용은 **트리가 깎는다**(값싼 죽음 · 빠른 손). 쓸 수 있는지 보는 곳과
+     실제로 빼는 곳이 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
+  if (!sk) return false;
+  const mpNeed = mpCost(sk);
+  if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < sk.corpse) return false;
+  if (isRaise(id) && S.minions.length >= armyCap()) return false;
 
-  S.mp -= sk.mp; S.corpses -= sk.corpse; S.cd[id] = sk.cd;
-  if (id === "raise") { summon("skel");  say(`<b>해골 전사</b> 일어섬`); }
+  S.mp -= mpNeed; S.corpses -= sk.corpse; S.cd[id] = sk.cd * cdMul();
+  if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 일어섬`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
-    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf();
+    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * novaDmgMul();
+    const rad = 180 * novaRadMul();
     let hit = 0;
     /* 시체 폭발은 **본인 둘레**를 쓸어 낸다 — 사방 판에서는 그게 "한숨 돌리는 순간"이다 */
-    for (const m of S.mobs) if (Math.hypot(m.x, m.y) < 180) { m.hp -= dmg; hit++; }
-    S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova" });
+    for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; }
+    /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
+       시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
+    if (feastOn()) for (const e of S.minions) e.hp = Math.min(e.hpMax, e.hp + dmg * 0.4);
+    S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova", rad });
     say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리에 ${Math.round(dmg)}`);
   }
-  if (id === "amp") { S.amp = 8; say(`<b style="color:#6a6aff">약화의 저주</b> 8초`); }
+  if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초`); }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
      자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
      그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */
@@ -198,7 +210,7 @@ export function step(dt) {
   S.mp = Math.min(mpMaxOf(), S.mp + dt * mpRegenOf());
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
 
-  const ampMul = S.amp > 0 ? 1.5 : 1;
+  const ampMul = S.amp > 0 ? ampPower() : 1;
 
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const toward = (e, tx, ty, sp, dt) => {
@@ -235,7 +247,7 @@ export function step(dt) {
       S.pswing = SWING_T;                              // 던지는 자세
       const d = Math.hypot(t.x, t.y) || 1;
       S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d,
-                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * (1 + gearVal("wand")), life: 2 });
+                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * (1 + gearVal("wand")) * wandMul(), life: 2 });
     }
   }
   /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.
@@ -348,6 +360,10 @@ export function step(dt) {
     const m = S.mobs[i];
     S.mobs.splice(i, 1);
     S.corpses++; S.killed++;
+    /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
+       「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
+    if (harvestPct() && Math.random() < harvestPct()) S.corpses++;
+    if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
     META.gold += goldFor(S.floor) * (m.boss ? 8 : 1);
     META.xp += (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;

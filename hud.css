@@ -319,3 +319,63 @@ body.in-town #stage{cursor:pointer}
     repeating-linear-gradient(90deg, #0000 0 10%, #00000099 calc(10% - 1px) 10%),
     linear-gradient(#ffd47a 0 34%, #c8901e 34% 68%, #8a5f10 68%)}
 .lTxt{margin-top:14px;font-size:18px;color:#8a7c60}
+
+
+/* ══════════════════════════════════════════════════════════════
+   어둠의 길 — **스킬 트리**
+   ──────────────────────────────────────────────────────────────
+   병수님: "내가 직접 스킬트리를 찍어서 나만의 빌드를 구성하는거지"
+
+   상인·대장간과 **같은 결**(칸 + 툴팁)로 두되, 칸을 격자가 아니라 **줄기**로
+   세운다. 디아블로의 그 화면이 표가 아닌 이유는 세 줄기가 나란히 서 있고
+   위아래가 선으로 이어져 **어디로 팔지가 그림으로 보이기** 때문이다.
+
+   못 찍는 칸도 **지우지 않는다** — 앞날이 보여야 계획을 세운다.
+   ══════════════════════════════════════════════════════════ */
+.frame.wide{max-width:640px}
+
+#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:13px}
+.tCol{display:flex;flex-direction:column;align-items:stretch}
+.tCol h3{margin:0 0 8px;text-align:center;font-size:13px;letter-spacing:2px;
+  color:#8a7c60;font-weight:normal}
+
+/* 줄기를 잇는 선 — **무엇이 무엇을 여는지**가 이 선 하나로 읽힌다.
+   ★ 처음엔 #3a3226 한 색이었는데 배경에 묻혀 **아예 안 보였다**. 선은 굵기가 아니라
+   대비가 있어야 선이다. 그리고 선행을 찍으면 **불이 들어온다** — 뚫린 길이 보인다. */
+.tLink{height:12px;margin:0 auto;width:4px;background:#4a4030;
+  box-shadow:0 0 0 1px #16100a}
+.tLink.lit{background:var(--gold);box-shadow:0 0 0 1px #16100a, 0 0 6px #c8aa6e66}
+
+.tNode{position:relative;padding:7px 6px 6px;cursor:pointer;text-align:center;
+  background:linear-gradient(#1a120c,#120b07);
+  box-shadow:inset 0 0 0 1px #2c2419, inset 0 0 10px #000}
+.tNode .tn{display:block;font-size:12px;line-height:1.25;color:#6b5f4e}
+.tNode .tr{display:block;margin-top:3px;font-size:12px;color:#5a5040}
+.tNode .tr i{font-style:normal;color:#463d30}
+
+/* 상태 셋 — **색으로 갈린다.** 아직 못 찍는 것 · 찍을 수 있는 것 · 찍은 것 */
+/* ★ 「찍을 수 있음」이 「아직」과 너무 닮아 있었다 — 지금 무엇을 누를 수 있는지가
+   창을 연 첫 순간에 보여야 한다. 테를 밝히고 바탕을 한 단 올린다. */
+.tNode.open{background:linear-gradient(#221a12,#150e09);
+  box-shadow:inset 0 0 0 1px #9a834f, inset 0 0 10px #000}
+.tNode.open .tn{color:#c3ae86}
+.tNode.open .tr{color:#8a7c60}
+.tNode.some{background:linear-gradient(#241a10,#170f09);
+  box-shadow:inset 0 0 0 1px var(--gold), inset 0 0 10px #000}
+.tNode.some .tn{color:#c8aa6e}
+.tNode.some .tr{color:#c8aa6e}
+.tNode.full{background:linear-gradient(#2a2010,#1a1209);
+  box-shadow:inset 0 0 0 1px #e0c07a, inset 0 0 12px #000, 0 0 8px #c8aa6e33}
+.tNode.full .tn,.tNode.full .tr{color:#ffe6a8}
+/* **줄기의 끝**은 크게. 마지막 한 칸이 그 줄기를 고른 이유가 되어야 한다 */
+.tNode.big .tn{font-size:13px}
+.tNode.big{padding-top:10px;padding-bottom:9px}
+.tNode.sel{outline:1px solid #c8aa6e;outline-offset:2px}
+
+/* 레벨 옆의 점 — **찍을 게 생겼다**를 창을 안 열어도 안다 */
+.lvBtn{cursor:pointer;position:relative}
+.lvBtn:hover{color:#e0c07a}
+#spDot{display:none}
+#spDot.on{display:inline-block;margin-left:4px;padding:0 4px;font-style:normal;
+  background:#8a2b1e;color:#ffd9a0;box-shadow:inset 0 0 0 1px #c8aa6e}
+.purse .dim{margin-left:6px;color:#5a5040}
