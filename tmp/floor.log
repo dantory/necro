@@ -1,9 +1,0 @@
-실패 crypt — 1 validation error for call[create_topdown_tileset]
-detail
-  Input should be 'low detail', 'medium detail' or 'highly detailed' [type=literal_error, input_value='high detail', input_type=str]
-    For further information visit https://errors.pydantic.
-실패 bone — 1 validation error for call[create_topdown_tileset]
-detail
-  Input should be 'low detail', 'medium detail' or 'highly detailed' [type=literal_error, input_value='high detail', input_type=str]
-    For further information visit https://errors.pydantic.
-══ 0/2장  
