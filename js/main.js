@@ -341,6 +341,9 @@ function draw(dt) {
     return;
   }
   setAnchors([]);      // 던전은 목적지가 없다 — 마을 배치가 새면 안 된다
+  /* 소환진의 회전·맥동은 **경과 시간**으로 돈다(프레임 수 아님) — 30fps 와 60fps 가
+     달라 보이면 안 된다. 마을 시계(townT)와 따로 두어 던전에서만 흐른다. */
+  battleT += (dt || 0.016);
   drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 });
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
@@ -488,9 +491,69 @@ function draw(dt) {
          **새 기능이 기존 호출자의 가정을 깬 것** — 방향 벡터는 언제나 길이 1 로 준다. */
       const nl = Math.hypot(nx, ny) || 1;
       nx /= nl; ny /= nl;
+
+      /* ══ 소환진 ══ **「이 판의 주인이 저기 있다」를 그림만으로.** 네크로는 어두운 색
+         (COL.necro)이라 어두운 바닥에 묻히고, 크기(58)로도 소환수와 잘 안 갈렸다.
+         발밑에 소환수 룬(footRune, hh*0.30)보다 확실히 큰 **이중 고리**를 깐다 —
+         바깥·안쪽이 서로 반대로 아주 느리게 돌고(등속·경과 시간), 땅에서 배어 나온다.
+         색만 다른 같은 고리면 뜻이 없으므로 **크기와 겹**으로 주인 것임을 드러낸다.
+         ★ 진의 둘레 RING_HOLD(=105, 화면엔 RING_HOLD*1.2*sc 로 그린다)와 겹치면 안 된다 —
+           반경을 RING_HOLD*0.72*sc 로 상한 잡아 확실히 안쪽에 둔다. */
+      const ncx = px(0), ncy = py(0), nhh = 70 * us;   // 판의 인간형 중 제일 크게
+      const hpFrac = S.hpMax ? Math.max(0, Math.min(1, S.hp / S.hpMax)) : 1;
+      const danger = hpFrac < 0.3;                     // ④의 core 숫자는 맞는 순간만 뜬다 —
+      const cast   = Math.max(0, Math.min(1, (S.pswing || 0) / SWING_T));   // 「지금 위태롭다」를 상시로
+      const RGB    = danger ? "214,58,44" : "150,96,232";   // 위태로우면 붉게 물든다
+      const spin   = danger ? 5.0 : 1.6;               // 위태로우면 맥동이 빨라진다
+      const pulse  = 0.5 + 0.5 * Math.sin(battleT * spin);
+      const hot    = 0.55 + 0.45 * pulse;
+      const boost  = cast > 0 ? 0.5 : 0;               // 시전하는 동안 소환진이 밝아진다
+      const R      = Math.min(nhh * 0.62, RING_HOLD * 0.72 * sc);
+
+      ctx.save();
+      ctx.translate(ncx, ncy); ctx.scale(1, SQUASH);   // 바닥면으로 눕혀 회전이 SQUASH 를 안 깬다
+      /* 땅에서 배어 나오는 보라 웅덩이 */
+      const pool = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, R * 1.18);
+      pool.addColorStop(0, `rgba(${RGB},${0.32 * hot + boost * 0.34})`);
+      pool.addColorStop(0.6, `rgba(${RGB},${0.13 * hot})`);
+      pool.addColorStop(1, `rgba(${RGB},0)`);
+      ctx.fillStyle = pool;
+      ctx.beginPath(); ctx.arc(0, 0, R * 1.18, 0, 6.2832); ctx.fill();
+      /* 이중 고리 — 조각난 호로 그려야 회전이 눈에 보인다(민 원은 돌아도 안 보인다).
+         바깥은 느리게 시계방향, 안쪽은 반대로 조금 빠르게 — 조각 수도 달라 둘이 갈린다. */
+      const arcRing = (rad, rot, segs, lw, a) => {
+        ctx.strokeStyle = `rgba(${RGB},${a})`; ctx.lineWidth = lw; ctx.lineCap = "round";
+        const st = 6.2832 / segs;
+        for (let i = 0; i < segs; i++) { const g0 = rot + i * st;
+          ctx.beginPath(); ctx.arc(0, 0, rad, g0, g0 + st * 0.55); ctx.stroke(); }
+      };
+      const lw = Math.max(1.2, us * 1.3);
+      arcRing(R,        battleT * 0.35, 10, lw,       0.5 * hot + boost * 0.4);
+      arcRing(R * 0.64, -battleT * 0.52, 7, lw * 0.9, 0.55 * hot + boost * 0.4);
+      /* 시전한 순간이 발밑에 온다 — 고리 하나가 바깥으로 퍼지며 사라진다(pswing 이 사는 동안). */
+      if (cast > 0) {
+        const cp = 1 - cast;                           // 0 → 1
+        ctx.globalAlpha = 0.55 * (1 - cp);
+        ctx.strokeStyle = `rgba(${RGB},0.9)`;
+        ctx.lineWidth = Math.max(1.5, us * 1.8 * (1 - cp * 0.5));
+        ctx.beginPath(); ctx.arc(0, 0, R * (1 + 1.4 * cp), 0, 6.2832); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      /* 어둠에서 떼어낸다 — 몸 **뒤로** 은은한 보랏빛을 얹어 어두운 바닥과 가른다.
+         덧칠이 아니라 뒷광이라(몸은 이 다음에 그린다) 실루엣을 뭉개지 않는다. */
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const aura = ctx.createRadialGradient(ncx, ncy - nhh * 0.35, 2, ncx, ncy - nhh * 0.35, nhh * 0.72);
+      aura.addColorStop(0, `rgba(${RGB},${0.16 * hot + boost * 0.2})`);
+      aura.addColorStop(1, `rgba(${RGB},0)`);
+      ctx.fillStyle = aura;
+      ctx.beginPath(); ctx.ellipse(ncx, ncy - nhh * 0.35, nhh * 0.42, nhh * 0.72, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+
       /* 맞으면 본인도 움찔한다 — 소환수·적은 되는데 본인만 안 되면 「내가 맞았다」가
          숫자로만 온다(그리는 쪽은 flinch 하나로 셋 다 같은 안무를 쓴다). */
-      drawOne("char/necro", px(0), py(0), 58 * us, COL.necro,
+      drawOne("char/necro", ncx, ncy, nhh, COL.necro,
               { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0,
                 flinch: S.hurt || 0, kx: S.hkx, ky: S.hky });
       continue;
@@ -864,7 +927,7 @@ function loading(dt) {
   return loadDone;
 }
 
-let townT = 0;
+let townT = 0, battleT = 0;
 let last = 0, autoT = 0, hudT = 0;
 function loop(t) {
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
