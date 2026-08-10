@@ -44,7 +44,7 @@ function fitNum(el, cur, max) {
   if (el._b !== b) { el._b = b; el.children[1].textContent = b; }
 }
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, useFloor } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -249,6 +249,14 @@ function draw(dt) {
     /* 마을도 **끝없는 맵의 한 조각**이다 — 같은 격자에 뿌리되 밀도를 낮추고(사람이
        사는 곳이라 잡동사니가 덜하다) 뼈무더기는 뺀다(마을에 해골이 쌓여 있으면
        마을로 안 읽힌다). 가운데는 넓게 비운다: 장소 셋이 거기 선다. */
+    /* ★ 마을의 **목적지**를 바닥에 알려 준다 — 길과 소품 무리가 여기서 나온다.
+       자리는 town.js 의 PLACES 와 같은 비율식(화면 반너비/반높이의 몇 배). */
+    {
+      const hw = (w / 2) / sc, hh = (h / 2) / (sc * SQUASH);
+      const R = { x: hw * 0.92, y: hh * 0.62 };
+      setAnchors([[0, -0.55 * R.y], [-0.62 * R.x, -0.05 * R.y],
+                  [0.62 * R.x, -0.05 * R.y], [0, 0.30 * R.y]]);
+    }
     drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc,
                { clear: 300, density: 26, town: true, decal: 2.4,
                  /* ★ 통·상자·수레만 뿌리면 **창고 앞마당**이다. 야영지로 읽히려면
@@ -299,6 +307,7 @@ function draw(dt) {
     drawTownLabels(ctx);
     return;
   }
+  setAnchors([]);      // 던전은 목적지가 없다 — 마을 배치가 새면 안 된다
   drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 });
   // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
   drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);

@@ -94,6 +94,34 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
      `lower` 가 **흙**이었다. 그래서 맵을 만들 때 1=흙 으로 뒤집어 적었다
      (assets/floor/meadow_wang.json). */
 let wang = null, wangTiles = null;
+
+/* ══ 관심점(앵커) ══ 병수님: "지금 맵이 자연스럽게 하나의 지역처럼 보이냐? 뭔가 어설픈데"
+   — 아니었다. 어설픈 이유는 에셋이 아니라 **배치**였다:
+     ① 모든 것이 **같은 확률로** 흩어져 있다(야영지는 무리를 짓는다)
+     ② 흙길이 목적지와 무관하다(길은 사람이 **다니는 자리**에 난다)
+     ③ 가장자리로 갈수록 안 비어서 **중심**이 안 생긴다
+   셋 다 「어디가 중요한 자리인가」를 코드가 모르기 때문이다. 그래서 **앵커**를 준다:
+   입구·상인·대장간·모닥불의 월드 좌표. 길은 앵커 **사이**에 내고, 소품은 앵커
+   **가까이** 모으고, 멀어지면 비운다. */
+let anchors = [];
+export function setAnchors(list) { anchors = list || []; }
+
+/** 점에서 선분까지의 거리 — 길은 앵커를 잇는 **선**이라 이게 필요하다. */
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const L = dx * dx + dy * dy;
+  let t = L ? ((px - ax) * dx + (py - ay) * dy) / L : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  const qx = ax + dx * t, qy = ay + dy * t;
+  return Math.hypot(px - qx, py - qy);
+}
+
+/** 앵커까지의 최단 거리(무리 짓기·비우기에 쓴다). */
+function nearAnchor(x, y) {
+  let m = Infinity;
+  for (const a of anchors) m = Math.min(m, Math.hypot(x - a[0], y - a[1]));
+  return m;
+}
 export function loadWang(sheetSrc, mapSrc, boost = 1, name = "town") {
   LOAD.total += 2;
   fetch(mapSrc).then((r) => r.json()).then((m) => { wang = m; LOAD.done++; })
@@ -123,22 +151,45 @@ export function loadWang(sheetSrc, mapSrc, boost = 1, name = "town") {
  *    ① 네 칸짜리 **큰 덩어리**가 흙인지 정하고
  *    ② 그 안에서 칸마다 조금씩 흔들어 **가장자리를 너덜너덜하게** 한다
  *  (덩어리 밖에도 아주 가끔 흙이 나오게 두면 길이 자연스럽게 이어진다.) */
-function dirtAt(vx, vy) {
-  const blob = (hash2(vx >> 2, vy >> 2) % 100) < 30;
+function dirtAt(vx, vy, wx, wy) {
   const edge = hash2(vx * 3 + 11, vy * 5 + 7) % 100;
+  /* ★ 길은 **앵커를 잇는 선** 둘레다 — 사람이 다닌 자리가 닳는다.
+     선에서 멀어질수록 확률이 떨어져 가장자리가 저절로 너덜너덜해진다. */
+  if (anchors.length > 1) {
+    /* ★ 처음엔 격자 인덱스에 상수를 곱해 월드 좌표로 삼았는데, **격자 인덱스는
+       화면 기준**(왼쪽 끝이 0)이라 앵커와 축이 안 맞아 흙이 낱개 네모로 흩어졌다.
+       월드 좌표는 부르는 쪽에서 넘겨받는다. */
+    let best = Infinity;
+    for (let i = 0; i < anchors.length; i++)
+      for (let j = i + 1; j < anchors.length; j++)
+        best = Math.min(best, distSeg(wx, wy, anchors[i][0], anchors[i][1],
+                                              anchors[j][0], anchors[j][1]));
+    if (best < 26) return edge < 92;                 // 길 한복판
+    if (best < 52) return edge < 52;                 // 길가
+    if (best < 80) return edge < 16;                 // 밟힌 자국
+    /* ★ 들판에 3% 로 흙을 흩뿌렸더니 **낱개 네모**가 쓰레기처럼 남았다 —
+       길에서 먼 곳은 그냥 풀이어야 「길」이 길로 읽힌다. */
+    return false;                                    // 길에서 멀면 그냥 풀
+  }
+  const blob = (hash2(vx >> 2, vy >> 2) % 100) < 30;
   return blob ? edge < 86 : edge < 7;
 }
 
 /** Wang 바닥을 깐다. 못 쓰면 false 를 돌려주고 기존 타일 방식으로 넘어간다. */
-function drawWang(ctx, w, h, cx, cy) {
+function drawWang(ctx, w, h, cx, cy, sc, squash) {
   if (!wang || !wangTiles) return false;
   const t = wangTiles[0].width;
   ctx.imageSmoothingEnabled = false;
   const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
   for (let y = oy, gy = 0; y < h + t; y += t, gy++) {
     for (let x = ox, gx = 0; x < w + t; x += t, gx++) {
-      const key = (dirtAt(gx, gy) ? "1" : "0") + (dirtAt(gx + 1, gy) ? "1" : "0") +
-                  (dirtAt(gx, gy + 1) ? "1" : "0") + (dirtAt(gx + 1, gy + 1) ? "1" : "0");
+      /* 꼭짓점의 **월드 좌표** — 앵커와 같은 자에서 재야 길이 목적지에 닿는다. */
+      const w0x = (x - cx) / sc, w0y = (y - cy) / (sc * squash);
+      const w1x = (x + t - cx) / sc, w1y = (y + t - cy) / (sc * squash);
+      const key = (dirtAt(gx, gy, w0x, w0y) ? "1" : "0") +
+                  (dirtAt(gx + 1, gy, w1x, w0y) ? "1" : "0") +
+                  (dirtAt(gx, gy + 1, w0x, w1y) ? "1" : "0") +
+                  (dirtAt(gx + 1, gy + 1, w1x, w1y) ? "1" : "0");
       const pos = wang[key];
       if (!pos) continue;
       ctx.drawImage(wangTiles[pos[1] * 4 + pos[0]], x, y);
@@ -154,7 +205,7 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
      자리마다 네 변형 중 하나를 고르는데, **좌표로 정한다**(난수가 아니다) —
      난수면 매 프레임 무늬가 바뀌어 바닥이 끓는다. */
-  if (wangTiles && wang && wanted === "town" && drawWang(ctx, w, h, cx, cy)) {
+  if (wangTiles && wang && wanted === "town" && drawWang(ctx, w, h, cx, cy, sc, squash)) {
     drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1);
   } else if (floorReady) {
     const t = tiles[0].width;
@@ -503,7 +554,17 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
   for (let gy = gy0; gy <= gy1; gy++) {
     for (let gx = gx0; gx <= gx1; gx++) {
       const rnd = hash2(gx, gy);
-      if (rnd % 100 >= density) continue;                    // 대부분의 칸은 빈 채로 둔다
+      /* ★★ 균일하게 뿌리면 「물건이 고르게 흩어진 들판」이 된다(병수님: "하나의 지역처럼
+         보이냐? 뭔가 어설픈데"). 야영지는 **무리를 짓는다** — 앵커(입구·상인·대장간·
+         모닥불) 가까이는 빽빽하고 멀어지면 비어야 「여기가 마을」이 생긴다.
+         멀리까지 아예 0 으로 두지는 않는다 — 들판에도 바위 한둘은 있어야 자연스럽다. */
+      let dens = density;
+      if (anchors.length) {
+        const d = nearAnchor(gx * CELL, gy * CELL);
+        dens = d < 220 ? density * 1.9 : d < 420 ? density : d < 700 ? density * 0.45
+                                                                    : density * 0.16;
+      }
+      if (rnd % 100 >= dens) continue;                       // 대부분의 칸은 빈 채로 둔다
       const name = set[(rnd >> 7) % set.length];
       const im = decor[name]; if (!im) continue;
       /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
