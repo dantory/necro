@@ -37,10 +37,14 @@ export function drawTree() {
         : nd.max > 1
         ? `<span class="tp">${"●".repeat(r)}${"○".repeat(nd.max - r)}</span>`
         : `<span class="tp one">${r ? "열림" : "잠김"}</span>`;
-      const need = META.lv < nd.lv ? `<i class="tNeed">Lv.${nd.lv}</i>` : "";
+      /* 그림은 **열다섯 칸 전부**가 가진다(assets/ui/tree/<id>.png).
+         전에 넷에만 붙였다가 그 칸만 키가 커져 줄이 어긋났다 — 모두가 가지면
+         줄은 저절로 맞는다. 한 장이 없어도 자리는 남긴다(visibility). */
       return `${i ? `<div class="tLink${lit}"></div>` : ""}
         <div class="tNode ${cls}${nd.id === pick ? " sel" : ""}${nd.big ? " big" : ""}"
              data-tn="${nd.id}">
+          <img class="tIco" src="assets/ui/tree/${nd.id}.png" alt=""
+               onerror="this.style.visibility='hidden'">
           <span class="tn">${nd.n}</span>
           ${pips}
         </div>`;
@@ -65,6 +69,9 @@ export function drawTree() {
   $("treeSp").textContent = spLeft();
   $("treeSpAll").textContent = `${spUsed()}/${spTotal()}`;
   edgeFade();
+  /* 고른 칸이 접힌 자리에 있으면 **설명만 바뀌고 어느 칸인지 안 보인다** — 끌어온다.
+     nearest 라 이미 보이는 칸은 화면이 안 흔들린다. */
+  $("treeCols").querySelector(".tNode.sel")?.scrollIntoView({ block: "nearest" });
 }
 
 /* 아래 끝의 흐림은 **더 있을 때만** 켠다 — 다 보이는데도 흐려져 있으면

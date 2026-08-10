@@ -359,7 +359,10 @@ body.in-town #stage{cursor:pointer}
 /* 판(#panel, z-index 30)보다 위에 서야 덮는다 — 안 그러면 구슬이 발치를 뚫고 올라온다.
    보는 동안은 안 싸우므로 구슬을 가려도 잃을 게 없다. */
 #winTree{inset:38px 0 0 0;z-index:35}
-.frame.wide{display:flex;flex-direction:column;max-height:calc(100% - 10px)}
+/* 줄기 칸을 절대 배치로 가두려면 **부모 높이가 확정**돼 있어야 한다. 트리 창은
+   남은 자리를 그냥 다 쓴다 — 줄기가 몇 칸 보이느냐가 이 창의 값어치다. */
+#winTree .frame{height:calc(100% - 10px);max-height:calc(100% - 10px)}
+.frame.wide{display:flex;flex-direction:column}
 .frame.wide > h2, .frame.wide > .wSub, .frame.wide > .winFoot{flex:0 0 auto}
 .frame.wide > .tip{flex:0 0 auto;max-height:40vh}
 
@@ -369,17 +372,24 @@ body.in-town #stage{cursor:pointer}
   pointer-events:none;background:linear-gradient(#0b080600,#0b0806)}
 #treeWrap.atEnd::after{opacity:0}
 
-#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
-  height:100%;overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:4px;
+/* ★ `height:100%` 로 두었더니 **높이가 확정되지 않은 부모**에서 퍼센트가 안 먹어,
+   칸에 그림이 붙어 키가 커지자 그대로 자라 설명 상자를 덮어 버렸다(자는 잘림 0 이라
+   답했다 — 안 잘린 게 아니라 **안 갇힌** 것이었다). 절대 배치로 자리를 못박는다. */
+#treeCols{position:absolute;inset:0;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
+  overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:4px;
   scrollbar-width:thin;scrollbar-color:#4a4030 transparent}
 #treeCols::-webkit-scrollbar{width:6px}
 #treeCols::-webkit-scrollbar-thumb{background:#4a4030}
 #treeCols::-webkit-scrollbar-track{background:transparent}
 .tCol{display:flex;flex-direction:column;align-items:stretch}
 /* 머리글은 **붙어 있다** — 굴리는 중에 어느 줄기인지 놓치면 세 칸이 다 같아 보인다 */
-.tCol h3{position:sticky;top:0;z-index:2;margin:0 0 9px;padding:3px 0 5px;
+/* ★ 배경을 아래로 흐리게 뒀더니 **굴릴 때 아이콘이 글자 뒤로 비쳤다** — 붙어 있는
+   머리글은 제 자리를 완전히 가려야 한다. 불투명하게 두고 아래에 실선을 깐다. */
+/* 아래 여백까지 **불투명 상자 안에** 넣는다 — margin 으로 두면 그 틈으로 아이콘 끝이 비친다 */
+.tCol h3{position:sticky;top:0;z-index:3;margin:0;padding:5px 0 14px;
   text-align:center;font-size:14px;letter-spacing:3px;color:#a08f6c;font-weight:normal;
-  background:linear-gradient(#0e0a06 70%,#0e0a0600)}
+  background:#100b07;box-shadow:0 1px 0 #2c2419, 0 6px 8px -6px #000}
 
 /* 줄기를 잇는 선 — **무엇이 무엇을 여는지**가 이 선 하나로 읽힌다.
    ★ 처음엔 #3a3226 한 색이었는데 배경에 묻혀 **아예 안 보였다**. 선은 굵기가 아니라
@@ -423,7 +433,9 @@ body.in-town #stage{cursor:pointer}
 .tCol[data-k="army"]  { --br:#e6dcc4 }
 .tCol[data-k="corpse"]{ --br:#8fbe72 }
 .tCol[data-k="hex"]   { --br:#b98ae0 }
-.tCol h3{color:var(--br);opacity:.72}
+/* ★ 여기서 `opacity:.72` 를 걸었더니 **배경까지 반투명**이 되어, 붙어 있는 머리글
+   뒤로 굴러가는 아이콘이 비쳤다. 흐리게 하고 싶은 건 글자뿐이니 색으로 낮춘다. */
+.tCol h3{color:color-mix(in srgb, var(--br) 70%, #4a4133)}
 .tCol .tNode.some{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 10px #000}
 .tCol .tNode.some .tn,.tCol .tNode.some .tp{color:var(--br)}
 .tCol .tNode.full{box-shadow:inset 0 0 0 1px var(--br), inset 0 0 12px #000, 0 0 9px color-mix(in srgb, var(--br) 34%, transparent)}
@@ -434,9 +446,17 @@ body.in-town #stage{cursor:pointer}
 .tNode .tp.need{color:#9a7c3c;letter-spacing:0;font-size:11px}
 .tNode.open .tp.need{color:#c9a24a}
 
-/* ★ 끝 칸에 스킬 아이콘을 넣어 봤다가 **뺐다.** 이름 위에 얹으니 그 칸만 키가 커져
-   줄이 어긋났고, 바탕에 깔았더니 글자 뒤에서 얼룩처럼 비쳐 되레 시끄러웠다.
-   줄기 색이 이미 「어느 갈래인가」를 말하고 있어서 그림은 더할 게 없었다. */
+/* ══ 칸의 그림 ══ 병수님: "픽셀랩 에셋좀 활용해서 더 이쁘게 못만드니?"
+   ★ 한 번 붙였다 뺀 자리다. 그때 문제는 **그림이 아니라 자리**였다 — 넷에만 붙이니
+     그 칸만 키가 커져 줄이 어긋났고, 바탕에 깔았더니 글자 뒤 얼룩이 됐다.
+     이제 열다섯 칸이 **전부** 제 그림을 가진다(tools/pixellab/tree_icons.py).
+   잠긴 칸은 흑백으로 눌러 둔다 — 색이 곧 「쓸 수 있음」이 된다. */
+.tIco{display:block;margin:0 auto 4px;width:34px;height:34px;
+  image-rendering:pixelated;pointer-events:none;
+  opacity:.32;filter:grayscale(1) brightness(.8)}
+.tNode.open .tIco{opacity:.92;filter:none}
+.tNode.some .tIco,.tNode.full .tIco{opacity:1;filter:none}
+.tNode.big  .tIco{width:40px;height:40px}
 
 /* ══ 설명 ══ 세 줄이 **서로 다른 일**을 한다: 무엇인가 · 조건 · 효과.
    전에는 셋이 같은 크기라 눈이 어디부터 볼지 몰랐다. */
@@ -500,9 +520,13 @@ body.in-town #stage{cursor:pointer}
   .wSub{margin:-4px 0 8px;font-size:13px}
   #treeCols{gap:7px}
   .tCol h3{font-size:12px;letter-spacing:2px}
-  .tNode{padding:8px 4px 7px}
+  .tNode{padding:6px 4px 6px}
   .tNode .tn{font-size:13px}
   .tNode.big .tn{font-size:14px}
+  /* 폰에선 그림을 조금 줄인다 — 34 로 두면 한 줄에 12px 씩, 다섯 줄이면 60px 다 */
+  .tIco{width:28px;height:28px;margin-bottom:3px}
+  .tNode.big .tIco{width:32px;height:32px}
+  .tLink{height:8px}
   .tip{padding:9px 11px;max-height:38vh;overflow-y:auto}
   .tip .tipName{font-size:17px}
   .tip .tipStat{font-size:14px}
