@@ -82,6 +82,20 @@ TILESETS = {
                        "boots, small pebbles and faint ruts, no grass"),
     transition_description="ragged edge where the green grass is worn away into bare dirt",
   ),
+  # ── 마을 4차 ── ★ 3차(meadow)는 초록이 나왔지만 **전이 타일에 검은 외곽선**이 있어
+  # 흙길이 「단 진 지형」으로 보였다. 두 가지를 바꾼다:
+  #   · outline "lineless" — 재질이 바뀌는 자리에 선이 안 그어진다
+  #   · transition_size 0.5 → 0.12 — 이 값은 **지형 간 높이 차**라 크면 계단이 된다
+  "meadow2": dict(
+    lower_description=("MOSSY GREEN MEADOW GRASS, olive green and grey-green, desaturated "
+                       "but clearly GREEN, medium brightness, individual grass blades and "
+                       "clumps, a few small grey pebbles, flat ground with no height, "
+                       "Diablo 2 Rogue Encampment at night, no blue, no purple, no teal"),
+    upper_description=("MEDIUM BROWN PACKED EARTH, desaturated, a footpath trodden bare and "
+                       "FLAT, level with the grass, small pebbles, no grass, no step, no ledge"),
+    transition_description="the grass simply thins out into bare dirt on flat level ground",
+    outline="lineless", transition_size=0.12,
+  ),
   # 깊은 층 — 뼛조각이 섞인 흙바닥. 네크로멘서의 소굴.
   "bone": dict(
     lower_description=f"{TONE}, packed brown earth floor littered with small pale bone "
@@ -140,7 +154,7 @@ if __name__ == "__main__":
     for k in todo:
         if os.path.exists(os.path.join(OUT, k + ".png")):
             print(f"이미 있음 {k}", flush=True); continue
-        args = dict(TILESETS[k]); args.update(COMMON)
+        args = dict(COMMON); args.update(TILESETS[k])   # ★ 타일셋별 설정이 COMMON 을 이긴다
         t = text_of(mcp("create_topdown_tileset", args))
         m = re.search(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})", t)
         if not m:

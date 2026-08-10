@@ -44,7 +44,7 @@ function fitNum(el, cur, max) {
   if (el._b !== b) { el._b = b; el.children[1].textContent = b; }
 }
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadDecor, useFloor } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -674,6 +674,9 @@ loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
       **초록 비율이 제일 높은 칸**을 고른다(100%).
    밝기는 원본 89 에 0.55 를 곱해 참고 화면(0.25)에 맞춘다. */
 loadFloor("assets/floor/meadow_tile.png", 0.55, "town");
+/* 마을은 **Wang 16장**으로 깐다 — 풀과 흙이 한 바닥에서 섞이고 길 가장자리가
+   너덜너덜해진다(위 loadFloor 는 Wang 이 안 뜰 때의 대비책). */
+loadWang("assets/floor/meadow.png", "assets/floor/meadow_wang.json", 0.55, "town");
 /* ★ 흙 타일을 통째로 갈아 끼우니 **네모 덩어리**로 떴다 — 두 타일은 Wang 전이가
    아니라서 경계가 직각이 된다. 타일은 풀 하나로 두고, 흙은 **얼룩(decal)** 으로
    얹는다 — 얼룩은 알파 모양이라 경계가 원래 너덜너덜하다. */

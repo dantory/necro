@@ -84,6 +84,69 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
   im.src = src;
 }
 
+/* ══ Wang 바닥 ══ 풀과 흙을 **한 바닥 안에서** 섞는다.
+   타일을 통째로 갈아 끼우면 경계가 직각이 되어 네모 덩어리로 보인다(겪었다).
+   타일셋은 원래 **모서리 매칭(Wang)** 이라 16 장이 모든 모서리 조합을 갖고 있다 —
+   격자의 **꼭짓점마다** 재질을 정하고, 그 네 꼭짓점에 맞는 타일을 고르면
+   가장자리가 저절로 너덜너덜해진다(그게 이 16 장의 존재 이유다).
+
+   ★ 메타의 라벨이 뒤집혀 있다 — 초록 비율로 재 보니 corners 의 `upper` 가 **풀**,
+     `lower` 가 **흙**이었다. 그래서 맵을 만들 때 1=흙 으로 뒤집어 적었다
+     (assets/floor/meadow_wang.json). */
+let wang = null, wangTiles = null;
+export function loadWang(sheetSrc, mapSrc, boost = 1, name = "town") {
+  LOAD.total += 2;
+  fetch(mapSrc).then((r) => r.json()).then((m) => { wang = m; LOAD.done++; })
+               .catch(() => { LOAD.done++; });
+  const im = new Image();
+  im.onload = () => {
+    const t = im.width / 4;
+    wangTiles = [];
+    for (let i = 0; i < 16; i++) {
+      const c = document.createElement("canvas");
+      c.width = t; c.height = t;
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.filter = `brightness(${boost}) saturate(0.95)`;
+      g.drawImage(im, (i % 4) * t, ((i / 4) | 0) * t, t, t, 0, 0, t, t);
+      wangTiles.push(c);
+    }
+    LOAD.done++;
+  };
+  im.onerror = () => { LOAD.done++; };
+  im.src = sheetSrc;
+}
+
+/** 꼭짓점이 흙인가.
+ *  ★ 꼭짓점마다 **따로** 뽑았더니 흙이 **미로**가 됐다 — 확률이 같아도 주기가 잘면
+ *  덩어리가 안 생기고 실이 된다. 두 겹으로 뽑는다:
+ *    ① 네 칸짜리 **큰 덩어리**가 흙인지 정하고
+ *    ② 그 안에서 칸마다 조금씩 흔들어 **가장자리를 너덜너덜하게** 한다
+ *  (덩어리 밖에도 아주 가끔 흙이 나오게 두면 길이 자연스럽게 이어진다.) */
+function dirtAt(vx, vy) {
+  const blob = (hash2(vx >> 2, vy >> 2) % 100) < 30;
+  const edge = hash2(vx * 3 + 11, vy * 5 + 7) % 100;
+  return blob ? edge < 86 : edge < 7;
+}
+
+/** Wang 바닥을 깐다. 못 쓰면 false 를 돌려주고 기존 타일 방식으로 넘어간다. */
+function drawWang(ctx, w, h, cx, cy) {
+  if (!wang || !wangTiles) return false;
+  const t = wangTiles[0].width;
+  ctx.imageSmoothingEnabled = false;
+  const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
+  for (let y = oy, gy = 0; y < h + t; y += t, gy++) {
+    for (let x = ox, gx = 0; x < w + t; x += t, gx++) {
+      const key = (dirtAt(gx, gy) ? "1" : "0") + (dirtAt(gx + 1, gy) ? "1" : "0") +
+                  (dirtAt(gx, gy + 1) ? "1" : "0") + (dirtAt(gx + 1, gy + 1) ? "1" : "0");
+      const pos = wang[key];
+      if (!pos) continue;
+      ctx.drawImage(wangTiles[pos[1] * 4 + pos[0]], x, y);
+    }
+  }
+  return true;
+}
+
 /** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
 export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   ctx.fillStyle = "#070504"; ctx.fillRect(0, 0, w, h);
@@ -91,7 +154,9 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
      자리마다 네 변형 중 하나를 고르는데, **좌표로 정한다**(난수가 아니다) —
      난수면 매 프레임 무늬가 바뀌어 바닥이 끓는다. */
-  if (floorReady) {
+  if (wangTiles && wang && wanted === "town" && drawWang(ctx, w, h, cx, cy)) {
+    drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1);
+  } else if (floorReady) {
     const t = tiles[0].width;
     ctx.imageSmoothingEnabled = false;
     const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
