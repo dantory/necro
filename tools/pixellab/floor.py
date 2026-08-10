@@ -66,6 +66,22 @@ TILESETS = {
                        "small pebbles, faint wheel ruts, no grass at all"),
     transition_description="ragged edge where the grass thins out into bare trodden dirt",
   ),
+  # ── 마을 3차 ── ★★ 참고 화면과 **숫자로** 비교해 보니 차이가 소품이 아니었다:
+  #   D2R  RGB(62,59,45) 채도 0.29 밝기 0.25 **초록 29%**
+  #   우리 RGB(94,79,57) 채도 0.40 밝기 0.37 **초록 0%**
+  # 우리 마을은 밝은 주황빛 사막이고 저기는 어두운 **풀밭**이다. 1·2차에서 초록을
+  # 「마른 풀·카키」로 눌러 적은 것이 원인 — 그래서 흙만 나왔다. 이번엔 **초록을
+  # 정면으로 주문한다**(채도는 낮게, 밝기는 중간). 어둠은 바닥 밝기(boost)로 만든다.
+  "meadow": dict(
+    lower_description=("MOSSY GREEN MEADOW GRASS, olive green and grey-green, desaturated "
+                       "but clearly GREEN, medium brightness, strong visible texture of "
+                       "individual grass blades and clumps with dark shadow between them, "
+                       "a few small grey pebbles, Diablo 2 Rogue Encampment ground at night, "
+                       "no blue, no purple, no teal, no neon"),
+    upper_description=("MEDIUM BROWN PACKED EARTH, desaturated, a footpath trodden bare by "
+                       "boots, small pebbles and faint ruts, no grass"),
+    transition_description="ragged edge where the green grass is worn away into bare dirt",
+  ),
   # 깊은 층 — 뼛조각이 섞인 흙바닥. 네크로멘서의 소굴.
   "bone": dict(
     lower_description=f"{TONE}, packed brown earth floor littered with small pale bone "

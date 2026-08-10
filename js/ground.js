@@ -56,7 +56,9 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
        **네 칸짜리 덩어리**로 고른다(아래 drawGround) — 실제 바닥의 얼룩도 타일 단위로
        지지 않는다. */
     const made = [];
-    for (const tone of [0.94, 1.0, 1.06])
+    /* ★ 풀밭처럼 **고른 바닥**에서는 ±6% 도 큰 네모로 보인다(흙에서는 안 보였다).
+       ±3% 로 줄인다 — 무늬가 약한 재질일수록 흔들 폭도 작아야 한다. */
+    for (const tone of [0.97, 1.0, 1.03])
       for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
         const c = document.createElement("canvas");
         c.width = t; c.height = t;
@@ -68,8 +70,11 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
         g.drawImage(im, 0, 0);
         made.push(c);
       }
-    tileSets[name] = made;
-    if (name === wanted || !tiles.length) { tiles = made; floorReady = true; }
+    /* ★ 같은 이름으로 두 번 부르면 **덮지 않고 이어 붙인다** — 풀 타일 12 + 흙 타일 12
+       = 24 가지가 되어 한 바닥 안에서 풀과 흙이 섞인다(참고 화면이 그렇다:
+       풀밭 29% 초록 = 나머지는 밟아 닳은 흙길). */
+    tileSets[name] = (tileSets[name] || []).concat(made);
+    if (name === wanted || !tiles.length) { tiles = tileSets[name]; floorReady = true; }
     LOAD.done++;
   };
   /* ★ 실패 경로에서 done 을 안 올렸더니 **1115/1116 에서 영영 멈췄다.**
@@ -91,15 +96,25 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
     ctx.imageSmoothingEnabled = false;
     const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
     for (let y = oy, gy = 0; y < h + t; y += t, gy++)
-      for (let x = ox, gx = 0; x < w + t; x += t, gx++)
+      for (let x = ox, gx = 0; x < w + t; x += t, gx++) {
         /* 뒤집기는 **타일마다**(무늬를 깬다), 밝기는 **덩어리로**(얼룩을 만든다).
            둘의 주기가 다르면 어느 쪽도 격자로 안 읽힌다. */
-        ctx.drawImage(tiles[(hash2(gx >> 2, gy >> 2) % 3) * 4 + (hash2(gx, gy) % 4)], x, y);
+        /* ★★ 이 식이 **12 까지만** 인덱싱하고 있었다 — 흙 타일 12 장을 얹어도
+           한 번도 안 뽑혀서 초록이 85% 에서 안 내려갔다(뒤늦게 알았다).
+           이제 셋을 겹쳐 고른다:
+             ① 재질(풀/흙) — **여덟 칸짜리 큰 덩어리**로. 그래야 흙이 「길」로 읽힌다
+             ② 밝기 — 네 칸 덩어리   ③ 뒤집기 — 칸마다
+           재질은 3:7 로 흙이 적게(참고 화면의 초록 29% 는 그 반대지만, 우리는
+           소품이 어두워서 흙이 많으면 화면이 통째로 진창이 된다). */
+        const mats = Math.max(1, Math.floor(tiles.length / 12));
+        const mat = mats > 1 && (hash2(gx >> 3, gy >> 3) % 10) < 4 ? 1 : 0;
+        ctx.drawImage(tiles[mat * 12 + (hash2(gx >> 2, gy >> 2) % 3) * 4 + (hash2(gx, gy) % 4)], x, y);
+      }
 
     /* ②' 얼룩 — **격자를 가로질러** 놓이는 것들. 타일을 아무리 늘려도 경계는 남는데,
        경계를 넘어 걸치는 것이 하나 있으면 거기서 격자가 끊긴다(디아블로 1 트리스트람의
        바닥이 그렇다: 같은 흙인데 밟아 닳은 길과 자국이 격자를 지운다). */
-    drawDecals(ctx, cx, cy, sc, squash, w, h);
+    drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1);
   }
 
   /* ②' 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고 빛이 닿은
@@ -149,18 +164,20 @@ export function loadDecals(dir = "assets/decal") {
 }
 
 const DCELL = 150;                 // 얼룩 격자 — 소품(165)과 **어긋나게** 잡는다
-function drawDecals(ctx, cx, cy, sc, squash, w, h) {
+function drawDecals(ctx, cx, cy, sc, squash, w, h, mul = 1) {
   const set = DECAL[wanted] || DECAL.crypt;
   if (!set.some((n) => decalArt[n])) return;
   const halfW = (w / 2) / sc, halfH = (h / 2) / (sc * squash);
   const gx0 = Math.floor((-halfW) / DCELL) - 1, gx1 = Math.ceil((halfW) / DCELL) + 1;
   const gy0 = Math.floor((-halfH) / DCELL) - 1, gy1 = Math.ceil((halfH) / DCELL) + 1;
   ctx.save();
-  ctx.globalAlpha = 0.62;          // 바닥에 **스며든** 것이라 완전 불투명이면 스티커가 된다
+  /* ★ 초록 87% 는 참고 화면(29%)보다 과하다 — 저기는 풀밭에 **흙길이 닳아** 있다.
+     흙 얼룩을 진하게 얹어 풀과 흙이 섞이게 한다(0.62 → 0.85). */
+  ctx.globalAlpha = 0.85;          // 바닥에 **스며든** 것이라 완전 불투명이면 스티커가 된다
   for (let gy = gy0; gy <= gy1; gy++) {
     for (let gx = gx0; gx <= gx1; gx++) {
       const hsh = hash2(gx * 7 + 13, gy * 11 + 5);
-      if ((hsh % 100) >= 42) continue;                  // 칸 열에 넷 정도만
+      if ((hsh % 100) >= 42 * mul) continue;            // 칸 열에 넷 정도만(mul 로 조절)
       const name = set[(hsh >> 7) % set.length];
       const im = decalArt[name]; if (!im) continue;
       const wx = (gx + 0.5) * DCELL + ((hsh >> 11) % 90) - 45;
