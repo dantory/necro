@@ -250,8 +250,8 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
 .tipName{font-size:18px;margin-bottom:2px}
 .tipName .lv{color:#8a7c60}
-.tipKind{color:#6b5f4e;margin-bottom:6px}
-.tipStat{color:#9d907a;margin-top:2px}
+.tipKind{color:#6b5f4e;margin-bottom:6px;word-break:keep-all}
+.tipStat{color:#9d907a;margin-top:2px;word-break:keep-all}
 .tipStat b{color:#c9bda4;font-weight:400}
 .tipStat.up{color:#8ac06a}
 .tipStat.up b{color:#8ac06a}
@@ -334,7 +334,16 @@ body.in-town #stage{cursor:pointer}
    ══════════════════════════════════════════════════════════ */
 .frame.wide{max-width:640px}
 
-#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:13px}
+/* ★ 화면을 찍어 보고 알았다: 설명이 길어지면 **「찍기」 단추가 창 밖으로 밀려** 나갔다
+   (끝 노드 셋이 특히 길다). 창 전체가 스크롤되니 눌리기는 하지만, 처음 열었을 때
+   제일 중요한 단추가 반쯤 잘려 있으면 그건 고장으로 읽힌다.
+   **줄기만 스크롤하고 설명과 발치는 자리에 붙여 둔다** — 어느 칸을 골라도 단추는
+   같은 자리에 있다. */
+.frame.wide{display:flex;flex-direction:column;max-height:86vh}
+.frame.wide > h2, .frame.wide > .wSub, .frame.wide > .tip, .frame.wide > .winFoot{flex:0 0 auto}
+
+#treeCols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:13px;
+  flex:1 1 auto;min-height:0;overflow-y:auto;align-content:start}
 .tCol{display:flex;flex-direction:column;align-items:stretch}
 .tCol h3{margin:0 0 8px;text-align:center;font-size:13px;letter-spacing:2px;
   color:#8a7c60;font-weight:normal}
@@ -422,12 +431,29 @@ body.in-town #stage{cursor:pointer}
   /* 창 — 폰에서는 **가로가 모자라다.** 트리 세 줄기를 그대로 두되 글자를 줄이고,
      창은 화면을 꽉 쓰게 한다(가운데 정렬로 남는 여백을 만들 때가 아니다). */
   .win .frame{max-width:none;max-height:calc(100% - 8px);margin:0 6px;padding:14px 12px}
-  .win h2{font-size:20px;letter-spacing:3px}
-  .wSub{margin:-4px 0 12px;font-size:13px}
+  .win h2{font-size:19px;letter-spacing:3px;margin-bottom:6px}
+  .wSub{margin:-4px 0 6px;font-size:13px}
   #treeCols{gap:6px}
-  .tCol h3{font-size:11px;letter-spacing:1px}
-  .tNode{padding:5px 3px 4px}
+  .tCol h3{font-size:11px;letter-spacing:1px;margin-bottom:5px}
+  .tNode{padding:3px 3px 2px}
   .tNode .tn{font-size:11px}
   .tNode .tr,.tNode .tr i{font-size:11px}
-  .tLink{height:8px}
+  .tLink{height:5px}
+  /* ★ 툴팁을 데스크톱 크기로 두면 **줄기가 설 자리를 다 먹는다** — 세 칸만 보이고
+     나머지는 스크롤 밖으로 나갔다. 트리는 앞날이 보여야 계획을 세우는 화면이므로
+     줄기가 먼저다. 설명은 줄이고, 그래도 길면 설명 쪽이 스크롤된다. */
+  .tip{padding:6px 9px;max-height:34vh;overflow-y:auto}
+  .tipName{font-size:15px}
+  .tipKind{font-size:12px;margin-bottom:4px}
+  .tipStat{font-size:12px}
+  .tipBuy{margin-top:7px;gap:12px}
+  .winFoot{margin-top:8px}
+}
+
+/* 제일 좁은 폰(390px, iPhone 12~15) — 24px 이 모자라 **끝 노드 줄이 잘렸다.**
+   하필 그 줄이 트리에서 제일 중요한 칸이다. 곁말(부제)을 접어 자리를 만든다 —
+   장식이 본문을 밀어내면 접는 쪽은 장식이다. */
+@media (max-width:400px){
+  #winTree .wSub{display:none}
+  #winTree h2{margin-bottom:4px}
 }
