@@ -1,7 +1,8 @@
 import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
-         wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn } from "./core.js";
+         wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
+         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -116,7 +117,7 @@ function spawnMob(f, i, n) {
 
 export function summon(kind) {
   const K = MINIONS[kind];
-  if (S.minions.length >= armyCap()) return false;
+  if (armyN() >= armyCap()) return false;
   /* **둘레에 고르게 세운다.** 사방에서 오는 판이므로 한쪽에 몰아 세우면 반대쪽이 그냥
      뚫린다. 서 있는 각도를 이미 선 것들 사이의 **제일 넓은 틈**에 꽂는다 —
      그러면 몇 기가 있든 알아서 사방이 덮인다. */
@@ -146,7 +147,7 @@ export function cast(id) {
   if (!sk) return false;
   const mpNeed = mpCost(sk);
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < sk.corpse) return false;
-  if (isRaise(id) && S.minions.length >= armyCap()) return false;
+  if (isRaise(id) && armyN() >= armyCap()) return false;
 
   S.mp -= mpNeed; S.corpses -= sk.corpse; S.cd[id] = sk.cd * cdMul();
   if (isRaise(id)) { summon(MINION_OF[id]); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 일어섬`); }
@@ -159,7 +160,18 @@ export function cast(id) {
     for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
-    if (feastOn()) for (const e of S.minions) e.hp = Math.min(e.hpMax, e.hp + dmg * 0.4);
+    /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
+       끝 노드를 찍었는지 안 찍었는지 보고도 모른다. 먹인 놈은 **커진다**: 크기와
+       힘이 같이 오르고, 여덟 번까지만(끝없이 크면 둘레를 몸으로 덮어 버린다). */
+    if (feastOn()) for (const e of S.minions) {
+      e.hp = Math.min(e.hpMax, e.hp + dmg * 0.4);
+      if ((e.fed | 0) < FEED_MAX) {
+        e.fed = (e.fed | 0) + 1;
+        const grow = 1 + 0.05;                 // 이번 한 입만큼 체력 그릇도 같이 큰다
+        e.hpMax = Math.round(e.hpMax * grow); e.hp = Math.round(e.hp * grow);
+        e.r *= grow;                           // 몸이 크면 자리도 그만큼 차지한다
+      }
+    }
     S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova", rad });
     say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리에 ${Math.round(dmg)}`);
   }
@@ -272,7 +284,9 @@ export function step(dt) {
      사방 판에서 전원이 한 적에게 몰려가면 그 순간 나머지 방향이 통째로 비어 본체가 맞는다.
      그래서 "내 구역"(제 각도)에서 제일 가까운 적만 본다. */
   for (const u of S.minions) {
-    const K = MINIONS[u.kind];
+    /* 지배한 놈은 **제 표를 들고 다닌다**(u.own) — 원래 적이라 MINIONS 에 없다.
+       한 곳에서만 갈라 두면 나머지 셈은 소환수와 완전히 같다. */
+    const K = u.own || MINIONS[u.kind];
     const hx = Math.cos(u.home) * u.rad, hy = Math.sin(u.home) * u.rad;
     let tgt = null, td = 1e9;
     for (const m of S.mobs) {
@@ -289,7 +303,10 @@ export function step(dt) {
     u.sdx = (tgt.x - u.x); u.sdy = (tgt.y - u.y);       // 내지르는 방향
     const sl = Math.hypot(u.sdx, u.sdy) || 1; u.sdx /= sl; u.sdy /= sl;
     /* **때는 아직이다.** 팔이 뻗는 칸에서 터지도록 적어만 둔다(위 IMPACT_AT). */
-    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * ampMul, heal: u.kind === "ghoul" };
+    /* 먹어서 커진 만큼 세다 — 몸집과 힘이 따로 놀면 「커졌는데 약함」이 된다.
+       지배한 놈은 제 피를 못 빤다(구울만 문다). */
+    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * ampMul * feedMul(u),
+                  heal: u.kind === "ghoul" && !u.own };
   }
 
   /* ── 적 ── **가운데를 향해 온다.** 길목에 소환수가 있으면 그것부터 친다 —
@@ -359,7 +376,18 @@ export function step(dt) {
     if (S.mobs[i].hp > 0) continue;
     const m = S.mobs[i];
     S.mobs.splice(i, 1);
-    S.corpses++; S.killed++;
+    S.killed++;
+    /* ── 어둠의 지배(트리 끝) ── **쓰러진 자리에서 일어선다.**
+       시체를 써서 세우는 것이므로 이때는 시체가 안 남는다. 서는 각도도 쓰러진 각도
+       그대로다 — 압력이 센 쪽에서 죽으니 그 쪽이 저절로 두꺼워진다. */
+    if (dominatePct() && !m.boss && thrallN() < thrallCap() && Math.random() < dominatePct()) {
+      const hp0 = Math.round(m.hpMax * 0.6);
+      S.minions.push({ id: ++seq, kind: m.kind, art: "mob/" + m.kind,
+                       own: { dmg: m.dmg * MOB_CD, spd: m.spd, cd: MOB_CD, h: m.h },
+                       home: Math.atan2(m.y, m.x), rad: Math.min(RING_HOLD * 1.15, Math.hypot(m.x, m.y)),
+                       h: m.h, x: m.x, y: m.y, hp: hp0, hpMax: hp0, atk: 0, r: m.r });
+      say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 이(가) 내 편으로 일어섬`);
+    } else S.corpses++;
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
     if (harvestPct() && Math.random() < harvestPct()) S.corpses++;

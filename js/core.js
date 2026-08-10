@@ -49,6 +49,9 @@ export const NECRO_ATK = {
 };
 
 export const MOB_H = { fallen: 44, zombie: 50, skelarch: 50, brute: 62, boss: 104 };
+/** 적 이름 — 「어둠의 지배」로 내 편이 되면 로그에 이름이 뜬다. 그때까지는
+ *  화면에 이름이 나올 일이 없어서 없었다. */
+export const MOB_N = { fallen: "타락자", zombie: "좀비", skelarch: "해골 궁수", brute: "괴물", boss: "층의 주인" };
 /** 그림 높이 → **발자국 반경**(월드 단위). 화면에서 스프라이트 폭의 대략 절반이
  *  발이 닿는 자리다. 충돌 반경이 10 이던 시절엔 보이는 크기(24)의 2.4분의 1이라
  *  코드는 "안 겹쳤다" 하는데 눈에는 겹쳐 보였다(병수님: "유닛 겹치는것좀 해결해라"). */
@@ -176,8 +179,16 @@ export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
 /** 마나가 차는 속도 — 부적이 올린다. */
 export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm");
 export const dmgMulOf = () => (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
-                            * (1 + rank("bone") * 0.10) * (rank("dark") ? 1.25 : 1);
-export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion") + rank("dark") * 2;
+                            * (1 + rank("bone") * 0.10);
+export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion");
+/* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
+   먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
+   따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
+export const thrallCap = () => rank("dark") * 4;
+/** 상한에 세는 것은 **내가 소환한 것만.** 지배한 놈까지 세면 자리를 빼앗아
+ *  「지배할수록 해골을 못 세운다」가 된다 — 상을 벌로 만들면 안 된다. */
+export const armyN    = () => S.minions.reduce((a, u) => a + (u.own ? 0 : 1), 0);
+export const thrallN  = () => S.minions.reduce((a, u) => a + (u.own ? 1 : 0), 0);
 
 
 /* ══════════════════════════════════════════════════════════════
@@ -214,14 +225,14 @@ export const TREE = [
     { id:"harvest", n:"시체 수확",  max:5, lv:4,  req:"rot",     d:"처치 시 12% 확률로 시체 하나 더" },
     { id:"cheap",   n:"값싼 죽음",  max:4, lv:8,  req:"harvest", d:"모든 스킬 마나 소모 -10%" },
     { id:"chain",   n:"연쇄 폭발",  max:3, lv:12, req:"cheap",   d:"시체 폭발 범위 +25%" },
-    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수를 피해의 40%만큼 치유", big:1 },
+    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수를 치유하고 — 먹은 만큼 <b>몸이 커진다</b>", big:1 },
   ]},
   { k:"hex", n:"주 술", nodes:[
     { id:"wand",   n:"뼈 다루기",  max:5, lv:1,  d:"본인 기본공격 피해 +12%" },
     { id:"swift",  n:"빠른 손",    max:4, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
     { id:"deep",   n:"깊은 저주",  max:4, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
     { id:"spirit", n:"영혼 흡수",  max:4, lv:13, req:"deep",   d:"처치 시 마나 +2" },
-    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"소환수 피해 +25% · 상한 +2", big:1 },
+    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"쓰러진 적이 <b>내 편으로 일어선다</b>(30%) — 상한 밖에 넷까지", big:1 },
   ]},
 ];
 const NODE = {};
@@ -266,5 +277,19 @@ export const ampPower    = () => 1.4 + rank("deep") * 0.08;   // 저주가 올�
 export const harvestPct  = () => rank("harvest") * 0.12;
 export const spiritMp    = () => rank("spirit") * 2;
 export const feastOn     = () => rank("feast") > 0;
+
+/* ══ 두 줄기의 끝을 «숫자»에서 «생김새»로 옮긴다 ══
+   군세 줄기만 끝에서 새것(구울·골렘)이 열리고 나머지 둘은 끝까지 파도 배수만 커졌다.
+   그러면 트리가 셋처럼 보여도 정답은 하나다. 끝 노드는 **판 위의 군대가 눈에 띄게
+   달라지는 것**이어야 「내 빌드」가 된다.
+
+   시체 잔치 — 폭발로 먹인 소환수가 **커진다.** 시체를 어디에 쓸지가 회복이자 성장이 된다.
+   어둠의 지배 — 쓰러진 적이 **그 자리에서 내 편으로 선다.** 군대의 구성 자체가 층마다
+                 달라진다(브루트를 부리는 판과 궁수를 부리는 판이 다르다).
+   ★ 지배한 놈은 **시체를 남기지 않는다** — 시체를 써서 세운 것이므로. */
+export const FEED_MAX   = 8;                    // 여덟 번까지만 먹는다(끝없이 크면 화면을 덮는다)
+export const feedStep   = 0.05;                 // 한 번에 몸 +5% (여덟이면 +40%)
+export const feedMul    = (u) => 1 + Math.min(FEED_MAX, u.fed | 0) * feedStep;
+export const dominatePct = () => rank("dark") ? 0.30 : 0;
 
 syncSkills();

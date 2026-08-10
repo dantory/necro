@@ -1,4 +1,4 @@
-import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills } from "./core.js";
+import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
 import { cast, CORE_R, newRun, RING_HOLD, RING_SPAWN, step, SWING_T } from "./battle.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -64,6 +64,7 @@ addEventListener("resize", fit);
 const COL = {
   skel: "#d8d2c4", ghoul: "#8fae76", golem: "#8a6b45",
   mob: "#9a3b3b", boss: "#d05353", necro: "#2b2338",
+  thrall: "#a06ad0",      // 지배한 적 — 그림이 없을 때의 대체 색만 여기서 쓴다
 };
 /* ══ 프레임 묶음 ══ `assets/<종류>/attack/0.png…`
    **지금은 아무도 이걸 부르지 않는다** — 그리는 것은 부위 리깅(js/rig.js)이다.
@@ -348,8 +349,22 @@ function draw(dt) {
       continue;
     }
     if (it.u) {
-      const u = it.u, hh = (u.h || 40) * us, x = px(u.x), y = py(u.y);
-      drawOne("minion/" + u.kind, x, y, hh, COL[u.kind], u);
+      /* 먹어서 커진 만큼 **그림도 커진다** — 셈만 커지면 병수님 눈엔 아무 일도 안 난다.
+         지배한 놈은 원래 적의 그림을 그대로 쓴다(u.art) — 「저 브루트가 내 편이다」가
+         한눈에 읽히는 게 이 노드의 전부다. */
+      const u = it.u, hh = (u.h || 40) * us * feedMul(u), x = px(u.x), y = py(u.y);
+      /* ★ 지배한 놈은 **적과 그림이 똑같다** — 화면만 보면 내 편인지 알 수가 없다
+         (첫 판을 찍어 보고 알았다: 붉은 타락자가 사방에 섞여 누가 누군지 안 읽혔다).
+         발밑에 보라 테를 둘러 「이건 내 것」을 그림 없이 말한다. */
+      if (u.own) {
+        ctx.save();
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = COL.thrall; ctx.lineWidth = Math.max(1, us);
+        ctx.beginPath();
+        ctx.ellipse(x, y, hh * 0.30, hh * 0.30 * SQUASH, 0, 0, 6.2832);
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawOne(u.art || ("minion/" + u.kind), x, y, hh, COL[u.kind] || COL.thrall, u);
       if (u.hp < u.hpMax) bar(x, y - hh - 6, hh * 0.62, u.hp / u.hpMax, "#7fb069");
       continue;
     }
@@ -468,7 +483,8 @@ function hud() {
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
      지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
   $("gCorpse").textContent = `시체 ${S.corpses}`;
-  $("gArmy").textContent   = `군세 ${S.minions.length}/${armyCap()}`;
+  /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
+  $("gArmy").textContent   = `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : "");
   const need = xpNeed(META.lv);
   $("xpFill").style.width = Math.min(100, (META.xp / need) * 100) + "%";
   /* ★ 경험치 **분수**는 따로 감싼다 — 폰에서는 이 한 줄이 「시체·레벨·군세」를
@@ -484,8 +500,8 @@ function hud() {
 function auto() {
   if (S.dead) return;
   if (!S.minions.some(m => m.kind === "golem")) cast("golem");
-  if (S.corpses >= 2 && S.minions.length < armyCap()) cast("ghoul");
-  if (S.corpses >= 1 && S.minions.length < armyCap()) cast("raise");
+  if (S.corpses >= 2 && armyN() < armyCap()) cast("ghoul");
+  if (S.corpses >= 1 && armyN() < armyCap()) cast("raise");
 }
 
 /* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".
