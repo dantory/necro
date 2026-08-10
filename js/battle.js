@@ -141,6 +141,21 @@ function spawnMob(f, i, n) {
 }
 
 
+
+/* ══ 맞은 티 ══ **얼마나 아팠는지가 화면에 없었다.**
+   불꽃은 「닿았다」만 말하고 크기를 말하지 않는다 — 해골이 12 를 넣는지 120 을 넣는지
+   구분이 안 되니, 강화를 해도 트리를 파도 **판이 똑같아 보인다.** 숫자가 커지는 맛이
+   이 장르의 절반인데 그 절반이 화면에 없었다.
+   ★ 개수를 반드시 막는다. rtd 에서 떠오르는 글자를 안 막았다가 DOM 이 수천 개로
+     불어나 판이 기어간 적이 있다(여긴 캔버스라 훨씬 싸지만 규칙은 같다). */
+const NUM_MAX = 44;
+export function popNum(x, y, v, kind) {
+  if (v < 1) return;
+  S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9,
+                vx: (Math.random() - 0.5) * 16, seed: Math.random() });
+  if (S.nums.length > NUM_MAX) S.nums.shift();
+}
+
 /* ══ 시체는 **판 위에 실물로 남는다** ══
    병수님: "전투화면 처음부터 다시 재검토". 이 게임의 엔진은 시체인데, 화면에는 시체가
    한 구도 없고 판 아래 「시체 7」 이라는 숫자만 있었다 — 자원이 어디에 얼마나 쌓였는지
@@ -236,7 +251,7 @@ export function cast(id) {
     const rad = 180 * novaRadMul();
     let hit = 0;
     /* 시체 폭발은 **본인 둘레**를 쓸어 낸다 — 사방 판에서는 그게 "한숨 돌리는 순간"이다 */
-    for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; }
+    for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; popNum(m.x, m.y, dmg, "nova"); }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
@@ -269,6 +284,7 @@ export function step(dt) {
   S.t += dt;
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   for (const p of S.piles) { if (p.born > 0) p.born -= dt; }   // 갓 생긴 시체가 스르르 나타난다
+  for (let i = S.nums.length - 1; i >= 0; i--) if ((S.nums[i].t -= dt) <= 0) S.nums.splice(i, 1);
   for (let i = S.falling.length - 1; i >= 0; i--) if ((S.falling[i].t -= dt) <= 0) S.falling.splice(i, 1);
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
@@ -284,6 +300,9 @@ export function step(dt) {
     u.pending = null;
     if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
     tgt.hp -= dmg;
+    /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
+       (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
+    popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
     tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
     tgt.kx = u.sdx; tgt.ky = u.sdy;
     if (heal) u.hp = Math.min(u.hpMax, u.hp + dmg * 0.35);
@@ -364,6 +383,7 @@ export function step(dt) {
     for (const m of S.mobs) if (Math.hypot(m.x - b.x, m.y - b.y) < m.r * 0.7) { hit = m; break; }
     if (hit) {
       hit.hp -= b.dmg * ampMul;
+      popNum(hit.x, hit.y, b.dmg * ampMul, "dmg");
       hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy;
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
       S.bolts.splice(i, 1); continue;
@@ -429,6 +449,7 @@ export function step(dt) {
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
       S.hp -= m.dmg * MOB_CD;                        // 주기를 늘린 만큼 한 방을 세게
+      popNum(0, 0, m.dmg * MOB_CD, "hurt");
       S.hurt = 0.18; S.hkx = m.sdx; S.hky = m.sdy;
       S.fx.push({ t: 0.12, kind: "hit",
                   x: m.x * (CORE_R * 0.8 / ml), y: m.y * (CORE_R * 0.8 / ml) });
@@ -538,7 +559,7 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], cd: {}, log: [], killed: 0, deepest: 1,
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], cd: {}, log: [], killed: 0, deepest: 1,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0,
   });
   enterFloor(1);

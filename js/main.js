@@ -1,5 +1,6 @@
 import { $, GEAR, gearNext, hpMaxOf, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
 import { cast, CORE_R, CORPSE_FADE, DEATH_T, newRun, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
+import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
@@ -478,9 +479,39 @@ function draw(dt) {
     }
     const m = it.m, hh = (m.h || 48) * us, x = px(m.x), y = py(m.y);
     const mbase = m.kind ? "mob/" + m.kind : "mob/fallen";
+    /* ══ 둘레를 지난 놈 ══ **왜 내가 맞고 있는지**가 화면에 없었다. 사방에서 오는 판이라
+       적이 여럿인데, 그중 **본인에게 닿을 놈**과 소환수에 붙들린 놈이 똑같아 보였다.
+       진을 지나 안쪽으로 들어온 놈의 발밑만 붉게 물들인다 — 「저기가 뚫렸다」가 읽힌다. */
+    if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && !m.born) {
+      const rr = hh * 0.30;
+      ctx.save();
+      const g2 = ctx.createRadialGradient(x, y, rr * 0.15, x, y, rr);
+      g2.addColorStop(0, "#c8323244"); g2.addColorStop(0.7, "#c8323222"); g2.addColorStop(1, "#c8323200");
+      ctx.fillStyle = g2;
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+    }
     drawOne(mbase, x, y, hh, m.boss ? COL.boss : COL.mob, m);
     /* 관문의 주인은 **다치기 전부터** 바를 보인다 — 얼마나 남았는지가 관문의 전부다 */
     if (m.hp < m.hpMax || m.boss) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#d05353" : "#8b1a1a");
+  }
+
+  /* ══ 떠오르는 피해 숫자 ══ **몸보다 위에** 그린다 — 가려지면 없는 것과 같다.
+     적이 받은 것은 뼈빛(흰), 내 편·본인이 받은 것은 붉은빛, 시체 폭발은 주황.
+     ★ 폰에서도 읽히게 **테두리를 두른다** — 어두운 바닥에 얇은 글자는 묻힌다. */
+  const NUMC = { dmg: ["#f2e9d0", "#000"], hurt: ["#e06666", "#160404"], nova: ["#ffa53c", "#180c02"] };
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  for (const n of S.nums) {
+    const p = 1 - Math.max(0, n.t) / 0.9;                 // 0 → 1
+    const x = px(n.x) + n.vx * p * us, y = py(n.y) - (16 + 30 * p) * us;
+    const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
+    const size = Math.round((n.kind === "nova" ? 15 : 13) * us);
+    ctx.save();
+    ctx.globalAlpha = p < 0.12 ? p / 0.12 : Math.max(0, 1 - (p - 0.12) / 0.88);
+    ctx.font = `${size}px "Galmuri9", monospace`;
+    ctx.lineWidth = Math.max(2, us * 2); ctx.strokeStyle = bg; ctx.lineJoin = "round";
+    ctx.strokeText(n.v, x, y); ctx.fillStyle = fg; ctx.fillText(n.v, x, y);
+    ctx.restore();
   }
 
   /* ── 날아가는 뼈 ── 본인의 기본공격. **꼬리를 남긴다** — 작은 점 하나는 30fps 에서
