@@ -38,6 +38,9 @@ export const IMPACT_AT  = 0.55;
 /** 적이 때리는 주기. 소환수만 늦추면 **적만 연타로 보인다.** 같이 늦추되 한 방을
  *  그만큼 세게 해서(아래 `m.dmg * MOB_CD`) 받는 피해 총량은 그대로 둔다. */
 const MOB_CD = 1.6;
+/** 겹침을 풀 때 **한 번에 밀 수 있는 최대 속도**(월드/초). 해골 걸음이 34 이므로
+ *  그보다 조금 빠른 정도 — 비켜서는 것으로 보이되 포갠 채로 머물지는 않는다. */
+const SEP_CAP = 42;
 
 /* ══ 죽는 순간 · 일어서는 순간 ══
    병수님: "전투화면 처음부터 다시 재검토". 화면을 늘려 보니 **죽는 게 안 보였다** —
@@ -480,6 +483,12 @@ export function step(dt) {
      닿지 않았다고 판정」하는 고리에 갇힌다. 그래서 서로 밀치며 영영 안 때렸다.
      겹침을 화면에서 푸니(그게 눈이 보는 것이므로) **닿는 것도 화면에서 잰다.** */
   const dist = (a, b) => Math.hypot(a.x - b.x, (a.y - b.y) * SQUASH_VIEW);
+  /** 옮기지 않고 **보는 쪽만** 돌린다 — 서 있는 그림의 방향은 dx,dy 가 정한다. */
+  const face = (e, t) => {
+    const dx = t.x - e.x, dy = t.y - e.y, d = Math.hypot(dx, dy) || 1;
+    e.dx = dx / d; e.dy = dy / d;
+    if (Math.abs(dx) > 0.5) e.face = dx < 0 ? -1 : 1;
+  };
   const toward = (e, tx, ty, sp, dt) => {
     const dx = tx - e.x, dy = ty - e.y, d = Math.hypot(dx, dy) || 1;
     const step = Math.min(d, sp * dt);
@@ -549,8 +558,20 @@ export function step(dt) {
       const d = Math.hypot(m.x - hx, (m.y - hy) * SQUASH_VIEW);   // ← 화면에서 잰다
       if (d < td && d < 130) { td = d; tgt = m; }       // 제 구역 안에서만
     }
-    if (!tgt) { toward(u, hx, hy, K.spd, dt); continue; }
-    if (dist(u, tgt) > u.r + tgt.r + 4) { toward(u, tgt.x, tgt.y, K.spd, dt); continue; }
+    /* ★ **휘두르는 동안엔 발이 멎는다.** 사거리 밖으로 표적이 한 발 물러나면 여기서
+       바로 걷기로 넘어갔는데, 그때 `swing` 은 아직 돌고 있다 — 즉 **팔을 휘두르는
+       그림 그대로 몸이 미끄러졌다.** 실제로 재 보니 적 타락자가 휘두르는 프레임의
+       31~38%에서 걷고 있었다(22/70 · 15/40). 치려면 일단 서야 한다. */
+    const rooted = (u.swing || 0) > 0;
+    u.tgtId = tgt ? tgt.id : 0;      // 검수기가 **게임이 고른 표적**을 볼 수 있게(값이 싸다)
+    if (!tgt) { if (!rooted) toward(u, hx, hy, K.spd, dt); continue; }
+    if (dist(u, tgt) > u.r + tgt.r + 4) { if (!rooted) toward(u, tgt.x, tgt.y, K.spd, dt); continue; }
+    /* ★ **붙어서 차례를 기다리는 동안에도 표적을 본다.** 서 있는 그림의 방향은
+       `dx,dy`(마지막으로 **걸은** 방향)로 정해지므로, 제자리에 선 뒤 옆에서 적이
+       붙으면 걸어온 쪽을 그대로 보고 선다 — 재 보니 붙어 있는 프레임의 **21%**가
+       90도 넘게 어긋났고 그중 116 프레임은 아예 등을 돌리고 있었다.
+       휘두를 때(sdx)만 표적을 보게 해 두면 「칠 때만 홱 돌아본다」가 된다. */
+    face(u, tgt);
     if ((u.atk -= dt) > 0) continue;
     /* **때리는 순간을 크게 만든다.** 방금 넣은 0.22초짜리 살짝 내지르기는 화면에서
        안 읽혔다(병수님: "공격모션도 없고"). 때리는 것이 보이려면 셋이 같이 가야 한다:
@@ -571,6 +592,7 @@ export function step(dt) {
     let tgt = null, td = 1e9;
     for (const u of S.minions) { const d = dist(m, u); if (d < td && d < 90) { td = d; tgt = u; } }
     if (tgt && td < m.r + tgt.r + 4) {
+      face(m, tgt);                       // 소환수 쪽과 같은 규칙(위 주석)
       if ((m.atk -= dt) > 0) continue;
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
@@ -582,9 +604,12 @@ export function step(dt) {
          풀릴 때 또 뿌리므로 **한 번 칠 때 두 번 번쩍였다.** 예약만 하고 넘긴다. */
       continue;
     }
-    if (tgt) { toward(m, tgt.x, tgt.y, m.spd, dt); continue; }
-    toward(m, 0, 0, m.spd, dt);
+    /* 소환수 쪽과 **같은 규칙** — 휘두르는 동안엔 발이 멎는다(위 주석 참조). */
+    const rooted = (m.swing || 0) > 0;
+    if (tgt) { if (!rooted) toward(m, tgt.x, tgt.y, m.spd, dt); continue; }
+    if (!rooted) toward(m, 0, 0, m.spd, dt);
     if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
+      face(m, { x: 0, y: 0 });                          // 기다리는 동안에도 본체를 본다
       if ((m.atk -= dt) > 0) continue;
       /* ★★ 소환수를 칠 때와 **똑같은 안무**를 태운다: 휘두름 · 내지르는 방향, 그리고
          팔이 뻗는 칸에서 체력·움찔·불꽃·숫자가 한꺼번에 온다. 여기서는 **예약만** 하고
@@ -616,6 +641,21 @@ export function step(dt) {
      **세 번 돌린다** — 마흔 남짓이라 값이 싸다. */
   const bodies = S.minions.concat(S.mobs);
   const sq = SQUASH_VIEW;
+  /* ★ 상한은 **몸마다 한 프레임 치**로 건다. 처음엔 쌍마다 걸었더니 여럿에 끼인 몸이
+     상한을 이웃 수만큼 여러 번 받아, 막았는데도 초속 190 이 그대로 나왔다
+     (걸음은 34). 화면 단위로 이번 프레임에 밀린 양을 쌓아 두고 그 길이만 막는다 —
+     세 번 도는 것은 그대로라 사슬로 낀 자리도 풀린다. */
+  const cap = SEP_CAP * dt;
+  for (const b of bodies) { b.spx = 0; b.spy = 0; }
+  /** 화면 단위로 밀되, 이번 프레임에 밀린 총량이 cap 을 못 넘게 한다. */
+  const shove = (e, sx, sy) => {
+    let cx = e.spx + sx, cy = e.spy + sy;
+    const L = Math.hypot(cx, cy);
+    if (L > cap) { const k = cap / L; cx *= k; cy *= k; }
+    e.x += cx - e.spx;                       // 이미 반영한 몫을 빼고 **차이만** 옮긴다
+    e.y += (cy - e.spy) / sq;                // 세로는 월드로 되돌린다
+    e.spx = cx; e.spy = cy;
+  };
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < bodies.length; i++) {
       for (let j = i + 1; j < bodies.length; j++) {
@@ -628,10 +668,15 @@ export function step(dt) {
           const ang = (i * 2.399 + j * 0.618);
           dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
         }
+        /* ★ **미는 것도 걸음이다.** 겹침을 한 프레임에 통째로 풀면 몸이 걸음의
+           다섯 배 속도로 옆으로 쓸린다 — 실제로 재 보니 최고 속도가 174/초였다
+           (해골의 제 걸음은 34). 눈에는 「순간이동」으로 읽힌다.
+           한 번에 미는 양을 **걸음 남짓**으로 막는다(위 shove). 세 번 도는 것은
+           그대로라 깊이 포갠 자리도 두어 프레임이면 풀린다(겹침은 자로 확인). */
         const push = (min - d) * 0.5;
         const nx = dx / d, ny = dy / d;
-        a.x -= nx * push;  a.y -= ny * push / sq;      // ← 밀 때 월드로 되돌린다
-        b.x += nx * push;  b.y += ny * push / sq;
+        shove(a, -nx * push, -ny * push);
+        shove(b,  nx * push,  ny * push);
       }
     }
   }

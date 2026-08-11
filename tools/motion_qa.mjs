@@ -46,6 +46,7 @@ await S("Runtime.evaluate", { expression: `(()=>{
     const one = (u, side) => ({ side, id: u.id, kind: u.kind || "?",
       x: +u.x.toFixed(2), y: +u.y.toFixed(2),
       atk: +(u.atk || 0).toFixed(2), rise: +(u.rise || 0).toFixed(2),
+      dx: +(u.dx ?? 0).toFixed(3), dy: +(u.dy ?? 1).toFixed(3), mv: +(u.moving || 0).toFixed(2), tid: u.tgtId | 0,
       sw: u.pending ? 1 : 0, hp: Math.round(u.hp) });
     R.fr.push({ t: +t.toFixed(3),
       u: S.minions.map(m => one(m, "아군")).concat(S.mobs.map(m => one(m, "적"))),
@@ -57,14 +58,18 @@ await S("Runtime.evaluate", { expression: `(()=>{
 
 /* 그러는 동안 눈으로 볼 장면도 찍는다 — 12칸이면 한 동작이 통째로 들어온다 */
 const shots = [];
-for (let i = 0; i < 12; i++) {
+for (let i = 0; i < (process.env.MQ_SHOTS==="0"?0:12); i++) {
   const s = await S("Page.captureScreenshot", { format: "png" });
   shots.push(Buffer.from(s.data, "base64"));
   await new Promise(r => setTimeout(r, Math.max(0, SEC * 1000 / 12 - 180)));
 }
 for (let i = 0; i < shots.length; i++) fs.writeFileSync(`/tmp/mq_${i}.png`, shots[i]);
 
-await new Promise(r => setTimeout(r, 600));
+/* ★ 기록기가 **끝날 때까지** 기다린다. 사진을 안 찍는 모드로 돌렸다가 0.6초만
+   기록된 파일을 그대로 분석할 뻔했다 — 사진 찍는 시간이 우연히 기다림 노릇을
+   하고 있었을 뿐이다. 기다림은 우연이 아니라 **적어 둔 것**이어야 한다. */
+await S("Runtime.evaluate", { awaitPromise: true, expression:
+  `new Promise(r => { const w = () => (window.__M.fr.at(-1)?.t >= ${SEC} - 0.2) ? r(1) : setTimeout(w, 300); w(); })` });
 const r = await S("Runtime.evaluate", { returnByValue: true, expression: `JSON.stringify(window.__M.fr)` });
 fs.writeFileSync("/tmp/motion.json", r.result.value);
 const fr = JSON.parse(r.result.value);

@@ -22,6 +22,16 @@ const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
+/* ★★ **씨앗을 박지 않으면 이 자로는 아무것도 못 가른다.** 같은 코드로 15분을 세 번
+   돌렸더니 군대 점유가 34 · 47 · 70 이었다 — 설정을 바꿔 가며 비교하던 폭(58 / 72 / 75)이
+   통째로 그 흔들림 안에 들어간다. 실제로 그 잡음을 「회귀」로 읽고 되돌릴 뻔했다.
+   게임 코드는 손대지 않고 **페이지가 뜨기 전에** Math.random 을 갈아 끼운다 —
+   같은 씨앗이면 같은 판이 나오므로 A/B 가 성립한다.
+     LH_SEED=7 node tools/loop_health.mjs 15 */
+const SEED = +(process.env.LH_SEED || 1);
+await S("Page.addScriptToEvaluateOnNewDocument", { source:
+  `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
+     return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
