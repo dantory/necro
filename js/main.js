@@ -674,6 +674,26 @@ function draw(dt) {
     if (m.hp < m.hpMax || m.boss) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#d05353" : "#8b1a1a");
   }
 
+  /* ══ 떨어진 전리품 ══ **잠깐 놓였다가 빨려 온다.** 방치형이라 주우러 가지 않으므로,
+     「떨어졌다」가 보이는 그 반 초가 전부다 — 등급 색으로 빛나고 위아래로 까딱인다.
+     등급 색은 상점·정산과 **같은 표**를 쓴다(TIER_CLS 와 짝). */
+  const TIER_HEX = ["#8c8c8c", "#cfcfcf", "#6f8fd8", "#c8aa6e", "#d08a3a"];
+  for (const d of S.drops) {
+    const x = px(d.x), y = py(d.y) - (6 + Math.sin(d.t * 6) * 3) * us;
+    const col = TIER_HEX[d.tier] || "#cfcfcf", rr = 7 * us;
+    ctx.save();
+    /* 바닥에 깔리는 빛 — 어두운 판에서 작은 점은 그냥 안 보인다 */
+    const g = ctx.createRadialGradient(px(d.x), py(d.y), 0, px(d.x), py(d.y), rr * 3);
+    g.addColorStop(0, col + "55"); g.addColorStop(1, col + "00");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(px(d.x), py(d.y), rr * 3, rr * 3 * SQUASH, 0, 0, 6.2832); ctx.fill();
+    ctx.fillStyle = col; ctx.strokeStyle = "#0b0806"; ctx.lineWidth = Math.max(1, us);
+    ctx.beginPath();                                  // 마름모 — 픽셀 판에서 점보다 읽힌다
+    ctx.moveTo(x, y - rr); ctx.lineTo(x + rr * 0.7, y); ctx.lineTo(x, y + rr); ctx.lineTo(x - rr * 0.7, y);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
   /* ══ 떠오르는 피해 숫자 ══ **몸보다 위에** 그린다 — 가려지면 없는 것과 같다.
      색으로 **누가 아픈지**를 가른다: 적이 맞음 = 뼈빛, 내 편이 맞음 = 탁한 주홍,
      본인이 맞음 = 진한 빨강(제일 큼 — 곧 게임이 끝난다는 뜻이다), 회복 = 초록, 폭발 = 주황.

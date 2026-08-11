@@ -2,7 +2,8 @@ import { armyCap, CORPSE_TINT, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gear
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
-         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N } from "./core.js";
+         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
+         GEAR, dropChance, rollDrop, takeDrop } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -349,6 +350,27 @@ export function step(dt) {
     if (p.fade !== undefined && (p.fade -= dt) <= 0) S.piles.splice(i, 1);
   }
   for (let i = S.nums.length - 1; i >= 0; i--) if ((S.nums[i].t -= dt) <= 0) S.nums.splice(i, 1);
+  /* ── 전리품이 본인에게 온다 ── **방치형이므로 주우러 가지 않는다.** 잠깐 놓여
+     「떨어졌다」가 보인 뒤(pull) 빨려 들어오고, 닿으면 그 자리에서 처리된다.
+     ★ 좋은 것이면 **그 자리에서 갈아 끼운다** — 고르라고 판을 세우지 않는다. */
+  for (let i = S.drops.length - 1; i >= 0; i--) {
+    const d = S.drops[i];
+    d.t += dt;
+    if (d.pull > 0) { d.pull -= dt; continue; }
+    const dd = Math.hypot(d.x, d.y) || 1;
+    const sp = 150 + 520 * Math.min(1, d.t * 0.5);      // 갈수록 빨라진다
+    d.x -= (d.x / dd) * sp * dt; d.y -= (d.y / dd) * sp * dt;
+    if (dd < 16) {
+      const r = takeDrop(d);
+      const g = GEAR[d.k], nm = g.tiers[d.tier];
+      S.loot.push({ ...d, worn: r.worn, gold: r.gold, n: nm, slot: g.n });
+      say(r.worn ? `<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}`
+                 : `<b class="t${d.tier}">${nm}</b> → 금 ${r.gold}`);
+      S.fx.push({ t: 0.4, x: 0, y: 0, kind: "rise" });
+      saveMeta();
+      S.drops.splice(i, 1);
+    }
+  }
   for (let i = S.falling.length - 1; i >= 0; i--) if ((S.falling[i].t -= dt) <= 0) S.falling.splice(i, 1);
   for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
   for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
@@ -579,6 +601,12 @@ export function step(dt) {
     const m = S.mobs[i];
     S.mobs.splice(i, 1);
     S.killed++;
+    /* ── 떨어뜨린다 ── 확률은 **층당 기대값**에서 뽑는다(마릿수가 늘어도 총량이 안 는다).
+       관문의 주인은 반드시 하나 — 큰 놈을 잡고 빈손으로 가면 관문이 벽으로만 남는다. */
+    if (m.boss || Math.random() < dropChance(S.floor)) {
+      const d = rollDrop(S.floor);
+      S.drops.push({ ...d, x: m.x, y: m.y, t: 0, pull: 0.35 });   // 잠깐 놓였다가 빨려 온다
+    }
     fall(m, "mob/" + m.kind, m.h || 48);          // 몸은 반 초 더 남아 무너진다
     /* ── 어둠의 지배(트리 끝) ── **쓰러진 자리에서 일어선다.**
        시체를 써서 세우는 것이므로 이때는 시체가 안 남는다. 서는 각도도 쓰러진 각도
@@ -636,7 +664,8 @@ export function newRun() {
     floor: 1, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], cd: {}, log: [], killed: 0, deepest: 1,
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
+    drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: 1,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   enterFloor(1);

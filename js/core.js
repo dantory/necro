@@ -135,6 +135,8 @@ export const S = {
   bolts: [],                  // **본인이 던진 뼈** — 날아가는 중인 것
   natk: 0,                    // 다음 기본공격까지 남은 시간
   hurt: 0, hkx: 0, hky: 0,    // 본인이 맞고 움찔하는 시간·밀리는 방향
+  drops: [],                  // 판에 떨어져 아직 안 빨려 들어온 전리품
+  loot: [],                   // 이번 판에 얻은 것 — 정산 화면이 읽는다
   cd: {}, log: [], killed: 0, deepest: 1,
   /** ══ 「들어섰다」 ══ **한 번 켜지고 스스로 꺼지는 상태.** 층이 바뀌는 가장 큰
    *  사건(내려간다·관문이다)이 로그 글줄 하나로만 지나갔다 — 방치형은 보는 게임이라
@@ -198,6 +200,47 @@ export const GEAR = {
            tiers:["없음","뼛조각","은 부적","영혼석","군주의 인장"],
            cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
 };
+
+/* ══ 던전에서 떨어지는 것 ══ 병수님 취향의 한가운데(뽑기·숫자가 불어나는 맛)인데
+   지금 판에서 얻는 건 금·경험치 **숫자뿐**이었다. 장비는 상점에서 등급을 사는
+   사다리라 평생 열두 번 누르면 끝이고, 「한 판 더」를 만드는 것이 없었다.
+
+   **새 화폐를 만들지 않는다** — 이미 있는 장비(GEAR) 등급을 드랍으로 얻게 한다.
+   그러면 등급 색·이름·능력치가 전부 그대로 재사용되고, 상점은 「못 만난 것을 사는 곳」
+   으로 뜻이 오히려 분명해진다.
+
+   ★ 드랍률을 **처치당 확률**로 두면 마릿수와 함께 움직인다 — rtd 에서 밀도를 올리자
+     전리품이 같이 늘어 난이도를 올리려던 것이 되레 쉬워진 적이 있다. 그래서 여기서는
+     **층당 기대값**으로 잡고(층에 몇 마리가 서든 한 층에서 기대 DROP_PER_FLOOR 개),
+     처치 확률은 그 층의 마릿수로 나눠 정한다. */
+export const DROP_PER_FLOOR = 0.55;         // 한 층에서 기대되는 전리품 개수
+export const dropChance = (f) => DROP_PER_FLOOR / Math.max(1, floorN(f));
+/** 이 층에서 나올 수 있는 **제일 높은 등급.** 깊이가 곧 좋은 물건이다.
+ *  5층마다 한 단계 — 20층이면 마지막 등급까지 나온다. */
+export const dropTierCap = (f) => Math.min(4, 1 + Math.floor(f / 5));
+export const GEAR_KEYS = Object.keys(GEAR);
+/** 떨어진 물건 하나를 뽑는다 — {슬롯 k, 등급 tier}. 낮은 등급이 더 흔하다.
+ *  ★★ 등급 이름을 `t` 로 뒀다가 **판 위의 나이(t)와 부딪혔다** — 떨어진 물건에
+ *  `{...d, t: 0}` 로 나이를 얹는 순간 등급이 0 이 되고, 나이가 흐르면 등급이
+ *  1.06 같은 **소수**가 됐다(그 값으로 cost 를 읽어 금이 NaN 이 됐다).
+ *  자가 「장비_후 1.0666」을 뱉어서 잡혔다 — 이름은 뜻이 다르면 달라야 한다. */
+export function rollDrop(f) {
+  const k = GEAR_KEYS[Math.floor(Math.random() * GEAR_KEYS.length)];
+  const cap = dropTierCap(f);
+  /* 위쪽 등급일수록 드물게 — 제곱으로 눌러 「높은 게 나왔다」가 사건이 되게. */
+  const tier = 1 + Math.floor(Math.pow(Math.random(), 2.1) * cap);
+  return { k, tier: Math.min(cap, tier) };
+}
+/** 주웠을 때 무슨 일이 일어나는가. 더 좋으면 **그 자리에서 갈아 끼우고**(방치형이므로
+ *  고르라고 세우지 않는다), 아니면 금으로 바뀐다 — 빈손으로 돌려보내지 않는다. */
+export function takeDrop(d) {
+  const cur = META.gear[d.k] | 0, tier = d.tier | 0;
+  if (tier > cur) { META.gear[d.k] = tier; return { worn: true, gold: 0 }; }
+  const gold = Math.round(GEAR[d.k].cost[tier] * 0.22);
+  META.gold += gold;
+  return { worn: false, gold };
+}
+
 /** 다음 등급 값. 마지막이면 null(더 살 것이 없다). */
 export const gearNext = (k) => {
   const t = (META.gear[k] | 0) + 1;
