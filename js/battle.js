@@ -121,7 +121,7 @@ function popSpawn() {
   if (q.boss) {
     m.boss = true; m.kind = "boss";
     m.hp = m.hpMax = floorHp(q.f) * 7;
-    m.dmg = floorDmg(q.f) * 2.1; m.h = MOB_H.boss; m.r = m.h * FOOT_R;
+    m.dmg = floorDmg(q.f) * 2.1; m.h = bossH(q.f); m.r = m.h * FOOT_R;
     /* 관문 보스는 **더 길게** 배어 나온다(0.8 — 졸개의 두 배). 서기 직전 그 자리
        바닥에 붉은 고리가 퍼졌다 조여들고(fx), 서는 순간 판이 아주 짧게 흔들린다 —
        관문이 졸개 층과 똑같이 생긴 것을 「여기 주인이 선다」로 가른다. */
@@ -145,10 +145,27 @@ const MOB_TIERS = [
   { from: 16, kinds: ["zombie", "skelarch", "brute"] },
   { from: 26, kinds: ["skelarch", "brute", "brute"] },
 ];
+/** 그 층에 실제로 서는 졸개 종류. 검수기가 「같은 층 식구끼리」 세우려면 필요하다. */
+export const mobKindsFor = (f) => tierOf(f).kinds;
+const tierOf = (f) => [...MOB_TIERS].reverse().find(x => f >= x.from) || MOB_TIERS[0];
 const mobKindFor = (f) => {
-  const t = [...MOB_TIERS].reverse().find(x => f >= x.from) || MOB_TIERS[0];
+  const t = tierOf(f);
   return t.kinds[Math.floor(Math.random() * t.kinds.length)];
 };
+
+/* ══ 관문의 주인은 **한 단계 큰 놈이다** ══ 크기를 「보스 104」로 박아 두면 위층
+   (타락자 44)에서만 커 보인다 — 깊은 층은 괴물(62)이 나오므로 1.7배밖에 안 돼
+   **같은 크기 계열**로 읽힌다. 관문에 들어선 순간 와야 하는 건 숫자가 아니라 「크다」다.
+   그래서 절대값이 아니라 **그 층에 실제로 서는 제일 큰 놈의 배수**로 잡는다 —
+   종을 새로 넣거나 층 표를 고쳐도 저절로 따라온다(이름을 코드에 안 박았다).
+   MOB_H.boss 는 이제 **바닥값**이다(위층에서도 이보다 작아지지 않는다). */
+export const bossH = (f) => {
+  const big = Math.max(...tierOf(f).kinds.map(k => MOB_H[k] || 48));
+  return Math.max(MOB_H.boss, Math.round(big * BOSS_OVER));
+};
+/** 졸개 중 제일 큰 놈의 몇 배인가. 2.4 = 키가 두 배 반 — 발밑이 같은 줄에 있어도
+ *  머리가 한참 위에 있어서 한눈에 갈린다(2.0 은 「좀 큰 놈」으로 읽혔다). */
+const BOSS_OVER = 2.4;
 
 /** **사방에서 나타난다.** 각도를 고르게 흩되 조금 흔든다 — 딱 등간격이면 톱니바퀴처럼
  *  보여서 살아 있는 무리로 안 읽힌다. */
