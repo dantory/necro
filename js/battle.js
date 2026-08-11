@@ -3,7 +3,7 @@ import { armyCap, CORPSE_TINT, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afTe
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX } from "./core.js";
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -637,7 +637,8 @@ export function step(dt) {
     if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small");
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
     META.gold += Math.round(goldFor(S.floor) * goldMulOf()) * (m.boss ? 8 : 1);
-    META.xp += (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
+    const xpGain = (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
+    META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hp = hpMaxOf(); S.mp = mpMaxOf();
       say(`<b style="color:#ffff64">레벨 ${META.lv}</b> 달성 · 체력·마나 회복`); }
@@ -660,13 +661,27 @@ export function step(dt) {
   }
 }
 
-function die() {
+export function die() {
   S.dead = true;
   META.runs = (META.runs | 0) + 1;
   META.deepest = Math.max(META.deepest | 0, S.floor);
+  /* 판이 끝나는 순간을 굳힌다 — loot 는 **복사본**이라야 다음 newRun 의 비우기에 안 쓸린다.
+     번 금은 시작값과의 차(던전에선 금이 늘기만 한다), 경험치는 레벨업이 xp 를 빼가므로
+     차가 아니라 **더한 총량**(runXp)을 쓴다. */
+  LASTRUN.has = true;
+  LASTRUN.loot = S.loot.map((x) => ({ ...x }));
+  LASTRUN.gold = Math.max(0, META.gold - runGold0);
+  LASTRUN.xp = runXp;
+  LASTRUN.killed = S.killed;
+  LASTRUN.floor = S.floor;
+  LASTRUN.leveled = META.lv > runLv0;
   saveMeta();
   say(`<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`);
 }
+
+/* 정산이 「이번 판에 번 것」을 재려면 판 시작값이 있어야 한다 — S 는 newRun 이 지우므로
+   판을 넘겨 사는 여기(모듈)에 둔다. runXp 는 kill 에서 더한 경험치의 누계다. */
+let runGold0 = 0, runLv0 = 1, runXp = 0;
 
 export function newRun() {
   Object.assign(S, {
@@ -677,5 +692,6 @@ export function newRun() {
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: 1,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
+  runGold0 = META.gold; runLv0 = META.lv; runXp = 0;
   enterFloor(1);
 }

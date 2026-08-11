@@ -189,6 +189,12 @@ function load() {
 export function saveMeta() {
   try { localStorage.setItem(META_KEY, JSON.stringify(META)); } catch { /* 시크릿 창 */ }
 }
+
+/* ══ 이번 판의 스냅샷 ══ ④ 정산 화면이 읽는다. **S 가 아니라 여기에 굳힌다** —
+   S.loot 는 다음 던전 입장(newRun)이 [] 로 비우므로, 판이 끝나는 순간(die) 복사해
+   두지 않으면 「이번 판에 얻은 것」이 통째로 사라진다. META 처럼 판을 넘어 산다. */
+export const LASTRUN = { has: false, loot: [], gold: 0, xp: 0, killed: 0, floor: 1, leveled: false };
+
 export const xpNeed  = (lv) => Math.round(20 * Math.pow(1.35, lv - 1));
 /** 강화는 **넷뿐이다.** 목록이 길면 방치형이 아니라 표 읽기가 된다. */
 export const UPS = {

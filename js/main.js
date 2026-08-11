@@ -1,5 +1,5 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX } from "./core.js";
-import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN } from "./core.js";
+import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -983,7 +983,7 @@ export const MODE = { at: "town" };
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
 const win = (id, on) => $(id).classList.toggle("on", on);
-const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); win("winStat", false); };
+const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); win("winStat", false); win("winEnd", false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
@@ -1136,6 +1136,28 @@ function drawStat() {
   $("statGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/* ══ 정산 ══ 판이 끝나면 「이번 판에 얻은 것」을 상점 좌판과 **같은 칸**(.cell·.grid)으로
+   세운다 — 등급 색은 TIER_CLS 그대로. 판을 되살려 다시 재지 않고 die() 가 굳혀 둔 LASTRUN
+   만 읽는다(S.loot 는 다음 던전 입장이 비운다). 칸마다 낀 것·가방행·금 중 무엇이었는지
+   작은 표식으로 가른다(금으로 녹은 것은 흐리게 — 남지 않았다). */
+function drawEnd() {
+  const r = LASTRUN;
+  $("endSub").innerHTML =
+    `${r.floor}층에서 쓰러짐 · 잡은 수 <b>${r.killed}</b> · 금 <b>+${r.gold.toLocaleString()}</b>`
+    + ` · 경험치 <b>+${r.xp}</b>${r.leveled ? ` · <b class="t2">레벨 업!</b>` : ""}`;
+  const cell = (it) => {
+    const fate = it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
+    const n = (it.af || []).length;
+    return `<div class="cell ${fate[0]}"><span class="eFate">${fate[1]}</span>
+      <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>
+      ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
+  };
+  $("endBody").innerHTML = r.loot.length
+    ? `<div class="grid">${r.loot.map(cell).join("")}</div>`
+    : `<div class="eEmpty">빈손으로 돌아왔다</div>`;
+  $("endGold").textContent = (META.gold | 0).toLocaleString();
+}
+
 /* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
 document.addEventListener("click", (e) => {
   const t = e.target;
@@ -1218,6 +1240,8 @@ export function toDungeon() {
    다시 그릴 때마다 움직인다. 좌표를 맞히려다 흰 마을 사진만 찍는 일이 있어 길을 뚫어 둔다
    (window.__S · window.__geo 와 같은 부류). */
 window.__toDungeon = toDungeon;
+window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
+window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
 
 /* ══ 로딩 ══ **다 올 때까지 덮는다.**
@@ -1258,7 +1282,11 @@ function loop(t) {
     if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
     /* 죽으면 **마을로 돌아온다.** 예전엔 그 자리에 멈춰 서서 아무 데도 못 갔다 —
        방치형은 죽는 것이 끝이 아니라 **한 바퀴의 끝**이라야 다시 들어갈 마음이 든다. */
-    if (S.dead) { META.runs++; toTown(`<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`); }
+    if (S.dead) {
+      META.runs++; toTown(`<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`);
+      /* 정산 창을 연다 — **closeAll 먼저** 거쳐(상인·상태창과 겹치면 안 된다). */
+      closeAll(); drawEnd(); win("winEnd", true);
+    }
   }
   draw(dt);
   if ((hudT += dt) > 0.1) { hudT = 0; hud(); }
