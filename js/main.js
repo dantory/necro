@@ -159,6 +159,13 @@ export function swingFrame(p, nf) {
   return idx;
 }
 
+/** 소환수가 쓰는 그림 경로 — 지배한 놈은 원래 적의 그림을 그대로 쓴다. */
+const ubase0 = (u) => u.art || ("minion/" + u.kind);
+
+/** 걷기 한 바퀴에 가는 거리 = **제 몸 폭의 이만큼.** 짧으면 발만 동동거리고(미끄러짐),
+ *  길면 성큼성큼 뛴다. 고치기 전 값은 0.84 였다. */
+const WALK_PER_BODY = 1.8;
+
 function drawOne(base, x, gy, h, fallback, e) {
   /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
      배어 나오는 내내 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다.
@@ -187,16 +194,29 @@ function drawOne(base, x, gy, h, fallback, e) {
     } else if (e.moving > 0) {
       state = "walk";
       /* 걷기 프레임은 **지나온 거리**로(시간 아님) — 느린 골렘은 저절로 느리게 딛는다.
-         한 주기 거리는 기존 리깅의 walkPh(=walked/(h*0.14)) 한 바퀴(2π)와 같게 잡아 박자
-         (≈1.3초)를 그대로 물려받고, 그 한 바퀴를 6프레임에 나눈다. */
+         ★★ 그런데 **한 바퀴에 가는 거리가 너무 짧았다.** 옛 값(h*0.14*2π)은 예전
+         리깅의 박자를 물려받은 것인데, 재 보니 한 바퀴에 **제 몸 폭의 0.84배**밖에
+         못 갔다 — 사람이 걸으면 두 걸음에 몸 폭의 두 배쯤 간다. 그래서 다리는
+         분주한데 몸은 안 나가는, 곧 **미끄러지는** 그림이 됐다(병수님이 여러 번
+         말한 「이동이 부자연스럽다」의 정체).
+         이제 **제 몸 폭에서 뽑는다** — 종이 달라도, 판 배율이 달라도 저절로 맞는다. */
       const nf = frameCount(base, "walk");
-      const stride = h * 0.14 * 2 * Math.PI / nf;
+      const fmw = footMetrics(base), G = window.__geo;
+      /* h 는 화면 픽셀, walked 는 월드 거리 → 몸 폭을 월드로 되돌려서 견준다 */
+      const bodyW = G && G.sc ? h * (fmw ? fmw.bodyWidthFrac : 0.5) / G.sc : h;
+      const stride = bodyW * WALK_PER_BODY / nf;
       frameIdx = Math.floor((e.walked || 0) / stride) % nf;
       dir = dirName(e.dx ?? 0, e.dy ?? 1);
     } else {
       dir = dirName(e.dx ?? 0, e.dy ?? 1);
     }
   }
+
+  /* ★ 검수 훅 — `window.__ANIM` 이 배열일 때만 적는다(평소엔 조건 하나로 끝난다).
+     움직임이 어색한지는 **그려진 상태**를 봐야 안다: 걷는데 서 있는 그림인지,
+     휘두르는데 한 칸만 스치는지, 방향이 튀는지. 밖에서는 볼 길이 없어서 여기서 낸다. */
+  if (window.__ANIM && e) window.__ANIM.push({ id: e.id, base, state, f: frameIdx, dir,
+                                               mv: +(e.moving || 0).toFixed(2), sw: +(e.swing || 0).toFixed(2) });
 
   /* 맞은 순간엔 **뒤로 밀린다**(기존 그대로). 흰 번쩍임은 예전에 뺐다 — 밀림 + 닿는 자리의
      불꽃(fx)으로 충분하다. */
@@ -449,11 +469,17 @@ function draw(dt) {
      보이므로 답이 못 된다. 그래서 **아군 발밑에 룬 고리**를 깐다(적에게는 없다).
      지배한 놈은 보라 — 원래 적이었다는 것이 색으로 남는다. */
   const RUNE = { skel: "#6fa8d8", ghoul: "#6fa8d8", golem: "#6fa8d8" };
-  const footRune = (x, y, hh, col) => {
+  /** ★★ **룬이 겹쳐서 「캐릭터가 겹친다」로 읽혔다.** 병수님이 겹침을 또 지적해
+   *  자로 재 보니 몸은 안 겹치는데(중심 간격 64.4 · 몸 폭 54.4, 화면 단위 sc 배수)
+   *  **룬 지름이 71 이라 간격보다 컸다.** 즉 몸이 아니라 **바닥 표시가** 겹치고 있었다.
+   *  크기를 눈대중으로 줄이지 않고 **그림자와 같은 자로 맞춘다** — 그림자는 이미
+   *  발 폭(footWidthFrac)에 맞춰 두었으므로, 룬이 그림자를 그대로 따르면 발에
+   *  붙어 있으면서 이웃과 안 닿는다(지름 58.6 < 간격 64.4). */
+  const footRune = (x, y, hh, col, fm) => {
     /* ★ 처음엔 진한 파란 테를 둘렀더니 **요즘 게임의 선택 표시**처럼 보였다(디아블로 2
        라기보다 RTS 다). 테는 아주 얇게 낮추고 **땅에서 배어 나오는 빛** 쪽으로 옮긴다 —
        「내 것」이 읽히기만 하면 되지, 눈을 끌 필요는 없다. */
-    const rx = hh * 0.30, ry = rx * SQUASH;
+    const rx = (fm ? hh * fm.footWidthFrac * 0.55 : hh * 0.26), ry = rx * SQUASH;
     ctx.save();
     const g = ctx.createRadialGradient(x, y, rx * 0.15, x, y, rx);
     g.addColorStop(0, col + "3a"); g.addColorStop(0.70, col + "1c"); g.addColorStop(1, col + "00");
@@ -649,8 +675,8 @@ function draw(dt) {
       /* ★ 지배한 놈은 **적과 그림이 똑같다** — 화면만 보면 내 편인지 알 수가 없다
          (첫 판을 찍어 보고 알았다: 붉은 타락자가 사방에 섞여 누가 누군지 안 읽혔다).
          발밑에 보라 테를 둘러 「이건 내 것」을 그림 없이 말한다. */
-      footRune(x, y, hh, u.own ? COL.thrall : (RUNE[u.kind] || "#9fd7ff"));
-      const ubase = u.art || ("minion/" + u.kind);
+      footRune(x, y, hh, u.own ? COL.thrall : (RUNE[u.kind] || "#9fd7ff"), footMetrics(ubase0(u)));
+      const ubase = ubase0(u);
       drawOne(ubase, x, y, hh, COL[u.kind] || COL.thrall, u);
       if (u.hp < u.hpMax) barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069");
       continue;
