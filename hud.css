@@ -547,3 +547,13 @@ body.in-town #stage{cursor:pointer}
   .tipBuy{margin-top:9px;gap:14px}
   .winFoot{margin-top:9px}
 }
+
+/* ══ 붙은 것(옵션) ══ 등급 위에 얹힌 축이라 **등급 색과 겹치면 안 된다** —
+   옵션 줄은 한 가지 푸른빛으로만 두고, 색은 등급에게 남겨 둔다. */
+.tipAf{ font-size:11px; color:#8fb6e0; letter-spacing:-.2px; padding:1px 0 1px 8px;
+        border-left:2px solid rgba(143,182,224,.35); margin:2px 0 2px 2px; }
+.tipNote.sm{ font-size:10px; opacity:.62; line-height:1.35; }
+.cell .afd{ position:absolute; left:4px; bottom:3px; font-size:12px; line-height:1;
+            color:#a8cdf2; letter-spacing:-1px;
+            text-shadow:0 0 4px #2a5f96, 0 1px 0 #000; }
+.log .afl{ font-style:normal; font-size:10px; color:#8fb6e0; opacity:.9; }

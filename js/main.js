@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, MOB_H, gearNext, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, MOB_H, gearNext, gearTier, equipped, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1008,21 +1008,27 @@ let shopPick = "wand";                       // 좌판에서 고른 것
 function drawShop() {
   /* ① 좌판 — 파는 물건이 칸에 놓여 있다 */
   $("shopGrid").innerHTML = Object.entries(GEAR).map(([k, g]) => {
-    const t = META.gear[k] | 0;
+    const t = gearTier(k), n = (equipped(k)?.af || []).length;
+    /* 칸에 **붙은 것의 개수**를 점으로 찍는다 — 등급만 보면 같은 4등급 둘이 구분이
+       안 되고, 랜덤 옵션을 넣은 뜻이 좌판에서 사라진다. */
     return `<div class="cell${k === shopPick ? " sel" : ""}" data-pick="${k}">
-      <i class="gear-${k}"></i><span class="q ${TIER_CLS[t]}">${t}</span></div>`;
+      <i class="gear-${k}"></i><span class="q ${TIER_CLS[t]}">${t}</span>
+      ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   }).join("") + '<div class="cell empty"></div>'.repeat(5);
 
   /* ② 툴팁 — 고른 것의 이름과 능력치. **이름 색이 등급**이다 */
   const k = shopPick, g = GEAR[k];
-  const t = META.gear[k] | 0, nx = gearNext(k), max = g.tiers.length - 1;
+  const it = equipped(k), t = gearTier(k), nx = gearNext(k), max = g.tiers.length - 1;
   const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
             : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
-    `<div class="tipName ${TIER_CLS[t]}">${g.tiers[t]}</div>
-     <div class="tipKind">${g.n}</div>
+    `<div class="tipName ${TIER_CLS[t]}">${nameOf(it)}</div>
+     <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
+    /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
+    ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +
+    (nx !== null ? `<div class="tipNote sm">상인이 파는 것엔 <b>옵션이 없다</b> — 붙은 건 던전에서</div>` : "") +
     (nx === null
       ? `<div class="tipNote">최고 등급 · 더 살 것 없음</div>`
       : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
@@ -1071,7 +1077,11 @@ document.addEventListener("click", (e) => {
     const nx = gearNext(buy); if (nx === null) return;
     const cost = GEAR[buy].cost[nx];
     if (META.gold < cost) return;
-    META.gold -= cost; META.gear[buy] = nx; saveMeta();
+    /* 산 것은 **옵션 없는 물건**(상점은 바닥, 던전이 천장이다). 끼고 있던 것은
+       버리지 않고 가방으로 — 옵션이 좋은 낮은 등급을 사다가 잃으면 안 된다. */
+    const old = equipped(buy);
+    if (old) META.bag.push(old);
+    META.gold -= cost; META.equip[buy] = mkItem(buy, nx, true); saveMeta();
     S.hp = Math.min(hpMaxOf(), S.hp + 0);          // 최대치가 늘면 비율이 아니라 여유가 는다
     drawShop(); hud();
     return;

@@ -1,4 +1,4 @@
-import { armyCap, CORPSE_TINT, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, CORPSE_TINT, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -300,7 +300,7 @@ export function cast(id) {
   if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
-    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * novaDmgMul();
+    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * selfMulOf() * novaDmgMul();
     const rad = 180 * novaRadMul();
     let hit = 0;
     /* 시체 폭발은 **본인 둘레**를 쓸어 낸다 — 사방 판에서는 그게 "한숨 돌리는 순간"이다 */
@@ -362,10 +362,14 @@ export function step(dt) {
     d.x -= (d.x / dd) * sp * dt; d.y -= (d.y / dd) * sp * dt;
     if (dd < 16) {
       const r = takeDrop(d);
-      const g = GEAR[d.k], nm = g.tiers[d.tier];
-      S.loot.push({ ...d, worn: r.worn, gold: r.gold, n: nm, slot: g.n });
-      say(r.worn ? `<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}`
-                 : `<b class="t${d.tier}">${nm}</b> → 금 ${r.gold}`);
+      const g = GEAR[d.k], nm = nameOf(d);
+      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, n: nm, slot: g.n });
+      /* 붙은 것을 **로그에 적는다** — 안 적으면 「같은 4등급인데 왜 갈아 끼웠지」가
+         화면 어디에도 없어서, 랜덤 옵션을 넣고도 없는 것과 같아진다. */
+      const opts = (d.af || []).map((a) => afText(a)).join(" · ");
+      say((r.worn ? `<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}`
+                  : `<b class="t${d.tier}">${nm}</b> → 금 ${r.gold}`)
+          + (opts ? ` <i class="afl">${opts}</i>` : ""));
       S.fx.push({ t: 0.4, x: 0, y: 0, kind: "rise" });
       saveMeta();
       S.drops.splice(i, 1);
@@ -473,7 +477,7 @@ export function step(dt) {
       S.pswing = SWING_T;                              // 던지는 자세
       const d = Math.hypot(t.x, t.y) || 1;
       S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d,
-                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * (1 + gearVal("wand")) * wandMul(), life: 2 });
+                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * selfMulOf() * (1 + gearVal("wand")) * wandMul(), life: 2 });
     }
   }
   /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.
@@ -520,7 +524,7 @@ export function step(dt) {
     /* **때는 아직이다.** 팔이 뻗는 칸에서 터지도록 적어만 둔다(위 IMPACT_AT). */
     /* 먹어서 커진 만큼 세다 — 몸집과 힘이 따로 놀면 「커졌는데 약함」이 된다.
        지배한 놈은 제 피를 못 빤다(구울만 문다). */
-    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * ampMul * feedMul(u),
+    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * minionMulOf() * ampMul * feedMul(u),
                   heal: u.kind === "ghoul" && !u.own };
   }
 
@@ -627,7 +631,7 @@ export function step(dt) {
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
     if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small");
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
-    META.gold += goldFor(S.floor) * (m.boss ? 8 : 1);
+    META.gold += Math.round(goldFor(S.floor) * goldMulOf()) * (m.boss ? 8 : 1);
     META.xp += (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hp = hpMaxOf(); S.mp = mpMaxOf();

@@ -153,7 +153,11 @@ export const META = load();
 function load() {
   const base = { gold: 0, lv: 1, xp: 0, deepest: 1, runs: 0,
                  up: { hp:0, mp:0, dmg:0, army:0 },
-                 gear: { wand:0, robe:0, charm:0 },
+                 /* 낀 것 셋. **등급 숫자가 아니라 개체다** — {k, tier, af:[{id,v}]}.
+                    옵션이 랜덤이면 같은 4등급이라도 물건마다 달라야 하므로, 슬롯에
+                    숫자를 적어 두는 것으로는 표현할 수가 없다. */
+                 equip: { wand:null, robe:null, charm:null },
+                 bag: [],
                  /* 찍은 것 — { 노드id: 랭크 }. **남은 점수는 저장하지 않는다**(아래
                     spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
                     옛 저장에도 저절로 맞고 어긋날 여지가 없다. */
@@ -164,9 +168,20 @@ function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(META_KEY) || "{}");
     const m = Object.assign(base, raw);
-    m.up   = Object.assign({}, base.up,   raw.up   || {});
-    m.gear = Object.assign({}, base.gear, raw.gear || {});
-    m.tree = Object.assign({}, base.tree, raw.tree || {});
+    m.up    = Object.assign({}, base.up,    raw.up    || {});
+    m.equip = Object.assign({}, base.equip, raw.equip || {});
+    m.tree  = Object.assign({}, base.tree,  raw.tree  || {});
+    m.bag   = Array.isArray(raw.bag) ? raw.bag : [];
+    /* ★ 옛 저장은 `gear: {wand:2,…}` 라는 **등급 숫자**를 갖고 있다. 그것을 옵션 없는
+       개체로 올려 준다 — 세이브를 깨면 지금까지 굴린 것이 통째로 사라진다.
+       raw.equip 이 이미 있으면 손대지 않는다(두 번 올리면 안 된다). */
+    if (!raw.equip && raw.gear) {
+      for (const k of ["wand", "robe", "charm"]) {
+        const t = raw.gear[k] | 0;
+        if (t > 0) m.equip[k] = { k, tier: t, af: [] };
+      }
+    }
+    delete m.gear;                   // 두 개의 진실을 남기지 않는다 — 거울은 어긋난다
     return m;
   }
   catch { return base; }
@@ -229,31 +244,109 @@ export function rollDrop(f) {
   const cap = dropTierCap(f);
   /* 위쪽 등급일수록 드물게 — 제곱으로 눌러 「높은 게 나왔다」가 사건이 되게. */
   const tier = 1 + Math.floor(Math.pow(Math.random(), 2.1) * cap);
-  return { k, tier: Math.min(cap, tier) };
+  return mkItem(k, Math.min(cap, tier));
 }
-/** 주웠을 때 무슨 일이 일어나는가. 더 좋으면 **그 자리에서 갈아 끼우고**(방치형이므로
+
+/* ══ 붙는 것(옵션) ══ 병수님: "디아블로처럼 아이템의 등급과 능력치가 랜덤하게 붙는"
+   등급만 있으면 얻을 수 있는 것이 **슬롯 3 × 4단계 = 열두 번**뿐이라 30분이면 천장에
+   닿고 그 뒤로 떨어지는 건 전부 금이었다(20분 재 보니 주운 22개 중 15개가 이미 금).
+   디아블로 2 가 등급 **위에** 옵션을 얹은 자리가 여기다 — 같은 4등급이라도 붙은 것이
+   달라서 **더 좋은 4등급**이 나올 수 있으면 파밍에 끝이 없다.
+
+   ★ 옵션은 **이미 있는 수치에만** 붙인다. 새 수치를 만들면 그것을 보여 줄 새 화면이
+     또 필요해진다 — 여섯 개 전부 hpMaxOf/mpRegenOf/dmgMulOf/armyCap/goldFor 로 들어간다.
+   r 은 **1등급 기준 폭**이고 등급이 오르면 같이 커진다(afMul). w 는 점수 무게 —
+   좋은 옵션 셋(≈90)이 **한 등급(100)보다 살짝 모자라게** 맞췄다. 그래야 등급이
+   여전히 뼈대이고, 옵션은 **같은 등급끼리를 가르는** 눈금이 된다. */
+export const AFFIX = {
+  dmg:  { n:"본인 피해",   u:"%",   pre:"잔혹한", w:0.9,  r:[6, 18],   p:1 },
+  mdmg: { n:"소환수 피해", u:"%",   pre:"호령하는", w:0.75, r:[8, 22],   p:1 },
+  hp:   { n:"최대 체력",   u:"",    pre:"단단한", w:0.15, r:[30, 90],  p:1 },
+  mp:   { n:"마나 회복",   u:"/초", pre:"흐르는", w:11,   r:[0.5, 1.6],p:1 },
+  gold: { n:"금 획득",     u:"%",   pre:"탐욕스런", w:0.5,  r:[10, 30],  p:0.9 },
+  /* 군세 +1 은 판이 눈에 띄게 바뀌므로 **드물게**, 그리고 등급이 올라도 1 그대로(flat). */
+  army: { n:"군세 상한",   u:"",    pre:"거느리는", w:38,   r:[1, 1],    p:0.28, flat:true },
+};
+const AF_KEYS = Object.keys(AFFIX);
+const afMul = (tier) => 0.6 + 0.35 * tier;            // 1등급 0.95 → 4등급 2.0
+/** 등급이 높을수록 **많이** 붙는다. 1등급 0~1 · 4등급 3(상한). */
+function afCount(tier) {
+  return Math.min(3, Math.max(0, tier - 1 + (Math.random() < 0.35 ? 1 : 0)));
+}
+function rollAffix(tier, taken) {
+  const pool = AF_KEYS.filter((id) => !taken.includes(id));
+  let tot = 0; for (const id of pool) tot += AFFIX[id].p;
+  let r = Math.random() * tot, id = pool[pool.length - 1];
+  for (const c of pool) { r -= AFFIX[c].p; if (r <= 0) { id = c; break; } }
+  const a = AFFIX[id];
+  /* ★ 군세만 등급으로 안 키운다. 처음엔 다 같이 곱했더니 4등급에서 +2 가 나왔고,
+     셋을 끼면 상한이 6→12 로 **두 배**가 됐다 — 옵션 하나가 판을 통째로 바꾸면
+     그건 옵션이 아니라 다른 게임이다. 뽑기가 드문 것으로 값어치를 지킨다. */
+  const raw = (a.r[0] + Math.random() * (a.r[1] - a.r[0])) * (a.flat ? 1 : afMul(tier));
+  return { id, v: id === "mp" ? Math.round(raw * 10) / 10 : Math.max(1, Math.round(raw)) };
+}
+/** 물건 하나를 만든다. `plain` 이면 옵션 없이 — **상점이 파는 것이 그것이다**.
+ *  상점은 바닥이고 던전이 천장이어야 「한 판 더」가 산다. */
+export function mkItem(k, tier, plain = false) {
+  const af = [];
+  if (!plain) { const n = afCount(tier); for (let i = 0; i < n; i++) af.push(rollAffix(tier, af.map((x) => x.id))); }
+  return { k, tier, af };
+}
+/** 물건끼리 견주는 **하나의 자.** 자동 착용·자동 처분이 전부 이걸 본다 —
+ *  자가 여럿이면 「왜 이게 안 끼워졌지」가 설명이 안 된다. */
+export const scoreOf = (it) =>
+  !it ? -1 : it.tier * 100 + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
+/** 이름 — 제일 센 옵션이 앞에 붙는다(디아블로의 접두사).
+ *  ★ 접두사는 **「~의」로 끝내지 않는다.** 등급 이름 절반이 이미 「심장의 홀」·「왕의 제의」
+ *  처럼 「의」로 끝나서 「군단의 심장의 홀」이 됐다 — 관형형(잔혹한·흐르는)으로만 쓴다. */
+export function nameOf(it) {
+  if (!it) return "없음";
+  const base = GEAR[it.k].tiers[it.tier];
+  if (!it.af.length) return base;
+  const top = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v))[0];
+  return `${AFFIX[top.id].pre} ${base}`;
+}
+export const afText = (a) =>
+  `${AFFIX[a.id].n} +${a.v}${AFFIX[a.id].u}`;
+
+export const equipped = (k) => META.equip[k] || null;
+export const gearTier = (k) => (equipped(k)?.tier) | 0;
+/** 낀 것 셋에 붙은 같은 옵션을 모두 더한다. */
+export function afSum(id) {
+  let s = 0;
+  for (const k of GEAR_KEYS) for (const a of (equipped(k)?.af || [])) if (a.id === id) s += a.v;
+  return s;
+}
+/** 주웠을 때 무슨 일이 일어나는가. 점수가 높으면 **그 자리에서 갈아 끼우고**(방치형이므로
  *  고르라고 세우지 않는다), 아니면 금으로 바뀐다 — 빈손으로 돌려보내지 않는다. */
 export function takeDrop(d) {
-  const cur = META.gear[d.k] | 0, tier = d.tier | 0;
-  if (tier > cur) { META.gear[d.k] = tier; return { worn: true, gold: 0 }; }
-  const gold = Math.round(GEAR[d.k].cost[tier] * 0.22);
+  const it = { k: d.k, tier: d.tier, af: d.af || [] };
+  if (scoreOf(it) > scoreOf(equipped(d.k))) { META.equip[d.k] = it; return { worn: true, gold: 0 }; }
+  const gold = Math.round(GEAR[d.k].cost[d.tier] * 0.22);
   META.gold += gold;
   return { worn: false, gold };
 }
 
 /** 다음 등급 값. 마지막이면 null(더 살 것이 없다). */
 export const gearNext = (k) => {
-  const t = (META.gear[k] | 0) + 1;
+  const t = gearTier(k) + 1;
   return t < GEAR[k].tiers.length ? t : null;
 };
-export const gearVal = (k) => GEAR[k].val[META.gear[k] | 0];
-export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8 + gearVal("robe");
+export const gearVal = (k) => GEAR[k].val[gearTier(k)];
+export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
+                            + gearVal("robe") + afSum("hp");
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
 /** 마나가 차는 속도 — 부적이 올린다. */
-export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm");
+export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
 export const dmgMulOf = () => (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
                             * (1 + rank("bone") * 0.10);
-export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion");
+/* dmgMulOf 는 **둘 다에게 걸리는 바탕**이다(레벨·강화·뼈 트리). 옵션은 그 위에서
+   갈라진다 — 안 그러면 「본인 피해」가 소환수까지 올려서 이름이 거짓말이 된다. */
+export const selfMulOf   = () => 1 + afSum("dmg") / 100;
+/** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
+export const minionMulOf = () => 1 + afSum("mdmg") / 100;
+export const goldMulOf   = () => 1 + afSum("gold") / 100;
+export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion") + afSum("army");
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
