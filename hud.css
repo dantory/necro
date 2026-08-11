@@ -571,6 +571,7 @@ body.in-town #stage{cursor:pointer}
 /* 낀 것은 셋이라 3칸, 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
 .sSec.eq  .grid{grid-template-columns:repeat(3,1fr);margin-bottom:0}
 .sSec.bag .grid{grid-template-columns:repeat(6,1fr);margin-bottom:0}
+.sFuse{font-size:11px;line-height:1.4;color:#8a7a5c;margin:0 0 8px}
 /* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
 .sSec.eq .cell.empty i{opacity:.24}
 /* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
@@ -595,6 +596,10 @@ body.in-town #stage{cursor:pointer}
 .cell.wear .eFate{color:#8ac06a}
 .cell.bag  .eFate{color:#9d907a}
 .cell.gone .eFate{color:#c8aa6e}
+/* ⑤ 합성 — 재료로 쓰여 사라진 것은 금처럼 **흐리게**(남지 않았다), 합쳐 생긴 것은 밝게 도드라진다. */
+.cell.mat{opacity:.5}
+.cell.mat  .eFate{color:#b48ad0}
+.cell.made .eFate{color:#e0c46a}
 .eEmpty{text-align:center;color:#6b5f4e;padding:28px 0}
 
 /* 이름을 눌러 상태창을 연다 — hLv(.lvBtn)와 같은 결. #top 은 클릭을 통과시키므로

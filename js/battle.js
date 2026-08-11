@@ -363,18 +363,31 @@ export function step(dt) {
     if (dd < 16) {
       const r = takeDrop(d);
       const g = GEAR[d.k], nm = nameOf(d);
-      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n });
+      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n, ref: r.ref });
       /* 붙은 것을 **로그에 적는다** — 안 적으면 「같은 4등급인데 왜 갈아 끼웠지」가
          화면 어디에도 없어서, 랜덤 옵션을 넣고도 없는 것과 같아진다. */
       const opts = (d.af || []).map((a) => afText(a)).join(" · ");
       const afl = opts ? ` <i class="afl">${opts}</i>` : "";
-      /* 주운 그것이 간 곳을 **세 갈래로 갈라** 말한다: 착용 · 가방 · (가방이 꽉 차 제일 나빠서) 금.
-         스필오버(가방이 차서 밀려 녹은 **다른** 것)는 그 아래 「가방이 차서」 줄로 따로 말한다. */
+      /* 주운 그것이 간 곳을 **네 갈래로 갈라** 말한다: 착용 · 가방 · (셋이 모여) 합성 · (가방이 꽉 차 제일 나빠서) 금.
+         주운 그것이 곧장 재료로 합쳐졌으면(pickedFused) 아래 합성 줄이 말하므로 여기선 조용히 넘긴다
+         — 안 그러면 r.melted[0] 이 없어(재료는 녹은 것이 아니다) 금 줄에서 터진다. */
+      const pickedFused = r.fused.some((f) => f.mats.includes(r.ref));
       let spill;
-      if (r.worn)       { say(`<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
-      else if (r.bagged){ say(`<b class="t${d.tier}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
-      else              { say(`<b class="t${d.tier}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
+      if (r.worn)          { say(`<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
+      else if (r.bagged)   { say(`<b class="t${d.tier}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
+      else if (pickedFused){ spill = r.melted; }
+      else                 { say(`<b class="t${d.tier}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
       for (const m of spill) say(`가방이 차서 <b class="t${m.tier}">${m.n}</b> → 금 ${m.gold}`);
+      /* ⑤ 합성 — 같은 것 셋이 하나로. 사라진 재료는 정산에서 「재료」로 갈고(이번 판에 주운 것·중간
+         산물이면 그 칸을 찾아), 생긴 것은 「합침」 칸으로 세운다. 로그는 한 줄, 등급 색은 기존과 같은 t{tier}. */
+      for (const f of r.fused) {
+        for (const mat of f.mats) {
+          const le = S.loot.find((e) => e.ref === mat);
+          if (le) { le.mat = true; le.made = false; le.worn = false; le.bagged = false; le.gold = 0; }
+        }
+        S.loot.push({ k: f.k, tier: f.tier, af: f.af, worn: false, gold: 0, bagged: false, n: f.n, slot: GEAR[f.k].n, made: true, ref: f.made });
+        say(`같은 것 셋이 하나로 — <b class="t${f.tier}">${f.n}</b> (${f.tier}등급)` + (f.worn ? " · 착용" : ""));
+      }
       S.fx.push({ t: 0.4, x: 0, y: 0, kind: "rise" });
       saveMeta();
       S.drops.splice(i, 1);

@@ -1130,7 +1130,9 @@ function drawStat() {
   $("statBody").innerHTML =
     `<div class="sCols">
       <div class="sSec eq"><h3>낀 것</h3><div class="grid">${eqCells}</div></div>
-      <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3><div class="grid">${bagCells}</div></div>
+      <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
+        <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
+        <div class="grid">${bagCells}</div></div>
     </div>` + statNumbers();
   $("statTip").innerHTML = statTipHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
@@ -1146,7 +1148,8 @@ function drawEnd() {
     `${r.floor}층에서 쓰러짐 · 잡은 수 <b>${r.killed}</b> · 금 <b>+${r.gold.toLocaleString()}</b>`
     + ` · 경험치 <b>+${r.xp}</b>${r.leveled ? ` · <b class="t2">레벨 업!</b>` : ""}`;
   const cell = (it) => {
-    const fate = it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
+    const fate = it.made ? ["made", "합침"] : it.mat ? ["mat", "재료"]
+               : it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
     const n = (it.af || []).length;
     return `<div class="cell ${fate[0]}"><span class="eFate">${fate[1]}</span>
       <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>

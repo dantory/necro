@@ -331,12 +331,66 @@ export const BAG_MAX = 12;
  *  이제 가방(bagPut)도 같은 값으로 녹이므로 **두 곳에 같은 식을 두지 않으려** 여기 모은다. */
 export const meltGold = (it) => Math.round(GEAR[it.k].cost[it.tier] * 0.22);
 
+/* ══ 합성 ══ 병수님: "중복은 금이 아니라 **재료**로 — 셋을 합치면 한 단계 위(병수님 취향의 합성)".
+   ②가 12칸을 넘으면 제일 나쁜 것부터 녹였다 — 그래서 같은 슬롯·같은 등급의 중복이 모이지
+   못하고 전부 금이 됐다. **녹이기 전에 합쳐** 그 자리를 낸다.
+   ★ 새 화폐·새 화면·격자·드래그를 만들지 않는다 — ②가 저절로 녹듯 **조건이 차면 저절로**
+     일어난다(방치형). 재료는 새 종류가 아니라 **이미 있는 장비 개체 그 자체**다. */
+/** 가방에서 **같은 슬롯(k)·같은 등급(tier)** 셋이 모이면 셋을 빼고 `mkItem(k, tier+1)` 하나를
+ *  만든다. 옵션은 등급이 올랐으니 **새로 굴린다** — 등급이 오르면 scoreOf 가 +100 이라 재료보다
+ *  반드시 좋다(물려받기 규칙을 따로 두지 않는다).
+ *  · **꼭대기 등급은 안 합쳐진다**(tier+1 이 없으면) — 그 셋은 넘칠 때 녹는 길로 간다.
+ *  · **연쇄** — 합쳐 생긴 것 때문에 또 셋이 되면 그것도 합친다(같은 것 9개 → tier+1 셋 → tier+2 하나).
+ *  · 합쳐 만든 것이 지금 낀 것보다 좋으면 **그 자리서 갈아 끼우고**(방치형) 벗은 것은 가방으로.
+ *  돌려주는 값: 로그·정산이 읽게 `[{k, tier, n(이름), af, worn(갈아 끼웠나), mats(재료 셋)}]`. */
+export function bagFuse() {
+  const fused = [];
+  for (;;) {
+    /* 같은 슬롯·같은 등급끼리 자리(index)를 모아 셋 이상인 것을 찾는다. 꼭대기 등급은 건너뛴다. */
+    const groups = {};
+    for (let i = 0; i < META.bag.length; i++) {
+      const it = META.bag[i], key = it.k + ":" + it.tier;
+      (groups[key] = groups[key] || []).push(i);
+    }
+    let hit = null;
+    for (const key in groups) {
+      const idxs = groups[key];
+      if (idxs.length < 3) continue;
+      const it = META.bag[idxs[0]];
+      if (it.tier + 1 >= GEAR[it.k].tiers.length) continue;   // 꼭대기 등급은 안 합쳐진다
+      hit = idxs.slice(0, 3);
+      break;
+    }
+    if (!hit) break;
+    /* 셋을 빼낸다 — **큰 자리부터** 지워야 남은 자리가 안 밀린다. 뺀 것이 재료다. */
+    const mats = [];
+    for (const i of hit.slice().sort((a, b) => b - a)) mats.push(META.bag.splice(i, 1)[0]);
+    const src = mats[0];
+    const made = mkItem(src.k, src.tier + 1);                 // 옵션은 등급이 올랐으니 새로 굴린다
+    let worn = false;
+    if (scoreOf(made) > scoreOf(equipped(src.k))) {           // 낀 것보다 좋으면 그 자리서 갈아 끼운다
+      const old = equipped(src.k);
+      META.equip[src.k] = made; worn = true;
+      if (old) META.bag.push(old);                            // 벗은 것은 가방으로(또 셋이 되면 연쇄가 잡는다)
+    } else {
+      META.bag.push(made);
+    }
+    fused.push({ k: made.k, tier: made.tier, n: nameOf(made), af: made.af, worn, mats, made });
+  }
+  return fused;
+}
+
+/** 직전 bagPut 이 부른 bagFuse 의 결과 — takeDrop 이 로그·정산으로 읽어 간다. bagPut 이
+ *  이미 돌려주던 `melted` 계약을 **바꾸지 않으려**(②·④ 검수기가 본다) 여기 잠깐 둔다. */
+let lastFused = [];
+
 /** 가방에 넣는다. 12칸을 넘으면 **점수가 제일 낮은 것부터** 금으로 녹인다(넘친 만큼 반복).
  *  방금 넣은 그것이 제일 나쁘면 그 자리에서 녹아 없어질 수도 있다 — 그래서 「가방에 남았나」는
  *  부르는 쪽이 `META.bag.includes(it)` 로 확인한다. 녹은 금은 여기서 바로 META.gold 에 더하고,
  *  **녹인 목록**(로그가 「무엇이 얼마에 녹았는지」를 말할 수 있게)을 돌려준다. */
 export function bagPut(it) {
   META.bag.push(it);
+  lastFused = bagFuse();                          // ★ 녹이기 전에 합친다 — 중복은 금이 아니라 재료
   const melted = [];
   while (META.bag.length > BAG_MAX) {
     let lo = 0;                                   // 점수가 제일 낮은 칸을 찾아 녹인다
@@ -359,6 +413,7 @@ export function bagPut(it) {
 export function takeDrop(d) {
   const it = { k: d.k, tier: d.tier, af: d.af || [] };
   let worn = false, melted = [];
+  lastFused = [];                                // 이번 처리의 합성만 담기게 비운다(worn·빈손이면 bagPut 을 안 거친다)
   if (scoreOf(it) > scoreOf(equipped(d.k))) {
     const old = equipped(d.k);
     META.equip[d.k] = it; worn = true;
@@ -367,7 +422,7 @@ export function takeDrop(d) {
     melted = bagPut(it);                          // 가방으로 — 넘치면 제일 나쁜 것부터 녹는다
   }
   const gold = melted.reduce((s, m) => s + m.gold, 0);
-  return { worn, gold, bagged: META.bag.includes(it), melted };
+  return { worn, gold, bagged: META.bag.includes(it), melted, fused: lastFused, ref: it };
 }
 
 /** 가방의 i번을 끼고 벗은 것을 가방에 넣는다. ③ 상태창이 쓸 손잡이 하나 —
@@ -379,6 +434,7 @@ export function equipFromBag(i) {
   const old = equipped(it.k);
   META.equip[it.k] = it;
   if (old) META.bag.push(old);                   // 벗은 것은 가방으로(빈손이면 안 넣는다)
+  bagFuse();                                     // 손으로 끼운 뒤에도 가방에 셋이 남으면 저절로 합쳐진다
   saveMeta();
   return true;
 }
