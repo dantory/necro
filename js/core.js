@@ -396,6 +396,11 @@ export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 /** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
 export const minionMulOf = () => 1 + afSum("mdmg") / 100;
 export const goldMulOf   = () => 1 + afSum("gold") / 100;
+/** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
+ *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
+ *  쓰지 않게 여기 한 곳에 모은다 — 같은 식이 두 곳에 있으면 언젠가 갈라진다. */
+export const selfDmgMul   = () => dmgMulOf() * selfMulOf();
+export const minionDmgMul = () => dmgMulOf() * minionMulOf();
 export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion") + afSum("army");
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.

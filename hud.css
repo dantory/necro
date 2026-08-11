@@ -557,3 +557,34 @@ body.in-town #stage{cursor:pointer}
             color:#a8cdf2; letter-spacing:-1px;
             text-shadow:0 0 4px #2a5f96, 0 1px 0 #000; }
 .log .afl{ font-style:normal; font-size:10px; color:#8fb6e0; opacity:.9; }
+
+
+/* ══════════════════════════════════════════════════════════════
+   ③ 상태창 — 낀 것 · 가방 · 합친 수치
+   ──────────────────────────────────────────────────────────────
+   상인 좌판과 **같은 돌**(.cell·.grid·.tip·TIER_CLS). 여기서 더하는 것은 두 격자를
+   가르는 작은 제목과, 좁은 화면에서 위아래로 쌓는 규칙뿐이다 — 새 색표·새 창은 없다.
+   ══════════════════════════════════════════════════════════ */
+/* 방치형은 폰이 먼저이므로 **쌓는 것이 기본**이고, 480px 이상에서만 나란히 둔다. */
+.sCols{display:flex;flex-direction:column;gap:14px}
+.sSec h3{margin:0 0 8px;font-size:14px;letter-spacing:2px;color:#a08f6c;font-weight:normal}
+/* 낀 것은 셋이라 3칸, 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
+.sSec.eq  .grid{grid-template-columns:repeat(3,1fr);margin-bottom:0}
+.sSec.bag .grid{grid-template-columns:repeat(6,1fr);margin-bottom:0}
+/* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
+.sSec.eq .cell.empty i{opacity:.24}
+/* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
+.sStat{margin-top:2px;background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
+.sStat .tipStat{display:flex;justify-content:space-between;margin:3px 0}
+/* 고른 것 툴팁은 **내용 크기**로 둔다 — 늘려 채우면 빈 검은 상자가 커 보인다. */
+#statTip{flex:0 0 auto}
+@media (min-width:480px){
+  .sCols{flex-direction:row;align-items:flex-start}
+  .sSec.eq { flex:1 1 0 }
+  .sSec.bag{ flex:2 1 0 }
+}
+
+/* 이름을 눌러 상태창을 연다 — hLv(.lvBtn)와 같은 결. #top 은 클릭을 통과시키므로
+   (맵이 뒤로 이어진다) 이름 하나만 다시 눌리게 한다(pointer-events). */
+#hName{cursor:pointer;pointer-events:auto}
+#hName:hover{color:#e0c07a}

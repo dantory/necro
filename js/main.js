@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, MOB_H, gearNext, gearTier, equipped, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -983,7 +983,7 @@ export const MODE = { at: "town" };
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
 const win = (id, on) => $(id).classList.toggle("on", on);
-const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); };
+const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); win("winStat", false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
@@ -1064,6 +1064,78 @@ function drawForge() {
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/* ══ 상태창 ══ 병수님: "왼쪽에 낀 것 셋, 오른쪽에 가방, 아래에 합쳐진 수치."
+   상인 좌판과 **같은 돌**로 짠다 — 같은 .cell·.grid·.tip 클래스, 같은 TIER_CLS 색.
+   ★ 방치형이라 격자·드래그는 만들지 않는다(②의 규칙): 고르면 뜯어보고, 가방 것은
+     「끼기」 한 번으로 낀다. 파는 것·버리는 것은 여기 없다(그건 자동이거나 상인 몫). */
+let statSel = null;                           // 고른 칸 — {src:"eq",k} 또는 {src:"bag",i}
+
+/** 한 칸을 상점 좌판과 같은 모양으로 — 그림·등급 숫자(색)·옵션 점. */
+const gearCell = (it, attr, sel) => {
+  const n = it.af.length;
+  return `<div class="cell${sel ? " sel" : ""}" ${attr}>
+    <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>
+    ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
+};
+
+/** 합쳐진 수치 — **「등급 기본값 + 붙은 옵션」의 합**은 전부 core.js 함수가 읽는다.
+ *  화면에서 다시 계산하지 않는다(같은 식이 두 곳이면 갈라진다). */
+const statNumbers = () => {
+  const rows = [
+    ["체력",      hpMaxOf()],
+    ["마나",      mpMaxOf()],
+    ["군세",      armyCap()],
+    ["본인 피해",   `×${selfDmgMul().toFixed(2)}`],
+    ["소환수 피해", `×${minionDmgMul().toFixed(2)}`],
+    ["마나 회복",   `${mpRegenOf().toFixed(1)}/초`],
+    ["금 획득",    `+${Math.round((goldMulOf() - 1) * 100)}%`],
+  ];
+  return `<div class="sStat">${rows.map(([n, v]) =>
+    `<div class="tipStat">${n} <b>${v}</b></div>`).join("")}</div>`;
+};
+
+/** 고른 것의 옵션 — 상점 툴팁과 **같은 모양**(tipName 색=등급 · tipKind · tipStat · tipAf).
+ *  가방 것이면 「끼기」 하나. 낀 것을 고르면 단추는 없다. */
+const statTipHtml = () => {
+  if (!statSel) return `<div class="tipKind">칸을 고르면 뜯어본다 · 가방 것은 「끼기」로 낀다</div>`;
+  const it = statSel.src === "bag" ? META.bag[statSel.i] : equipped(statSel.k);
+  if (!it) return `<div class="tipKind">빈 칸</div>`;
+  const g = GEAR[it.k];
+  const fmt = (v) => it.k === "wand" ? `+${Math.round(v * 100)}%`
+            : it.k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
+  return `<div class="tipName ${TIER_CLS[it.tier]}">${nameOf(it)}</div>
+    <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${statSel.src === "eq" ? " · 낀 것" : ""}</div>
+    <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
+    it.af.map((a) => `<div class="tipAf">${afText(a)}</div>`).join("") +
+    (statSel.src === "bag"
+      ? `<div class="tipBuy"><button class="btn" data-bagwear="${statSel.i}">끼기</button></div>`
+      : "");
+};
+
+function drawStat() {
+  /* 낀 것 셋 — 슬롯마다 하나. 빈 슬롯은 .cell.empty(어느 슬롯인지 그림만 흐리게 남긴다). */
+  const eqCells = GEAR_KEYS.map((k) => {
+    const it = equipped(k);
+    if (!it) return `<div class="cell empty"><i class="gear-${k}"></i></div>`;
+    return gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k);
+  }).join("");
+
+  /* 가방 — 12칸. 채운 칸은 그 물건, 빈 칸은 .cell.empty. */
+  const bagCells = Array.from({ length: BAG_MAX }, (_, i) => {
+    const it = META.bag[i];
+    if (!it) return `<div class="cell empty"></div>`;
+    return gearCell(it, `data-bpick="${i}"`, statSel && statSel.src === "bag" && statSel.i === i);
+  }).join("");
+
+  $("statBody").innerHTML =
+    `<div class="sCols">
+      <div class="sSec eq"><h3>낀 것</h3><div class="grid">${eqCells}</div></div>
+      <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3><div class="grid">${bagCells}</div></div>
+    </div>` + statNumbers();
+  $("statTip").innerHTML = statTipHtml();
+  $("statGold").textContent = (META.gold | 0).toLocaleString();
+}
+
 /* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
 document.addEventListener("click", (e) => {
   const t = e.target;
@@ -1072,6 +1144,19 @@ document.addEventListener("click", (e) => {
   if (pick) { shopPick = pick.getAttribute("data-pick"); drawShop(); return; }
   const fpick = t.closest && t.closest("[data-fpick]");
   if (fpick) { forgePick = fpick.getAttribute("data-fpick"); drawForge(); return; }
+  /* 상태창의 고르기·끼기도 **같은 핸들러의 갈래**로 — 새 리스너를 남발하지 않는다. */
+  const spick = t.closest && t.closest("[data-spick]");
+  if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawStat(); return; }
+  const bpick = t.closest && t.closest("[data-bpick]");
+  if (bpick) { statSel = { src: "bag", i: +bpick.getAttribute("data-bpick") }; drawStat(); return; }
+  const bwear = t.getAttribute && t.getAttribute("data-bagwear");
+  if (bwear) {
+    const it = META.bag[+bwear];                   // 낀 뒤 가방 index 는 밀리므로 지금 붙잡는다
+    equipFromBag(+bwear);
+    statSel = it ? { src: "eq", k: it.k } : null;  // 방금 낀 그 슬롯을 골라 둔다(툴팁이 바뀐다)
+    saveMeta(); drawStat(); hud();
+    return;
+  }
   const buy = t.getAttribute && t.getAttribute("data-buy");
   if (buy) {
     const nx = gearNext(buy); if (nx === null) return;
@@ -1099,16 +1184,20 @@ document.addEventListener("click", (e) => {
    「거기 있는 곳」으로 읽힌다. */
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
-  if (which === "shop")  { drawShop();  win("winShop", true);  win("winForge", false); }
-  if (which === "forge") { drawForge(); win("winForge", true); win("winShop", false); }
+  /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
+     상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
+     더해도, 여는 길이 closeAll 을 안 거치면 소용없다). 여는 길을 하나로 모은다. */
+  if (which === "shop")  { closeAll(); drawShop();  win("winShop", true); }
+  if (which === "forge") { closeAll(); drawForge(); win("winForge", true); }
+  if (which === "stat")  { closeAll(); drawStat();  win("winStat", true); }
 };
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
   const r = $("stage").getBoundingClientRect();
   const id = townHitAt(e.clientX - r.left, e.clientY - r.top);
   if (id === "gate")  { closeAll(); toDungeon(); }
-  if (id === "shop")  { drawShop();  win("winShop", true);  win("winForge", false); }
-  if (id === "forge") { drawForge(); win("winForge", true); win("winShop", false); }
+  if (id === "shop")  { closeAll(); drawShop();  win("winShop", true); }
+  if (id === "forge") { closeAll(); drawForge(); win("winForge", true); }
 });
 
 export function toTown(why) {
@@ -1217,6 +1306,13 @@ fit(); belt(); newRun(); hud(); markSp();
 $("hLv").addEventListener("click", () => {
   const on = !$("winTree").classList.contains("on");
   closeAll(); if (on) { drawTree(); win("winTree", true); }
+});
+/* ══ 상태창을 여는 곳 ══ **이름이다.** 능력치가 나오는 자리가 곧 그 값을 뜯어보는
+   입구다(트리가 레벨 옆인 것과 같은 뜻). 마을이 아니어도 열려야 한다 — 층을 내려가다
+   주운 것을 보려고 마을까지 돌아오게 하면 그건 벌이다. hLv 와 같이 토글이고 먼저 닫는다. */
+$("hName").addEventListener("click", () => {
+  const on = !$("winStat").classList.contains("on");
+  closeAll(); if (on) { drawStat(); win("winStat", true); }
 });
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
