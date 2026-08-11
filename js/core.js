@@ -317,14 +317,64 @@ export function afSum(id) {
   for (const k of GEAR_KEYS) for (const a of (equipped(k)?.af || [])) if (a.id === id) s += a.v;
   return s;
 }
+/* ══ 가방 ══ 병수님: "12칸. 차면 **점수가 제일 낮은 것부터** 저절로 금이 된다."
+   방치형이므로 **격자·드래그를 만들지 않는다** — 기본은 자동이고 손은 선택이다.
+   차면 스스로 제일 나쁜 것을 녹여 자리를 낸다. 그래서 가방이 넘쳐 판이 멈추는 일이 없다. */
+export const BAG_MAX = 12;
+/** 물건을 녹여 얻는 금. 예전엔 takeDrop 안에 `cost*0.22` 로 박혀 있던 식이다 —
+ *  이제 가방(bagPut)도 같은 값으로 녹이므로 **두 곳에 같은 식을 두지 않으려** 여기 모은다. */
+export const meltGold = (it) => Math.round(GEAR[it.k].cost[it.tier] * 0.22);
+
+/** 가방에 넣는다. 12칸을 넘으면 **점수가 제일 낮은 것부터** 금으로 녹인다(넘친 만큼 반복).
+ *  방금 넣은 그것이 제일 나쁘면 그 자리에서 녹아 없어질 수도 있다 — 그래서 「가방에 남았나」는
+ *  부르는 쪽이 `META.bag.includes(it)` 로 확인한다. 녹은 금은 여기서 바로 META.gold 에 더하고,
+ *  **녹인 목록**(로그가 「무엇이 얼마에 녹았는지」를 말할 수 있게)을 돌려준다. */
+export function bagPut(it) {
+  META.bag.push(it);
+  const melted = [];
+  while (META.bag.length > BAG_MAX) {
+    let lo = 0;                                   // 점수가 제일 낮은 칸을 찾아 녹인다
+    for (let i = 1; i < META.bag.length; i++)
+      if (scoreOf(META.bag[i]) < scoreOf(META.bag[lo])) lo = i;
+    const [gone] = META.bag.splice(lo, 1);
+    const gold = meltGold(gone);
+    META.gold += gold;
+    melted.push({ n: nameOf(gone), gold, tier: gone.tier });
+  }
+  return melted;
+}
+
 /** 주웠을 때 무슨 일이 일어나는가. 점수가 높으면 **그 자리에서 갈아 끼우고**(방치형이므로
- *  고르라고 세우지 않는다), 아니면 금으로 바뀐다 — 빈손으로 돌려보내지 않는다. */
+ *  고르라고 세우지 않는다) 벗은 것은 가방으로, 아니면 곧장 가방으로 — 빈손으로 돌려보내지 않는다.
+ *  어느 쪽이든 가방이 넘쳐 녹은 것이 있으면 그 금은 bagPut 이 이미 META.gold 에 더했고,
+ *  여기서는 로그가 쓰도록 합만 돌려준다.
+ *  돌려주는 값: worn(갈아 끼웠나) · gold(이번에 녹은 금의 합) · bagged(주운 그것이 가방에 남았나) ·
+ *  melted(녹인 목록 {n,gold,tier}). */
 export function takeDrop(d) {
   const it = { k: d.k, tier: d.tier, af: d.af || [] };
-  if (scoreOf(it) > scoreOf(equipped(d.k))) { META.equip[d.k] = it; return { worn: true, gold: 0 }; }
-  const gold = Math.round(GEAR[d.k].cost[d.tier] * 0.22);
-  META.gold += gold;
-  return { worn: false, gold };
+  let worn = false, melted = [];
+  if (scoreOf(it) > scoreOf(equipped(d.k))) {
+    const old = equipped(d.k);
+    META.equip[d.k] = it; worn = true;
+    if (old) melted = bagPut(old);               // 벗은 것을 가방으로(빈손이면 안 넣는다)
+  } else {
+    melted = bagPut(it);                          // 가방으로 — 넘치면 제일 나쁜 것부터 녹는다
+  }
+  const gold = melted.reduce((s, m) => s + m.gold, 0);
+  return { worn, gold, bagged: META.bag.includes(it), melted };
+}
+
+/** 가방의 i번을 끼고 벗은 것을 가방에 넣는다. ③ 상태창이 쓸 손잡이 하나 —
+ *  **화면·격자·드래그는 여기서 만들지 않는다**(방치형이라 기본은 자동, 손은 선택이다). */
+export function equipFromBag(i) {
+  const it = META.bag[i];
+  if (!it) return false;
+  META.bag.splice(i, 1);
+  const old = equipped(it.k);
+  META.equip[it.k] = it;
+  if (old) META.bag.push(old);                   // 벗은 것은 가방으로(빈손이면 안 넣는다)
+  saveMeta();
+  return true;
 }
 
 /** 다음 등급 값. 마지막이면 null(더 살 것이 없다). */

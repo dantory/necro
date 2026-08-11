@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, MOB_H, gearNext, gearTier, equipped, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, MOB_H, gearNext, gearTier, equipped, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1024,7 +1024,7 @@ function drawShop() {
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
     `<div class="tipName ${TIER_CLS[t]}">${nameOf(it)}</div>
-     <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""}</div>
+     <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${META.bag.length}/${BAG_MAX}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
     ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +

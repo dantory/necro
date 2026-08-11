@@ -3,7 +3,7 @@ import { armyCap, CORPSE_TINT, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afTe
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         GEAR, dropChance, rollDrop, takeDrop } from "./core.js";
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -363,13 +363,18 @@ export function step(dt) {
     if (dd < 16) {
       const r = takeDrop(d);
       const g = GEAR[d.k], nm = nameOf(d);
-      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, n: nm, slot: g.n });
+      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n });
       /* 붙은 것을 **로그에 적는다** — 안 적으면 「같은 4등급인데 왜 갈아 끼웠지」가
          화면 어디에도 없어서, 랜덤 옵션을 넣고도 없는 것과 같아진다. */
       const opts = (d.af || []).map((a) => afText(a)).join(" · ");
-      say((r.worn ? `<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}`
-                  : `<b class="t${d.tier}">${nm}</b> → 금 ${r.gold}`)
-          + (opts ? ` <i class="afl">${opts}</i>` : ""));
+      const afl = opts ? ` <i class="afl">${opts}</i>` : "";
+      /* 주운 그것이 간 곳을 **세 갈래로 갈라** 말한다: 착용 · 가방 · (가방이 꽉 차 제일 나빠서) 금.
+         스필오버(가방이 차서 밀려 녹은 **다른** 것)는 그 아래 「가방이 차서」 줄로 따로 말한다. */
+      let spill;
+      if (r.worn)       { say(`<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
+      else if (r.bagged){ say(`<b class="t${d.tier}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
+      else              { say(`<b class="t${d.tier}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
+      for (const m of spill) say(`가방이 차서 <b class="t${m.tier}">${m.n}</b> → 금 ${m.gold}`);
       S.fx.push({ t: 0.4, x: 0, y: 0, kind: "rise" });
       saveMeta();
       S.drops.splice(i, 1);
