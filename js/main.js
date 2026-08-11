@@ -1,4 +1,4 @@
-import { $, GEAR, gearNext, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, gearNext, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
@@ -107,6 +107,31 @@ function sprite(path) {
   IMG[path] = null;
   im.src = "assets/" + path + ".png";
   return null;
+}
+/* ══ 물들인 시체 사본 ══ 개체마다 색을 흔들되 **매 프레임 칠하지는 않는다** —
+   백 구를 그릴 때마다 합성하면 그리기가 통째로 무거워진다. (그림 × 색) 조합은 많아야
+   열여덟 개뿐이니 **한 번 만들어 두고 계속 쓴다.**
+   ★ 아직 원본이 안 왔으면 **캐시에 넣지 않는다** — null 을 굳혀 두면 그림이 온 뒤에도
+     영영 얼룩으로만 남는다. */
+const TINTED = {};
+function corpseArt(sort, ti) {
+  const key = sort + ":" + ti;
+  if (TINTED[key]) return TINTED[key];
+  const im = sprite("fx/corpse_" + sort);
+  if (!im) return null;
+  const t = CORPSE_TINT[ti | 0];
+  if (!t) return (TINTED[key] = im);
+  const c = document.createElement("canvas");
+  c.width = im.width; c.height = im.height;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.drawImage(im, 0, 0);
+  /* source-atop 이라 **원래 그려진 자리에만** 얹힌다 — 투명한 배경은 안 물든다
+     (예전에 배경째 칠해 네모난 얼룩이 생긴 적이 있다). */
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = t[1]; g.fillStyle = t[0];
+  g.fillRect(0, 0, c.width, c.height);
+  return (TINTED[key] = c);
 }
 /* ══ 걸음·공격 ══ **8방향 스프라이트를 재생한다**(js/sprite8.js).
    전에는 한 장을 부위로 잘라 흔들었다(js/rig.js) — PixelLab 8방향 프레임이 못 쓸 것이라
@@ -415,14 +440,17 @@ function draw(dt) {
     /* 층이 넘어가면 앞 층 그림이 **어둠에 잠긴다** — 개수는 그대로, 그림만(enterFloor 가
        fade 를 걸고 step 이 다 잠기면 뺀다). 새 층 시체는 fade 가 없어 그대로 짙다. */
     const fade = p.fade !== undefined ? Math.max(0, p.fade / PILE_FADE) : 1;
-    const ph = 26 * us;   // 밟고 다니는 것이므로 산 것보다 확실히 작게
-    const im = sprite("fx/corpse_" + p.sort);
+    /* 밟고 다니는 것이므로 산 것보다 확실히 작게 — 거기에 **개체마다 ±15%** 를 준다 */
+    const ph = 26 * us * (p.sc || 1);
+    const im = corpseArt(p.sort, p.tint);
     ctx.save();
-    ctx.globalAlpha = (0.34 + 0.44 * grow) * fade;   // 바닥에 스며든 만큼 · 걷히는 만큼 눌러 둔다
+    // 바닥에 스며든 만큼 · 걷히는 만큼 눌러 둔다 · 개체마다 잠긴 깊이(dim)만큼 더
+    ctx.globalAlpha = (0.34 + 0.44 * grow) * fade * (p.dim || 1);
     if (im) {
       ctx.imageSmoothingEnabled = false;
       const w = ph * (im.width / im.height);
-      ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(1, SQUASH);
+      /* 좌우 뒤집기까지 넣으면 같은 각도라도 다른 놈으로 보인다 — 세로 SQUASH 는 그대로 */
+      ctx.translate(x, y); ctx.rotate(p.rot); ctx.scale(p.flip || 1, SQUASH);
       ctx.drawImage(im, -w / 2, -ph * 0.5, w, ph);
     } else {
       ctx.fillStyle = "#100a08";
@@ -1028,6 +1056,10 @@ export function toDungeon() {
   document.body.classList.remove("in-town");
   newRun();
 }
+/* 검수용 — 자(headless)가 던전 화면을 보려면 입구를 눌러야 하는데, 그 자리는 판을
+   다시 그릴 때마다 움직인다. 좌표를 맞히려다 흰 마을 사진만 찍는 일이 있어 길을 뚫어 둔다
+   (window.__S · window.__geo 와 같은 부류). */
+window.__toDungeon = toDungeon;
 
 /* ══ 로딩 ══ **다 올 때까지 덮는다.**
    ★ 진행률을 「내가 부른 횟수」로 세면 실제와 어긋난다 — 받는 곳(sprite8 의 img)에서

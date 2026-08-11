@@ -1,4 +1,4 @@
-import { armyCap, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, CORPSE_TINT, dmgMulOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -198,8 +198,17 @@ const PILE_MAX = 140;
 export function addCorpse(x, y, sort, n = 1) {
   for (let i = 0; i < n; i++) {
     S.corpses++;
+    /* 개체마다 **다르게 눕는다** — 각도는 한 바퀴 전부(위에서 내려다본 그림이라 어느
+       쪽으로 누워도 말이 된다), 크기는 ±15%, 좌우도 뒤집는다. 여기에 색까지 얹으면
+       세 장으로 수십 가지가 나온다(core.js 의 CORPSE_TINT). */
     S.piles.push({ x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 6,
-                   sort, t: 0, born: CORPSE_FADE, rot: (Math.random() - 0.5) * 0.5 });
+                   sort, t: 0, born: CORPSE_FADE, rot: Math.random() * 6.2832,
+                   flip: Math.random() < 0.5 ? -1 : 1,
+                   sc: 0.85 + Math.random() * 0.30,
+                   tint: (Math.random() * CORPSE_TINT.length) | 0,
+                   /* **바닥에 잠긴 깊이**. 색보다 이게 더 크게 먹는다 — 특히 뼈처럼
+                      밝은 그림은 다 똑같이 하얘서, 밝기가 갈려야 낱개로 세어진다. */
+                   dim: 0.66 + Math.random() * 0.34 });
     if (S.piles.length > PILE_MAX) S.piles.shift();
   }
 }
