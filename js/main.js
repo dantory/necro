@@ -997,6 +997,16 @@ function hud() {
 function auto() {
   if (S.dead) return;
   if (!S.minions.some(m => m.kind === "golem")) cast("golem");
+  /* **저주도 자동이다.** 벽은 관문이었고(죽기 직전 5초 피해의 100%가 「층의 주인」)
+     셈이 답을 말한다 — 군대가 보스를 잡는 데 35초가 걸리는데 군대는 19초면 지워진다.
+     머릿수(재소환 두 배)도 마중(BOSS_CALL)도 그 셈을 못 바꿨다. 바꾸는 건 **화력**이고,
+     저주는 소환수 피해에도 곱해진다(ampMul). 값은 마나인데 죽을 때 마나가 82% 남아
+     있었다 — **노는 자원을 화력으로 바꾸는 자리**다.
+     ★ 재 보고 고른 모양이다(tools/ab_fire.sh, 씨앗 3·9·5 · 12분):
+       그대로 15.0층 · RAISE_DMG 0.09 는 15.0(제자리) · **이것이 18.0층**.
+       관문에서만 걸기(15.7) · 마나 45% 위에서만 걸기(16.7) 도 대 봤지만 둘 다 못 미쳤다 —
+       저주는 관문뿐 아니라 **평지를 빨리 쓸어** 더 깊이 내려가게 한다. */
+  if (S.mobs.length) cast("amp");
   if (S.corpses >= 2 && armyN() < armyCap()) cast("ghoul");
   if (S.corpses >= 1 && armyN() < armyCap()) cast("raise");
 }
