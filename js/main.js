@@ -1079,12 +1079,19 @@ function drawShop() {
 let forgePick = "hp";
 
 function drawForge() {
-  /* 대장간도 같은 결 — **칸에 놓고 고르면 툴팁**. 다만 파는 물건이 아니라 «몸»이라
-     칸에 그림 대신 **지금 단계**를 적는다. */
+  /* 대장간도 같은 결 — **칸에 놓고 고르면 툴팁**.
+     ★★ 예전엔 칸에 그림 대신 **이름을 적었다**(생명력·기력·어둠의 힘·군세). 칸이
+     41×41 인데 「어둠의 힘」이 18px 로 세 줄(41×81)이 되어 **위로 41px 삐져나가
+     제목·부제와 겹치고** 가운데 숫자와도 겹쳤다. 병수님이 「제대로 그려지는지 봐줘」
+     라고 해서 열어 보고 알았다 — DOM 넘침 자는 0 을 냈다(뷰포트 밖으로 나간 것만
+     보고 **서로 겹치는 것**은 안 쟀다).
+     이름을 빼고 **상인 창과 똑같이 아이콘 + 오른쪽 아래 숫자**로 간다. 이름과 설명은
+     이미 툴팁에 있으므로 잃는 것이 없고, 글자가 없으니 넘칠 일도 없다.
+     그림은 트리에 이미 구워 둔 것을 쓴다(새로 굽지 않는다). */
   $("forgeGrid").innerHTML = Object.entries(UPS).map(([k, u]) => {
     const lv = META.up[k] | 0;
     return `<div class="cell${k === forgePick ? " sel" : ""}" data-fpick="${k}">
-      <b class="lvl">${lv}</b><span class="cn">${u.n}</span></div>`;
+      <i class="up-${k}"></i><span class="q t2">${lv}</span></div>`;
   }).join("") + '<div class="cell empty"></div>'.repeat(4);
 
   const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
@@ -1251,6 +1258,10 @@ window.__openWin = (which) => {
   if (which === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (which === "forge") { closeAll(); drawForge(); win("winForge", true); }
   if (which === "stat")  { closeAll(); drawStat();  win("winStat", true); }
+  /* ★ 트리가 여기 없었다 — 검수기가 `__openWin("tree")` 를 부르고 **아무 일도 안 난
+     채** 마을 화면을 찍어 「이상 없음」을 냈다. 여는 길은 전부 여기 모여 있어야
+     밖에서 검수할 수 있다. */
+  if (which === "tree")  { closeAll(); drawTree();  win("winTree", true); }
 };
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;

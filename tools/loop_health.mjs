@@ -42,6 +42,32 @@ await new Promise(r => setTimeout(r, 4500));
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await new Promise(r => setTimeout(r, 900));
 
+/* ★★★ **그리는 고리를 세운다 — 이걸 안 하면 씨앗을 박아도 판이 매번 다르다.**
+   2026-08-12 확인: 같은 코드·같은 씨앗 3 으로 다섯 번 돌렸더니 최고층이
+   **15 · 15 · 17 · 20 · 16** 이었다(씨앗 9 는 15·15·15·15·17). 그동안 A/B 로
+   가른 폭(15.0 / 15.7 / 16.7 / 18.0)이 통째로 이 흔들림 안에 들어간다 —
+   「저주가 벽을 15→18 로 밀었다」도 이 잡음 위에서 읽은 숫자였다.
+   원인은 씨앗이 아니라 **두 개의 시간**이다. 빨리 감기가 12분을 10초에 밀어 넣는
+   동안 페이지의 rAF 고리(main.js loop)가 **벽시계로** 계속 돌면서
+     · step(dt) 를 제 몫만큼 더 돌리고
+     · auto() 를 제 박자로 또 부르고
+     · **같은 씨앗 난수열을 같이 퍼 쓴다**(스트림이 어긋난다)
+   기계가 얼마나 빨랐느냐가 판을 바꾼다. 그래서 rAF 를 끊어 **빨리 감기만이
+   유일한 시간**이 되게 한다. 죽었을 때 판수를 올리는 것도 그 고리가 하던 일이라
+   아래 tick() 이 대신 센다. */
+await S("Runtime.evaluate", { expression: "window.requestAnimationFrame = () => 0" });
+await new Promise(r => setTimeout(r, 200));
+
+/* 끊는 것만으로는 **한 판이 남는다.** 이미 예약된 콜백 하나가 더 돌 수도, 안 돌 수도
+   있고(벽시계), 그 한 번이 step 을 돌리고 난수를 한 움큼 퍼 간다 — 씨앗 9 가 세 번 중
+   한 번 다른 자리로 간 것이 이것이었다. 그래서 **난수를 다시 심고 판을 새로 연다** —
+   여기부터가 진짜 0분이고, 앞의 로딩이 무엇을 하고 갔든 상관없어진다. */
+await S("Runtime.evaluate", { awaitPromise: true, expression:
+  `(async()=>{ const B = await import("/js/battle.js");
+     Math.random = (() => { let s = (${SEED} >>> 0) || 1;
+       return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
+     B.newRun(); return "ok"; })()` });
+
 /* 판을 **빨리 감는다.** 실제로 20분을 기다리면 20분이 걸린다 — step 을 직접 돌린다.
    ★★ 처음에 step 만 돌렸다가 **군세 0 · 2분에 얼어붙음**이 나왔다. 게임 자체가
    멈춘 줄 알았는데, 자동 소환 auto() 는 battle.step 이 아니라 **main.js 의 그리는
@@ -88,6 +114,7 @@ const tick = (sec) => `(async()=>{
           출처: Object.fromEntries(Object.entries(from).map(([k, v]) => [C.MOB_N[k] || k, Math.round(v)])),
         });
         R.ring.length = 0;
+        C.META.runs++;                                         // rAF 를 끊었으므로 판수도 여기서 센다
         B.newRun();                                            // 사람이 「다시」를 누르는 몫
       }
     } catch(e) { return "ERR " + e.message; }
