@@ -1,4 +1,4 @@
-import { armyCap, CORPSE_TINT, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, CORPSE_TINT, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -213,14 +213,23 @@ export function popNum(x, y, v, kind) {
    쌓여 **그림이 개수의 3분의 1**밖에 안 됐다 — 자원을 눈으로 세라고 그려 놓고 정작
    눈이 세는 수가 틀린다. 작은 스프라이트 백 장은 값이 싸므로 상한을 올린다. */
 const PILE_MAX = 140;
-export function addCorpse(x, y, sort, n = 1) {
+/** @param pw 이 시체 주인의 **최대 체력.** 일어나는 놈이 이것을 물려받는다
+ *  (core.js 의 「소환수는 제가 일어난 시체만큼 세다」). 0 이면 종족 기본값으로만 선다. */
+export function addCorpse(x, y, sort, n = 1, pw = 0) {
+  /* ★★ **바닥은 그 층이다.** 처음엔 주인의 체력만 실었더니 **내리막 고리**가 생겼다 —
+     소환수가 죽으면 그 약한 주검이 시체가 되고, 그것으로 또 약한 놈이 서고, 그놈이
+     또 죽는다. 30분 굴려 재 보니 20층에서 물려받은 체력이 **344 여야 할 자리에 68**
+     이었다(죽은 놈 1204 구 중 대부분이 제 소환수의 주검이었다).
+     그 층에 서 있는 몸은 무엇이든 **그 층의 격**은 된다 — 거기를 바닥으로 둔다.
+     관문 주인은 제 체력이 더 크므로 여전히 특별하다. */
+  pw = Math.max(pw | 0, floorHp(S.floor));
   for (let i = 0; i < n; i++) {
     S.corpses++;
     /* 개체마다 **다르게 눕는다** — 각도는 한 바퀴 전부(위에서 내려다본 그림이라 어느
        쪽으로 누워도 말이 된다), 크기는 ±15%, 좌우도 뒤집는다. 여기에 색까지 얹으면
        세 장으로 수십 가지가 나온다(core.js 의 CORPSE_TINT). */
     S.piles.push({ x: x + (Math.random() - 0.5) * 10, y: y + (Math.random() - 0.5) * 6,
-                   sort, t: 0, born: CORPSE_FADE, rot: Math.random() * 6.2832,
+                   sort, pw, t: 0, born: CORPSE_FADE, rot: Math.random() * 6.2832,
                    flip: Math.random() < 0.5 ? -1 : 1,
                    sc: 0.85 + Math.random() * 0.30,
                    tint: (Math.random() * CORPSE_TINT.length) | 0,
@@ -244,7 +253,7 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0) {
     }
     if (bi >= 0) {
       const p = S.piles.splice(bi, 1)[0];
-      if (!at) at = { x: p.x, y: p.y };
+      if (!at) at = { x: p.x, y: p.y, pw: p.pw | 0 };   // ← 격까지 함께 넘긴다
       /* 먼지는 **일어서는 내내** 인다 — 몸이 다 올라오기 전에 먼지가 걷히면
          둘이 남남으로 보인다(그리는 쪽이 RISE_T 로 진행도를 잰다). */
       S.fx.push({ t: RISE_T, x: p.x, y: p.y, kind: "rise" });
@@ -270,15 +279,20 @@ export function summon(kind, at) {
   }
   // 골렘은 안쪽(벽), 해골은 바깥(먼저 붙는다) — 반지름이 곧 역할이다
   const rad = RING_HOLD * (kind === "golem" ? 0.72 : kind === "ghoul" ? 0.95 : 1.15);
-  /* ★ 뼈 갑주(트리)가 체력을 올린다 — **소환되는 순간에** 정한다. */
-  const hp0 = Math.round(K.hp * minionHpMul());
+  /* ★ 뼈 갑주(트리)가 체력을 올린다 — **소환되는 순간에** 정한다.
+     그리고 **쓴 시체의 격**을 물려받는다(at.pw). 둘은 곱으로 쌓인다 — 트리는
+     어느 시체에서 일어나든 듣고, 시체는 깊이 갈수록 좋아진다. */
+  const pw  = at ? (at.pw | 0) : 0;
+  const hp0 = Math.round(raiseHp(K.hp, pw) * minionHpMul());
+  const dmg0 = raiseDmg(K.dmg, pw);
+  const usc = raiseScale(K.hp, pw);
   /* 선 자리는 **쓴 시체의 자리**, 없으면 예전처럼 제 구역 안쪽. 어느 쪽이든 곧
      제 자리(home)로 걸어간다 — 그 걸음까지가 「불려 나왔다」로 읽힌다. */
   const sx = at ? at.x : Math.cos(best) * rad * 0.4;
   const sy = at ? at.y : Math.sin(best) * rad * 0.4;
-  S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h,
-                   x: sx, y: sy, rise: RISE_T,
-                   hp: hp0, hpMax: hp0, atk: 0, r: K.h * FOOT_R });
+  S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h * usc,
+                   x: sx, y: sy, rise: RISE_T, dmg: dmg0,
+                   hp: hp0, hpMax: hp0, atk: 0, r: K.h * usc * FOOT_R });
   return true;
 }
 
@@ -542,7 +556,7 @@ export function step(dt) {
     /* **때는 아직이다.** 팔이 뻗는 칸에서 터지도록 적어만 둔다(위 IMPACT_AT). */
     /* 먹어서 커진 만큼 세다 — 몸집과 힘이 따로 놀면 「커졌는데 약함」이 된다.
        지배한 놈은 제 피를 못 빤다(구울만 문다). */
-    u.pending = { tgt, dmg: K.dmg * dmgMulOf() * minionMulOf() * ampMul * feedMul(u),
+    u.pending = { tgt, dmg: (u.dmg || K.dmg) * dmgMulOf() * minionMulOf() * ampMul * feedMul(u),
                   heal: u.kind === "ghoul" && !u.own };
   }
 
@@ -644,10 +658,10 @@ export function step(dt) {
                        rise: RISE_T });
       S.fx.push({ t: RISE_T, x: m.x, y: m.y, kind: "rise" });
       say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 지배 · 아군 합류`);
-    } else addCorpse(m.x, m.y, m.boss ? "large" : (m.h >= 58 ? "large" : "small"));
+    } else addCorpse(m.x, m.y, m.boss ? "large" : (m.h >= 58 ? "large" : "small"), 1, m.hpMax);
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
-    if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small");
+    if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small", 1, m.hpMax);
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
     META.gold += Math.round(goldFor(S.floor) * goldMulOf()) * (m.boss ? 8 : 1);
     const xpGain = (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
@@ -662,7 +676,7 @@ export function step(dt) {
     S.minions.splice(i, 1);
     fall(dead, dead.art || ("minion/" + dead.kind), (dead.h || 40) * feedMul(dead));
     /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
-    addCorpse(dead.x, dead.y, "bones");
+    addCorpse(dead.x, dead.y, "bones", 1, dead.hpMax);   // 내 편의 주검도 자원이다
   }
 
   /* ── 층이 비면 내려간다 ──
