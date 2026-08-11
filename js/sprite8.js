@@ -147,6 +147,70 @@ export function footMetrics(base) {
   return out;
 }
 
+/* ══ 이 종의 공격은 **얼마나 움직이나** ══ 병수님: 골렘 공격이 정면에서 안 읽힌다.
+   재 보니 다섯 장이 거의 같은 자세다 — 실루엣이 프레임 사이에 **30%** 밖에 안 바뀐다
+   (해골 75% · 구울 90% · 졸개 120~124%). 팔이 뻗는 칸이 아예 없으니 프레임을 어떻게
+   나눠 태워도 때리는 것이 안 보인다.
+
+   다시 굽는 건 **세 판을 태운 자리**라(pixellab 공격 애니는 뒤 프레임이 무너진다)
+   싸게 갈 수 있는 쪽은 코드다. 다만 「골렘만 2배」처럼 종 이름을 박으면 새로 굽는
+   놈이 또 굳게 나왔을 때 아무도 모른다 — **얼마나 안 움직이는지를 그림에서 직접 재서**
+   그만큼만 코드가 대신 움직인다.
+
+   재는 법: attack/south 프레임들의 **알파 실루엣**을 서로 겹쳐 다른 칸을 세고,
+   작은 쪽 실루엣 넓이로 나눈다(0=완전히 같은 자세). 색·명암은 안 본다 — 자세가
+   바뀌었는지는 **윤곽**이 말한다(색까지 넣으면 골렘 0.81 대 해골 1.08 로 안 갈린다).
+   footMetrics 와 같이 **종마다 한 번만** 재고 담아 둔다. */
+const SPREAD = new Map();                    // base → 0~ | null(아직 못 잼)
+const cached = (path) => CACHE[path] || null;   // 요청은 안 한다 — chain 을 끊지 않으려고
+export function poseSpread(base) {
+  if (SPREAD.has(base)) return SPREAD.get(base);
+  const n = listed(base, "attack", "south");
+  if (n < 2) return null;                    // 목록이 모른다/한 장뿐 — 손대지 않는다
+  const ims = [];
+  for (let i = 0; i < n; i++) {
+    const im = cached(`assets/${base}/attack/south/${i}.png`);
+    if (!im || !im.width) return null;        // 아직 안 왔다 — 다음 프레임에 다시
+    ims.push(im);
+  }
+  let out = null;
+  try {
+    const W = ims[0].width, H = ims[0].height;
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    g.imageSmoothingEnabled = false;
+    const masks = ims.map((im) => {
+      g.clearRect(0, 0, W, H); g.drawImage(im, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data;
+      const m = new Uint8Array(W * H);
+      let area = 0;
+      for (let j = 0; j < W * H; j++) if (d[j * 4 + 3] > 24) { m[j] = 1; area++; }
+      return { m, area };
+    });
+    let best = 0;
+    for (let a = 0; a < masks.length; a++)
+      for (let b = a + 1; b < masks.length; b++) {
+        let diff = 0;
+        for (let j = 0; j < W * H; j++) if (masks[a].m[j] !== masks[b].m[j]) diff++;
+        const denom = Math.max(1, Math.min(masks[a].area, masks[b].area));
+        if (diff / denom > best) best = diff / denom;
+      }
+    out = best;
+  } catch (e) { out = null; }                 // 오염(taint) 등 — 재지 못하면 기존대로
+  SPREAD.set(base, out);
+  return out;
+}
+
+/** **그림이 안 움직인 만큼 코드가 대신 움직인다.** 1 = 손대지 않음(그림이 충분히 움직인다),
+ *  2 = 몸짓을 두 배로. 잘 구운 놈(구울·졸개·보스)은 1 이라 지금 화면이 그대로 남고,
+ *  굳은 놈(골렘 0.30 → 1.9)만 크게 내지른다. 못 쟀으면 1 — **모르면 안 건드린다.** */
+export function swingGain(base) {
+  const s = poseSpread(base);
+  if (s === null) return 1;
+  return Math.max(1, Math.min(2, 1 + (0.85 - s) * 1.7));
+}
+
 /** 8방향 한 장을 발밑 중앙(x,gy)·높이 h 로 그린다.
  *  state: "idle" | "walk" | "attack".
  *    idle        → assets/<base>/<dir>.png

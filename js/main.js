@@ -1,7 +1,7 @@
 import { $, CORPSE_TINT, GEAR, gearNext, hpMaxOf, isGate, META, MINIONS, mpMaxOf, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, cast, CORE_R, CORPSE_FADE, DEATH_T, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
-import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload } from "./sprite8.js";
+import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
 import { drawTree, markSp } from "./tree.js";
@@ -205,13 +205,40 @@ function drawOne(base, x, gy, h, fallback, e) {
   /* **때리는 놈도 움직인다.** 붙어 서서 팔만 흔들면 그림이 제자리를 맴돈다 —
      뒤로 몸을 빼며 들었다가(–) 타격 칸에서 앞으로 내지르고(+) 다시 돌아온다.
      맞는 놈이 뒤로 밀리는 것과 **반대 방향**이라 둘이 합쳐져 부딪힌 느낌이 난다. */
+  /* **그림이 안 움직이면 코드가 대신 움직인다.** 골렘 공격 다섯 장은 거의 같은 자세라
+     (실루엣 변화 0.30 — 해골 0.75 · 졸개 1.2) 프레임을 어떻게 태워도 때리는 것이
+     안 읽혔다. 종 이름을 박는 대신 **그림에서 굳은 정도를 재서**(swingGain) 그만큼
+     몸짓을 키운다 — 잘 움직이는 놈은 1.0 이라 화면이 하나도 안 바뀌고, 굳은 놈만
+     크게 쓴다. 새로 구운 놈이 또 굳게 나와도 저절로 걸린다. */
+  let tilt = 0, stretch = 0, swx = 0, swy = 0;
   if (e && e.swing > 0 && e.sdx !== undefined) {
     const p = 1 - e.swing / SWING_T;
     const push = p < 0.5 ? -0.05 * (p / 0.5)                    // 들면서 뒤로
                : p < 0.62 ? -0.05 + 0.23 * ((p - 0.5) / 0.12)   // 후려치며 앞으로
                : 0.18 * (1 - (p - 0.62) / 0.38);                // 거두며 제자리로
-    fx2 += e.sdx * h * push;
-    fy2 += e.sdy * h * push * 0.55;                             // 세로는 눌린 만큼 덜
+    const gain = swingGain(base);
+    swx = e.sdx * h * push * gain;
+    swy = e.sdy * h * push * gain * 0.55;                       // 세로는 눌린 만큼 덜
+    fx2 += swx; fy2 += swy;
+    /* 내지르기만 키우면 **미끄러진다** — 자세가 그대로인 채 통째로 움직이니까.
+       굳은 만큼 **뒤로 젖혔다가 앞으로 찍는다**: 기울기(몸통) + 눌림(무게).
+       셋이 같이 가야 「들었다 → 내리쳤다」로 읽힌다. 굳지 않은 종은 extra=0 이라 없다. */
+    const extra = gain - 1;
+    if (extra > 0.02) {
+      const lean = p < 0.5 ? -0.08 * (p / 0.5)                    // 젖히며 뒤로
+                 : p < 0.62 ? -0.08 + 0.28 * ((p - 0.5) / 0.12)   // 찍으며 앞으로
+                 : 0.20 * (1 - (p - 0.62) / 0.38);
+      tilt = e.sdx * extra * lean;                                // 치는 쪽으로 기운다
+      stretch = extra * (p < 0.5 ? 0.07 * (p / 0.5)               // 들며 솟았다가
+                       : p < 0.62 ? 0.07 - 0.19 * ((p - 0.5) / 0.12)   // 내리찍으며 눌리고
+                       : -0.12 * (1 - (p - 0.62) / 0.38));        // 제자리로
+      /* ★★ **정면이 제일 안 읽힌다** — 병수님이 본 것이 이 각도다. 옆으로 칠 때는
+         기울기가 다 말해 주지만(sdx 가 1), 아래로 칠 때는 sdx≈0 이라 기울기가 없고
+         내지르기마저 눌린 세로(×0.55)로 줄어 **거의 제자리**가 된다.
+         그래서 정면일수록 **눌림을 대신 키운다** — 옆에서 몸을 젖히는 대신
+         정면에서는 무게를 아래로 떨군다. 두 각도가 같은 크기로 읽히게 하는 몫이다. */
+      stretch *= 1 + (1 - Math.min(1, Math.abs(e.sdx))) * 0.9;
+    }
   }
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
@@ -226,8 +253,13 @@ function drawOne(base, x, gy, h, fallback, e) {
   const rise = e && e.rise > 0 ? 1 - e.rise / RISE_T : 1;
   const fm = footMetrics(base);
   const shr = (fm ? h * fm.footWidthFrac * 0.55 : h * 0.3) * (0.35 + 0.65 * rise);
+  /* ★ **내지를 때는 그림자도 따라간다**(밀릴 때는 아니다 — 위 규칙 그대로).
+     내지르기를 키우고 나니 골렘이 제 그림자를 통째로 두고 나가 **떠 보였다**.
+     내지르기는 제가 밟고 나가는 것이라 발이 옮겨 가고, 밀림은 몸만 젖혀지는 것이다 —
+     그래서 앞의 것만 그림자를 데려간다. 70%만 따라가 발이 끌리는 맛을 남긴다. */
+  const shdx = e && e.flinch > 0 ? 0 : swx * 0.7, shdy = e && e.flinch > 0 ? 0 : swy * 0.7;
   ctx.fillStyle = "rgba(0,0,0,.42)";
-  ctx.beginPath(); ctx.ellipse(x, gy, shr, shr * 0.34, 0, 0, 6.284); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + shdx, gy + shdy, shr, shr * 0.34, 0, 0, 6.284); ctx.fill();
 
   ctx.save();
   if (rise < 1) {
@@ -238,6 +270,13 @@ function drawOne(base, x, gy, h, fallback, e) {
     ctx.globalAlpha *= 0.5 + 0.5 * rise;
   }
   ctx.translate(fx2, fy2);
+  /* 기울임·눌림은 **발밑을 축으로** 준다 — 그림 한가운데를 축으로 돌리면 발이 땅에서
+     떠서 미끄러진다. 접지 그림자는 이 save 바깥(위)에서 이미 그렸으므로 같이 안 기운다. */
+  if (tilt || stretch) {
+    ctx.translate(x, gy); ctx.rotate(tilt);
+    ctx.scale(1 - stretch * 0.35, 1 + stretch);                 // 커지면 홀쭉, 눌리면 퍼진다
+    ctx.translate(-x, -gy);
+  }
   const drew = drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h);
   ctx.restore();
   if (!drew) {
