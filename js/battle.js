@@ -1,4 +1,4 @@
-import { armyCap, CORPSE_TINT, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -452,6 +452,7 @@ export function step(dt) {
       S.hp -= p.dmg;
       popNum(0, 0, p.dmg, "core");
       S.hurt = 0.18; S.hkx = u.sdx; S.hky = u.sdy;
+      S.hknock = knockOf({ hpMax: hpMaxOf() }, dmg);   // 본인도 같은 규칙
       /* 불꽃은 본인 둘레의 **적이 선 쪽**에 — u.sdx 는 적→가운데 방향이라 반대로 민다 */
       S.fx.push({ t: 0.12, kind: "hit", x: -u.sdx * CORE_R * 0.8, y: -u.sdy * CORE_R * 0.8 });
       if (S.hp <= 0) { S.hp = 0; die(); return; }
@@ -465,6 +466,9 @@ export function step(dt) {
     popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
     tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
     tgt.kx = u.sdx; tgt.ky = u.sdy;
+    /* ★ **얼마나** 밀리는지는 한 방이 제 몸에서 차지하는 몫이 정한다(core 의 knockOf).
+       큰 놈은 잔매에 안 밀리고 쭉 걸어온다 — 병수님이 지적한 자리다. */
+    tgt.knock = knockOf(tgt, dmg);
     /* 구울의 흡혈 — **회복도 숫자로 보인다**(초록, 앞에 +). 실제로 찬 만큼만 띄운다:
        가득 찬 구울이 문 것을 큰 숫자로 띄우면 거짓말이 된다. */
     if (heal) { const g = Math.min(u.hpMax - u.hp, dmg * 0.35); u.hp += g; popNum(u.x, u.y, g, "heal"); }
@@ -552,7 +556,7 @@ export function step(dt) {
     if (hit) {
       hit.hp -= b.dmg * ampMul;
       popNum(hit.x, hit.y, b.dmg * ampMul, "dmg");
-      hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy;
+      hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, b.dmg * ampMul);
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
       S.bolts.splice(i, 1); continue;
     }

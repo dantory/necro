@@ -262,7 +262,11 @@ function drawOne(base, x, gy, h, fallback, e) {
   }
   if (e && e.flinch > 0) {
     const t = e.flinch / 0.18;
-    fx2 = -(e.kx || 0) * h * 0.14 * t; fy2 = -(e.ky || 0) * h * 0.07 * t;
+    /* ★ 밀리는 양은 **한 방이 제 몸에서 차지하는 몫**만큼(battle 의 knockOf).
+       예전엔 누구나 키의 14% 였고, 여섯 기가 붙으면 움찔이 끝나기 전에 새로 걸려
+       큰 놈이 톱니처럼 앞뒤로 떨었다(병수님: "맞으면 뒤로 물러나고 ... 쭉 와야"). */
+    const k = e.knock ?? 1;
+    fx2 = -(e.kx || 0) * h * 0.14 * t * k; fy2 = -(e.ky || 0) * h * 0.07 * t * k;
   }
 
   /* 접지 그림자 — 스프라이트보다 **먼저**, 발밑에 깐다(그림이 그 위에 온다). 밀림(flinch)과
@@ -664,7 +668,7 @@ function draw(dt) {
          숫자로만 온다(그리는 쪽은 flinch 하나로 셋 다 같은 안무를 쓴다). */
       drawOne("char/necro", ncx, ncy, nhh, COL.necro,
               { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0,
-                flinch: S.hurt || 0, kx: S.hkx, ky: S.hky });
+                flinch: S.hurt || 0, kx: S.hkx, ky: S.hky, knock: S.hknock ?? 1 });
       continue;
     }
     if (it.u) {
