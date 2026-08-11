@@ -109,6 +109,11 @@ export function enterFloor(f) {
   }
   S.spawnT = 0;                                // 첫 놈은 바로
   S.deepest = Math.max(S.deepest, f);
+  /* ★ **닿은 그 순간에 적는다** — 예전엔 die() 에서만 META.deepest 를 올렸다. 그래서
+     안 죽고 계속 내려가는 동안 머리말은 **옛 숫자에 붙박여** 있었다(25분을 굴려 18층에
+     서 있는데 「가장 깊이 15층」). 「더 깊이」가 목표인 게임에서 그 숫자가 안 움직이면
+     벽에 막힌 것처럼 보인다 — 실제로는 나아가고 있었다. */
+  META.deepest = Math.max(META.deepest | 0, f);
 }
 
 /** 줄에서 하나 꺼내 세운다. */
