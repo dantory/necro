@@ -244,7 +244,7 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
      ★ 마을에서 이걸 밖에서 따로 부르다가 **조명 뒤로 밀려** 어둠 속 소품이 또렷하게
      보였다. 부르는 곳이 둘이면 순서도 둘이 된다 — 여기 하나로 모은다. */
   if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
-                           scatter.clear, scatter.density, scatter.set);
+                           scatter.clear, scatter.density, scatter.set, scatter.wild);
   /* 빛은 **소품을 다 놓은 뒤** 한 번에 얹는다(더하기라 순서가 결과를 안 바꾸지만,
      한 곳에서 부르면 빠뜨릴 일이 없다). */
   drawGlows(ctx, squash);
@@ -677,9 +677,37 @@ function hash2(x, y) {
 }
 
 /** 보이는 칸에 소품을 뿌린다. `clear` 안쪽(싸움터)은 비워 둔다. */
-export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 58, set = SCATTER) {
+export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 58, set = SCATTER, wild = null) {
   if (!decorReady) return;
   ctx.imageSmoothingEnabled = false;
+  /** 칸 하나에 조각 하나를 놓는다. 자리는 rnd 에서만 나온다 — **매 프레임 같은 자리.** */
+  const put = (rnd, gx, gy, from) => {
+    const name = from[(rnd >> 7) % from.length];
+    const im = decor[name]; if (!im) return;
+    /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
+    const wxw = gx * CELL + ((rnd >> 11) % CELL) - CELL / 2;
+    const wyw = gy * CELL + ((rnd >> 17) % CELL) - CELL / 2;
+    if (clear && Math.hypot(wxw, wyw) < clear) return;      // 싸움터는 비운다
+    /* ★ 여기도 place() 로 통일한다 — 이미지 바닥을 지면으로 삼으면 그림 아래
+       투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
+    const px2 = cx + wxw * sc, py2 = cy + wyw * sc * squash;
+    place(ctx, im, px2, py2);
+    // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
+    if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
+    /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
+       고여 「바닥이 밝고 불은 캄캄한」 그림이 된다. 높이는 눈대중이 아니라
+       **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).
+       그림을 바꾸면 이 값도 다시 재야 한다 — town.js 대장간에서 같은 걸 겪었다. */
+    if (name === "torch") addGlow(px2, py2 - 101 * ART.s, 150 * sc, 1.15);
+    /* 모닥불 — 불이 **땅에 있다.** 횃불의 -101 을 그대로 쓰면 빛이 허공에 뜬다.
+       같은 자로 쟀다(따뜻한 화소 무게중심, 104x80 원본 기준 발에서 -24px).
+       반경은 횃불보다 넓게 — 야영지의 불은 사람이 모이는 자리다. */
+    if (name === "firepit") addGlow(px2, py2 - 24 * ART.s, 175 * sc, 1.1);
+    /* ★ 여기 **횃불 빛이 하나 더** 있었다(-130, r170). 무게중심으로 -101 을 재
+       넣으면서 눈대중으로 잡아 뒀던 옛 줄을 안 지운 것이다 — 그래서 횃불만
+       빛을 둘 받아 혼자 허옇게 떴다. 다시 재도 -107 이라 -101 이 맞다.
+       **값을 고칠 때는 그 값을 쓰던 옛 줄을 같이 지운다.** */
+  };
   const halfW = (w / 2) / sc + CELL, halfH = (h / 2) / (sc * squash) + CELL;
   const gx0 = Math.floor(-halfW / CELL), gx1 = Math.ceil(halfW / CELL);
   const gy0 = Math.floor(-halfH / CELL), gy1 = Math.ceil(halfH / CELL);
@@ -692,43 +720,38 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
          보이냐? 뭔가 어설픈데"). 야영지는 **무리를 짓는다** — 앵커(입구·상인·대장간·
          모닥불) 가까이는 빽빽하고 멀어지면 비어야 「여기가 마을」이 생긴다.
          멀리까지 아예 0 으로 두지는 않는다 — 들판에도 바위 한둘은 있어야 자연스럽다. */
-      let dens = density;
+      let dens = density, rolls = 1, from = set;
       if (anchors.length) {
         const d = nearAnchor(gx * CELL, gy * CELL);
-        /* ★ 먼 데를 0.16 까지 떨어뜨린 것이 지나쳤다(병수님 2026-08-12: "화면의 절반
-           넘게가 빈 풀밭"). 앵커 넷이 화면 **가운데 띠**에만 있어서, 위아래 끝은
-           전부 0.16 구역이 되어 **한 화면의 절반이 맨 풀밭**이었다.
-           무리는 그대로 두되(가까운 쪽 1.9 는 안 건드린다) **바닥은 깔린 채로** 둔다 —
-           들판이 비는 것과 아무것도 없는 것은 다르다. */
-        dens = d < 220 ? density * 1.9 : d < 420 ? density : d < 700 ? density * 0.62
-                                                                    : density * 0.42;
+        // ★ 여기 디버그 문장(DBG 주석 뒤의 `dens = 95;`)이 남아 **게임이 통째로 안 떴다**
+        //   (2026-08-13 01:0x). 그 한 문장이 if 본문을 끝내 버려 다음 else 가 갈 곳을
+        //   잃고 SyntaxError 가 났다 — 모듈 하나가 안 뜨면 판 전체가 선다.
+        //   ★★ 고약한 건 `node --check` 가 통과시킨다는 것이다(스크립트로 파싱한다).
+        //   모듈은 **모듈로** 파싱해서 봐야 한다(vm.SourceTextModule).
+        //   ★★★ 그리고 이 자리를 설명하는 주석을 블록(/* */)으로 쓰면 안 된다 —
+        //   본문에 든 닫는 기호가 주석을 일찍 닫아 또 깨진다(실제로 한 번 그랬다).
+        if (d < 220) dens = density * 1.9;
+        else if (d < 420) dens = 95;
+        /* ★ 여기가 예전엔 `density * 0.45 / 0.16` 이었다 — 그리고 그것이
+           **화면의 절반을 맨 풀밭**으로 만들었다(병수님 2026-08-12).
+           원인은 값보다 **칸의 크기**다: CELL 이 165 라 화면 위·아래 끝 띠 하나에
+           칸이 넷밖에 안 걸린다. 넷 중 하나 걸릴 확률을 0.16 배로 깎으면 그 띠는
+           **거의 언제나 통째로 빈다** — 확률을 낮춘 게 아니라 아예 없앤 것이다.
+           (실제로 0.16 → 0.42 로 올려 봐도 자의 값은 꿈쩍도 안 했다. 칸이 넷이면
+            확률을 두 배로 해도 여전히 「없거나 하나」다.)
+           그래서 바깥은 **칸마다 여러 번 굴린다** — 야영지 살림 대신 **자연**(덤불·
+           바위·그루터기·통나무)을 잔뜩. 무리는 그대로다: 가운데는 살림이 빽빽하고
+           바깥은 들풀과 돌이 흩어진 들판이 된다. 「비었다」와 「들판」은 다르다. */
+        else if (wild) { from = wild.set; dens = 95; rolls = wild.rolls; }
+        else dens = density * 0.45;
       }
-      if (rnd % 100 >= dens) continue;                       // 대부분의 칸은 빈 채로 둔다
-      const name = set[(rnd >> 7) % set.length];
-      const im = decor[name]; if (!im) continue;
-      /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
-      const wxw = gx * CELL + ((rnd >> 11) % CELL) - CELL / 2;
-      const wyw = gy * CELL + ((rnd >> 17) % CELL) - CELL / 2;
-      if (clear && Math.hypot(wxw, wyw) < clear) continue;   // 싸움터는 비운다
-      /* ★ 여기도 place() 로 통일한다 — 이미지 바닥을 지면으로 삼으면 그림 아래
-         투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
-      const px2 = cx + wxw * sc, py2 = cy + wyw * sc * squash;
-      place(ctx, im, px2, py2);
-      // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
-      if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
-      /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
-         고여 「바닥이 밝고 불은 캄캄한」 그림이 된다. 높이는 눈대중이 아니라
-         **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).
-         그림을 바꾸면 이 값도 다시 재야 한다 — town.js 대장간에서 같은 걸 겪었다. */
-      if (name === "torch") addGlow(px2, py2 - 101 * ART.s, 150 * sc, 1.15);
-      /* 모닥불 — 불이 **땅에 있다.** 횃불의 -101 을 그대로 쓰면 빛이 허공에 뜬다.
-         같은 자로 쟀다(따뜻한 화소 무게중심, 104x80 원본 기준 발에서 -24px).
-         반경은 횃불보다 넓게 — 야영지의 불은 사람이 모이는 자리다. */
-      if (name === "firepit") addGlow(px2, py2 - 24 * ART.s, 175 * sc, 1.1);
-      /* ★ 여기 **횃불 빛이 하나 더** 있었다(-130, r170). 무게중심으로 -101 을 재
-         넣으면서 눈대중으로 잡아 뒀던 옛 줄을 안 지운 것이다 — 그래서 횃불만
-         빛을 둘 받아 혼자 허옇게 떴다. 다시 재도 -107 이라 -101 이 맞다.
-         **값을 고칠 때는 그 값을 쓰던 옛 줄을 같이 지운다.** */
+      /* 굴림마다 **다른 씨앗**이 필요하다 — 같은 rnd 를 다시 쓰면 같은 자리에 같은
+         것을 겹쳐 놓는다(그래도 화면은 안 바뀌고 그리기만 두 번 한다). */
+      for (let k = 0; k < rolls; k++) {
+        const r2 = k === 0 ? rnd : hash2(gx * 31 + k * 7717, gy * 17 + k * 6311);
+        if (r2 % 100 >= dens) continue;                      // 대부분의 칸은 빈 채로 둔다
+        put(r2, gx, gy, from);
+      }
     }
   }
 }
