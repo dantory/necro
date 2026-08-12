@@ -9,6 +9,14 @@
 const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
 const fs = await import("node:fs");
 const MIN = +(process.argv[2] || 20);
+/* ★ **판을 혼자 쓰게 한다.** 죽거나 잘린 지난 판이 탭을 남기면 그 탭이 계속 돌면서
+   같은 렌더러의 프레임을 나눠 먹는다 — 씨앗이 같아도 판이 달라진다(2026-08-12: 한 시간 반
+   묵은 탭 다섯 개가 떠 있었고, 같은 코드·같은 씨앗의 최고층이 18.0 → 15.0 으로 갈렸다).
+   그래서 **뜨기 전에 남은 판을 쓸고**, 나갈 때는 어떻게 끝나든 내 탭을 닫는다. */
+const stale = (await (await fetch(CDP + "/json/list")).json())
+  .filter((t) => t.type === "page" && t.url.startsWith(PAGE.split("index.html")[0]));
+for (const t of stale) await fetch(`${CDP}/json/close/${t.id}`).catch(() => {});
+if (stale.length) console.log(`(남아 있던 판 ${stale.length} 개를 닫았다)`);
 const ver = await (await fetch(CDP + "/json/version")).json();
 const bws = new WebSocket(ver.webSocketDebuggerUrl);
 let id = 0; const pend = new Map(); const errs = [], netfail = [];
@@ -20,6 +28,11 @@ bws.addEventListener("message", ev => { const m = JSON.parse(ev.data);
 await new Promise(r => bws.addEventListener("open", r));
 const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
+/* 잘려도(SIGTERM·예외) 탭은 두고 가지 않는다 — 비동기 CDP 는 종료 중에 못 쓰므로 curl 로 닫는다. */
+{ const { execFileSync } = await import("node:child_process");
+  const shut = () => { try { execFileSync("curl", ["-s", `${CDP}/json/close/${targetId}`]); } catch {} };
+  for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => { shut(); process.exit(1); });
+  process.on("uncaughtException", (e) => { console.error(e); shut(); process.exit(1); }); }
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
 /* ★★ **씨앗을 박지 않으면 이 자로는 아무것도 못 가른다.** 같은 코드로 15분을 세 번
