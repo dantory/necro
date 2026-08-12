@@ -92,8 +92,31 @@ const tick = (sec) => `(async()=>{
   const S = window.__S; let n = Math.round(${sec} / 0.05), at = 0, deaths = 0;
   /* 분을 넘어 이어지는 기록 — 죽음은 분 경계와 상관없이 온다 */
   const R = window.__R || (window.__R = { t: 0, ring: [], log: [] });
+  /* ── **한 층에 쓰는 시간의 눈금** ──────────────────────────────────────
+     힘의 손잡이(머릿수·마중·소환수 화력·적 체력) 여섯을 댔는데 하나도 최고층을 못 밀었다.
+     그러면 깊이를 막는 것은 **세기가 아니라 시간**이다. 그런데 지금 자에는 시간 눈금이
+     아예 없었다 — 「한 층에 몇 초를 쓰고, 그 초가 어디로 새는가」를 못 봤다.
+     0.05 초마다 그 순간의 판을 보고 **네 통**에 나눠 붓는다:
+       · 기다림 — 줄(spawnQ)에 남았는데 **판이 비어 있다**. 죽일 것이 없어 그냥 서 있는 시간.
+         SPAWN_GAP 0.55~0.95 로 한 마리씩 방울져 나오는 탓에 층마다 박혀 있는 바닥이다.
+       · 싸움  — 줄에 남았고 판에도 적이 있다(나오면서 싸우는 중).
+       · 뒷정리 — 줄은 비었고 남은 놈만 죽인다. **화력을 키우면 줄어드는 유일한 통.**
+       · 되짚기 — 이미 닿아 본 층(S.floor < META.deepest)을 다시 내려오는 시간.
+     ★ 이 눈금은 **검수기 안에만** 있다 — 게임 코드를 건드리면 난수 소비가 달라져
+       같은 씨앗도 다른 판이 된다(2026-08-12 에 그 함정을 밟았다). 그래서 예전에 잰
+       base 숫자와 그대로 견줄 수 있다. */
+  const T = R.time || (R.time = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 층바뀜: 0, byF: {} });
   for (let i = 0; i < n; i++) {
     try {
+      /* 이 0.05 초를 어느 통에 부을지 — **step 전의 판**이 그 동안의 상태다. */
+      {
+        const f = S.floor, q = (S.spawnQ && S.spawnQ.length) | 0, mb = S.mobs.length;
+        const k = f < ((C.META.deepest | 0)) ? "되짚기" : (q > 0 ? (mb === 0 ? "기다림" : "싸움") : "뒷정리");
+        T[k] += 0.05;
+        const b = T.byF[f] || (T.byF[f] = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 든횟수: 0 });
+        b[k] += 0.05;
+        if (R.lastF !== f) { R.lastF = f; T.층바뀜++; b.든횟수++; }
+      }
       /* ── 누가 본인을 때렸나 ── 팔이 뻗는 칸(pending.core)을 **step 전에** 봐 둔다.
          체력은 step 안에서 그 pending 이 풀리며 깎이므로, 뒤에서 보면 이미 지워져 있다. */
       const hp0 = S.hp; let src = null;
@@ -197,6 +220,34 @@ if (deaths.length) {
   const 후보 = [["본인 체력", 버팀 / 5], ["군세", 군세], ["마나", 마나]].sort((a, b) => a[1] - b[1]);
   console.log(`→ 벽은 **${후보[0][0]}** 쪽이 제일 모자람(체력 ${(버팀 / 5).toFixed(2)} · 군세 ${군세.toFixed(2)} · 마나 ${마나.toFixed(2)}, 1.0 이 넉넉함)`);
 }
-fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths }, null, 1));
+/* ── **시간이 어디로 새는가** ────────────────────────────────────────────
+   싸움의 세기로는 벽이 안 밀렸다. 그러면 남은 후보는 시간이다 — 한 층에 몇 초를 쓰고
+   그 초가 어느 통으로 가는지 본다. **뒷정리**가 크면 화력이 답이고, **기다림**이 크면
+   화력을 아무리 키워도 안 줄어드는 바닥(SPAWN_GAP)이 벽이며, **되짚기**가 크면
+   죽어서 다시 내려오는 길이 벽이다. */
+let 시간 = null;
+try {
+  const rt = await S("Runtime.evaluate", { expression: "JSON.stringify((window.__R||{}).time||null)", returnByValue: true });
+  시간 = JSON.parse(rt.result.value || "null");
+} catch {}
+if (시간) {
+  const 통 = ["기다림", "싸움", "뒷정리", "되짚기"];
+  const tot = 통.reduce((a, k) => a + 시간[k], 0) || 1;
+  console.log("\n한 층에 쓰는 시간 — " + 통.map(k => `${k} ${시간[k].toFixed(0)}초(${Math.round(시간[k] / tot * 100)}%)`).join(" · ") +
+              ` · 층 든 횟수 ${시간.층바뀜}`);
+  /* 새 땅 한 층에 실제로 몇 초가 드나 — 되짚기를 뺀 시간을 「처음 닿은 층 수」로 나눈다. */
+  const 새땅 = 시간.기다림 + 시간.싸움 + 시간.뒷정리;
+  const 처음 = Object.values(시간.byF).filter(b => b.되짚기 < b.기다림 + b.싸움 + b.뒷정리).length;
+  console.log(`새 땅 한 층당 ${(새땅 / Math.max(1, 처음)).toFixed(1)}초` +
+              ` (기다림 ${(시간.기다림 / Math.max(1, 처음)).toFixed(1)} · 싸움 ${(시간.싸움 / Math.max(1, 처음)).toFixed(1)} · 뒷정리 ${(시간.뒷정리 / Math.max(1, 처음)).toFixed(1)})`);
+  /* **깊이에 비례해 자라는가** — 층마다 한 줄. 방울 바닥이 깊이를 따라 크는지 눈으로 본다. */
+  const fs2 = Object.keys(시간.byF).map(Number).sort((a, b) => a - b);
+  console.log("층별(초):  " + fs2.map(f => { const b = 시간.byF[f];
+    return `${f}층 ${(b.기다림 + b.싸움 + b.뒷정리 + b.되짚기).toFixed(0)}[기${b.기다림.toFixed(0)}/뒤${b.뒷정리.toFixed(0)}]`;
+  }).join(" · "));
+  const 제일 = 통.map(k => [k, 시간[k]]).sort((a, b) => b[1] - a[1])[0];
+  console.log(`→ 제일 큰 조각은 **${제일[0]}** (${Math.round(제일[1] / tot * 100)}%) — 여기부터 손댈 것`);
+}
+fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간 }, null, 1));
 console.log("errors:", errs.slice(0, 3), "netfail:", netfail.slice(0, 3));
 await raw("Target.closeTarget", { targetId }); bws.close();
