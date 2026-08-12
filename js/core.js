@@ -119,7 +119,13 @@ export const isRaise = (id) => id === "raise" || id === "ghoul" || id === "golem
 export const MINION_OF = { raise:"skel", ghoul:"ghoul", golem:"golem" };
 
 /* ══ 층 ══ 깊이가 곧 난이도이자 보상이다. 5층마다 **관문**(보스). */
-export const floorHp   = (f) => Math.round(30 * Math.pow(1.19, f - 1));
+/* ★ 처음 몇 분이 **저항이 없었다.** 병수님 2026-08-13: "초반인데 너무 강해, 강해지는
+   속도도 너무 빠르고, 천천히 조금씩 성장하면서 강해지는 맛이 있어야지".
+   tools/early_curve.mjs 로 재 보니 10초에 이미 군세가 상한(6)이고 화력이 적 체력의
+   **두 배**였다 — 한 층이 5초에 끝나고 5분 동안 한 번도 안 죽었다.
+   밑을 30→46 으로 올려 **첫 층부터 한 방에 안 죽게** 한다. 배수(1.19)는 그대로 —
+   기울기를 눕히면 깊은 층이 되레 쉬워진다(그건 다른 불만이 된다). */
+export const floorHp   = (f) => Math.round(46 * Math.pow(1.19, f - 1));
 export const floorDmg  = (f) => Math.round(4  * Math.pow(1.155, f - 1));
 export const floorN    = (f) => 5 + Math.floor(f * 0.7);
 export const isGate    = (f) => f % 5 === 0;
@@ -230,7 +236,11 @@ export const LASTRUN = { has: false, loot: [], gold: 0, xp: 0, killed: 0, floor:
    그래서 1.35 를 **밑에서 지수로 옮긴다** — 누적이 lv^2.35 라 층에 대해 거의 직선으로
    오른다. 실측 벌이(2026-08-12 30분 씨앗9)에 대면 초반은 옛 곡선과 거의 같고
    (12층 lv7 · 19층 lv12 · 21층 lv13) 그 뒤로 안 멎는다 — 54층 lv38, 트리는 75층 언저리. */
-export const xpNeed  = (lv) => Math.round(12 * Math.pow(lv, 1.35));
+/* ★ 5분에 Lv.10 은 너무 빨랐다(위 floorHp 주석과 같은 자리에서 잰 것) — 레벨이
+   쏟아지면 「조금씩 강해지는」 자리가 없다. 밑을 12→17, 지수를 1.35→1.42 로 올려
+   초반 레벨을 **두 배쯤 느리게** 한다. 지수를 크게 안 건드린 것은 깊은 층에서 레벨이
+   멎으면 트리가 닫히기 때문이다(그 이유는 바로 위 주석). */
+export const xpNeed  = (lv) => Math.round(17 * Math.pow(lv, 1.42));
 /** 강화는 **넷뿐이다.** 목록이 길면 방치형이 아니라 표 읽기가 된다. */
 export const UPS = {
   hp:   { n:"생명력",   d:"최대 체력 +25",     base:14 },
@@ -552,7 +562,12 @@ export const goldMulOf   = () => 1 + afSum("gold") / 100;
  *  쓰지 않게 여기 한 곳에 모은다 — 같은 식이 두 곳에 있으면 언젠가 갈라진다. */
 export const selfDmgMul   = () => dmgMulOf() * selfMulOf();
 export const minionDmgMul = () => dmgMulOf() * minionMulOf();
-export const armyCap  = () => 6 + (META.up.army | 0) + rank("legion") + afSum("army");
+/* ★ 군세 상한은 **자라야 보인다.** 예전엔 Lv.1 부터 6 이라 10초 만에 꽉 차고
+   그 뒤로는 아무 일도 안 일어났다 — 방치형에서 제일 눈에 띄는 성장이 시작부터
+   끝나 있었던 셈이다. 셋으로 시작해 세 레벨마다 하나씩, Lv.10 에 예전의 6 이 된다
+   (그 뒤는 강화·트리·옵션이 이어받으므로 중반 이후는 그대로다). */
+export const armyBase = () => Math.min(6, 3 + Math.floor((META.lv - 1) / 3));
+export const armyCap  = () => armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
