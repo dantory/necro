@@ -15,6 +15,15 @@ const num = (v) => {
        : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
 };
 
+/* 배수 표기 — 위 띠에서 `×19.50` 이 자리를 먹어 「남은 적 11」이 **말없이 잘렸다.**
+   자리를 더 짜내는 대신 **값이 자랄수록 소수를 버린다**: 10 미만은 두 자리(초반엔
+   ×1.12 처럼 자라는 게 소수에만 보인다), 100 미만은 한 자리(×19.5), 그 위는 정수,
+   네 자리부터는 `num()` 과 **같은 자**로 줄인다(×1.2k) — 자가 둘이면 같은 값이 달라 보인다. */
+const mul = (v) => "×" + (v < 10   ? v.toFixed(2)
+                        : v < 100  ? v.toFixed(1)
+                        : v < 1000 ? String(Math.round(v))
+                        :            num(v));
+
 /* 구슬 안 숫자가 **테를 밟지 않게** 맞춘다. 글꼴 폭은 짐작하지 말고 canvas 로 잰다. */
 const _mm = document.createElement("canvas").getContext("2d");
 /* ★ 픽셀 글꼴은 글자마다 폭이 다르다(`1` 이 좁다) — 제일 넓은 숫자와 단위를 한 번 재 둔다. */
@@ -948,17 +957,32 @@ function beltState() {
 
 /** 층 옆의 깊이 배수. hud() 는 매 프레임 도는데 textContent 를 매번 쓰면 애니메이션이
  *  계속 처음으로 되돌아가 **한 번도 안 보인다** — 값이 바뀐 순간에만 손댄다.
- *  밝히는 것은 **자랐을 때만**(마을로 돌아와 ×1.00 이 되는 것은 상이 아니다). */
-function setDepth(txt) {
+ *  밝히는 것은 **자랐을 때만**(마을로 돌아와 ×1.00 이 되는 것은 상이 아니다).
+ *  ★ 자란 것을 **글자로 비교하지 않는다** — 줄인 표기에서는 `×1.2k` 의 parseFloat 이
+ *  1.2 라 ×999 → ×1.2k 가 **줄어든 것으로 읽힌다**. 값 자체를 들고 비교한다. */
+let _depthV = 0;
+function setDepth(txt, v = 0) {
   const el = $("hDepth");
-  if (el.textContent === txt) return;
-  const grew = txt && el.textContent
-            && parseFloat(txt.slice(1)) > parseFloat(el.textContent.slice(1));
+  if (el.textContent === txt) { _depthV = v; return; }
+  const grew = txt && el.textContent && v > _depthV;
   el.textContent = txt;
+  _depthV = v;
   if (!grew) return;
   el.classList.remove("up");
   void el.offsetWidth;   /* 리플로우를 강제하지 않으면 같은 애니메이션이 다시 안 돈다 */
   el.classList.add("up");
+}
+
+/** 「남은 적 NN」 자리. 잰 것: 폰 폭(414)에서 이 줄은 **배수를 줄여도 7px 이 모자라다.**
+ *  자리를 또 짜내는 것은 두 번 해 보고 두 번 다시 깨졌다(hud.css 의 두 ★). 그래서
+ *  **무엇을 버릴지 여기서 정한다 — 말을 버리고 수를 지킨다**(좁은 화면: 「적 24」).
+ *  ellipsis 에 맡기면 하필 **끝에 있는 수**가 먹혀 숫자가 거짓말을 한다.
+ *  hud() 는 매 프레임 도니 글자가 바뀐 순간에만 innerHTML 을 손댄다. */
+function setLeft(html) {
+  const el = $("hLeft");
+  if (el.dataset.h === html) return;
+  el.dataset.h = html;
+  el.innerHTML = html;
 }
 
 function hud() {
@@ -966,16 +990,16 @@ function hud() {
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
     $("hFloor").textContent = "마을";
-    $("hLeft").textContent  = `가장 깊이 ${META.deepest}층`;
+    setLeft(`가장 깊이 ${META.deepest}층`);
     /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
     setDepth("");
   } else {
   $("hFloor").textContent = S.floor + "층";
-  setDepth(`×${depthMul().toFixed(2)}`);
+  setDepth(mul(depthMul()), depthMul());
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
   const left = S.mobs.length;
-  $("hLeft").textContent = left ? `남은 적 ${left}` : "다음 층 준비 중";
+  setLeft(left ? `<span class="lw">남은 </span>적 ${left}` : "다음 층 준비 중");
   }
   /* ★ 예전엔 `$("hLv").firstChild.nodeValue` 였다. 단추로 바꾸면서 앞에 그림을 넣자
      firstChild 가 글자가 아니라 <i> 가 되어 **레벨이 Lv.1 에서 굳었다**(조용히).
@@ -1202,9 +1226,11 @@ const statNumbers = () => {
     /* ★ 피해 배수 안에서 **깊이 몫을 갈라 적는다.** 20층이면 ×3.2 가 이 안에 들어
        있는데, 뭉쳐 놓으면 「장비를 갈아 낀 덕」과 구별이 안 된다 — 제일 크게
        불어나는 것이 어디서 왔는지 보여야 한다. */
-    ["깊이",       `×${depthMul().toFixed(2)}`],
-    ["본인 피해",   `×${selfDmgMul().toFixed(2)}`],
-    ["소환수 피해", `×${minionDmgMul().toFixed(2)}`],
+    /* 띠와 **같은 자**(`mul()`)로 줄인다 — 50층에서 본인 피해가 ×1234.56 이면
+       여기도 자리를 넘긴다. 한 군데만 고치면 띠는 ×19.5 인데 창은 ×19.50 이 된다. */
+    ["깊이",       mul(depthMul())],
+    ["본인 피해",   mul(selfDmgMul())],
+    ["소환수 피해", mul(minionDmgMul())],
     ["마나 회복",   `${mpRegenOf().toFixed(1)}/초`],
     ["금 획득",    `+${Math.round((goldMulOf() - 1) * 100)}%`],
   ];

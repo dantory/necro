@@ -552,6 +552,11 @@ body.in-town #stage{cursor:pointer}
   #top .dep{font-size:12px;letter-spacing:0;margin-left:-2px;margin-right:2px}
   #top .left{font-size:13px;letter-spacing:0;white-space:nowrap;overflow:hidden;
     text-overflow:ellipsis}
+  /* ★★ 세 번째다. 배수 표기를 ×19.5 로 줄여도(main.js `mul()`) **7px 이 모자라다** —
+     20층 ×3.16 에서도 「남은 적 24」가 잘린다(tools/topbar_probe.mjs 로 잼).
+     자리를 또 짜내는 것은 여기서 그만한다. **버릴 것을 정한다 — 말을 버리고 수를 지킨다.**
+     좁은 화면에서는 「적 24」. ellipsis 에 맡기면 하필 끝에 있는 수가 먹힌다. */
+  #top .left .lw{display:none}
   #top .who{font-size:13px;white-space:nowrap}
   .win{inset:34px 0 var(--hudH) 0}
 
