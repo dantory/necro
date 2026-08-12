@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap } from "./core.js";
-import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -1004,7 +1004,10 @@ function hud() {
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
     $("hFloor").textContent = "마을";
-    setLeft(`가장 깊이 ${META.deepest}층`);
+    /* 좁은 화면에서 「가장 깊이…」로 잘려 **정작 층수가 먹혔다**(2026-08-13, 나가기
+       단추를 넣고 눈으로 보다 발견). 아래 「남은 적」과 같은 규칙을 쓴다 —
+       .lw 로 감싼 말은 좁으면 사라지고 **수는 남는다**(「깊이 15층」). */
+    setLeft(`<span class="lw">가장 </span>깊이 ${META.deepest}층`);
     /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
     setDepth("");
   } else {
@@ -1324,7 +1327,7 @@ function drawEnd() {
   const u = (label, val, cls) =>
     `<span data-u>${label ? label + " " : ""}<b${cls ? ` class="${cls}"` : ""}>${val}</b></span>`;
   $("endSub").innerHTML =
-    `<div class="eWhere" data-u>${r.floor}층에서 쓰러짐</div><div class="eTally">`
+    `<div class="eWhere" data-u>${r.floor}층에서 ${r.dead === false ? "발길을 돌림" : "쓰러짐"}</div><div class="eTally">`
     + u("잡은 수", r.killed) + u("금", "+" + r.gold.toLocaleString()) + u("경험치", "+" + r.xp)
     + (r.leveled ? u("", "레벨 업!", "t2") : "") + `</div>`;
   const cell = (it) => {
@@ -1494,7 +1497,12 @@ function loop(t) {
     /* 죽으면 **마을로 돌아온다.** 예전엔 그 자리에 멈춰 서서 아무 데도 못 갔다 —
        방치형은 죽는 것이 끝이 아니라 **한 바퀴의 끝**이라야 다시 들어갈 마음이 든다. */
     if (S.dead) {
-      META.runs++; toTown(`<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`);
+      META.runs++;
+      /* 쓰러진 것과 **스스로 물러난 것**은 다른 말이어야 한다 — 같은 붉은 글이면
+         물러난 사람에게도 「졌다」로 읽힌다(battle.js 의 endRun 참조). */
+      toTown(LASTRUN.dead === false
+        ? `<b style="color:#c8aa6e">물러남</b> — 얻은 것을 지고 마을로`
+        : `<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`);
       /* 정산 창을 연다 — **closeAll 먼저** 거쳐(상인·상태창과 겹치면 안 된다). */
       closeAll(); drawEnd(); win("winEnd", true);
     }
@@ -1549,6 +1557,10 @@ $("hLv").addEventListener("click", () => {
 /* ══ 상태창을 여는 곳 ══ **이름이다.** 능력치가 나오는 자리가 곧 그 값을 뜯어보는
    입구다(트리가 레벨 옆인 것과 같은 뜻). 마을이 아니어도 열려야 한다 — 층을 내려가다
    주운 것을 보려고 마을까지 돌아오게 하면 그건 벌이다. hLv 와 같이 토글이고 먼저 닫는다. */
+/* ══ 나가기 ══ 「여기까지」를 사람이 정할 수 있어야 한다(병수님 2026-08-13).
+   묻지 않고 바로 나간다 — **잃는 것이 없으므로**(금·경험치는 이미 들어가 있고
+   전리품도 그대로다) 확인 창은 성가심만 는다. 죽음과 같은 길을 지나 정산이 뜬다. */
+$("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat(); });
 $("hName").addEventListener("click", () => {
   const on = !$("winStat").classList.contains("on");
   closeAll(); if (on) { drawStat(); win("winStat", true); }

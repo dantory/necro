@@ -538,6 +538,16 @@ body.in-town #stage{cursor:pointer}
        background:linear-gradient(#231810, #17100b);
        box-shadow:inset 0 0 0 1px #0a0705, 0 1px 0 #000; }
 .hBtn:hover{ color:#e0c07a; border-color:var(--gold); }
+/* ★ 「나가기」는 **던전에서만** 뜬다 — 마을에서는 나갈 데가 없다. 자리를 늘 차지하면
+/* ★ 「나가기」는 **위 띠에 못 둔다.** 넣어 봤더니 360px 에서 15px 넘쳤고, 여백을 깎아
+   맞추자 이번엔 왼쪽 「남은 적」이 말줄임에 먹혔다(그 줄은 여유가 원래 0 이다).
+   그래서 **전장 오른쪽 위 하늘**에 띄운다 — 적은 아래에서 오고 로그도 아래라 그 자리는
+   늘 비어 있으며, 어느 줄도 밀지 않는다. 마을에서는 나갈 데가 없으니 감춘다. */
+body.in-town #hLeave{ display:none; }
+#hLeave{ position:absolute; top:40px; right:8px; z-index:6; font-size:12px; color:#c8a882;
+         border-color:#6b4436; background:linear-gradient(#2a1a12, #180e09);
+         box-shadow:inset 0 0 0 1px #0a0705, 0 1px 2px #000a; }
+#hLeave:hover{ border-color:#c8724a; color:#e8a07a; }
 .hBtn:active{ transform:translateY(1px); }
 .lvBtn{cursor:pointer;position:relative}
 #spDot{display:none}

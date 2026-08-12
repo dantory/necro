@@ -462,6 +462,12 @@ export function cast(id) {
 export function step(dt) {
   if (S.dead) return;
   S.t += dt;
+  /* 최대 체력을 **매 틱 맞춘다.** 예전엔 층을 넘을 때만 갱신해서, 판 안에서 레벨이
+     오르면 최대치는 그대로인데 몸만 커져 화면에 **「824/816」** 이 떴다(2026-08-13
+     스샷에서 눈으로 잡았다 — 자는 아무 말도 안 했다). 늘어난 만큼은 **채워 준다**
+     (레벨을 올렸는데 비율만 같으면 오른 티가 안 난다). 줄면 그냥 깎는다. */
+  { const nm = hpMaxOf();
+    if (nm !== S.hpMax) { S.hp = Math.min(nm, S.hp + Math.max(0, nm - S.hpMax)); S.hpMax = nm; } }
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   if (S.shake > 0) S.shake -= dt;                  // 관문 보스가 설 때의 짧은 흔들림
   /* 「들어섰다」 연출이 스스로 꺼진다 — 켠 곳(enterFloor)과 끄는 곳을 한 군데로 모아,
@@ -898,8 +904,20 @@ export function step(dt) {
   }
 }
 
-export function die() {
+/* ══ 판이 끝나는 두 가지 길 ══ 쓰러지거나, **스스로 물러나거나**.
+   병수님: "전투 포기 같은게 없어, 중간에 포기하고(현재까지 보상만 받고) 마을로
+   돌아가는 기능같은게 있어야 할듯". 맞다 — 방치형에서 「여기까지」를 사람이 정할 수
+   없으면 죽을 때까지 지켜보는 수밖에 없다.
+   둘은 **끝나는 이유만 다르고 정산은 똑같다** — 그래서 한 함수로 두고 이유만 넘긴다
+   (두 벌로 만들면 언젠가 한쪽만 고친다). 금·경험치는 이미 실시간으로 META 에 들어가
+   있으므로 물러나도 「지금까지의 보상」은 그대로 남는다. */
+export function die() { endRun(true); }
+/** 스스로 물러난다 — 얻은 것을 지고 마을로. */
+export function retreat() { endRun(false); }
+function endRun(dead) {
+  if (S.dead) return;                       // 두 번 부르면 정산이 덮어써진다
   S.dead = true;
+  LASTRUN.dead = dead;
   META.runs = (META.runs | 0) + 1;
   META.deepest = Math.max(META.deepest | 0, S.floor);
   /* 판이 끝나는 순간을 굳힌다 — loot 는 **복사본**이라야 다음 newRun 의 비우기에 안 쓸린다.
@@ -919,7 +937,8 @@ export function die() {
   LASTRUN.used = S.used | 0;
   LASTRUN.secs = Math.max(0, Math.round(S.t));
   saveMeta();
-  say(`<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`);
+  say(dead ? `<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`
+           : `<b style="color:#c8aa6e">물러남</b> · ${S.floor}층에서 발길을 돌림`);
 }
 
 /* 정산이 「이번 판에 번 것」을 재려면 판 시작값이 있어야 한다 — S 는 newRun 이 지우므로
