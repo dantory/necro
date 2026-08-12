@@ -451,7 +451,10 @@ function draw(dt) {
                     솥이 놓여 있으면 마을이 어디까지인지가 흐려진다. 자연만 둔다 —
                     덤불·바위·그루터기·통나무, 그리고 죽은 나무 하나(멀리 선 나무는
                     **깊이를 만든다**). 칸마다 세 번 굴려 화면 끝까지 깔리게 한다. */
-                 wild: { dens: 24, rolls: 3,
+                 /* ★ `dens: 24` 는 **코드가 읽지도 않던 값**이었다(drawScatter 가 95 로
+                    박아 쓰고 있었다). 이제 실제로 읽으므로 재서 넣는다 — 바깥은
+                    칸당 1.80(=0.60×3)이 되어 안쪽(2.34)보다 조금 성기다. */
+                 wild: { dens: 60, rolls: 3,
                          set: ["shrub", "shrub", "shrub", "rock", "rock", "rock",
                                "stump", "stump", "boulder", "boulder", "logs", "tree"] } });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
