@@ -174,6 +174,12 @@ const ubase0 = (u) => u.art || ("minion/" + u.kind);
 /** 걷기 한 바퀴에 가는 거리 = **제 몸 폭의 이만큼.** 짧으면 발만 동동거리고(미끄러짐),
  *  길면 성큼성큼 뛴다. 고치기 전 값은 0.84 였다. */
 const WALK_PER_BODY = 1.8;
+/** 걷는 동안 **적어도 이만큼은** 프레임을 넘긴다(초당). 거리로만 세면 몸에 견줘 느리게
+ *  걷는 놈은 한 바퀴에 4초가 걸려 다리가 멎고 **떠다니는 것처럼** 보인다(병수님 2026-08-13
+ *  06:27). 7장 기준 한 바퀴 ≈1.1초 — 사람 눈이 걷는 것으로 읽는 박자다.
+ *  ★ 거리 박자를 **버리지 않고 둘 중 빠른 쪽**을 쓴다. 빨리 달릴 땐 거리가 이겨서 발이
+ *    땅을 놓치지 않고, 느릴 때만 이 바닥이 받쳐 준다(느린 골렘도 걷기는 한다). */
+const MIN_STEP_FPS = 6.5;
 
 function drawOne(base, x, gy, h, fallback, e) {
   /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
@@ -214,7 +220,9 @@ function drawOne(base, x, gy, h, fallback, e) {
       /* h 는 화면 픽셀, walked 는 월드 거리 → 몸 폭을 월드로 되돌려서 견준다 */
       const bodyW = G && G.sc ? h * (fmw ? fmw.bodyWidthFrac : 0.5) / G.sc : h;
       const stride = bodyW * WALK_PER_BODY / nf;
-      frameIdx = Math.floor((e.walked || 0) / stride) % nf;
+      /* 둘 다 **한 방향으로만 는다** — max 를 써도 뒤로 튀지 않는다. */
+      const byDist = (e.walked || 0) / stride, byTime = (e.moveT || 0) * MIN_STEP_FPS;
+      frameIdx = Math.floor(Math.max(byDist, byTime)) % nf;
       dir = dirName(e.dx ?? 0, e.dy ?? 1);
     } else {
       dir = dirName(e.dx ?? 0, e.dy ?? 1);

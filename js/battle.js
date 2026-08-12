@@ -546,8 +546,13 @@ export function step(dt) {
     }
   }
   for (let i = S.falling.length - 1; i >= 0; i--) if ((S.falling[i].t -= dt) <= 0) S.falling.splice(i, 1);
-  for (const e of S.minions) { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
-  for (const e of S.mobs)    { if (e.moving > 0) e.moving -= dt; if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
+  /* **걷는 상태로 있는 내내** 시간을 센다(그리는 쪽 MIN_STEP_FPS 가 쓴다). 발을 실제로
+     뗀 순간에만 세었더니 — 붙었다 떨어졌다 하는 사이가 빠져 박자가 절반으로 희석됐다
+     (한 바퀴 2.3초). 화면이 「걷는 그림」을 내보이는 동안은 다리도 그만큼 움직여야 한다.
+     병수님 2026-08-13 "하수인 걷는모션 없이 떠다님". */
+  const walkT = (e) => { if (e.moving > 0) { e.moving -= dt; e.moveT = (e.moveT || 0) + dt; } };
+  for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
+  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
   /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
      휘두름은 SWING_T 에서 0 으로 준다. 진행도가 IMPACT_AT 을 넘는 순간(=swing 이
