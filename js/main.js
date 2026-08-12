@@ -56,7 +56,7 @@ function fitNum(el, cur, max) {
 }
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor } from "./ground.js";
-import { drawTown, drawTownLabels, loadTown, townHitAt, townHits } from "./town.js";
+import { drawTown, drawTownLabels, loadTown, townBreath, townGaze, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -225,7 +225,8 @@ function drawOne(base, x, gy, h, fallback, e) {
      움직임이 어색한지는 **그려진 상태**를 봐야 안다: 걷는데 서 있는 그림인지,
      휘두르는데 한 칸만 스치는지, 방향이 튀는지. 밖에서는 볼 길이 없어서 여기서 낸다. */
   if (window.__ANIM && e) window.__ANIM.push({ id: e.id, base, state, f: frameIdx, dir,
-                                               mv: +(e.moving || 0).toFixed(2), sw: +(e.swing || 0).toFixed(2) });
+                                               mv: +(e.moving || 0).toFixed(2), sw: +(e.swing || 0).toFixed(2),
+                                               bob: +(e.bob || 0) });
 
   /* 맞은 순간엔 **뒤로 밀린다**(기존 그대로). 흰 번쩍임은 예전에 뺐다 — 밀림 + 닿는 자리의
      불꽃(fx)으로 충분하다. */
@@ -277,6 +278,11 @@ function drawOne(base, x, gy, h, fallback, e) {
     const k = e.knock ?? 1;
     fx2 = -(e.kx || 0) * h * 0.14 * t * k; fy2 = -(e.ky || 0) * h * 0.07 * t * k;
   }
+  /* **서 있는 그림이 한 장뿐인 놈은 코드가 대신 숨을 쉰다**(e.bob, 화면 픽셀).
+     몸만 내리고 **그림자는 두고 간다** — 그림자까지 같이 오르내리면 발이 땅에서
+     떨어져 통째로 들썩이는 것으로 보인다(모닥불은 떠도 되지만 사람은 땅을 딛는다).
+     그래서 밀림(flinch)과 같은 자리에 얹는다 — 그쪽도 몸만 움직이는 몫이다. */
+  if (e && e.bob) fy2 += e.bob;
 
   /* 접지 그림자 — 스프라이트보다 **먼저**, 발밑에 깐다(그림이 그 위에 온다). 밀림(flinch)과
      무관하게 바닥에 고정한다 — 몸만 뒤로 밀리고 그림자는 제자리라야 맞은 티가 난다.
@@ -461,7 +467,14 @@ function draw(dt) {
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
     drawGlows(ctx, SQUASH);
-    drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52", null);
+    /* ★ 여기 서 있는 네크로멘서가 **완전히 멎어 있었다**(e 를 null 로 넘겨 방향은 정면에
+       박히고 숨도 없었다) — 마을은 켜자마자 보는 첫 화면인데, 거기 선 것이 한 프레임도
+       안 바뀌면 배경 그림과 다를 게 없다. 모닥불에는 이미 숨을 넣어 두고 **정작 사람에게
+       안 옮긴 것**이 잘못이었다(memory/carry-fixes-forward).
+       자: `tools/town_alive_probe.mjs` — 갓 켠 마을에 그냥 서서 한 바퀴를 지켜본다. */
+    const [gdx, gdy] = townGaze(townT);
+    drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52",
+            { id: "necro", dx: gdx, dy: gdy, bob: townBreath(townT) });
     drawTownLabels(ctx);
     return;
   }
