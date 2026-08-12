@@ -393,7 +393,18 @@ export function cast(id) {
   /* 폭발만 **여러 구를 한 입에** 먹는다(환전). 소환은 한 구 그대로 — 소환수 값이
      시체 수에 따라 흔들리면 군세 상한과 겹쳐 읽을 수 없게 된다. */
   const gulp = id === "nova" ? novaGulp() : sk.corpse;
-  const usedAt = sk.corpse ? useCorpse(gulp, 0, 0) : null;
+  /* ★★ **어느 시체를 쓰느냐**도 스킬마다 다르다.
+     소환은 **내 곁**의 시체를 쓴다(불러낸 놈이 진으로 걸어가야 하니 가까울수록 좋다).
+     시체 폭발은 **적 쪽**의 시체를 쓴다 — 터지는 자리가 곧 피해가 닿는 자리이므로,
+     발밑 시체를 터뜨리면 아무도 안 맞고 그림만 내 몸에서 난다(병수님이 본 그 장면).
+     예전엔 둘 다 `useCorpse(gulp, 0, 0)` 으로 **내게 제일 가까운 것**을 썼다. */
+  let anchorX = 0, anchorY = 0;
+  if (id === "nova") {
+    let bd = 1e9;
+    for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW);
+      if (d < bd) { bd = d; anchorX = m.x; anchorY = m.y; } }
+  }
+  const usedAt = sk.corpse ? useCorpse(gulp, anchorX, anchorY) : null;
   if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
@@ -403,8 +414,14 @@ export function cast(id) {
     const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * selfMulOf() * novaDmgMul() * gmul;
     const rad = 180 * novaRadMul() * Math.min(1.5, 1 + (gulp - 1) * 0.04);
     let hit = 0;
-    /* 시체 폭발은 **본인 둘레**를 쓸어 낸다 — 사방 판에서는 그게 "한숨 돌리는 순간"이다 */
-    for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; popNum(m.x, m.y, dmg, "nova"); }
+    /* ★★ **터지는 것은 시체다.** 예전엔 그림도 피해도 **본인 자리(0,0)** 에서 냈다 —
+       쓴 시체의 자리(usedAt)를 이미 구해 놓고 소환에만 쓰고 있었다.
+       병수님: "시체폭발 스킬 사용 이펙트가 왜 내주위에서 터지는거야, 폭발되는 시체에
+       이펙트가 나와야지". 맞는 말이고, 이 게임의 이야기와도 그게 맞다 —
+       시체가 자원이고 그 시체가 터진다. 쓴 자리를 폭심으로 삼는다. */
+    const bx = usedAt ? usedAt.x : 0, by = usedAt ? usedAt.y : 0;
+    for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
+      m.hp -= dmg; hit++; popNum(m.x, m.y, dmg, "nova"); }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
@@ -421,7 +438,7 @@ export function cast(id) {
         e.r *= grow;                           // 몸이 크면 자리도 그만큼 차지한다
       }
     }
-    S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova", rad });
+    S.fx.push({ t: 0.35, x: bx, y: by, kind: "nova", rad });
     say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` 시체 ${gulp}구` : ""} · ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
   }
   if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`); }
