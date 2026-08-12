@@ -8,8 +8,9 @@
      ③ 200 번 파도 뽑힌 등급이 dropTierCap(deepest) 를 한 번도 안 넘는다
      ④ 200 번 뒤에도 가방이 BAG_MAX 를 안 넘는다(넘친 만큼 녹았다)
      ⑤ 200 번 안에서 합성이 실제로 일어난다(중복이 금이 아니라 재료로 탔다)
-     ⑥ 깊이 1·10·20·30 에서 값이 round(60·1.12^(d-1)) 을 따른다
-     ⑦ 금 잠김 — 분당 3,100 벌이를 한 번 값으로 나눠 「분당 몇 번 파야 받아내나」를 적는다
+     ⑥ 깊이 1·10·20·30 에서 값이 round(60·DIG_BASE^(d-1)) 을 따른다
+     ⑦ 금 잠김 — 한 판 누적 벌이(Σ_{f≤d} goldFor·마릿수·금배수) ÷ digCost 가
+        깊이 10·25·40·55 에서 3~8 번 안에 머문다(벗어나면 FAIL, 실제 숫자를 적는다)
 
      node tools/dig_probe.mjs */
 const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
@@ -79,26 +80,30 @@ const ex = `(async()=>{
       "bag="+M.bag.length+"/"+C.BAG_MAX+" 녹은수="+meltCount);
   rec("⑤ 합성이 실제로 일어난다", fuseCount>0, "합성수="+fuseCount);
 
-  // ⑥ 깊이별 값 = round(60·1.12^(d-1))
+  // ⑥ 깊이별 값 = round(60·DIG_BASE^(d-1))
   let ok6 = true, d6 = [];
   for (const d of [1,10,20,30]) {
     M.deepest = d;
-    const got = C.digCost(), want = Math.round(60 * Math.pow(1.12, d-1));
+    const got = C.digCost(), want = Math.round(60 * Math.pow(C.DIG_BASE, d-1));
     d6.push(d+"층="+got+"(기대 "+want+")");
     if (got !== want) ok6 = false;
   }
-  rec("⑥ 값이 1.12^(d-1) 을 따른다", ok6, d6.join(" · "));
+  rec("⑥ 값이 DIG_BASE^(d-1)="+C.DIG_BASE+" 을 따른다", ok6, d6.join(" · "));
 
-  // ⑦ 금 잠김 — 분당 3,100 벌이를 한 번 값으로 나눈다(적어 두면 다음 판단의 근거)
-  const INCOME = 3100;
+  // ⑦ 금 잠김 — 한 판 누적 벌이 ÷ digCost. 벌이는 고정이 아니라 깊이를 따라 커지므로
+  //   한 층 벌이(goldFor(f)×마릿수 floorN(f)×금배수 goldMulOf())를 1층부터 그 깊이까지
+  //   더한 「한 판에 번 금」을 쓴다. 이 값이 곧 「몇 번 팔 수 있는 돈인가」이고, 3~8 을
+  //   벗어나면 금이 쌓이거나(>8) 초반이 조인다(<3). 밑이 벌이보다 가파른지를 여기서 잰다.
   let ok7 = true, d7 = [];
-  for (const d of [20,25,30]) {
+  for (const d of [10,25,40,55]) {
     M.deepest = d;
-    const cost = C.digCost(), perMin = INCOME / cost;
-    d7.push(d+"층: 한 번 "+cost+"금 · 분당 "+perMin.toFixed(1)+"번이면 벌이를 받아냄");
-    if (perMin < 1) ok7 = false;                    // 한 번 값이 1분 벌이를 넘으면 못 받아낸다
+    let income = 0;
+    for (let f = 1; f <= d; f++) income += C.goldFor(f) * C.floorN(f) * C.goldMulOf();
+    const cost = C.digCost(), digs = income / cost;
+    d7.push(d+"층: 한 판 "+Math.round(income)+"금 ÷ 값 "+cost+" = "+digs.toFixed(2)+"번");
+    if (digs < 3 || digs > 8) ok7 = false;          // 3~8 번 밖이면 값이 벌이를 못 따라잡았다
   }
-  rec("⑦ 분당 벌이(3100)를 파기가 받아낸다", ok7, d7.join(" · "));
+  rec("⑦ 한 판 벌이 ÷ digCost 가 3~8 번(깊이 10·25·40·55)", ok7, d7.join(" · "));
 
   return JSON.stringify(out);
 })()`;
