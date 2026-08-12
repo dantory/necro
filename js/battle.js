@@ -255,6 +255,21 @@ const PILE_MAX = 140;
  *  성립하려면 모자랄 때가 있어야 한다). 넘치는 몫은 세지 않는다 — 대신 넘치기 전에
  *  화력으로 바꿀 길을 낸다(main.js auto 의 시체 폭발). */
 export const CORPSE_MAX = PILE_MAX;
+/** **환전** — 쌓인 만큼 크게 터진다. 재 보니 배수구(문턱을 낮춰 자주 터뜨리기)로는
+ *  못 뺐다: 폭발이 한 번에 한 구를 먹으니 재사용 2.2초 = **분당 27 구**가 천장인데
+ *  깊은 층의 유입이 그걸 넘어 시체가 140 에 붙박였다(문턱 1/5·문턱 없음 둘 다).
+ *  그래서 버리지도 흘리지도 말고 **한 입을 크게** 한다 — 쌓인 몫의 1/DIV 를 한 번에
+ *  먹고 그만큼 세게 터진다. 유입이 클수록 배수도 같이 커져 **스스로 균형이 잡히고**,
+ *  「아꼈다 한 방」이라는 판단이 그때 생긴다.
+ *  ★ 0 이면 지금 그대로(한 구) — A/B 가 이 줄만 바꾼다(tools/ab_corpse3.sh). */
+export const NOVA_GULP_DIV = 0;
+/** 한 입의 상한. 없으면 140 을 통째로 먹어 한 방에 판이 끝난다. */
+const NOVA_GULP_CAP = 32;
+/** 이번 폭발이 먹을 시체 수. */
+function novaGulp() {
+  if (!NOVA_GULP_DIV) return 1;
+  return Math.max(1, Math.min(NOVA_GULP_CAP, Math.ceil(S.corpses / NOVA_GULP_DIV)));
+}
 /** @param pw 이 시체 주인의 **최대 체력.** 일어나는 놈이 이것을 물려받는다
  *  (core.js 의 「소환수는 제가 일어난 시체만큼 세다」). 0 이면 종족 기본값으로만 선다. */
 export function addCorpse(x, y, sort, n = 1, pw = 0) {
@@ -354,12 +369,18 @@ export function cast(id) {
   S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul();
   /* 시체를 쓰면 **판 위의 그것이 없어진다.** 어디 것을 썼는지가 보여야 자원이 된다.
      시체 폭발은 본인 둘레를 쓸므로 가운데에서, 소환은 세울 자리에서 가까운 것을 쓴다. */
-  const usedAt = sk.corpse ? useCorpse(sk.corpse, 0, 0) : null;
+  /* 폭발만 **여러 구를 한 입에** 먹는다(환전). 소환은 한 구 그대로 — 소환수 값이
+     시체 수에 따라 흔들리면 군세 상한과 겹쳐 읽을 수 없게 된다. */
+  const gulp = id === "nova" ? novaGulp() : sk.corpse;
+  const usedAt = sk.corpse ? useCorpse(gulp, 0, 0) : null;
   if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
-    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * selfMulOf() * novaDmgMul();
-    const rad = 180 * novaRadMul();
+    /* 먹은 만큼 세진다 — 피해는 구당 +60%, 범위는 구당 +4%(최대 1.5배). 범위를 피해와
+       같은 기울기로 올리면 한 입에 판이 통째로 지워져 층이 그냥 흘러간다. */
+    const gmul = 1 + (gulp - 1) * 0.6;
+    const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * selfMulOf() * novaDmgMul() * gmul;
+    const rad = 180 * novaRadMul() * Math.min(1.5, 1 + (gulp - 1) * 0.04);
     let hit = 0;
     /* 시체 폭발은 **본인 둘레**를 쓸어 낸다 — 사방 판에서는 그게 "한숨 돌리는 순간"이다 */
     for (const m of S.mobs) if (Math.hypot(m.x, m.y) < rad) { m.hp -= dmg; hit++; popNum(m.x, m.y, dmg, "nova"); }
@@ -380,7 +401,7 @@ export function cast(id) {
       }
     }
     S.fx.push({ t: 0.35, x: 0, y: 0, kind: "nova", rad });
-    say(`<b style="color:#ff8000">시체 폭발</b> ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
+    say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` 시체 ${gulp}구` : ""} · ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
   }
   if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`); }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
