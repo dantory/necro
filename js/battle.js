@@ -550,6 +550,14 @@ export function step(dt) {
   }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
+  /* ── 본인의 뼈를 놓는 칸 ── 위 소환수·적과 **같은 impactAt** 을 쓴다. */
+  if (S.pbolt && S.pswing <= SWING_T * (1 - IMPACT_AT)) {
+    let t = null, td = NECRO_ATK.range;
+    for (const m of S.mobs) { const d = Math.hypot(m.x, m.y); if (d < td) { td = d; t = m; } }
+    if (t) { const d = Math.hypot(t.x, t.y) || 1;
+      S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d, dmg: S.pbolt.dmg, life: 2 }); }
+    S.pbolt = null;                                    // 표적이 다 죽었으면 헛손질로 끝난다
+  }
   if (S.pswing > 0) S.pswing -= dt;
   S.mp = Math.min(mpMaxOf(), S.mp + dt * mpRegenOf());
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
@@ -622,9 +630,14 @@ export function step(dt) {
     if (t) {
       S.natk = NECRO_ATK.cd;
       S.pswing = SWING_T;                              // 던지는 자세
-      const d = Math.hypot(t.x, t.y) || 1;
-      S.bolts.push({ x: 0, y: 0, dx: t.x / d, dy: t.y / d,
-                     dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * selfMulOf() * (1 + gearVal("wand")) * wandMul(), life: 2 });
+      /* ★★ **뼈는 팔이 뻗는 칸에서 손을 떠난다.** 예전엔 여기서 바로 날렸다 —
+         휘두름 0 프레임, 즉 **팔을 들기도 전에** 뼈가 나갔다. 판의 다른 모든 타격은
+         impactAt(55%)에서 터지는데 본인 것만 예외라, 병수님 눈에 「공격이 발사되고
+         모션이 뒤늦게 발동」으로 보였다. 여기서는 **예약만** 하고 아래 impactAt 고리가
+         푼다 — 소환수·적이 pending 을 쓰는 것과 같은 자리, 같은 규칙이다.
+         셈(피해)은 지금 값으로 굳힌다(겨눈 순간의 힘). 방향은 놓는 순간 다시 잡는다 —
+         0.33초 사이에 적이 움직이므로 그때 제일 가까운 놈에게 던지는 편이 자연스럽다. */
+      S.pbolt = { dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * selfMulOf() * (1 + gearVal("wand")) * wandMul() };
     }
   }
   /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.
@@ -883,7 +896,7 @@ export function newRun() {
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0,
-    amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
+    amp: 0, pswing: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0;
