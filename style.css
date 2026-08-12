@@ -59,6 +59,17 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
   padding:0 24px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000d8,#00000000)}
 #top .floor{color:var(--gold);letter-spacing:4px;font-size:18px;text-shadow:0 0 8px #c8aa6e40}
+/* 깊이 배수 — 층 옆에 붙는 **불어나는 숫자.** 층보다 한 톤 붉게(피해라는 뜻),
+   자리를 미리 잡아 둔다(min-width) — 값이 자라도 옆 글자가 안 밀린다. */
+/* inline 에는 transform 이 안 먹는다 — 커지는 연출이 조용히 사라진다(inline-block). */
+#top .dep{color:#e0603c;font-size:15px;letter-spacing:1px;margin-left:-14px;
+  display:inline-block;text-shadow:0 0 8px #e0603c50;white-space:nowrap}
+#top .dep:empty{display:none}
+/* 층을 내려가 배수가 오르는 순간 한 번 밝아진다 — 안 보이면 안 오른 것과 같다. */
+#top .dep.up{animation:depUp .9s ease-out}
+@keyframes depUp{
+  0%{color:#ffd9a0;text-shadow:0 0 14px #ffb066;transform:scale(1.35)}
+  100%{color:#e0603c;text-shadow:0 0 8px #e0603c50;transform:scale(1)}}
 #top .left{font-size:18px;color:var(--dim);letter-spacing:1px}
 #top .sp{flex:1}
 #top .who{font-size:12.5px;color:var(--dim);letter-spacing:.5px}

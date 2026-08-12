@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -943,14 +943,32 @@ function beltState() {
   }
 }
 
+/** 층 옆의 깊이 배수. hud() 는 매 프레임 도는데 textContent 를 매번 쓰면 애니메이션이
+ *  계속 처음으로 되돌아가 **한 번도 안 보인다** — 값이 바뀐 순간에만 손댄다.
+ *  밝히는 것은 **자랐을 때만**(마을로 돌아와 ×1.00 이 되는 것은 상이 아니다). */
+function setDepth(txt) {
+  const el = $("hDepth");
+  if (el.textContent === txt) return;
+  const grew = txt && el.textContent
+            && parseFloat(txt.slice(1)) > parseFloat(el.textContent.slice(1));
+  el.textContent = txt;
+  if (!grew) return;
+  el.classList.remove("up");
+  void el.offsetWidth;   /* 리플로우를 강제하지 않으면 같은 애니메이션이 다시 안 돈다 */
+  el.classList.add("up");
+}
+
 function hud() {
   /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
     $("hFloor").textContent = "마을";
     $("hLeft").textContent  = `가장 깊이 ${META.deepest}층`;
+    /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
+    setDepth("");
   } else {
   $("hFloor").textContent = S.floor + "층";
+  setDepth(`×${depthMul().toFixed(2)}`);
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
   const left = S.mobs.length;
@@ -1139,6 +1157,10 @@ const statNumbers = () => {
     ["체력",      hpMaxOf()],
     ["마나",      mpMaxOf()],
     ["군세",      armyCap()],
+    /* ★ 피해 배수 안에서 **깊이 몫을 갈라 적는다.** 20층이면 ×3.2 가 이 안에 들어
+       있는데, 뭉쳐 놓으면 「장비를 갈아 낀 덕」과 구별이 안 된다 — 제일 크게
+       불어나는 것이 어디서 왔는지 보여야 한다. */
+    ["깊이",       `×${depthMul().toFixed(2)}`],
     ["본인 피해",   `×${selfDmgMul().toFixed(2)}`],
     ["소환수 피해", `×${minionDmgMul().toFixed(2)}`],
     ["마나 회복",   `${mpRegenOf().toFixed(1)}/초`],

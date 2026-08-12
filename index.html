@@ -13,6 +13,10 @@
 
   <div id="top">
     <span class="floor" id="hFloor">1층</span>
+    <!-- ★ 층마다 1.0625배씩 붙는 **깊이 배수**(depthMul). 20층 ×3.2 · 30층 ×5.9 로
+         이 게임에서 제일 크게 불어나는 숫자인데 어디에도 안 떠 있었다.
+         층 바로 옆에 붙여 「내려가는 것이 곧 세지는 것」을 한 눈에 잇는다. -->
+    <span class="dep" id="hDepth"></span>
     <span class="left" id="hLeft"></span>
     <span class="sp"></span>
     <!-- ★★ 눌러야 열리는 둘은 **단추로 보이고, 무엇을 여는지 말해야 한다.**
