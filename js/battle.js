@@ -452,7 +452,10 @@ export function step(dt) {
       S.hp -= p.dmg;
       popNum(0, 0, p.dmg, "core");
       S.hurt = 0.18; S.hkx = u.sdx; S.hky = u.sdy;
-      S.hknock = knockOf({ hpMax: hpMaxOf() }, dmg);   // 본인도 같은 규칙
+      /* ★ 여기서는 **p.dmg 로 읽어야 한다.** 아래 461 줄의 `const { tgt, dmg, heal }` 이
+         같은 블록(for 몸통)에 있어서, 이름 `dmg` 는 이 자리에서 아직 죽어 있다(TDZ) —
+         적이 본인에게 닿는 첫 순간 예외가 나 판이 통째로 멈췄다. */
+      S.hknock = knockOf({ hpMax: hpMaxOf() }, p.dmg);   // 본인도 같은 규칙
       /* 불꽃은 본인 둘레의 **적이 선 쪽**에 — u.sdx 는 적→가운데 방향이라 반대로 민다 */
       S.fx.push({ t: 0.12, kind: "hit", x: -u.sdx * CORE_R * 0.8, y: -u.sdy * CORE_R * 0.8 });
       if (S.hp <= 0) { S.hp = 0; die(); return; }
