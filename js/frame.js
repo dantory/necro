@@ -37,15 +37,31 @@ function ring(g, w, h, i, top, bottom, side) {
 
 /** 스킬 칸 하나. **바깥은 어두운 쇠, 안쪽은 파인 홈.**
  *  위가 밝고 아래가 어두우면 **튀어나온 것**, 반대면 **파인 것**으로 읽힌다 —
- *  테두리는 튀어나오게, 속은 파이게 해야 「아이콘이 홈에 앉은 것」이 된다. */
-export function drawSlot(cv, w, h, on) {
+ *  테두리는 튀어나오게, 속은 파이게 해야 「아이콘이 홈에 앉은 것」이 된다.
+ *
+ *  ★ `locked` — **아직 안 배운 자리.** 예전엔 같은 칸을 그려 놓고 CSS `opacity:.5`
+ *  로만 죽였는데, 그러면 **테두리·못·번호가 전부 같은 비율로만 옅어져** 빈 칸 셋이
+ *  쓸 수 있는 칸 셋과 같은 무게로 눈에 들어왔다(병수님: "숫자만 덩그러니 있다").
+ *  옅게 하는 것과 **잠긴 것**은 다르다 — 잠긴 칸은 홈이 아니라 **메워진 자리**다:
+ *  속의 단계를 없애 납작하게 하고, 테두리의 밝은 면을 죽이고, 못을 뺀다. */
+export function drawSlot(cv, w, h, on, locked = false) {
   if (w < 8 || h < 8) return;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const g = cv.getContext("2d");
   g.clearRect(0, 0, w, h);
 
-  /* 속 — 세 단계로 끊는다. 위가 어둡고 아래가 조금 밝으면 파인 것으로 보인다. */
   const inset = 3;
+  if (locked) {
+    /* 속 — **한 색으로 납작하게.** 단계를 주면 홈으로 읽혀 「쓸 수 있는 칸」이 된다. */
+    g.fillStyle = "#0a0605"; px(g, inset, inset, w - 2 * inset, h - 2 * inset);
+    /* 테두리 — 밝은 면 없이 어두운 쇠 두 겹만. 못도 안 박는다. */
+    ring(g, w, h, 0, "#080605", "#080605", "#080605");
+    ring(g, w, h, 1, "#221a12", "#150f0a", "#1a1410");
+    ring(g, w, h, 2, "#000000", "#0e0a07", "#080605");
+    return;
+  }
+
+  /* 속 — 세 단계로 끊는다. 위가 어둡고 아래가 조금 밝으면 파인 것으로 보인다. */
   g.fillStyle = "#0e0806"; px(g, inset, inset, w - 2 * inset, h - 2 * inset);
   g.fillStyle = "#150c08"; px(g, inset, inset + Math.round(h * 0.42), w - 2 * inset, Math.round(h * 0.3));
   g.fillStyle = "#1c1109"; px(g, inset, h - inset - Math.round(h * 0.2), w - 2 * inset, Math.round(h * 0.2));

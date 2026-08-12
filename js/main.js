@@ -933,7 +933,7 @@ function belt() {
       <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("") + empty;
   /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다. */
   for (const el of document.querySelectorAll("#belt .slot"))
-    watch(el, (cv, w, h) => drawSlot(cv, w, h, el.classList.contains("on")));
+    watch(el, (cv, w, h) => drawSlot(cv, w, h, el.classList.contains("on"), el.classList.contains("empty")));
   $("belt").onclick = (e) => {
     const el = e.target.closest("[data-sk]");
     if (el) cast(el.dataset.sk);
