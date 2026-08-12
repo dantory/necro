@@ -738,7 +738,10 @@ function draw(dt) {
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
     const size = Math.round(base * us);
-    const txt = n.kind === "heal" ? "+" + n.v : "" + n.v;    // 회복은 깎임과 반대라 + 를 앞에
+    /* ★ 50층이면 피해가 **398123**(여섯 자리)로 찍혀 스프라이트를 통째로 가렸다.
+       구슬은 이미 k/M 로 줄여 적는데(`num()`) 떠오르는 숫자만 날것이라 **자가 둘**이었다 —
+       같은 자로 맞춘다. 숫자가 불어나는 맛은 자릿수가 아니라 **단위가 바뀌는 데**서 온다. */
+    const txt = n.kind === "heal" ? "+" + num(n.v) : num(n.v);   // 회복은 깎임과 반대라 + 를 앞에
     ctx.save();
     ctx.globalAlpha = p < 0.12 ? p / 0.12 : Math.max(0, 1 - (p - 0.12) / 0.88);
     ctx.font = `${size}px "Galmuri9", monospace`;
@@ -1192,9 +1195,10 @@ const gearCell = (it, attr, sel) => {
  *  화면에서 다시 계산하지 않는다(같은 식이 두 곳이면 갈라진다). */
 const statNumbers = () => {
   const rows = [
-    ["체력",      hpMaxOf()],
-    ["마나",      mpMaxOf()],
-    ["군세",      armyCap()],
+    /* 구슬과 **같은 자**로 적는다 — 구슬은 2.3k 인데 여기만 2280 이면 같은 값이 달라 보인다. */
+    ["체력",      num(hpMaxOf())],
+    ["마나",      num(mpMaxOf())],
+    ["군세",      armyCap()],                    // 군세는 상한이 두 자리라 줄일 것이 없다
     /* ★ 피해 배수 안에서 **깊이 몫을 갈라 적는다.** 20층이면 ×3.2 가 이 안에 들어
        있는데, 뭉쳐 놓으면 「장비를 갈아 낀 덕」과 구별이 안 된다 — 제일 크게
        불어나는 것이 어디서 왔는지 보여야 한다. */
