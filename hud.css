@@ -491,7 +491,13 @@ body.in-town #stage{cursor:pointer}
    같다** — 병수님이 「상태창이나 스킬/인벤토리 등은 어떻게 열어」라고 물어서 알았다.
    벨트 칸과 같은 돌(어두운 바탕 + 금테)에 작은 그림을 하나 붙인다. 글자 크기는
    그대로라 띠가 안 넓어지고, 좁은 화면에서는 그림만 남기고 글자를 접는다(아래). */
-.hBtn{ font:inherit; color:inherit; cursor:pointer; position:relative;
+/* ★★ **pointer-events:auto 를 여기 둔다.** `#top` 은 맵이 비쳐 보이도록 클릭을
+   통과시키는데(pointer-events:none), 예전엔 `#hName` 에만 auto 를 줬다. 그래서
+   「능력치」는 눌리고 **「스킬」은 손가락이 맵에 닿아** 아무 일도 안 났다
+   (병수님: "스킬 눌러도 안떠"). 단추 **차림(.hBtn)에** 걸어 두면 나중에 하나 더
+   늘려도 저절로 눌린다 — id 마다 따로 주면 또 하나를 빠뜨린다. */
+.hBtn{ pointer-events:auto;
+       font:inherit; color:inherit; cursor:pointer; position:relative;
        display:inline-flex; align-items:center; gap:3px; vertical-align:middle;
        padding:1px 6px; border:1px solid #6b5636; border-radius:2px;
        background:linear-gradient(#231810, #17100b);
