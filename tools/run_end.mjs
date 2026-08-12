@@ -78,14 +78,24 @@ const O = await ev(`(function(){
   }
   // 갈림 표식 — 세 칸이 착용·금·가방으로 갈렸는가
   const fates = cells.map(c => (c.querySelector(".eFate")||{}).textContent || "?");
+  /* 창 뒤의 로그 — 「전멸 · 20층에서 쓰러짐」이 창 밖에 붉게 남아 시선이 갈렸다.
+     ★ 「안 보인다」만 재면 로그가 **원래 비어 있어도** 통과한다(빈 자를 못 믿는다).
+     그래서 **할 말이 있는데도 안 그려졌는지**를 잰다 — 글자는 있고 rect 는 0. */
+  const lg = document.getElementById("log");
+  const logSaid = (lg.textContent || "").trim().length > 0;
+  const logDrawn = [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5);
   return { on, endOn: on.includes("winEnd"), nCells: cells.length, lootLen, tierOk, tierDetail, fates,
+           logSaid, logDrawn, logText: (lg.textContent || "").trim().slice(0, 40),
            modeTown: window.__MODE ? window.__MODE.at === "town" : null };
 })()`);
 
 /* ④ 닫으면 정산이 사라지고 마을에 있다. */
 const C = await ev(`(function(){
   document.querySelector("#winEnd [data-close]").click();
+  const lg = document.getElementById("log");
   return { endOn: document.getElementById("winEnd").classList.contains("on"),
+           /* 닫으면 **돌아와야** 한다 — 영영 끈 것이면 로그를 지운 것이지 창을 고친 게 아니다 */
+           logDrawn: [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5),
            modeTown: window.__MODE ? window.__MODE.at === "town" : null };
 })()`);
 
@@ -257,6 +267,8 @@ const lines = [
   ["③ 등급 클래스 = tier", O.tierOk, O.tierDetail],
   ["④ 갈림 표식(착용·가방·금)", wearBagGold, `[${O.fates.join(",")}]`],
   ["⑤ 닫으면 town", !C.endOn && C.modeTown, `endOn=${C.endOn} town=${C.modeTown}`],
+  ["⑩ 창이 뜨면 뒤 로그가 죽는다", O.logSaid && !O.logDrawn && C.logDrawn,
+    `할말=${O.logSaid}«${O.logText}» 창중그려짐=${O.logDrawn} 닫은뒤=${C.logDrawn}`],
   ["⑥ 재입장 — 창 닫힘·loot 0", !D.endOn && D.lootLen === 0, `endOn=${D.endOn} loot=${D.lootLen}`],
   ["⑦ 콘솔 오류 0", errors.length === 0, errors.slice(0, 3).join(" | ") || "없음"],
   ["⑧ 부제 토막이 안 꺾인다", wrapBad.length === 0,

@@ -1082,8 +1082,14 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const win = (id, on) => $(id).classList.toggle("on", on);
-const closeAll = () => { win("winShop", false); win("winForge", false); win("winTree", false); win("winStat", false); win("winEnd", false); };
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winEnd"];
+/* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
+   쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
+   남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
+const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen(); };
+const syncWinOpen = () =>
+  document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
+const closeAll = () => { for (const w of WINS) win(w, false); };
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */

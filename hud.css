@@ -227,6 +227,9 @@
 #log::after{content:"";position:absolute;left:0;top:2px;bottom:8px;width:2px;
   pointer-events:none;background:linear-gradient(#6b573000,#6b5730d9 18%,#6b573059 70%,#6b573000)}
 #log b{color:#c9bda4;font-weight:400}
+/* 창이 떠 있는 동안은 로그가 없다 — 창 밖에 남은 붉은 「전멸」 한 줄이 정산보다
+   먼저 눈에 들어왔다(2026-08-12). 창을 닫으면 그대로 돌아온다. */
+body.winopen #log{display:none}
 
 /* 전장은 판만큼 비켜 선다 */
 /* ★ 맵은 **화면 끝까지** 간다 — UI 는 그 위에 떠 있는 물건이다. 잘라 놓으면
