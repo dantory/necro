@@ -26,7 +26,11 @@ await new Promise(r => bws.addEventListener("open", r));
 const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
-await S("Page.enable"); await S("Runtime.enable");
+await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
+/* ★ **캐시를 끈다.** 안 끄면 라이브를 볼 때 브라우저가 몇 분 전 파일을 그대로 써서
+   「고쳤는데 그대로」가 나온다 — 실제로 그 함정을 밟았다(고친 hud.css 를 올리고
+   해시까지 같은데 자는 실패를 냈다). 파일 해시 대조와 **화면 검수는 다른 층**이다. */
+await S("Network.setCacheDisabled", { cacheDisabled: true });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 5200));
