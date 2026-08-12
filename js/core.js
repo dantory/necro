@@ -465,7 +465,18 @@ export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
 /** 마나가 차는 속도 — 부적이 올린다. */
 export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
-export const dmgMulOf = () => (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
+/** ══ 깊이가 힘이다 ══ 적 체력은 `floorHp` 로 층마다 **1.19배**씩 자라는데 한 판 안에서
+ *  내 힘은 그만큼 안 자랐다. 그래서 층마다 쓰는 시간이 곱절로 커지고
+ *  **최고층 ≈ log(굴린 시간)** 이 된다 — 손잡이 열 개(머릿수·마중·소환수 화력·적 체력·
+ *  방울·되짚기·귀가·구역풀기)가 전부 「시간을 몇 % 아끼는」 것이라 로그 한 조각
+ *  (+0.5~0.75층)밖에 못 준 이유다. 벽은 값이 아니라 **기울기**였다.
+ *  깊이 한 층마다 이만큼 세지면 적의 기울기와 몫이 맞는다(1.19 / 1.12 = 1.0625).
+ *  실측(씨앗 여덟 · 12분 · 2026-08-12 14:06): 손 안 댐 16.00 · 적을 덜 자라게 21.00 ·
+ *  **이것 27.00**. 20층대에서 층당 시간이 30초 안팎으로 평평해진다(더는 안 큰다). */
+export const DEPTH_MUL = 1.0625;
+export const depthMul = () => Math.pow(DEPTH_MUL, Math.max(0, (S.floor | 0) - 1));
+export const dmgMulOf = () => depthMul()
+                            * (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
                             * (1 + rank("bone") * 0.10);
 /* dmgMulOf 는 **둘 다에게 걸리는 바탕**이다(레벨·강화·뼈 트리). 옵션은 그 위에서
    갈라진다 — 안 그러면 「본인 피해」가 소환수까지 올려서 이름이 거짓말이 된다. */
