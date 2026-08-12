@@ -108,6 +108,14 @@ export function enterFloor(f) {
   for (const p of S.piles) p.fade = PILE_FADE;
 
   S.floor = f;
+  /* ★★ **몸도 층을 따라 큰다.** hpMaxOf 에 「그 층 피해 × SURVIVE_HITS」라는 바닥을
+     뒀는데(core.js) 아무 일도 안 났다 — `S.hp` 는 **판을 열 때(1층) 한 번만** 정해지고
+     그 뒤로 안 컸기 때문이다. 얕은 층에서는 키운 몸이 더 커서 바닥이 안 물리고,
+     깊이 내려가도 그 옛 숫자를 그대로 들고 다녔다(50층에서 4,662 피해 대 410).
+     여기서 **비율을 지키며** 새 최대치로 옮긴다 — 반쯤 깎인 채 내려왔으면 반쯤인 채로
+     커진다. 층마다 공짜로 가득 채워 주면 그건 다른 게임이 된다. */
+  { const nm = hpMaxOf(), om = S.hpMax || nm;
+    S.hp = Math.max(1, Math.round(S.hp * nm / om)); S.hpMax = nm; }
   S.mobs = [];
   const n = floorN(f);
 

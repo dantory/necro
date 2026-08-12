@@ -480,8 +480,25 @@ export const gearNext = (k) => {
   return t < GEAR[k].tiers.length ? t : null;
 };
 export const gearVal = (k) => GEAR[k].val[gearTier(k)];
-export const hpMaxOf  = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
-                            + gearVal("robe") + afSum("hp");
+/* ══ 본인도 **그 층의 격**만큼은 버틴다 ══
+   깊이 배수(depthMul)를 넣을 때 **공격에만** 걸고 체력에는 안 걸었다. 그래서 50층에서
+   층 피해 4,662 대 최대 체력 410 — **0.09대**, 스치면 즉사였다(자의 판정도 「벽은 본인
+   체력」으로 옮겨 갔다). 층 피해는 1.155^층 으로 자라는데 배수는 1.0625^층 이라,
+   배수를 체력에 그대로 곱해도 **깊이마다 1.087 배씩 계속 벌어진다** — 곱셈으로는 못 잡는다.
+
+   그래서 소환수 때 통한 방법을 그대로 쓴다(「시체가 제 격을 기억한다」):
+   **바닥을 그 층에 둔다.** 어느 깊이에서도 최소 SURVIVE_HITS 대는 버틴다.
+     · 얕은 층은 기본값이 더 커서 **하나도 안 바뀐다**(1층 100 > 4×5=20)
+     · 깊은 층은 층 피해를 따라가므로 「맞고 버팀」이 깊이와 무관하게 평평해진다
+     · 층 표를 고쳐도 저절로 따라온다 — 층 수를 코드에 안 박았다
+   ★ 이것은 **죽지 않게** 만드는 것이 아니다. 다섯 대는 여전히 몇 초다 —
+     군대가 무너지고 여럿이 본체에 닿으면 그대로 죽는다. 바뀌는 것은 「스치면 끝」이
+     「버티는 동안 군대를 다시 세울 수 있다」가 되는 것뿐이다. */
+export const SURVIVE_HITS = 3;
+/** 키운 것으로 쌓는 체력 — 얕은 층에서는 이쪽이 크다. */
+const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
+                   + gearVal("robe") + afSum("hp");
+export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
 /** 마나가 차는 속도 — 부적이 올린다. */
 export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
