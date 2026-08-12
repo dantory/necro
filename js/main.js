@@ -1072,7 +1072,7 @@ function auto() {
      이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도
      남을 때만 터진다. 문턱을 상한의 3/4 로 둬서 **아직 모자란 구간은 사람의 몫으로** 남긴다
      — 아껴 뒀다 쓰는 판단은 그 아래에서만 뜻이 있다. */
-  if (S.mobs.length && S.corpses >= CORPSE_MAX * 0.75) cast("nova");
+  if (S.mobs.length && S.corpses >= CORPSE_MAX * 0.2) cast("nova");
 }
 
 /* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".
