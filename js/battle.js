@@ -428,7 +428,15 @@ export function cast(id) {
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
      자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
      그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */
-  S.pswing = SWING_T;
+  /* ★★ **시전은 팔 자세가 아니라 발밑 고리다.** 예전엔 소환도 던지기도 `S.pswing`
+     하나를 켰다 — 같은 팔 그림을 쓰고 서로 되감아서, 겹치면 팔이 처음으로 돌아갔다
+     (재 보니 25초에 11번 · 뼈가 0.54초까지 늦음). 병수님: "소환이랑 공격이랑 겹쳐서
+     실행되면 부자연스러운듯".
+     ★ 한 번 헛디뎠다 — 「도는 몸짓은 되감지 않는다」로 막았더니 소환이 워낙 잦아
+       **던질 때 자세가 열아홉 번 다 안 떴다.** 막을 게 아니라 갈라야 했다.
+     이제 시계가 둘이다: `pswing` = 던지는 팔 · `pcast` = 시전하는 발밑 고리.
+     동시에 일어나도 서로 안 건드리고, 뜻에도 맞는다 — 소환은 손짓이지 타격이 아니다. */
+  S.pcast = SWING_T;
   return true;
 }
 
@@ -552,8 +560,8 @@ export function step(dt) {
   }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
-  /* ── 본인의 뼈를 놓는 칸 ── 위 소환수·적과 **같은 impactAt** 을 쓴다. */
-  if (S.pbolt && S.pswing <= SWING_T * (1 - IMPACT_AT)) {
+  /* ── 본인의 뼈를 놓는 칸 ── 소환수·적과 **같은 몫**(IMPACT_AT)이지만 **제 시계**다. */
+  if (S.pbolt && (S.pbolt.t -= dt) <= 0) {
     let t = null, td = NECRO_ATK.range;
     for (const m of S.mobs) { const d = Math.hypot(m.x, m.y); if (d < td) { td = d; t = m; } }
     if (t) { const d = Math.hypot(t.x, t.y) || 1;
@@ -561,6 +569,7 @@ export function step(dt) {
     S.pbolt = null;                                    // 표적이 다 죽었으면 헛손질로 끝난다
   }
   if (S.pswing > 0) S.pswing -= dt;
+  if (S.pcast  > 0) S.pcast  -= dt;
   S.mp = Math.min(mpMaxOf(), S.mp + dt * mpRegenOf());
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
 
@@ -631,7 +640,7 @@ export function step(dt) {
     for (const m of S.mobs) { const d = Math.hypot(m.x, m.y); if (d < td) { td = d; t = m; } }
     if (t) {
       S.natk = NECRO_ATK.cd;
-      S.pswing = SWING_T;                              // 던지는 자세
+      S.pswing = SWING_T;                              // 던지는 팔 자세(제 시계)
       /* ★★ **뼈는 팔이 뻗는 칸에서 손을 떠난다.** 예전엔 여기서 바로 날렸다 —
          휘두름 0 프레임, 즉 **팔을 들기도 전에** 뼈가 나갔다. 판의 다른 모든 타격은
          impactAt(55%)에서 터지는데 본인 것만 예외라, 병수님 눈에 「공격이 발사되고
@@ -639,7 +648,13 @@ export function step(dt) {
          푼다 — 소환수·적이 pending 을 쓰는 것과 같은 자리, 같은 규칙이다.
          셈(피해)은 지금 값으로 굳힌다(겨눈 순간의 힘). 방향은 놓는 순간 다시 잡는다 —
          0.33초 사이에 적이 움직이므로 그때 제일 가까운 놈에게 던지는 편이 자연스럽다. */
-      S.pbolt = { dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * selfMulOf() * (1 + gearVal("wand")) * wandMul() };
+      /* ★★ **뼈는 제 시계를 갖는다.** 처음엔 `S.pswing` 이 impactAt 아래로 내려가기를
+         기다렸는데, 그 pswing 은 **소환도 같이 쓰는 변수**라 소환이 오면 SWING_T 로
+         되감긴다 — 재 보니 25초에 **11번** 되감기고 뼈가 목표 0.33 대신 **0.54초**까지
+         늦었다(병수님: "소환이랑 공격이랑 겹쳐서 실행되면 부자연스러운듯").
+         제 시계를 주면 무엇이 겹치든 던지는 박자는 안 흔들린다. */
+      S.pbolt = { t: SWING_T * IMPACT_AT,
+                  dmg: NECRO_ATK.dmg(META.lv) * dmgMulOf() * selfMulOf() * (1 + gearVal("wand")) * wandMul() };
     }
   }
   /* 날아가는 뼈. **맞을 놈을 미리 잡아 두지 않는다** — 표적이 먼저 죽으면 허공을 쫓는다.
@@ -904,7 +919,7 @@ export function newRun() {
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
-    amp: 0, pswing: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
+    amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0; runFloor0 = f0;

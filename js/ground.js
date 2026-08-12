@@ -695,8 +695,13 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       let dens = density;
       if (anchors.length) {
         const d = nearAnchor(gx * CELL, gy * CELL);
-        dens = d < 220 ? density * 1.9 : d < 420 ? density : d < 700 ? density * 0.45
-                                                                    : density * 0.16;
+        /* ★ 먼 데를 0.16 까지 떨어뜨린 것이 지나쳤다(병수님 2026-08-12: "화면의 절반
+           넘게가 빈 풀밭"). 앵커 넷이 화면 **가운데 띠**에만 있어서, 위아래 끝은
+           전부 0.16 구역이 되어 **한 화면의 절반이 맨 풀밭**이었다.
+           무리는 그대로 두되(가까운 쪽 1.9 는 안 건드린다) **바닥은 깔린 채로** 둔다 —
+           들판이 비는 것과 아무것도 없는 것은 다르다. */
+        dens = d < 220 ? density * 1.9 : d < 420 ? density : d < 700 ? density * 0.62
+                                                                    : density * 0.42;
       }
       if (rnd % 100 >= dens) continue;                       // 대부분의 칸은 빈 채로 둔다
       const name = set[(rnd >> 7) % set.length];

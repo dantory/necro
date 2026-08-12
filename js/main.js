@@ -401,7 +401,11 @@ function draw(dt) {
                   [0.62 * R.x, -0.05 * R.y], [0, 0.30 * R.y]]);
     }
     drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc,
-               { clear: 300, density: 26, town: true, decal: 2.4,
+               /* ★ 빈 자리 300 은 **장소 넷을 다 삼키고도 남았다** — 아래로 300 이면
+                  모닥불 밑이 통째로 맨땅이라 화면의 아랫동이 비었다. 장소는 위쪽에
+                  몰려 있는데 원은 가운데를 중심으로 둥그니, 남는 것은 늘 **아래**다.
+                  모닥불(반경 150)과 본인 발치만 지키면 되므로 210 으로 조인다. */
+               { clear: 210, density: 26, town: true, decal: 2.4,
                  /* ★ 통·상자·수레만 뿌리면 **창고 앞마당**이다. 야영지로 읽히려면
                     경계(wall_a)·불(torch)·지붕(shed)이 섞여야 한다.
                     **개수로 무게를 준다** — set 에서 고르는 것은 균등 추첨이라
@@ -602,7 +606,7 @@ function draw(dt) {
     }
     if (it.kind === "necro") {
       /* 네크로는 원점(0,0)에 **고정** — 이동이 없으니 걷지 않는다. 가장 가까운 적을 보는
-         idle 로 세우고, 스킬을 시전한 순간(S.pswing)만 attack 으로 바꾼다. 바라보는
+         idle 로 세우고, **뼈를 던지는 순간(S.pswing)** 만 attack 으로 바꾼다. 바라보는
          방향은 그 적 쪽(공격 방향 sdx,sdy 도 같은 방향으로 준다). */
       let nx = 0, ny = 1, nd = Infinity;
       for (const m of S.mobs) { const d = m.x * m.x + m.y * m.y; if (d < nd) { nd = d; nx = m.x; ny = m.y; } }
@@ -624,7 +628,9 @@ function draw(dt) {
       const ncx = px(0), ncy = py(0), nhh = 70 * us;   // 판의 인간형 중 제일 크게
       const hpFrac = S.hpMax ? Math.max(0, Math.min(1, S.hp / S.hpMax)) : 1;
       const danger = hpFrac < 0.3;                     // ④의 core 숫자는 맞는 순간만 뜬다 —
-      const cast   = Math.max(0, Math.min(1, (S.pswing || 0) / SWING_T));   // 「지금 위태롭다」를 상시로
+      /* ★ 발밑 고리는 **시전(pcast)** 이 켠다 — 팔 자세(pswing)와 갈라 뒀다(battle.js).
+         소환하면서 뼈를 던져도 팔은 던지기, 발밑은 소환으로 따로 읽힌다. */
+      const cast   = Math.max(0, Math.min(1, (S.pcast || 0) / SWING_T));    // 「지금 위태롭다」를 상시로
       const RGB    = danger ? "214,58,44" : "150,96,232";   // 위태로우면 붉게 물든다
       const spin   = danger ? 5.0 : 1.6;               // 위태로우면 맥동이 빨라진다
       const pulse  = 0.5 + 0.5 * Math.sin(battleT * spin);
