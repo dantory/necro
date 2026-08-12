@@ -88,7 +88,22 @@ function fall(e, base, hh) {
 }
 
 let seq = 0;
-export const say = (s) => { S.log.unshift(s); if (S.log.length > 6) S.log.pop(); };
+
+/** 같은 말이 이어지면 **접는다.** 소환은 판이 도는 내내 일어나므로, 접지 않으면
+ *  「해골 전사 소환」 여섯 줄이 로그를 통째로 채워 다른 사건이 안 보인다.
+ *  접힌 줄은 맨 위에 그대로 남고 꼬리에 배수만 붙는다 — 새 줄로 밀지 않는 게 핵심.
+ *  ★ 바깥에서 S.log 를 직접 건드리면(main.js toTown) 이어짐이 끊겨야 하므로
+ *    그쪽도 sayReset() 을 부른다. 안 그러면 사이에 낀 줄을 건너뛰고 접힌다. */
+let lastSaid = null, lastN = 0;
+export const sayReset = () => { lastSaid = null; lastN = 0; };
+export const say = (s) => {
+  if (s === lastSaid && S.log.length) {
+    S.log[0] = `${s} <b style="color:#8a7f6a">×${++lastN}</b>`;
+    return;
+  }
+  lastSaid = s; lastN = 1;
+  S.log.unshift(s); if (S.log.length > 6) S.log.pop();
+};
 
 /** 적이 나오는 **간격**. 병수님: "너무 한번에 짠! 하고 나오는듯".
  *  한꺼번에 세워 놓으면 「배치된 것」으로 보이고, 하나씩 걸어 나오면 「몰려오는 것」이
@@ -870,6 +885,7 @@ export function newRun() {
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
+  sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0;
   enterFloor(f0);
 }
