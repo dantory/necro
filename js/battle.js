@@ -3,7 +3,7 @@ import { armyCap, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN } from "./core.js";
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -792,14 +792,17 @@ export function die() {
 let runGold0 = 0, runLv0 = 1, runXp = 0;
 
 export function newRun() {
+  /* ★ 1층이 아니라 **지나온 관문**에서 다시 선다(core.js 「표식」). 죽을 때마다
+     1층부터 되짚어 내려오느라 시간의 35% 가 그 왕복에 들어갔다. */
+  const f0 = startFloor();
   Object.assign(S, {
-    floor: 1, t: 0, running: true, dead: false,
+    floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
-    drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: 1,
+    drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0,
     amp: 0, pswing: 0, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0;
-  enterFloor(1);
+  enterFloor(f0);
 }
