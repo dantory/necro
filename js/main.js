@@ -1315,9 +1315,24 @@ function drawEnd() {
       <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   };
+  /* 빈손이어도 **한 일은 있다** — 예전엔 「빈손으로 돌아왔다」 한 줄만 남아 창의
+     절반이 통째로 비었다(병수님 2026-08-12). 좌판이 설 자리에 **이번 판의 자취** 넉
+     장을 같은 격자(.grid)로 세운다 — 부제와 겹치지 않는 것들로 골랐다(부제는 쓰러진
+     층·잡은 수·금·경험치). 내려간 깊이는 시작 층이 있을 때만 「n→m층」으로, 1층에서
+     시작했으면 그냥 「m층」. */
+  const mmss = (s) => `${Math.floor((s | 0) / 60)}:${String((s | 0) % 60).padStart(2, "0")}`;
+  const runCell = (label, val) =>
+    `<div class="cell run"><span class="rVal">${val}</span><span class="rLbl">${label}</span></div>`;
+  const depth = (r.from | 0) > 1 ? `${r.from}→${r.floor}층` : `${r.floor}층`;
   $("endBody").innerHTML = r.loot.length
     ? `<div class="grid">${r.loot.map(cell).join("")}</div>`
-    : `<div class="eEmpty">빈손으로 돌아왔다</div>`;
+    : `<div class="eEmpty">빈손으로 돌아왔다</div>
+       <div class="grid runGrid">`
+       + runCell("내려간 깊이", depth)
+       + runCell("불러낸 하수인", (r.summoned | 0).toLocaleString())
+       + runCell("쓴 시체", (r.used | 0).toLocaleString())
+       + runCell("버틴 시간", mmss(r.secs))
+       + `</div>`;
   $("endGold").textContent = (META.gold | 0).toLocaleString();
 }
 

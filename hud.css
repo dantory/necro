@@ -682,6 +682,16 @@ body.in-town #stage{cursor:pointer}
 .cell.mat  .eFate{color:#b48ad0}
 .cell.made .eFate{color:#e0c46a}
 .eEmpty{text-align:center;color:#6b5f4e;padding:28px 0}
+/* 빈손일 때만 서는 넉 장 — 좌판이 없을 뿐 **한 판을 하긴 했다**. 좌판과 같은 돌을 쓰되
+   칸은 정사각이 아니다(41px 안에 「불러낸 하수인」이 안 들어간다): 두 줄 × 두 칸,
+   위에 값·아래에 이름. 빈손 한 줄의 아래 여백은 줄여 격자를 붙인다. */
+.eEmpty + .runGrid{margin-top:0}
+#endBody .eEmpty{padding:14px 0 10px}
+.runGrid{grid-template-columns:repeat(2,1fr);gap:6px}
+.cell.run{aspect-ratio:auto;cursor:default;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:1px;padding:9px 4px}
+.cell.run .rVal{color:var(--gold);font-size:17px;line-height:1.1;white-space:nowrap}
+.cell.run .rLbl{color:#8a7c60;font-size:11px;line-height:1.1;white-space:nowrap}
 
 /* 이름을 눌러 상태창을 연다 — hLv(.lvBtn)와 같은 결. #top 은 클릭을 통과시키므로
    (맵이 뒤로 이어진다) 이름 하나만 다시 눌리게 한다(pointer-events). */

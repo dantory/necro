@@ -187,6 +187,53 @@ const wrapBad = wrapRuns.filter(x => x.split.length);
   fs.writeFileSync(OUT.replace(/\.png$/, "_sub_wide.png"), Buffer.from(shot.data, "base64"));
 }
 
+/* ⑨ **빈손 판** — 좌판이 비면 창 가운데가 통째로 비었다(병수님 2026-08-12). 이제
+   「이번 판의 자취」 넉 장이 대신 선다. 넉 장이 서는가 · 값이 LASTRUN 그대로인가 ·
+   글자가 칸 안에서 안 넘치는가(scrollWidth) · 격자가 창 밖으로 안 삐져나가는가.
+   ★ 값은 **자릿수가 큰 벌**로 잰다 — 짧은 벌만 재면 넘침을 영영 못 본다. */
+const EMPTY = { has: true, loot: [], floor: 137, from: 21, killed: 0, gold: 0, xp: 0,
+                leveled: false, summoned: 1284, used: 2560, secs: 3725 };
+const E = await ev(`(function(){
+  Object.assign(window.__LASTRUN, ${JSON.stringify(EMPTY)});
+  window.__openWin("end");
+  const body = document.getElementById("endBody");
+  const cells = [...body.querySelectorAll(".runGrid .cell.run")];
+  const br = body.getBoundingClientRect();
+  const over = [];                       // 칸 안에서 글자가 넘쳤거나 칸이 창 밖으로 나간 것
+  for (const c of cells) {
+    for (const s of c.querySelectorAll("span"))
+      if (s.scrollWidth > s.clientWidth + 1) over.push(s.textContent.trim());
+    const r = c.getBoundingClientRect();
+    if (r.left < br.left - 1 || r.right > br.right + 1) over.push("밖으로:" + c.textContent.trim());
+  }
+  /* 빈손 한 줄이 **두 줄로 꺾이면** 안 된다 — 길게 써 봤더니 「이만/큼은 했다」로
+     갈라져 되레 어중간했다(2026-08-13). 줄 수는 rect 의 top 가짓수로 센다. */
+  /* ★ 블록(div)에 대고 getClientRects 를 부르면 **접혀도 rect 는 하나**다 — 글자를
+     Range 로 감싸야 줄마다 rect 가 나온다(⑧ 에서 배운 그 자). */
+  const emptyEl = body.querySelector(".eEmpty");
+  let emptyLines = 0;
+  if (emptyEl) {
+    const rg = document.createRange(); rg.selectNodeContents(emptyEl);
+    emptyLines = new Set([...rg.getClientRects()].filter(r => r.width > .5 && r.height > .5)
+                          .map(r => Math.round(r.top))).size;
+  }
+  return { n: cells.length, over, emptyLines,
+           vals: cells.map(c => (c.querySelector(".rVal")||{}).textContent || "?"),
+           lbls: cells.map(c => (c.querySelector(".rLbl")||{}).textContent || "?"),
+           empty: (body.querySelector(".eEmpty")||{}).textContent || "" };
+})()`);
+/* 값 대조는 **깊이·소환·시체·시간** 넷 다 — 하나만 보면 자리를 바꿔 끼워도 안 잡힌다. */
+const eWant = ["21→137층", "1,284", "2,560", "62:05"];
+const eValsOk = E.vals.length === 4 && eWant.every((w, i) => E.vals[i] === w);
+{
+  const box = await ev(`(function(){
+    const r = document.getElementById("winEnd").getBoundingClientRect();
+    return { x: r.x - 4, y: r.y - 4, width: r.width + 8, height: r.height + 8 };
+  })()`);
+  const shot = await S("Page.captureScreenshot", { format: "png", clip: { ...box, scale: 2 } });
+  fs.writeFileSync(OUT.replace(/\.png$/, "_empty.png"), Buffer.from(shot.data, "base64"));
+}
+
 /* 스크린샷은 잰 화면 그대로 — 마지막 벌을 지우고 원래 스냅샷을 되살린다. */
 await ev(`(function(){
   const S = window.__S;
@@ -214,6 +261,9 @@ const lines = [
   ["⑦ 콘솔 오류 0", errors.length === 0, errors.slice(0, 3).join(" | ") || "없음"],
   ["⑧ 부제 토막이 안 꺾인다", wrapBad.length === 0,
     wrapRuns.map(x => `${x.label}:${x.lines}줄${x.split.length ? "«" + x.split.join("/") + "»" : ""}`).join(" ")],
+  ["⑨ 빈손 — 자취 넉 장이 선다", E.n === 4 && eValsOk && E.over.length === 0 && E.emptyLines === 1,
+    `칸=${E.n} 값=[${E.vals.join(",")}] 이름=[${E.lbls.join(",")}] 빈손줄=${E.emptyLines}줄`
+    + `${E.over.length ? " 넘침«" + E.over.join("/") + "»" : ""}`],
 ];
 let ok = true;
 for (const [name, pass, detail] of lines) {

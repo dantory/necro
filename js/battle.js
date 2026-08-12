@@ -323,6 +323,7 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0) {
   for (let i = 0; i < n; i++) {
     if (S.corpses <= 0) break;
     S.corpses--;
+    S.used = (S.used | 0) + 1;         // 이 판에서 자원으로 쓴 시체 — 정산이 읽는다
     /* 쓸 것은 **가까운 것부터** — 눈은 제일 가까운 시체가 사라지기를 기대한다 */
     let bi = -1, bd = 1e9;
     for (let j = 0; j < S.piles.length; j++) {
@@ -371,6 +372,7 @@ export function summon(kind, at) {
   S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h * usc,
                    x: sx, y: sy, rise: RISE_T, dmg: dmg0,
                    hp: hp0, hpMax: hp0, atk: 0, r: K.h * usc * FOOT_R });
+  S.summoned = (S.summoned | 0) + 1;   // 판이 끝나면 정산이 읽는다(빈손일 때 가운데를 채운다)
   return true;
 }
 
@@ -878,13 +880,19 @@ export function die() {
   LASTRUN.killed = S.killed;
   LASTRUN.floor = S.floor;
   LASTRUN.leveled = META.lv > runLv0;
+  /* 전리품이 없어도 정산이 할 말이 있게 — 어디서 시작해 몇 층을 내려갔는지,
+     몇을 불러냈고 시체를 몇 구 썼는지, 얼마나 버텼는지. */
+  LASTRUN.from = runFloor0;
+  LASTRUN.summoned = S.summoned | 0;
+  LASTRUN.used = S.used | 0;
+  LASTRUN.secs = Math.max(0, Math.round(S.t));
   saveMeta();
   say(`<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`);
 }
 
 /* 정산이 「이번 판에 번 것」을 재려면 판 시작값이 있어야 한다 — S 는 newRun 이 지우므로
    판을 넘겨 사는 여기(모듈)에 둔다. runXp 는 kill 에서 더한 경험치의 누계다. */
-let runGold0 = 0, runLv0 = 1, runXp = 0;
+let runGold0 = 0, runLv0 = 1, runXp = 0, runFloor0 = 1;
 
 export function newRun() {
   /* ★ 1층이 아니라 **지나온 관문**에서 다시 선다(core.js 「표식」). 죽을 때마다
@@ -895,10 +903,10 @@ export function newRun() {
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
-    drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0,
+    drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     amp: 0, pswing: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   sayReset();
-  runGold0 = META.gold; runLv0 = META.lv; runXp = 0;
+  runGold0 = META.gold; runLv0 = META.lv; runXp = 0; runFloor0 = f0;
   enterFloor(f0);
 }

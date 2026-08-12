@@ -153,6 +153,7 @@ export const S = {
   drops: [],                  // 판에 떨어져 아직 안 빨려 들어온 전리품
   loot: [],                   // 이번 판에 얻은 것 — 정산 화면이 읽는다
   cd: {}, log: [], killed: 0, deepest: 1,
+  summoned: 0, used: 0,       // 이 판에서 불러낸 하수인 수 · 자원으로 쓴 시체 수(정산이 읽는다)
   /** ══ 「들어섰다」 ══ **한 번 켜지고 스스로 꺼지는 상태.** 층이 바뀌는 가장 큰
    *  사건(내려간다·관문이다)이 로그 글줄 하나로만 지나갔다 — 방치형은 보는 게임이라
    *  판에 흔적이 남아야 한다. enterFloor 가 켜고(= {t,f,gate}), step 이 t 를 줄여
@@ -208,7 +209,12 @@ export function saveMeta() {
 /* ══ 이번 판의 스냅샷 ══ ④ 정산 화면이 읽는다. **S 가 아니라 여기에 굳힌다** —
    S.loot 는 다음 던전 입장(newRun)이 [] 로 비우므로, 판이 끝나는 순간(die) 복사해
    두지 않으면 「이번 판에 얻은 것」이 통째로 사라진다. META 처럼 판을 넘어 산다. */
-export const LASTRUN = { has: false, loot: [], gold: 0, xp: 0, killed: 0, floor: 1, leveled: false };
+/* ★ 전리품이 없는 판도 **한 일은 있다** — 빈손이면 정산 가운데가 통째로 비어
+   「아무 일도 없었다」로 읽혔다. 그 자리를 채우는 넉 장: 내려간 깊이(from→floor)·
+   소환한 하수인(summoned)·쓴 시체(used)·버틴 시간(secs). 전리품이 있을 때는
+   좌판이 차므로 안 쓴다. */
+export const LASTRUN = { has: false, loot: [], gold: 0, xp: 0, killed: 0, floor: 1, leveled: false,
+                         from: 1, summoned: 0, used: 0, secs: 0 };
 
 /* ══ 경험치 ══ **지수는 선형을 못 이긴다.**
    벌이는 층에 «비례»할 뿐인데(마리당 0.6×층) 요구치가 1.35^lv 로 자라면 레벨은
