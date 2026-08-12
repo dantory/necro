@@ -108,6 +108,96 @@ await ev(`(function(){
   S.floor = 9; S.killed = 20; window.__die();
 })()`);
 await new Promise(r => setTimeout(r, 300));
+
+/* ⑧ 부제가 **어중간하게** 꺾이는가(병수님 2026-08-12) — 「경험치 +0」에서 「+0」만
+   다음 줄로 떨어졌다. 값 길이에 달린 결함이라 판 한 벌로는 못 잡는다: LASTRUN 을
+   손수 채워 여러 벌을 그려 보고, **토막(·으로 가른 한 덩이) 하나가 두 줄에 걸치면**
+   FAIL. 자리(rect)로 재므로 markup 이 바뀌어도 그대로 쓴다.
+   ★ 「글자 수로 어림잡기」는 안 쓴다 — 폭·글꼴·굵기가 다 걸린다. 그린 자리를 읽는다. */
+const CASES = [
+  ["병수님이 본 그 판", { floor: 20, killed: 0, gold: 0, xp: 0, leveled: false }],
+  ["레벨 업까지 붙은 판", { floor: 20, killed: 7, gold: 640, xp: 120, leveled: true }],
+  ["자릿수가 큰 판", { floor: 137, killed: 1284, gold: 128400, xp: 9640, leveled: true }],
+  ["가장 짧은 판", { floor: 1, killed: 0, gold: 0, xp: 0, leveled: false }],
+];
+const wrapRuns = [];
+for (const [label, vals] of CASES) {
+  wrapRuns.push(await ev(`(function(){
+    const L = window.__LASTRUN;
+    Object.assign(L, ${JSON.stringify(vals)}, { has: true, loot: [] });
+    window.__openWin("end");
+    const el = document.getElementById("endSub");
+    /* 글자 자리를 **Range 로** 읽는다 — <b> 로 잘려 있어도 한 줄로 이어 센다. */
+    const nodes = []; let text = "";
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) { nodes.push({ n, at: text.length }); text += n.nodeValue; }
+    const loc = (p) => {
+      for (const it of nodes) if (p >= it.at && p <= it.at + it.n.nodeValue.length) return [it.n, p - it.at];
+      return null;
+    };
+    const rects = (s, e) => {
+      const a = loc(s), b = loc(e); if (!a || !b) return [];
+      const r = document.createRange(); r.setStart(a[0], a[1]); r.setEnd(b[0], b[1]);
+      return [...r.getClientRects()].filter(x => x.width > .5 && x.height > .5);
+    };
+    const tops = (s, e) => new Set(rects(s, e).map(x => Math.round(x.top))).size;
+    /* 낱개를 무엇으로 보느냐 — markup 이 [data-u] 로 **스스로 밝히면** 그것을 쓰고,
+       안 밝히면(옛날처럼 한 줄로 흘린 부제) 「·」로 가른 토막을 낱개로 본다. 뒤엣것을
+       남겨 두는 이유는 되돌아갔을 때도 잡히게 하려는 것 — 실제로 고치기 전 이 자로
+       네 벌 모두 FAIL 이 났다(«경험치 +0» «금 +128,400»). */
+    const marked = [...el.querySelectorAll("[data-u]")];
+    const segs = []; const topSet = new Set();
+    if (marked.length) {
+      for (const m of marked) {
+        const r2 = [...m.getClientRects()].filter(x => x.width > .5 && x.height > .5);
+        const t2 = new Set(r2.map(x => Math.round(x.top)));
+        t2.forEach(v => topSet.add(v));
+        segs.push({ t: m.textContent.trim(), lines: t2.size });
+      }
+    } else {
+      let i = 0;
+      for (const part of text.split("·")) {
+        const s = i, e = i + part.length; i = e + 1;
+        if (!part.trim()) continue;
+        const ls = s + (part.length - part.trimStart().length);
+        const le = e - (part.length - part.trimEnd().length);
+        segs.push({ t: part.trim(), lines: tops(ls, le) });
+      }
+    }
+    /* 줄 수는 **낱개가 앉은 자리**로 센다 — Range 로 통째 재면 flex 통이 rect 를 하나 더
+       내어 두 줄짜리가 3줄로 잡혔다(자가 거짓말을 하면 판정을 못 믿는다). */
+    return { label: ${JSON.stringify(label)}, lines: marked.length ? topSet.size : tops(0, text.length),
+             split: segs.filter(x => x.lines > 1).map(x => x.t), text: text.trim() };
+  })()`));
+}
+const wrapBad = wrapRuns.filter(x => x.split.length);
+
+/* 잰 것만으로는 「꺾인 자리가 보기 좋은가」를 못 본다 — 제일 긴 벌(자릿수가 큰 판)의
+   부제만 잘라 남긴다. 숫자는 판정에 쓰고, 이 그림은 눈으로 보는 몫이다. */
+{
+  const box = await ev(`(function(){
+    const L = window.__LASTRUN;
+    Object.assign(L, ${JSON.stringify(CASES[2][1])}, { has: true, loot: [] });
+    window.__openWin("end");
+    const r = document.getElementById("endSub").getBoundingClientRect();
+    return { x: r.x - 8, y: r.y - 6, width: r.width + 16, height: r.height + 12 };
+  })()`);
+  const shot = await S("Page.captureScreenshot", { format: "png", clip: { ...box, scale: 2 } });
+  fs.mkdirSync(OUT.replace(/\/[^/]+$/, ""), { recursive: true });
+  fs.writeFileSync(OUT.replace(/\.png$/, "_sub_wide.png"), Buffer.from(shot.data, "base64"));
+}
+
+/* 스크린샷은 잰 화면 그대로 — 마지막 벌을 지우고 원래 스냅샷을 되살린다. */
+await ev(`(function(){
+  const S = window.__S;
+  S.loot = [
+    { k:"wand",  tier:4, af:[{id:"dmg",v:10}], worn:true,  gold:0, bagged:false, n:"x", slot:"지팡이" },
+    { k:"robe",  tier:1, af:[],                worn:false, gold:9, bagged:false, n:"y", slot:"망토" },
+    { k:"charm", tier:3, af:[{id:"mp",v:1}],   worn:false, gold:0, bagged:true,  n:"z", slot:"부적" },
+  ];
+  S.floor = 9; S.killed = 20; window.__die();
+})()`);
+await new Promise(r => setTimeout(r, 300));
 const { data } = await S("Page.captureScreenshot", { format: "png" });
 fs.mkdirSync(OUT.replace(/\/[^/]+$/, ""), { recursive: true });
 fs.writeFileSync(OUT, Buffer.from(data, "base64"));
@@ -122,6 +212,8 @@ const lines = [
   ["⑤ 닫으면 town", !C.endOn && C.modeTown, `endOn=${C.endOn} town=${C.modeTown}`],
   ["⑥ 재입장 — 창 닫힘·loot 0", !D.endOn && D.lootLen === 0, `endOn=${D.endOn} loot=${D.lootLen}`],
   ["⑦ 콘솔 오류 0", errors.length === 0, errors.slice(0, 3).join(" | ") || "없음"],
+  ["⑧ 부제 토막이 안 꺾인다", wrapBad.length === 0,
+    wrapRuns.map(x => `${x.label}:${x.lines}줄${x.split.length ? "«" + x.split.join("/") + "»" : ""}`).join(" ")],
 ];
 let ok = true;
 for (const [name, pass, detail] of lines) {

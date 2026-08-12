@@ -664,6 +664,11 @@ body.in-town #stage{cursor:pointer}
 /* ══ ④ 정산 ══ 상인 좌판과 같은 돌(.cell·.grid·TIER_CLS). 여기서 더하는 것은
    칸마다의 갈림(낀 것·가방·금) 표식과 빈손 한 줄뿐이다 — 새 창·새 색표는 없다. */
 #endSub b{color:var(--gold);font-weight:400}
+/* 부제 두 줄 — 첫 줄 「어디서 끝났나」, 둘째 줄 셈. 낱개(span)는 **안에서 안 꺾인다**;
+   폭이 모자라면 낱개와 낱개 사이에서만 꺾이고, 그때도 가르는 글자가 홀로 남지 않게
+   「·」 대신 칸 사이를 벌려 갈랐다(drawEnd 주석 · tools/run_end.mjs ⑧). */
+#endSub .eTally{display:flex;flex-wrap:wrap;justify-content:center;gap:1px 14px;margin-top:2px}
+#endSub .eTally > span{white-space:nowrap}
 #endBody .grid{margin-top:2px;margin-bottom:0}
 /* 금으로 녹은 것은 **흐리게** — 남지 않았다(낀 것·가방과 한눈에 갈린다). */
 .cell.gone{opacity:.5}

@@ -1296,9 +1296,17 @@ function drawStat() {
    작은 표식으로 가른다(금으로 녹은 것은 흐리게 — 남지 않았다). */
 function drawEnd() {
   const r = LASTRUN;
+  /* 부제는 **두 줄로 짜 둔다**(병수님 2026-08-12 "어중간하게 꺾인다") — 한 줄로 흘리면
+     남는 폭에 따라 「경험치 +0」의 **「+0」만** 다음 줄로 떨어졌다. 첫 줄은 「어디서
+     끝났나」, 둘째 줄은 셈. 셈의 낱개는 저마다 한 칸(span)이라 줄이 모자라면 **낱개와
+     낱개 사이에서만** 꺾인다. 가르는 「·」는 뺐다 — 꺾이는 자리에 홀로 남으면 그게 또
+     어중간해서, 대신 칸 사이를 벌려 갈랐다. 자는 tools/run_end.mjs ⑧. */
+  const u = (label, val, cls) =>
+    `<span data-u>${label ? label + " " : ""}<b${cls ? ` class="${cls}"` : ""}>${val}</b></span>`;
   $("endSub").innerHTML =
-    `${r.floor}층에서 쓰러짐 · 잡은 수 <b>${r.killed}</b> · 금 <b>+${r.gold.toLocaleString()}</b>`
-    + ` · 경험치 <b>+${r.xp}</b>${r.leveled ? ` · <b class="t2">레벨 업!</b>` : ""}`;
+    `<div class="eWhere" data-u>${r.floor}층에서 쓰러짐</div><div class="eTally">`
+    + u("잡은 수", r.killed) + u("금", "+" + r.gold.toLocaleString()) + u("경험치", "+" + r.xp)
+    + (r.leveled ? u("", "레벨 업!", "t2") : "") + `</div>`;
   const cell = (it) => {
     const fate = it.made ? ["made", "합침"] : it.mat ? ["mat", "재료"]
                : it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
@@ -1377,6 +1385,9 @@ window.__openWin = (which) => {
      채** 마을 화면을 찍어 「이상 없음」을 냈다. 여는 길은 전부 여기 모여 있어야
      밖에서 검수할 수 있다. */
   if (which === "tree")  { closeAll(); drawTree();  win("winTree", true); }
+  /* 정산도 같은 자리에 — 자가 LASTRUN 을 손수 채워 넣고 **그 값 그대로** 다시 그리게
+     한다(줄바꿈은 값 길이에 달렸으므로 판을 한 번 죽여 나온 한 벌로는 못 잰다). */
+  if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
 };
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
