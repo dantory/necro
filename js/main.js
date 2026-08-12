@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap } from "./core.js";
-import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
+import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -1031,7 +1031,9 @@ function hud() {
   fitNum($("mpNum"), S.mp, mpMaxOf());
   /* 시체·군세는 **로그에서 뺐다.** 흘러가는 글줄에 섞어 두면 늘 봐야 하는 값이
      지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
-  $("gCorpse").textContent = `시체 ${S.corpses}`;
+  /* ★ **상한을 같이 적는다.** 그냥 「시체 1277」이면 그게 많은 건지 모자란 건지 알 수가
+     없다 — 자원은 **천장이 보여야** 아까워진다(140/140 이면 지금 버리고 있다는 뜻). */
+  $("gCorpse").textContent = `시체 ${S.corpses}/${CORPSE_MAX}`;
   /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
   $("gArmy").textContent   = `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : "");
   const need = xpNeed(META.lv);
@@ -1065,6 +1067,12 @@ function auto() {
   if (S.mobs.length && armyN() >= armyCap()) cast("amp");
   if (S.corpses >= 2 && armyN() < armyCap()) cast("ghoul");
   if (S.corpses >= 1 && armyN() < armyCap()) cast("raise");
+  /* ★ **넘치기 직전의 시체는 터뜨린다.** 상한을 두는 것만으로는 「버려진다」가 될 뿐이라
+     자원이 되지 않는다 — 남는 몫을 화력으로 바꾸는 자리를 낸다(저주를 마나에 낸 것과 같은
+     이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도
+     남을 때만 터진다. 문턱을 상한의 3/4 로 둬서 **아직 모자란 구간은 사람의 몫으로** 남긴다
+     — 아껴 뒀다 쓰는 판단은 그 아래에서만 뜻이 있다. */
+  if (S.mobs.length && S.corpses >= CORPSE_MAX * 0.75) cast("nova");
 }
 
 /* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".
