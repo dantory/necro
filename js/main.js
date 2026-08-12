@@ -999,7 +999,20 @@ function setLeft(html) {
   el.innerHTML = html;
 }
 
+/* 열려 있는 능력치 창을 **따라 살게 한다** — 예전엔 여는 순간의 값으로 굳어서, 구슬은
+   242 인데 창은 172 를 붙들고 있었다(PC 에서는 창을 켜 둔 채 보게 되니 더 티가 난다).
+   매 번 다시 그리면 고른 칸이 깜빡이므로 **값이 실제로 바뀐 때만** 다시 그린다. */
+let statSig = "";
+function refreshOpenStat() {
+  if (!$("winStat").classList.contains("on")) { statSig = ""; return; }
+  const sig = [hpMaxOf(), mpMaxOf(), armyCap(), META.gold, META.bag.length, META.lv,
+               GEAR_KEYS.map((k) => scoreOf(equipped(k))).join()].join("|");
+  if (sig === statSig) return;
+  statSig = sig; drawStat();
+}
+
 function hud() {
+  refreshOpenStat();
   /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
@@ -1359,6 +1372,26 @@ function drawEnd() {
   $("endGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/* ══ 창 밖을 누르면 닫힌다 ══ 병수님 2026-08-13: "UI 창 외에 다른 곳 클릭하면 자동으로
+   닫히면 좋겠는데 (물론 변경사항이 있으면 적용할거냐고 물어보고)".
+   ★ **물어볼 것이 없다.** 이 창들은 누르는 순간 이미 적용된다 — 상점의 구매는 그 자리에서
+     금이 나가고(drawShop 위 buy), 트리의 점도 찍는 즉시 saveMeta 한다(core.take).
+     그래서 확인 창을 세우면 「예」밖에 못 누르는 물음이 된다. 미확정 상태를 쥐는 창이
+     생기면 바로 여기 dirty 검사를 끼운다.
+   ★ 다만 **정산은 뺀다** — 한 판의 셈은 다시 못 여는 보고라서, 손가락이 스친 한 번에
+     사라지면 안 된다. 그건 「마을로」로만 닫는다.
+   ★ 잡는 단계는 **capture** 다. 여기서 안 삼키면 같은 한 번의 누름이 마을 건물까지
+     닿아, 창을 닫자마자 다른 창이 열린다. */
+const softWins = () => WINS.filter((w) => w !== "winEnd" && $(w).classList.contains("on"));
+document.addEventListener("click", (e) => {
+  if (!softWins().length) return;
+  const t = e.target;
+  if (t.closest && (t.closest(".frame") || t.closest(".hBtn"))) return;   // 창 안 · 여는 단추는 제 일을
+  closeAll(); e.stopPropagation(); e.preventDefault();
+}, true);
+/* 키보드가 있는 화면에서는 Esc 도 같은 뜻이다(PC 에서 창을 닫으려 구석을 찾아다녔다). */
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && softWins().length) closeAll(); });
+
 /* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
 document.addEventListener("click", (e) => {
   const t = e.target;
@@ -1413,6 +1446,9 @@ document.addEventListener("click", (e) => {
    「거기 있는 곳」으로 읽힌다. */
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
+  /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", tree:"winTree", end:"winEnd" }[which];
+  if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
      더해도, 여는 길이 closeAll 을 안 거치면 소용없다). 여는 길을 하나로 모은다. */

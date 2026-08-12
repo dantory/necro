@@ -467,7 +467,12 @@ export function step(dt) {
      스샷에서 눈으로 잡았다 — 자는 아무 말도 안 했다). 늘어난 만큼은 **채워 준다**
      (레벨을 올렸는데 비율만 같으면 오른 티가 안 난다). 줄면 그냥 깎는다. */
   { const nm = hpMaxOf();
-    if (nm !== S.hpMax) { S.hp = Math.min(nm, S.hp + Math.max(0, nm - S.hpMax)); S.hpMax = nm; } }
+    if (nm > S.hpMax) S.hp += nm - S.hpMax;        // 는 만큼은 채워 준다(오른 티가 나야 한다)
+    S.hpMax = nm;
+    /* **조건 없이** 깎는다 — 「248/240」은 레벨업이 hpMaxOf() 로 몸을 채워 놓고 상한을
+       안 고친 뒤, 장비가 바뀌어 상한이 내려가서 남은 자국이었다. 어느 길로 넘치든
+       여기서 한 번에 걷는다. */
+    S.hp = Math.min(S.hp, nm); }
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   if (S.shake > 0) S.shake -= dt;                  // 관문 보스가 설 때의 짧은 흔들림
   /* 「들어섰다」 연출이 스스로 꺼진다 — 켠 곳(enterFloor)과 끄는 곳을 한 군데로 모아,
@@ -883,7 +888,7 @@ export function step(dt) {
     const xpGain = (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
     META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
-      S.hp = hpMaxOf(); S.mp = mpMaxOf();
+      S.hpMax = hpMaxOf(); S.hp = S.hpMax; S.mp = mpMaxOf();   // 상한도 같이 — 안 그러면 한 틱 동안 넘쳐 보인다
       say(`<b style="color:#ffff64">레벨 ${META.lv}</b> 달성 · 체력·마나 회복`); }
   }
   for (let i = S.minions.length - 1; i >= 0; i--) {
