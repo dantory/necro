@@ -486,9 +486,19 @@ body.in-town #stage{cursor:pointer}
 .tip .tipKind{font-size:12px}
 .tip .tipStat{font-size:15px;line-height:1.45;color:#b7a88c}
 
-/* 레벨 옆의 점 — **찍을 게 생겼다**를 창을 안 열어도 안다 */
+/* ══ 위쪽 띠의 **단추 둘** ══ 능력치(이름)와 스킬 트리(레벨).
+   ★★ 예전엔 그냥 글자였다. 입구가 있어도 **눌러야 하는 줄 알 길이 없으면 없는 것과
+   같다** — 병수님이 「상태창이나 스킬/인벤토리 등은 어떻게 열어」라고 물어서 알았다.
+   벨트 칸과 같은 돌(어두운 바탕 + 금테)에 작은 그림을 하나 붙인다. 글자 크기는
+   그대로라 띠가 안 넓어지고, 좁은 화면에서는 그림만 남기고 글자를 접는다(아래). */
+.hBtn{ font:inherit; color:inherit; cursor:pointer; position:relative;
+       display:inline-flex; align-items:center; gap:3px; vertical-align:middle;
+       padding:1px 6px; border:1px solid #6b5636; border-radius:2px;
+       background:linear-gradient(#231810, #17100b);
+       box-shadow:inset 0 0 0 1px #0a0705, 0 1px 0 #000; }
+.hBtn:hover{ color:#e0c07a; border-color:var(--gold); }
+.hBtn:active{ transform:translateY(1px); }
 .lvBtn{cursor:pointer;position:relative}
-.lvBtn:hover{color:#e0c07a}
 #spDot{display:none}
 #spDot.on{display:inline-block;margin-left:4px;padding:0 4px;font-style:normal;
   background:#8a2b1e;color:#ffd9a0;box-shadow:inset 0 0 0 1px #c8aa6e}

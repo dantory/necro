@@ -956,7 +956,10 @@ function hud() {
   const left = S.mobs.length;
   $("hLeft").textContent = left ? `남은 적 ${left}` : "다음 층 준비 중";
   }
-  $("hLv").firstChild.nodeValue = "Lv." + META.lv;
+  /* ★ 예전엔 `$("hLv").firstChild.nodeValue` 였다. 단추로 바꾸면서 앞에 그림을 넣자
+     firstChild 가 글자가 아니라 <i> 가 되어 **레벨이 Lv.1 에서 굳었다**(조용히).
+     자리를 이름으로 잡는다 — 안쪽 차림이 바뀌어도 안 깨진다. */
+  $("hLvT").textContent = "Lv." + META.lv;
   markSp();
   $("hGold").textContent = (META.gold | 0).toLocaleString();
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
