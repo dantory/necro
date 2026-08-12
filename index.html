@@ -29,7 +29,6 @@
          안 보이는 장식은 없는 것만 못하다.
          (인벤토리는 따로 없다. 능력치 창 안에 낀 것 3칸 + 가방 12칸으로 들어 있다.) -->
     <span class="who"><button id="hName" class="hBtn" title="능력치 — 지금 이 몸의 수치">능력치</button>
-      <button id="hBag" class="hBtn" title="가방 — 낀 것과 주운 것">가방</button>
       <button id="hLv" class="hBtn lvBtn" title="스킬 트리">스킬 <span id="hLvT">Lv.1</span><i id="spDot"></i></button>
       · 금 <span id="hGold">0</span></span>
   </div>
@@ -63,6 +62,10 @@
     <div class="orb hp"><canvas id="hpOrb" width="64" height="64"></canvas><div class="num" id="hpNum"><b>100</b><i>/100</i></div></div>
 
     <div class="mid">
+      <!-- ★ **금이 여기로 내려왔다**(2026-08-13). 위 띠에 창 단추가 셋이 되자(능력치·가방·
+           스킬) 360px 에서 왼쪽 「가장 깊이 37층」이 말줄임에 먹혔다 — 그 줄은 여유가
+           원래 0 이다. 금은 「자원」이라 시체·군세와 한 줄에 있는 편이 뜻에도 맞다.
+           레벨은 뺐다 — 위 띠 「스킬 Lv.12」와 XP 띠에 이미 있어 세 번째다. -->
       <div class="res"><span id="gCorpse">시체 0</span><span class="xpTxt" id="xpNum">Lv.1</span><span id="gArmy">군세 0/6</span></div>
       <div class="xp" id="xpWrap"><div class="xpFill" id="xpFill"></div><canvas class="fr"></canvas></div>
       <div id="belt"></div>
@@ -81,6 +84,7 @@
     <div class="wSub">「지금 이 몸이 무엇을 할 수 있는가.」</div>
     <div class="wScroll" id="statBody"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="statGold">0</b></span>
+      <button class="btn ghost" data-go="bag">가방 ▸</button>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 
@@ -91,6 +95,7 @@
     <div class="wScroll" id="bagBody"></div>
     <div class="tip" id="bagTip"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="bagGold">0</b></span>
+      <button class="btn ghost" data-go="stat">◂ 능력치</button>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 

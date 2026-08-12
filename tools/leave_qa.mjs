@@ -39,6 +39,25 @@ const town = await ev(`JSON.stringify({ 있나:!!document.getElementById("hLeave
 say(town.있나, `단추가 문서에 있다`);
 say(town.어디 === "town" && !town.보이나, `마을에선 숨는다 (at=${town.어디}, 보임=${town.보이나})`);
 
+/* ★ **마을에서도 잘리는지 본다.** 여태 던전만 봤다 — 던전 왼쪽은 「적 9」로 짧고
+   마을은 「가장 깊이 12층」이라 훨씬 길다. 자가 짧은 쪽만 지나서, 가방 단추를 늘렸을 때
+   마을이 「깊이…」로 잘린 것을 눈으로 먼저 봤다([[probe-must-walk-the-real-path]]). */
+{
+  await S("Runtime.evaluate", { expression: `window.META.deepest = 37; window.META.lv = 12; window.saveMeta(); window.__townHits && 0;` });
+  await wait(400);
+  const t = await ev(`(()=>{const out=[];
+    /* ★ **담는 상자가 아니라 글자 칸을 본다.** .res 를 통째로 재었더니 늘 22px 넘쳤는데,
+       범인은 글자가 아니라 좌우로 -22px 뻗은 **배경 장식**(.mid .res::before)이었다 —
+       절대 배치된 장식도 scrollWidth 를 늘린다. 잘림은 **글자가 든 칸**에서만 뜻이 있다. */
+    const cells = ["#hLeft","#hFloor"].map(q=>document.querySelector(q))
+      .concat([...document.querySelectorAll(".who > *, .res > *")]);
+    for (const e of cells) { if(!e || !e.textContent.trim()) continue;
+      if (getComputedStyle(e).display === "none") continue;
+      if (e.scrollWidth - e.clientWidth > 1) out.push((e.id||e.className||e.tagName)+" ⟨"+e.textContent.trim()+"⟩"); }
+    return JSON.stringify(out);})()`);
+  say(t.length === 0, `마을에서 말줄임으로 먹힌 글자 없음 ${t.length ? "→ " + t.join(", ") : ""}`);
+}
+
 /* ② 던전으로 들어가 한동안 굴린다 — 전리품과 금이 쌓여야 「잃은 것」을 잴 수 있다. */
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(600);
@@ -57,8 +76,14 @@ say(top.넘침 <= 1, `360px 에서 위 띠가 안 잘린다 (넘침 ${top.넘침
    넘침이 0 이다 — 실제로 마을 「가장 깊이…」가 그렇게 층수를 먹은 채 통과했다.
    그래서 낱칸마다 scrollWidth 로 **말줄임이 실제로 먹었는지**를 따로 본다. */
 const ell = await ev(`(()=>{const out=[];
-  for (const sel of ["#hLeft","#hFloor",".who"]) { const e=document.querySelector(sel); if(!e) continue;
-    if (e.scrollWidth - e.clientWidth > 1) out.push(sel+" ⟨"+e.textContent.trim()+"⟩"); }
+    /* ★ **담는 상자가 아니라 글자 칸을 본다.** .res 를 통째로 재었더니 늘 22px 넘쳤는데,
+       범인은 글자가 아니라 좌우로 -22px 뻗은 **배경 장식**(.mid .res::before)이었다 —
+       절대 배치된 장식도 scrollWidth 를 늘린다. 잘림은 **글자가 든 칸**에서만 뜻이 있다. */
+    const cells = ["#hLeft","#hFloor"].map(q=>document.querySelector(q))
+      .concat([...document.querySelectorAll(".who > *, .res > *")]);
+    for (const e of cells) { if(!e || !e.textContent.trim()) continue;
+      if (getComputedStyle(e).display === "none") continue;
+      if (e.scrollWidth - e.clientWidth > 1) out.push((e.id||e.className||e.tagName)+" ⟨"+e.textContent.trim()+"⟩"); }
   return JSON.stringify(out);})()`);
 say(ell.length === 0, `말줄임으로 먹힌 글자 없음 ${ell.length ? "→ " + ell.join(", ") : ""}`);
 

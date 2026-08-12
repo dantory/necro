@@ -1041,6 +1041,12 @@ function refreshOpenStat() {
 
 function hud() {
   refreshOpenStat();
+  /* ★ **마을에서도 상한을 지킨다.** 넘친 것을 걷는 자리는 battle.step 안인데 마을에서는
+     판이 안 돈다 — 그래서 장비를 갈아 끼워 최대치가 내려가면 「1.2k/398」이 그대로
+     떠 있었다(2026-08-13 스샷). 그리기 직전에 한 번 더 맞춘다. */
+  { const hm = hpMaxOf(), mm = mpMaxOf();
+    S.hpMax = hm; if (S.hp > hm) S.hp = hm;
+    S.mpMax = mm; if (S.mp > mm) S.mp = mm; }
   /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
@@ -1098,7 +1104,7 @@ function hud() {
      (마릿수 N/M 이 아니라 상한 하나 — 마을에는 서 있는 하수인이 없다). */
   if (MODE.at === "town") {
     $("gCorpse").textContent = `가방 ${META.bag.length}/${BAG_MAX}`;
-    $("gArmy").textContent   = `군세 최대 ${armyCap()}`;
+    $("gArmy").textContent   = `군세 ${armyCap()}`;   // 「최대」는 뺀다 — 좁은 줄에서 수를 밀어낸다(실측 22px)
   } else {
   $("gCorpse").textContent = `시체 ${S.corpses}/${CORPSE_MAX}`;
   /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
@@ -1442,6 +1448,10 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && softWins
 document.addEventListener("click", (e) => {
   const t = e.target;
   if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
+  /* ★ 능력치 ↔ 가방은 **형제 창**이라 서로에게서 바로 건너간다. 위 띠에 단추를 하나 더
+     늘려 봤더니 360px 에서 왼쪽 「가장 깊이 37층」이 말줄임에 먹혔다 — 그 줄은 여유가
+     원래 0 이다(오늘 나가기 때도 같은 자리에서 밀렸다). 자리를 짜내는 대신 길을 잇는다. */
+  if (t.hasAttribute && t.hasAttribute("data-go")) { window.__openWin(t.getAttribute("data-go")); return; }
   const pick = t.closest && t.closest("[data-pick]");
   if (pick) { shopPick = pick.getAttribute("data-pick"); drawShop(); return; }
   const fpick = t.closest && t.closest("[data-fpick]");
@@ -1652,7 +1662,6 @@ $("hLv").addEventListener("click", () => {
    전리품도 그대로다) 확인 창은 성가심만 는다. 죽음과 같은 길을 지나 정산이 뜬다. */
 $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat(); });
 $("hName").addEventListener("click", () => window.__openWin("stat"));
-$("hBag").addEventListener("click",  () => window.__openWin("bag"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
