@@ -134,10 +134,22 @@
 .mid{padding-bottom:16px}
 
 /* 시체·군세 — 늘 봐야 하는 값이라 흘러가는 로그가 아니라 여기 고정한다 */
-.mid .res{display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
+.mid .res{position:relative;display:flex;justify-content:space-between;font-size:18px;color:#9c9075;
   letter-spacing:0;
   /* 바탕이 없으니 글자는 **제 그림자로** 바닥에서 떨어져야 읽힌다 */
   text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000}
+/* ★ 그런데 이 줄은 판 **위쪽 밖**에 떠 있어 전장이 그대로 비친다 — 해골 무더기나
+   관이 지나가면 「Lv.17」이 통째로 묻힌다. 그림자로는 못 막았다(로그에서 이미
+   같은 벽을 만났다: 무늬가 글자와 같은 굵기다).
+   그래서 **로그와 같은 방법**을 그대로 옮긴다 — 상자는 두지 않고 바탕만 깐다.
+   좌우로 사라지는 돌빛 + 위아래로 사라지는 자락(mask). 네 변 어디에도 선이
+   안 생겨야 「판이 하나 더 생긴」 것으로 안 읽힌다.
+   좌우로 22px 씩 넘겨 깔되 그 폭에서 알파를 0 → 최대로 올린다 — 맨 끝 글자
+   (「시」·「7/7」)가 시작되는 자리에서 바탕이 이미 다 깔려 있게. */
+.mid .res::before{content:"";position:absolute;inset:-5px -22px -4px;z-index:-1;pointer-events:none;
+  background:linear-gradient(90deg,#0d090600 0%,#0d0906e0 10%,#0d0906e0 90%,#0d090600 100%);
+  -webkit-mask:linear-gradient(#0000 0,#000 18%,#000 78%,#0000 100%);
+  mask:linear-gradient(#0000 0,#000 18%,#000 78%,#0000 100%)}
 .mid .res .xpTxt{color:#8a7c60}
 
 /* 경험치 — D2R 처럼 **칸이 나뉜** 띠. 그 칸 나눔이 이 게임 판의 표시다.
