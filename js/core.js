@@ -494,7 +494,7 @@ export const gearVal = (k) => GEAR[k].val[gearTier(k)];
    ★ 이것은 **죽지 않게** 만드는 것이 아니다. 다섯 대는 여전히 몇 초다 —
      군대가 무너지고 여럿이 본체에 닿으면 그대로 죽는다. 바뀌는 것은 「스치면 끝」이
      「버티는 동안 군대를 다시 세울 수 있다」가 되는 것뿐이다. */
-export const SURVIVE_HITS = 3;
+export const SURVIVE_HITS = 5;
 /** 키운 것으로 쌓는 체력 — 얕은 층에서는 이쪽이 크다. */
 const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
                    + gearVal("robe") + afSum("hp");
