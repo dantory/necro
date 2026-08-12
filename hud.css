@@ -588,6 +588,11 @@ body.in-town #stage{cursor:pointer}
             color:#a8cdf2; letter-spacing:-1px;
             text-shadow:0 0 4px #2a5f96, 0 1px 0 #000; }
 .log .afl{ font-style:normal; font-size:10px; color:#8fb6e0; opacity:.9; }
+/* 무덤 파기 칸 — 그림 대신 글리프 하나(에셋을 새로 굽지 않는다). 상인 좌판의 .cell 규격 그대로. */
+.cell .digIco{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+               font-size:24px; color:#c8aa6e; text-shadow:0 1px 2px #000; }
+.cell.dig{ background:linear-gradient(#1a0f0a, #120a07); }
+.tipDig{ margin-top:12px; padding-top:9px; border-top:1px solid #2a1c12; color:#9d907a; font-size:12px; }
 
 
 /* ══════════════════════════════════════════════════════════════

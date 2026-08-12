@@ -268,6 +268,13 @@ export function rollDrop(f) {
   return mkItem(k, Math.min(cap, tier));
 }
 
+/** ══ 「무덤 파기」의 값 ══ 금 수입(goldFor)이 층에 **1.12** 로 붙으므로(위 goldFor)
+ *  **같은 1.12** 를 써서 깊이에 매단다 — 고정값을 두면 벌이가 그것을 지나쳐 버리고
+ *  금이 다시 쌓인다(ROADMAP 「금이 쌓이기만 한다」). 바닥 60 은 1층 goldFor(6)의 열 배라
+ *  1층에서 한 번 파는 데 벌이 열 층치가 든다. deepest 를 쓰므로 파는 물건(rollDrop)과
+ *  값이 **같은 깊이**에 함께 매달려 영영 안 잠긴다. */
+export const digCost = () => Math.round(60 * Math.pow(1.12, Math.max(1, META.deepest) - 1));
+
 /* ══ 붙는 것(옵션) ══ 병수님: "디아블로처럼 아이템의 등급과 능력치가 랜덤하게 붙는"
    등급만 있으면 얻을 수 있는 것이 **슬롯 3 × 4단계 = 열두 번**뿐이라 30분이면 천장에
    닿고 그 뒤로 떨어지는 건 전부 금이었다(20분 재 보니 주운 22개 중 15개가 이미 금).
@@ -438,6 +445,19 @@ export function takeDrop(d) {
   }
   const gold = melted.reduce((s, m) => s + m.gold, 0);
   return { worn, gold, bagged: META.bag.includes(it), melted, fused: lastFused, ref: it };
+}
+
+/** 「무덤 파기」 — 금을 내고 rollDrop(deepest) 으로 하나 뽑아 **기존 takeDrop 에 그대로
+ *  태운다**(갈아 끼움·가방·합성·녹음 네 갈래가 저절로 처리된다 — 새 길을 만들지 않는다).
+ *  금이 모자라면 `null`(금도 안 빠지고 아무 일도 안 난다). takeDrop 의 결과
+ *  (worn·bagged·melted·fused·ref)를 **그대로 돌려준다** — 부르는 쪽이 네 갈래를 가려 말하게. */
+export function digDraw() {
+  const cost = digCost();
+  if (META.gold < cost) return null;
+  META.gold -= cost;
+  const r = takeDrop(rollDrop(META.deepest));
+  saveMeta();
+  return r;
 }
 
 /** 가방의 i번을 끼고 벗은 것을 가방에 넣는다. ③ 상태창이 쓸 손잡이 하나 —

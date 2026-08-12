@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap } from "./core.js";
 import { ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1069,6 +1069,34 @@ const closeAll = () => { win("winShop", false); win("winForge", false); win("win
 const TIER_CLS = ["t0", "t1", "t2", "t3", "t4"];
 
 let shopPick = "wand";                       // 좌판에서 고른 것
+let lastDig = null;                           // 직전에 무덤을 판 결과(takeDrop 반환) — 툴팁 한 줄로 남긴다
+
+/** 무덤 파기 결과 한 줄. **금만 빠지고 아무 일도 안 난 것처럼 읽히지 않게** 네 갈래를
+ *  가려 적는다 — 갈아 끼움 · 가방으로 · 합쳐짐 · 그 자리서 녹음. battle.js 의 주움 로그와
+ *  같은 판정(pickedFused)이고, 이름 색은 TIER_CLS 로 등급을 그대로 보인다. */
+const digFateHtml = (r) => {
+  if (!r) return "";
+  const t = r.ref.tier, nm = nameOf(r.ref);
+  const fused = r.fused.find((f) => f.mats.includes(r.ref));
+  let line;
+  if (r.worn)       line = `<b class="${TIER_CLS[t]}">${nm}</b> 갈아 끼움`;
+  else if (r.bagged) line = `<b class="${TIER_CLS[t]}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})`;
+  else if (fused)   line = `셋이 하나로 — <b class="${TIER_CLS[fused.tier]}">${fused.n}</b>`;
+  else              line = `<b class="${TIER_CLS[t]}">${nm}</b> → 금 ${r.melted[0].gold}`;
+  return `<div class="tipDig">방금 · ${line}</div>`;
+};
+
+function drawDigTip() {
+  const cap = dropTierCap(META.deepest), cost = digCost(), can = META.gold >= cost;
+  $("shopTip").innerHTML =
+    `<div class="tipName t4">무덤 파기</div>
+     <div class="tipKind">금을 전리품으로 · 가방 ${META.bag.length}/${BAG_MAX}</div>
+     <div class="tipStat">지금 깊이 <b>${META.deepest}층</b> — 최고 <b class="${TIER_CLS[cap]}">${cap}등급</b>까지</div>
+     <div class="tipNote sm">깊이를 따라 값이 오른다 — 벌이와 같은 결로 매달아 두었다</div>
+     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+       <button class="btn" data-dig ${can ? "" : "disabled"}>파기</button></div>` +
+    digFateHtml(lastDig);
+}
 
 function drawShop() {
   /* ① 좌판 — 파는 물건이 칸에 놓여 있다 */
@@ -1079,9 +1107,20 @@ function drawShop() {
     return `<div class="cell${k === shopPick ? " sel" : ""}" data-pick="${k}">
       <i class="gear-${k}"></i><span class="q ${TIER_CLS[t]}">${t}</span>
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
-  }).join("") + '<div class="cell empty"></div>'.repeat(5);
+  }).join("") +
+    /* 파는 것 옆에 **금을 쓰는 자리** 하나 — 무덤을 파 전리품을 뽑는다(반복 구매).
+       칸의 등급 배지는 지금 깊이에서 나올 수 있는 최고 등급(dropTierCap). */
+    `<div class="cell dig${shopPick === "dig" ? " sel" : ""}" data-pick="dig">
+      <span class="digIco">⚰</span>
+      <span class="q ${TIER_CLS[dropTierCap(META.deepest)]}">${dropTierCap(META.deepest)}</span>
+    </div>` +
+    '<div class="cell empty"></div>'.repeat(4);
+  $("shopGold").textContent = (META.gold | 0).toLocaleString();
 
-  /* ② 툴팁 — 고른 것의 이름과 능력치. **이름 색이 등급**이다 */
+  /* ② 무덤 파기는 장비와 **다른 툴팁** — 값이 깊이를 따르고, 직전에 뽑은 결과를 남긴다 */
+  if (shopPick === "dig") { drawDigTip(); return; }
+
+  /* ③ 장비 툴팁 — 고른 것의 이름과 능력치. **이름 색이 등급**이다 */
   const k = shopPick, g = GEAR[k];
   const it = equipped(k), t = gearTier(k), nx = gearNext(k), max = g.tiers.length - 1;
   const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
@@ -1102,7 +1141,6 @@ function drawShop() {
            <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`) +
     `<div class="tipPips">${Array.from({ length: max }, (_, i) =>
         `<i class="pip${i < t ? " on" : ""}"></i>`).join("")}</div>`;
-  $("shopGold").textContent = (META.gold | 0).toLocaleString();
 }
 
 let forgePick = "hp";
@@ -1256,6 +1294,12 @@ document.addEventListener("click", (e) => {
     equipFromBag(+bwear);
     statSel = it ? { src: "eq", k: it.k } : null;  // 방금 낀 그 슬롯을 골라 둔다(툴팁이 바뀐다)
     saveMeta(); drawStat(); hud();
+    return;
+  }
+  if (t.hasAttribute && t.hasAttribute("data-dig")) {
+    const r = digDraw();                           // 금이 모자라면 null — 아무 일도 안 난다
+    if (r) lastDig = r;                            // 뽑았으면 결과를 기억해 툴팁에 남긴다
+    drawShop(); hud();                             // 연타가 되게 — 창·고른 칸은 그대로다
     return;
   }
   const buy = t.getAttribute && t.getAttribute("data-buy");
