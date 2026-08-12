@@ -1069,9 +1069,19 @@ function hud() {
      지나간 사건에 밀려 사라진다. 판의 게이지 칸으로 옮겼다(벨트 아래 빈자리). */
   /* ★ **상한을 같이 적는다.** 그냥 「시체 1277」이면 그게 많은 건지 모자란 건지 알 수가
      없다 — 자원은 **천장이 보여야** 아까워진다(140/140 이면 지금 버리고 있다는 뜻). */
+  /* ★ **마을에서는 마을의 말만 한다**(병수님 2026-08-13). 「시체 3/140」은 판의 자원인데
+     갓 켠 마을에도 떠 있었다(newRun 이 먼저 돌아 3 을 넣어 둔 그 값이다) — 마을에서는
+     쓸 데가 없으니 **뜻 없는 수**다. 같은 자리에 마을에서 쓰는 값을 넣는다:
+     가방은 상점·무덤·대장간이 채우는 칸이고, 군세는 **다음 판에 데려갈 상한**이다
+     (마릿수 N/M 이 아니라 상한 하나 — 마을에는 서 있는 하수인이 없다). */
+  if (MODE.at === "town") {
+    $("gCorpse").textContent = `가방 ${META.bag.length}/${BAG_MAX}`;
+    $("gArmy").textContent   = `군세 최대 ${armyCap()}`;
+  } else {
   $("gCorpse").textContent = `시체 ${S.corpses}/${CORPSE_MAX}`;
   /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
   $("gArmy").textContent   = `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : "");
+  }
   const need = xpNeed(META.lv);
   $("xpFill").style.width = Math.min(100, (META.xp / need) * 100) + "%";
   /* ★ 경험치 **분수**는 따로 감싼다 — 폰에서는 이 한 줄이 「시체·레벨·군세」를
@@ -1483,7 +1493,14 @@ export function toTown(why) {
   useFloor("town");      // 마을은 흙길
   document.body.classList.add("in-town");
   saveMeta();
-  if (why) { S.log.unshift(why); sayReset(); }   // 끼어든 줄 뒤로는 접힘을 다시 센다
+  /* ★ **판의 기록은 판에 두고 온다.** 예전엔 why 를 앞에 얹기만 해서 그 뒤로 「8층 진입」
+     「해골 전사 소환 ×6」이 마을 하늘에 그대로 떠 있었다 — 마을이 무슨 장면인지 흐려진다.
+     여기서 비우고 **마을의 줄만** 세운다: 돌아온 사연(why) 한 줄과, 다음에 할 일 한 줄.
+     newRun() 도 log 를 비우므로 반대 방향(마을→던전)은 이미 새 판의 줄로 시작한다. */
+  S.log.length = 0;
+  if (why) S.log.push(why);
+  S.log.push("마을 · 채비가 끝나면 입구로");
+  sayReset();   // 장면이 바뀌었으니 접힘(×N)을 다시 센다
 }
 export function toDungeon() {
   closeAll();
