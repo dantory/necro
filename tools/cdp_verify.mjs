@@ -1,6 +1,12 @@
 // necro UI 검수기 — CDP 9333 에 전용 탭을 새로 열어 세로 414x860@2x 로 재고 스크린샷을 남긴다.
 //   node tools/cdp_verify.mjs <out.png> <mode>   mode: ui | inv | foot
 const [,, OUT, MODE = "ui"] = process.argv;
+if (!OUT || !/\.png$/i.test(OUT)) {
+  // 예전에 `cdp_verify.mjs ui` 로 불러 리포 뿌리에 `ui` 라는 PNG 가 생긴 적이 있다.
+  console.error("사용법: node tools/cdp_verify.mjs <out.png> <mode>   mode: ui | inv | foot");
+  console.error("  첫 인자는 .png 로 끝나야 한다 (받은 값: " + JSON.stringify(OUT ?? null) + ")");
+  process.exit(2);
+}
 const CDP = "http://127.0.0.1:9333";
 const URL = "http://127.0.0.1:8774/index.html";
 const fs = await import("node:fs");
