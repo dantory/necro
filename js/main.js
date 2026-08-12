@@ -445,7 +445,15 @@ function draw(dt) {
                        "torch", "torch", "torch", "torch",
                        "torch", "torch", "torch", "torch", "firepit", "firepit",
                        "tent_a", "tent_a", "tent_b", "tent_b",
-                       "wagon", "tree", "shed", "banner"] });
+                       "wagon", "tree", "shed", "banner"],
+                 /* ★ **야영지 바깥** — 앵커에서 420 을 넘어가면 여기 것을 뿌린다.
+                    살림(통·상자·천막)은 안 나온다: 야영지에서 멀리 떨어진 들판에
+                    솥이 놓여 있으면 마을이 어디까지인지가 흐려진다. 자연만 둔다 —
+                    덤불·바위·그루터기·통나무, 그리고 죽은 나무 하나(멀리 선 나무는
+                    **깊이를 만든다**). 칸마다 세 번 굴려 화면 끝까지 깔리게 한다. */
+                 wild: { dens: 24, rolls: 3,
+                         set: ["shrub", "shrub", "shrub", "rock", "rock", "rock",
+                               "stump", "stump", "boulder", "boulder", "logs", "tree"] } });
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */

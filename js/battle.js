@@ -1,4 +1,4 @@
-import { armyCap, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -701,8 +701,8 @@ export function step(dt) {
        31~38%에서 걷고 있었다(22/70 · 15/40). 치려면 일단 서야 한다. */
     const rooted = (u.swing || 0) > 0;
     u.tgtId = tgt ? tgt.id : 0;      // 검수기가 **게임이 고른 표적**을 볼 수 있게(값이 싸다)
-    if (!tgt) { if (!rooted) toward(u, hx, hy, K.spd, dt); continue; }
-    if (dist(u, tgt) > u.r + tgt.r + 4) { if (!rooted) toward(u, tgt.x, tgt.y, K.spd, dt); continue; }
+    if (!tgt) { if (!rooted) toward(u, hx, hy, K.spd * MINION_SPD, dt); continue; }
+    if (dist(u, tgt) > u.r + tgt.r + 4) { if (!rooted) toward(u, tgt.x, tgt.y, K.spd * MINION_SPD, dt); continue; }
     /* ★ **붙어서 차례를 기다리는 동안에도 표적을 본다.** 서 있는 그림의 방향은
        `dx,dy`(마지막으로 **걸은** 방향)로 정해지므로, 제자리에 선 뒤 옆에서 적이
        붙으면 걸어온 쪽을 그대로 보고 선다 — 재 보니 붙어 있는 프레임의 **21%**가
