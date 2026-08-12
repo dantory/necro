@@ -1031,11 +1031,12 @@ function setLeft(html) {
    매 번 다시 그리면 고른 칸이 깜빡이므로 **값이 실제로 바뀐 때만** 다시 그린다. */
 let statSig = "";
 function refreshOpenStat() {
-  if (!$("winStat").classList.contains("on")) { statSig = ""; return; }
+  const open = $("winStat").classList.contains("on"), openBag = $("winBag").classList.contains("on");
+  if (!open && !openBag) { statSig = ""; return; }
   const sig = [hpMaxOf(), mpMaxOf(), armyCap(), META.gold, META.bag.length, META.lv,
                GEAR_KEYS.map((k) => scoreOf(equipped(k))).join()].join("|");
   if (sig === statSig) return;
-  statSig = sig; drawStat();
+  statSig = sig; if (open) drawStat(); if (openBag) drawBag();
 }
 
 function hud() {
@@ -1149,7 +1150,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winEnd"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1337,7 +1338,15 @@ const statTipHtml = () => {
       : "");
 };
 
+/** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
+ *  합쳐져있는데 추후을 위해 분리필요"). 앞으로 환생 배수·일지가 붙을 자리가 여기다. */
 function drawStat() {
+  $("statBody").innerHTML = statNumbers();
+  $("statGold").textContent = (META.gold | 0).toLocaleString();
+}
+
+/** 가방 — 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. */
+function drawBag() {
   /* 낀 것 셋 — 슬롯마다 하나. 빈 슬롯은 .cell.empty(어느 슬롯인지 그림만 흐리게 남긴다). */
   const eqCells = GEAR_KEYS.map((k) => {
     const it = equipped(k);
@@ -1352,15 +1361,15 @@ function drawStat() {
     return gearCell(it, `data-bpick="${i}"`, statSel && statSel.src === "bag" && statSel.i === i);
   }).join("");
 
-  $("statBody").innerHTML =
+  $("bagBody").innerHTML =
     `<div class="sCols">
       <div class="sSec eq"><h3>낀 것</h3><div class="grid">${eqCells}</div></div>
       <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
         <div class="grid">${bagCells}</div></div>
-    </div>` + statNumbers();
-  $("statTip").innerHTML = statTipHtml();
-  $("statGold").textContent = (META.gold | 0).toLocaleString();
+    </div>`;
+  $("bagTip").innerHTML = statTipHtml();
+  $("bagGold").textContent = (META.gold | 0).toLocaleString();
 }
 
 /* ══ 정산 ══ 판이 끝나면 「이번 판에 얻은 것」을 상점 좌판과 **같은 칸**(.cell·.grid)으로
@@ -1439,15 +1448,15 @@ document.addEventListener("click", (e) => {
   if (fpick) { forgePick = fpick.getAttribute("data-fpick"); drawForge(); return; }
   /* 상태창의 고르기·끼기도 **같은 핸들러의 갈래**로 — 새 리스너를 남발하지 않는다. */
   const spick = t.closest && t.closest("[data-spick]");
-  if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawStat(); return; }
+  if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawBag(); return; }
   const bpick = t.closest && t.closest("[data-bpick]");
-  if (bpick) { statSel = { src: "bag", i: +bpick.getAttribute("data-bpick") }; drawStat(); return; }
+  if (bpick) { statSel = { src: "bag", i: +bpick.getAttribute("data-bpick") }; drawBag(); return; }
   const bwear = t.getAttribute && t.getAttribute("data-bagwear");
   if (bwear) {
     const it = META.bag[+bwear];                   // 낀 뒤 가방 index 는 밀리므로 지금 붙잡는다
     equipFromBag(+bwear);
     statSel = it ? { src: "eq", k: it.k } : null;  // 방금 낀 그 슬롯을 골라 둔다(툴팁이 바뀐다)
-    saveMeta(); drawStat(); hud();
+    saveMeta(); drawBag(); hud();
     return;
   }
   if (t.hasAttribute && t.hasAttribute("data-dig")) {
@@ -1484,7 +1493,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", tree:"winTree", end:"winEnd" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -1492,6 +1501,7 @@ window.__openWin = (which) => {
   if (which === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (which === "forge") { closeAll(); drawForge(); win("winForge", true); }
   if (which === "stat")  { closeAll(); drawStat();  win("winStat", true); }
+  if (which === "bag")   { closeAll(); drawBag();   win("winBag",  true); }
   /* ★ 트리가 여기 없었다 — 검수기가 `__openWin("tree")` 를 부르고 **아무 일도 안 난
      채** 마을 화면을 찍어 「이상 없음」을 냈다. 여는 길은 전부 여기 모여 있어야
      밖에서 검수할 수 있다. */
@@ -1641,10 +1651,8 @@ $("hLv").addEventListener("click", () => {
    묻지 않고 바로 나간다 — **잃는 것이 없으므로**(금·경험치는 이미 들어가 있고
    전리품도 그대로다) 확인 창은 성가심만 는다. 죽음과 같은 길을 지나 정산이 뜬다. */
 $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat(); });
-$("hName").addEventListener("click", () => {
-  const on = !$("winStat").classList.contains("on");
-  closeAll(); if (on) { drawStat(); win("winStat", true); }
-});
+$("hName").addEventListener("click", () => window.__openWin("stat"));
+$("hBag").addEventListener("click",  () => window.__openWin("bag"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다

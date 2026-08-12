@@ -28,7 +28,8 @@
          작은 그림도 붙여 봤는데 13px 어두운 판 위에서 안 보여 뺐다 —
          안 보이는 장식은 없는 것만 못하다.
          (인벤토리는 따로 없다. 능력치 창 안에 낀 것 3칸 + 가방 12칸으로 들어 있다.) -->
-    <span class="who"><button id="hName" class="hBtn" title="능력치 · 장비 · 가방">능력치</button>
+    <span class="who"><button id="hName" class="hBtn" title="능력치 — 지금 이 몸의 수치">능력치</button>
+      <button id="hBag" class="hBtn" title="가방 — 낀 것과 주운 것">가방</button>
       <button id="hLv" class="hBtn lvBtn" title="스킬 트리">스킬 <span id="hLvT">Lv.1</span><i id="spDot"></i></button>
       · 금 <span id="hGold">0</span></span>
   </div>
@@ -71,12 +72,25 @@
   </div>
 
   <!-- 능력치 창 — 상인·대장간과 **같은 돌**(wSub·tip·winFoot). 낀 것·가방·합친 수치. -->
+  <!-- ══ 능력치 ══ **수치만.** 예전엔 낀 것·가방·수치가 한 장에 다 있었다 —
+       병수님 2026-08-13: "능력치랑 인벤토리가 합쳐져있는데 추후을 위해 분리필요".
+       앞으로 환생 배수·일지 같은 것이 붙을 자리가 여기다.
+       ★ 발(나가기)은 **붙박이**고 가운데(.wScroll)만 구른다 — 트리와 같은 결. -->
   <div class="win" id="winStat"><div class="frame">
     <h2>능 력 치</h2>
-    <div class="wSub">「낀 것과 주운 것. 고르면 뜯어본다.」</div>
-    <div id="statBody"></div>
-    <div class="tip" id="statTip"></div>
+    <div class="wSub">「지금 이 몸이 무엇을 할 수 있는가.」</div>
+    <div class="wScroll" id="statBody"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="statGold">0</b></span>
+      <button class="btn" data-close>나가기</button></div>
+  </div></div>
+
+  <!-- ══ 가방 ══ 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. -->
+  <div class="win" id="winBag"><div class="frame">
+    <h2>가 방</h2>
+    <div class="wSub">「낀 것과 주운 것. 고르면 뜯어본다.」</div>
+    <div class="wScroll" id="bagBody"></div>
+    <div class="tip" id="bagTip"></div>
+    <div class="winFoot"><span class="purse">가진 금 <b id="bagGold">0</b></span>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 
