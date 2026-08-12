@@ -467,8 +467,11 @@ function draw(dt) {
      달라 보이면 안 된다. 마을 시계(townT)와 따로 두어 던전에서만 흐른다. */
   battleT += (dt || 0.016);
   drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 });
-  // 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다
-  drawHoldRing(ctx, cx, cy, RING_HOLD * 1.2 * sc, SQUASH);
+  /* 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다.
+     ★ **진과 함께 밀려 나간다**(battle.js 「진이 적 쪽으로 기운다」). 그림만 본인 자리에
+       두었더니 군대가 제 고리 밖에 서 있어, 밀고 나가는 것이 「대열이 흐트러진 것」으로
+       보였다. 둘레가 앞으로 나가면 「저기까지가 내 편이 지키는 데」로 읽힌다. */
+  drawHoldRing(ctx, cx + S.push.x * sc, cy + S.push.y * sc * SQUASH, RING_HOLD * 1.2 * sc, SQUASH);
 
   /* ══ 체력바 ══ **몸에 붙여 놓는다.**
      ★★ 병수님: "전투화면 처음부터 다시 재검토". 화면을 3배로 늘려 보고서야 알았다 —

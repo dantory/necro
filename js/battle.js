@@ -61,6 +61,8 @@ const SEP_CAP = 130;
 /** 소환수가 **제 자리에서 적을 알아보는 거리.** 진(RING_HOLD)에 비례해야 진을
  *  넓혀도 둘레 커버가 그대로다 — 숫자를 박아 두면 넓힐 때마다 사이가 뚫린다. */
 const WATCH = RING_HOLD * 1.24;
+/** 진이 적 쪽으로 기우는 최대 거리 — 이보다 멀리 나가면 본인 둘레가 통째로 빈다. */
+export const PUSH_MAX = RING_HOLD * 0.62;
 
 /* ══ 죽는 순간 · 일어서는 순간 ══
    병수님: "전투화면 처음부터 다시 재검토". 화면을 늘려 보니 **죽는 게 안 보였다** —
@@ -138,6 +140,7 @@ export function enterFloor(f) {
   { const nm = hpMaxOf(), om = S.hpMax || nm;
     S.hp = Math.max(1, Math.round(S.hp * nm / om)); S.hpMax = nm; }
   S.mobs = [];
+  S.push.x = 0; S.push.y = 0;                 // 새 층은 본인 곁에서 시작한다
   const n = floorN(f);
 
   /* ★ 예전엔 여기서 `for` 한 줄로 **전부 한꺼번에** 세웠다. 그래서 층이 바뀌는
@@ -704,6 +707,30 @@ export function step(dt) {
     if (b.life <= 0 || Math.hypot(b.x, b.y) > RING_SPAWN + 80) S.bolts.splice(i, 1);
   }
 
+  /* ══ 진이 적 쪽으로 기운다 ══ 병수님이 두 번 말한 「소환수가 제자리에서 크게 이동
+     안 한다」의 뿌리가 여기였다. 진은 **원점(본인)에 못 박힌 고리**라, 적이 걸어 들어와야
+     싸움이 났다 — 걸음 속도를 올려도 갈 데가 없으니 크게 움직일 일이 없었다.
+     이제 적 무리가 있는 쪽으로 **진 전체를 밀어 준다.** 군대가 마중 나가 밀어붙이고,
+     판이 비면 저절로 본인 곁으로 돌아온다. 홱 돌면 군대가 미끄러지듯 보이므로 천천히. */
+  {
+    let n = 0, sx = 0, sy = 0, ux = 0, uy = 0;
+    for (const m of S.mobs) { sx += m.x; sy += m.y; n++;
+      const l = Math.hypot(m.x, m.y) || 1; ux += m.x / l; uy += m.y / l; }
+    let tx = 0, ty = 0;
+    if (n) {
+      const ax = sx / n, ay = sy / n, L = Math.hypot(ax, ay);
+      /* ★ **한쪽에 몰렸을 때만 민다.** 처음엔 무게중심만 보고 밀었더니 12분에 두 번
+         죽었다(예전엔 20분에 0번) — 적이 사방에 있어도 무게중심은 한쪽을 가리키므로
+         군대가 그리로 나가고 **반대편이 통째로 비었다.**
+         낱낱의 방향을 단위벡터로 더해 그 길이를 머릿수로 나누면 「얼마나 한쪽이냐」가
+         0~1 로 나온다(전부 한 방향이면 1, 에워쌌으면 0). 그 값을 그대로 곱한다. */
+      const one = Math.hypot(ux, uy) / n;
+      /* 무리가 이미 코앞이면 안 민다 — 밀면 등 뒤로 흘려보내게 된다. */
+      if (L > RING_HOLD * 0.7) {
+        const k = Math.min(PUSH_MAX, L - RING_HOLD * 0.7) * one / L; tx = ax * k; ty = ay * k; } }
+    const e = Math.min(1, dt * 1.5);
+    S.push.x += (tx - S.push.x) * e; S.push.y += (ty - S.push.y) * e;
+  }
   /* ── 소환수 ── **제 자리를 지키되 가까이 온 적은 마중 나간다.**
      사방 판에서 전원이 한 적에게 몰려가면 그 순간 나머지 방향이 통째로 비어 본체가 맞는다.
      그래서 "내 구역"(제 각도)에서 제일 가까운 적만 본다. */
@@ -711,7 +738,7 @@ export function step(dt) {
     /* 지배한 놈은 **제 표를 들고 다닌다**(u.own) — 원래 적이라 MINIONS 에 없다.
        한 곳에서만 갈라 두면 나머지 셈은 소환수와 완전히 같다. */
     const K = u.own || MINIONS[u.kind];
-    const hx = Math.cos(u.home) * u.rad, hy = Math.sin(u.home) * u.rad;
+    const hx = S.push.x + Math.cos(u.home) * u.rad, hy = S.push.y + Math.sin(u.home) * u.rad;
     let tgt = null, td = 1e9;
     for (const m of S.mobs) {
       const d = Math.hypot(m.x - hx, (m.y - hy) * SQUASH_VIEW);   // ← 화면에서 잰다

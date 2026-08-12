@@ -216,9 +216,18 @@
       안 읽힌다. 위는 글자 첫 줄이 걸리니 여백만큼만 부드럽게 뺀다.
    ③ 왼쪽 금테 띠 하나 — 창·벨트와 같은 금색이라 「같은 물건」으로 묶인다.
    바탕은 ::before 로 깐다. #log 에 직접 mask 를 걸면 **글자까지** 흐려진다. */
-#log{position:fixed;left:10px;right:10px;bottom:calc(var(--hudH) + 5px);height:72px;
-  z-index:15;overflow:hidden;padding:8px 34px 2px 12px;border:none;background:none;
-  font-size:18px;line-height:1.4;color:#8c8271;text-shadow:0 2px 3px #000}
+/* ★ **줄 수로 키를 잡는다.** 병수님 2026-08-13: "전투화면에서 메시지 하단부분도
+   짤리는데". 예전엔 키가 72px 고정인데 한 줄이 25.2px(18px × 1.4)이라 **2.46줄** —
+   셋째 줄이 늘 반만 그려졌다. 아래쪽 페이드가 있어도 글자가 허리에서 잘리면
+   「사라지는 중」이 아니라 「깨진 것」으로 읽힌다.
+   키 = 줄수 × 줄높이 + 위아래 여백으로 두면 **반 줄이 나올 수가 없다**.
+   한 덩이가 두 줄로 접히는 경우까지 막으려고 각 줄은 접지 않고 한 줄로 흘린다. */
+#log{position:fixed;left:10px;right:10px;bottom:calc(var(--hudH) + 5px);
+  --rows:3; --lh:1.4;
+  height:calc(var(--rows) * var(--lh) * 1em + 12px);
+  z-index:15;overflow:hidden;padding:8px 34px 4px 12px;border:none;background:none;
+  font-size:18px;line-height:var(--lh);color:#8c8271;text-shadow:0 2px 3px #000}
+#log > *{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #log::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
   background:linear-gradient(90deg,#100b07e6 0%,#100b07bb 42%,#100b0766 72%,#100b0700 100%);
   -webkit-mask:linear-gradient(#0006 0,#000 8px,#000 62%,#0000 100%);
@@ -585,7 +594,8 @@ body.in-town #hLeave{ display:none; }
   #belt{gap:4px}
   /* 폰에서는 두 줄만 든다 — 여백 8 + 두 줄(25×2) 만큼만 두어 바탕이 헛돌지 않게.
      셋째 줄은 **아예 지운다** — 자락에 걸쳐 글자 위끝만 4px 남으면 얼룩으로 보인다. */
-  #log{left:5px;right:5px;height:58px;padding:8px 22px 0 10px}
+  /* 폰은 두 줄 — 세 줄이면 판을 너무 먹는다. 키는 여기서도 줄 수로 잡는다. */
+  #log{left:5px;right:5px;--rows:2;padding:8px 22px 4px 10px}
   #log > div:nth-child(n+3){display:none}
 
   /* 위 줄도 **한 줄로.** 접히면 「마 을 / 가장 깊이」처럼 낱말이 갈라져
@@ -769,5 +779,5 @@ body.in-town #hLeave{ display:none; }
   .res{ font-size:16px }
   .orb .num b{ font-size:31px }
   .orb .num i{ font-size:20px }
-  #log{ height:84px; font-size:16px; left:16px; right:16px }
+  #log{ font-size:17px; left:16px; right:16px }   /* 줄 수(3)는 그대로, 글자만 키운다 */
 }
