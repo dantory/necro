@@ -1124,7 +1124,28 @@ function hud() {
  *  사람이 하는 건 "언제 시체를 아껴 폭발로 쓸까" 같은 판단이지 잔손질이 아니다. */
 function auto() {
   if (S.dead) return;
-  if (!S.minions.some(m => m.kind === "golem")) cast("golem");
+  /* ── 군세는 **셋의 결로** 나눠 세운다(core.js: 해골 수 · 구울 몸 · 골렘 벽) ──
+     예전엔 「골렘 한 마리 세워 두고, 시체 2 이상이면 무조건 구울」이라 상한이 통째로
+     구울로 찼다(30분 머릿수 구울 79%·해골 13%·골렘 5마리뿐, tmp/ap_baseline.json).
+     그건 결이 아니라 사고다 — 셋이 다른 일을 하는데 하나만 뽑혔다. 이제 **상한을
+     셋이 나눠 갖는다**: 벽 몇 · 몸 얼마 · 나머지는 전부 수. */
+  const cap = armyCap(), mine = S.minions.filter(m => !m.own);
+  const nGolem = mine.filter(m => m.kind === "golem").length;
+  const nGhoul = mine.filter(m => m.kind === "ghoul").length;
+  /* 벽은 **둘레를 덮을 만큼만**(각 골렘이 도발로 제 구역을 붙잡는다). 상한 4마다 한 벽,
+     최소 1·최대 3 — 사방을 셋이면 대개 덮인다. 벽은 잘 안 죽어(30분 죽음 0~1회) 한 번
+     세우면 남으므로 적게 잡아도 유지된다. 마나 30 이 비싸 못 세우면 아래에서 몸·수로 샌다. */
+  const wantGolem = Math.max(1, Math.min(3, Math.floor(cap / 4)));
+  /* 몸은 상한의 ~35%(자힐로 버티는 중핵). 나머지는 전부 수(해골)라 **최다가 해골**이
+     되어 어느 종도 70%를 안 넘는다 — 이게 끝 조건이다. 값은 A/B 로 고른다(주석 위 커밋). */
+  const wantGhoul = Math.floor(cap * 0.35);
+  if (armyN() < cap) {
+    /* 벽 → 몸 → 수 차례로 채우되, 못 세우면(마나·재사용·시체) **다음 결로 샌다** —
+       cast 는 못 쓰면 side-effect 없이 false 라(battle.js) 이 한 줄 사슬이 안전하다. */
+    if (!(nGolem < wantGolem && cast("golem")) &&
+        !(nGhoul < wantGhoul && S.corpses >= 2 && cast("ghoul")))
+      cast("raise");
+  }
   /* **저주도 자동이다.** 벽은 관문이었고(죽기 직전 5초 피해의 100%가 「층의 주인」)
      셈이 답을 말한다 — 군대가 보스를 잡는 데 35초가 걸리는데 군대는 19초면 지워진다.
      머릿수(재소환 두 배)도 마중(BOSS_CALL)도 그 셈을 못 바꿨다. 바꾸는 건 **화력**이고,
@@ -1139,8 +1160,6 @@ function auto() {
        그대로 45(15/15/15) · 저주를 소환 뒤로 48(17/16/15) · **군세가 상한일 때만 51(15/18/18)**.
        군대를 먼저 채우고 남는 마나로 저주한다. 씨앗 3 만 15 에 머무니 그쪽은 다른 벽이다. */
   if (S.mobs.length && armyN() >= armyCap()) cast("amp");
-  if (S.corpses >= 2 && armyN() < armyCap()) cast("ghoul");
-  if (S.corpses >= 1 && armyN() < armyCap()) cast("raise");
   /* ★ **넘치기 직전의 시체는 터뜨린다.** 상한을 두는 것만으로는 「버려진다」가 될 뿐이라
      자원이 되지 않는다 — 남는 몫을 화력으로 바꾸는 자리를 낸다(저주를 마나에 낸 것과 같은
      이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도
