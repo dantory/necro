@@ -3,7 +3,7 @@ import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScal
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor } from "./core.js";
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -315,6 +315,13 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
      그 층에 서 있는 몸은 무엇이든 **그 층의 격**은 된다 — 거기를 바닥으로 둔다.
      관문 주인은 제 체력이 더 크므로 여전히 특별하다. */
   pw = Math.max(pw | 0, floorHp(S.floor));
+  /* ══ 환생 배수(유해)를 시체 획득에 건다 ══ 결정적이라야 A/B 가 성립한다 — 확률로
+     한 구를 더 얹으면 Math.random 을 먹어 같은 씨앗이 다른 판이 된다. 그래서 남는 몫을
+     corpseCarry 에 이어 붙여 반올림이 한쪽으로 쏠리지 않게 한다. 유해가 0 이면 mul=1 ·
+     raw=n(정수) 이라 n 그대로고 carry 는 0 에 머문다 — 환생 전엔 한 톨도 안 다르다. */
+  const raw = n * relicMul() + corpseCarry;
+  n = Math.floor(raw);
+  corpseCarry = raw - n;
   for (let i = 0; i < n; i++) {
     /* ★ 셈은 상한에서 멈추지만 **그림은 계속 눕힌다** — 죽었는데 아무것도 안 남으면
        판이 거짓말을 한다. 넘치는 몫은 「들고 갈 수 없는 것」이지 「안 죽은 것」이 아니다. */
@@ -929,8 +936,8 @@ export function step(dt) {
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
     if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small", 1, m.hpMax);
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
-    META.gold += Math.round(goldFor(S.floor) * goldMulOf()) * (m.boss ? 8 : 1);
-    const xpGain = (m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6));
+    META.gold += Math.round(goldFor(S.floor) * goldMulOf() * relicMul()) * (m.boss ? 8 : 1);
+    const xpGain = Math.round((m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6)) * relicMul());
     META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hpMax = hpMaxOf(); S.hp = S.hpMax; S.mp = mpMaxOf();   // 상한도 같이 — 안 그러면 한 틱 동안 넘쳐 보인다
@@ -994,6 +1001,8 @@ function endRun(dead) {
 /* 정산이 「이번 판에 번 것」을 재려면 판 시작값이 있어야 한다 — S 는 newRun 이 지우므로
    판을 넘겨 사는 여기(모듈)에 둔다. runXp 는 kill 에서 더한 경험치의 누계다. */
 let runGold0 = 0, runLv0 = 1, runXp = 0, runFloor0 = 1;
+/** 환생 배수가 시체에 실리며 남는 소수 몫(addCorpse). 판마다 0 에서 시작한다. */
+let corpseCarry = 0;
 
 export function newRun() {
   /* ★ 1층이 아니라 **지나온 관문**에서 다시 선다(core.js 「표식」). 죽을 때마다
@@ -1009,5 +1018,6 @@ export function newRun() {
   });
   sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0; runFloor0 = f0;
+  corpseCarry = 0;
   enterFloor(f0);
 }

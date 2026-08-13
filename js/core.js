@@ -183,6 +183,11 @@ export const META_KEY = "necro.meta.v1";
 export const META = load();
 function load() {
   const base = { gold: 0, lv: 1, xp: 0, deepest: 1, runs: 0,
+                 /* ══ 환생(전승) ══ **회차를 넘어 사는 값.** 초기화되는 것(층·레벨·금·
+                    가방·트리)과 갈라 여기 셋만 남긴다: 유해(누적 배수)·회차 수·최고 기록.
+                    전부 primitive 라 아래 Object.assign(base, raw) 가 저절로 올려 준다 —
+                    옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
+                 relics: 0, rebirths: 0, best: 1,
                  up: { hp:0, mp:0, dmg:0, army:0 },
                  /* 낀 것 셋. **등급 숫자가 아니라 개체다** — {k, tier, af:[{id,v}]}.
                     옵션이 랜덤이면 같은 4등급이라도 물건마다 달라야 하므로, 슬롯에
@@ -219,6 +224,61 @@ function load() {
 }
 export function saveMeta() {
   try { localStorage.setItem(META_KEY, JSON.stringify(META)); } catch { /* 시크릿 창 */ }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 환생(전승) ══ 깊이 N층을 넘기면 **처음부터 다시**, 대신 영구 배수를 얻는다.
+   ──────────────────────────────────────────────────────────────
+   지금은 한 번 판 굴이 끝이라 **최고층이 곧 천장**이고, 20분에 48층을 찍고 나면 할
+   일이 없다. D2 로 치면 난이도를 갈아 끼우는 자리 — 되풀이할 이유를 만든다.
+
+   지켜야 하는 것 둘:
+   ① **결정적으로(난수 없이) 짠다.** 검수기가 씨앗으로 A/B 를 하므로 게임 루프에
+      Math.random 을 새로 넣으면 같은 씨앗이 다른 판이 된다. 유해·배수 계산에는 난수가
+      한 톨도 없다. 그리고 유해가 0 이면 배수는 **정확히 1.0** 이라, 환생 전 게임은
+      손대기 전과 한 톨도 안 다르다(A/B 가 그대로 성립한다).
+   ② 배수는 **곱해지는 자리 한 곳씩**(금·경험치·시체)에만 건다 — 여기저기 흩뿌리면
+      나중에 못 고친다(battle.js 의 세 자리).
+   ══════════════════════════════════════════════════════════ */
+export const REBIRTH_MIN = 25;                 // 이 최고층 이상이면 마을에서 환생이 열린다
+/** 이번 회차 최고층으로 얻는 **유해.** REBIRTH_MIN 에서 1 로 시작해 한 층마다 하나씩 —
+ *  더 깊이 갔으면 더 크게 앞선 채로 다시 시작한다. 결정적이다(난수 없음). */
+export const relicGain = (deepest) => Math.max(0, (deepest | 0) - REBIRTH_MIN + 1);
+/** 유해 하나가 주는 배수(+N%). tools/rebirth_qa.mjs 로 재서 잡았다(씨앗 1·7·13 · 30분).
+ *  ★ **깊이 비율은 값으로 못 민다 — 벽이 구조다.** 0.08 과 0.16(두 배)을 대 봤는데 30분
+ *    최고층이 거의 안 움직였다(씨1 70→72 · 씨7 72→71). 깊은 층은 층당 시간이 ~30초로
+ *    평평해(depthMul 이 이미 눕혔다) 깊이가 시간에 **거의 직선**이라, 금·경험치·시체
+ *    배수는 **거의 일정한 층-앞섬**(≈+8~15층)만 준다 — 값을 키우면 금·레벨만 부풀고
+ *    (0.16 은 30분 금 75M·Lv89) 깊이는 그대로다. 그래서 **작은 값**을 골랐다:
+ *    유해가 던전 초반(층 1~15, 클리어 시간에 묶임)에는 앞서지 않아 「처음부터 다시」의
+ *    맛을 지키고, 중반부터 앞선다(회차2가 회차1의 30분 깊이에 **7~11분 일찍** 닿는다). */
+export const RELIC_MUL = 0.08;
+/** 금·경험치·시체 획득에 곱하는 **영구 배수.** 유해가 없으면 정확히 1.0. */
+export const relicMul = () => 1 + (META.relics | 0) * RELIC_MUL;
+/** 환생 버튼이 열렸는가 — 이번 회차 최고층이 임계를 넘었나. 자동으로 강제하지 않는다. */
+export const canRebirth = () => (META.deepest | 0) >= REBIRTH_MIN;
+/** 마을 확인 창이 실행 **전에** 읽는 미리보기 — 「지금 환생하면 유해 +N (총 M) · ×K」. */
+export const rebirthPreview = () => {
+  const gain = relicGain(META.deepest);
+  const relics = (META.relics | 0) + gain;
+  return { gain, relics, rebirths: (META.rebirths | 0) + 1, mul: 1 + relics * RELIC_MUL };
+};
+/** **되돌릴 수 없다.** 유해·회차·최고 기록만 남기고 나머지는 처음으로 되돌린다.
+ *  판(S)은 다음 newRun 이 지우므로 여기서는 META 만 되돌린다. */
+export function rebirth() {
+  if (!canRebirth()) return null;
+  const gain = relicGain(META.deepest);
+  META.relics   = (META.relics | 0) + gain;
+  META.rebirths = (META.rebirths | 0) + 1;
+  META.best     = Math.max(META.best | 0, META.deepest | 0);
+  META.gold = 0; META.lv = 1; META.xp = 0; META.deepest = 1;
+  META.up    = { hp: 0, mp: 0, dmg: 0, army: 0 };
+  META.equip = { wand: null, robe: null, charm: null };
+  META.bag   = [];
+  META.tree  = {};
+  syncSkills();                                // 트리가 비었으니 벨트도 해골 하나로 되돌아간다
+  saveMeta();
+  return { gain, relics: META.relics, rebirths: META.rebirths };
 }
 
 /* ══ 이번 판의 스냅샷 ══ ④ 정산 화면이 읽는다. **S 가 아니라 여기에 굳힌다** —

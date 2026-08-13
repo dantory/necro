@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1156,7 +1156,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1164,6 +1164,10 @@ const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen(); };
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
 const closeAll = () => { for (const w of WINS) win(w, false); };
+/* 환생 단추는 **마을에서, 임계 층을 넘겼을 때만** 뜬다(나가기가 던전에서만 뜨는 것과 짝).
+   자동으로 강제하지 않으므로 단추가 곧 「열렸다」의 유일한 신호다. */
+const syncReborn = () =>
+  $("hReborn").classList.toggle("on", MODE.at === "town" && canRebirth());
 
 /** 상인 — **장비 등급을 산다.** 한 번 사면 다음 등급이 열린다(반복 구매가 아니다).
  *  그래서 상점에 갈 이유가 「다음 것이 열렸다」로 분명해진다. */
@@ -1307,6 +1311,9 @@ const gearCell = (it, attr, sel) => {
  *  화면에서 다시 계산하지 않는다(같은 식이 두 곳이면 갈라진다). */
 const statNumbers = () => {
   const rows = [
+    /* ★ 유해(환생 배수)는 **환생을 한 번이라도 했을 때만** 뜬다 — 갓 시작한 사람에게는
+       뜻 없는 줄이다. 금·경험치·시체에 곱해지는 영구 배수이자 「되풀이한 자국」이다. */
+    ...((META.relics | 0) ? [["유해", `${META.relics}구 · ${mul(relicMul())}`]] : []),
     /* 구슬과 **같은 자**로 적는다 — 구슬은 2.3k 인데 여기만 2280 이면 같은 값이 달라 보인다. */
     ["체력",      num(hpMaxOf())],
     ["마나",      num(mpMaxOf())],
@@ -1424,6 +1431,22 @@ function drawEnd() {
   $("endGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/* ══ 환생 확인 창 ══ **되돌릴 수 없으므로 먼저 보여 주고 확인을 받는다.** 자동으로
+   강제하지 않는다 — 사람이 「환생」을 눌러야 실행된다. 상인·정산과 같은 돌(winFoot·tip). */
+function drawReborn() {
+  const p = rebirthPreview();
+  const from = mul(relicMul()), to = mul(p.mul);
+  $("rebornBody").innerHTML =
+    `<div class="tip">
+       <div class="tipStat">이번 회차 최고 <b>${META.deepest}층</b></div>
+       <div class="tipStat">유해 <b class="t3">+${p.gain}</b> <span class="dim">(총 ${p.relics})</span></div>
+       <div class="tipStat">금·경험치·시체 획득 <b class="t3">${from} → ${to}</b></div>
+       <div class="tipStat">회차 <b>${(META.rebirths | 0) + 1}회째</b></div>
+     </div>
+     <div class="rebornWarn">층·레벨·금·가방·트리·장비가 <b>처음으로</b> 되돌아간다.
+       유해와 최고 기록만 남는다 — <b>되돌릴 수 없다.</b></div>`;
+}
+
 /* ══ 창 밖을 누르면 닫힌다 ══ 병수님 2026-08-13: "UI 창 외에 다른 곳 클릭하면 자동으로
    닫히면 좋겠는데 (물론 변경사항이 있으면 적용할거냐고 물어보고)".
    ★ **물어볼 것이 없다.** 이 창들은 누르는 순간 이미 적용된다 — 상점의 구매는 그 자리에서
@@ -1448,6 +1471,11 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && softWins
 document.addEventListener("click", (e) => {
   const t = e.target;
   if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
+  /* ══ 환생 실행 ══ 확인 창의 「환생」 하나만이 여기로 온다 — 되돌릴 수 없다. */
+  if (t.hasAttribute && t.hasAttribute("data-reborn")) {
+    if (rebirth()) { closeAll(); syncReborn(); belt(); hud(); markSp(); }
+    return;
+  }
   /* ★ 능력치 ↔ 가방은 **형제 창**이라 서로에게서 바로 건너간다. 위 띠에 단추를 하나 더
      늘려 봤더니 360px 에서 왼쪽 「가장 깊이 37층」이 말줄임에 먹혔다 — 그 줄은 여유가
      원래 0 이다(오늘 나가기 때도 같은 자리에서 밀렸다). 자리를 짜내는 대신 길을 잇는다. */
@@ -1503,7 +1531,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -1519,6 +1547,7 @@ window.__openWin = (which) => {
   /* 정산도 같은 자리에 — 자가 LASTRUN 을 손수 채워 넣고 **그 값 그대로** 다시 그리게
      한다(줄바꿈은 값 길이에 달렸으므로 판을 한 번 죽여 나온 한 벌로는 못 잰다). */
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
+  if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
 };
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
@@ -1542,6 +1571,7 @@ export function toTown(why) {
   if (why) S.log.push(why);
   S.log.push("마을 · 채비가 끝나면 입구로");
   sayReset();   // 장면이 바뀌었으니 접힘(×N)을 다시 센다
+  syncReborn();
 }
 export function toDungeon() {
   closeAll();
@@ -1549,12 +1579,14 @@ export function toDungeon() {
   useFloor("crypt");   // 던전은 돌바닥
   document.body.classList.remove("in-town");
   newRun();
+  syncReborn();
 }
 /* 검수용 — 자(headless)가 던전 화면을 보려면 입구를 눌러야 하는데, 그 자리는 판을
    다시 그릴 때마다 움직인다. 좌표를 맞히려다 흰 마을 사진만 찍는 일이 있어 길을 뚫어 둔다
    (window.__S · window.__geo 와 같은 부류). */
 window.__toDungeon = toDungeon;
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
+window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
 
@@ -1661,6 +1693,9 @@ $("hLv").addEventListener("click", () => {
    묻지 않고 바로 나간다 — **잃는 것이 없으므로**(금·경험치는 이미 들어가 있고
    전리품도 그대로다) 확인 창은 성가심만 는다. 죽음과 같은 길을 지나 정산이 뜬다. */
 $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat(); });
+/* ══ 환생 ══ 마을에서 임계 층을 넘겼을 때만 뜨는 단추 — 누르면 **확인 창**을 연다
+   (되돌릴 수 없으므로 바로 실행하지 않는다). */
+$("hReborn").addEventListener("click", () => { if (canRebirth()) window.__openWin("reborn"); });
 $("hName").addEventListener("click", () => window.__openWin("stat"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
