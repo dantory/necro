@@ -22,7 +22,11 @@ await S("Runtime.evaluate",{expression:`window.__toDungeon(); window.__openWin("
 await wait(900);
 const r = await ev(`(async()=>{
   const urls=new Map();
-  const push=(el,who)=>{ const bg=getComputedStyle(el).backgroundImage||"";
+  /* ★ 트리 칸은 <img src>, 벨트 칸은 background-image 다. background 만 보던 동안
+       트리 15칸이 **한 칸도 안 세어졌다** — 「센 칸 6개」가 그 증거였는데 통과가 났다. */
+  const push=(el,who)=>{ if(el.tagName==="IMG"){ const s=el.currentSrc||el.getAttribute("src");
+      if(s) urls.set(new URL(s, location.href).href, who); return; }
+    const bg=getComputedStyle(el).backgroundImage||"";
     const m=bg.match(/url\\("?([^")]+)"?\\)/); if(m) urls.set(m[1], who); };
   for (const el of document.querySelectorAll("#belt .slot i")) push(el, "벨트 "+(el.closest("[data-sk]")||{}).dataset?.sk);
   for (const el of document.querySelectorAll(".tIco")) push(el, "트리 "+(el.closest(".tNode")?.textContent||"").trim().slice(0,10));

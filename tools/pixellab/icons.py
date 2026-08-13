@@ -30,6 +30,18 @@ ICONS = {
   # 디아블로 2 의 저주는 머리 위에 떠오르는 해골 문양이다.
   "amp":   f"{TONE}, a skull sigil wreathed in swirling dark violet curse energy, "
            "downward pointing arrows around it, arcane and menacing, not a cross",
+  # ★ 2단계 ⑥ 의 시체 소비처 셋(burn/wall/offer)은 아이콘 없이 나갔다 — 벨트에서
+  # 빈 칸으로 보였다(2026-08-13 자 icon_qa 가 「빠진 칸 3」). 같은 TONE 으로 채운다.
+  # 셋의 성격이 42px 에서도 갈라져야 한다: 불 / 벽 / 잔.
+  "burn":  f"{TONE}, a skull engulfed in emerald green flames, thin blue mana wisps "
+           "curling upward out of the fire",
+  # ★ 1차는 "barricade" 를 **아이소메트릭 사당 건물**로 그렸다(바닥판까지 딸려 왔다).
+  # create_map_object 는 「구조물」 낱말을 들으면 판 위에 세운다 — 세우지 말고
+  # **화면을 가득 채운 무더기**로 말해야 정면 문양으로 나온다.
+  "wall":  f"{TONE}, a row of three skulls stacked shoulder to shoulder with long rib bones "
+           "crossing over them like a fence, filling the whole frame, flat front view emblem",
+  "offer": f"{TONE}, an ornate chalice made of bone overflowing with blood, "
+           "dark red glow pooling around its base",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

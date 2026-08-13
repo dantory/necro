@@ -15,6 +15,11 @@ import { $, META, TREE, nodeOf, rank, spLeft, spTotal, spUsed, take, takeWhy } f
 
 let pick = "bone";                 // 고른 칸
 
+/* ★ 자(`tools/icon_qa.mjs`)가 **잠긴 칸까지** 보게 노드 id 를 내놓는다. 이게 없던
+   동안 자는 트리를 **0칸으로 세고** 「빠진 칸」을 belt 여섯 개에서만 찾았다 — 잠긴
+   칸이 빈칸이어도 통과가 났다는 뜻이다(2026-08-13). 자는 사람이 지나는 길로 가야 한다. */
+window.__TREE_IDS = Object.fromEntries(TREE.flatMap((c) => c.nodes.map((n) => [n.id, n.max])));
+
 
 /** 판을 다시 그린다. **상태에서 통째로 뽑는다** — 부분 갱신은 어긋날 자리를 만든다. */
 export function drawTree() {
