@@ -1739,6 +1739,13 @@ window.__toDungeon = toDungeon;
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
+/* ★ 검수용 — 저장 자체를 들여다보는 자(tools/save_probe.mjs)가 **거른 뒤의 META** 를 읽는다.
+   ★★ 여태 `META` 는 어디에도 안 걸려 있었는데 leave_qa.mjs 가 `window.META.deepest = 37`
+   을 쓰고 있었다 — **그 줄은 조용히 터졌고**, 자는 「깊이 37」이 아니라 기본값으로 폭을
+   재고 통과를 냈다(자가 사람이 지나는 길을 안 지난 셈 · [[probe-must-walk-the-real-path]]).
+   이름을 `window.META` 로 거는 것으로 그 구멍까지 같이 막는다. */
+window.META = META; window.saveMeta = saveMeta;
+window.__UP_KEYS = Object.keys(UPS);   // 강화 칸 이름 — 자가 손으로 안 적게(GEAR_KEYS 와 같은 뜻)
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
 /* 검수용 — tools/unique_probe.mjs 가 유니크 하나를 강제로 껴 A/B 를 한다. id 를 주면 그 슬롯에
    유니크를 껴 저장하고, 인자가 없으면 유니크를 전부 벗는다(base 팔). */

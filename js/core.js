@@ -261,6 +261,12 @@ function load() {
      안 그러면 새 항목을 더할 때마다 기존 사용자에게 undefined 가 간다. */
   try {
     const raw = JSON.parse(localStorage.getItem(META_KEY) || "{}");
+    /* ★★ `Object.assign(base, raw)` 는 **base 를 제자리에서 고친다** — 아래 m 과 base 는
+       같은 개체다. 그걸 모르고 「나쁜 값이면 base[k] 로 되돌린다」라고 썼더니,
+       되돌릴 곳에 이미 그 나쁜 값이 앉아 있어 **거르는 시늉만 했다**(gold "5000" 이
+       문자열 그대로 통과 · relics -40 이 음수 그대로 통과). 기본값은 섞기 **전에**
+       떠 놓는다 — tools/save_probe.mjs ③④ 가 이걸 잡았다. */
+    const DEF = { ...base };
     const m = Object.assign(base, raw);
     m.up    = Object.assign({}, base.up,    raw.up    || {});
     m.plus  = Object.assign({}, base.plus,  raw.plus  || {});
@@ -278,6 +284,23 @@ function load() {
       }
     }
     delete m.gear;                   // 두 개의 진실을 남기지 않는다 — 거울은 어긋난다
+    /* ★ **숫자 자리는 숫자여야 한다**(ROADMAP 「저장을 믿지 않는 자리를 한 곳 더」).
+       문자열 레벨("12")·음수 유해·NaN 이 하나만 들어와도 그 값은 곱해지고 더해지며
+       판 전체로 번진다 — `lv` 이 문자열이면 `META.lv - 1` 은 숫자지만 `(META.lv-1)*8`
+       뒤에 오는 비교가 어긋나고, `relics` 가 음수면 relicMul 이 **0 이하**가 되어
+       금·경험치·시체가 통째로 사라진다. 여기서 한 번 거르면 뒤는 안 봐도 된다.
+       ★ 목록을 손으로 안 적는다 — `base` 에서 **number 인 자리**를 뽑아 돌린다.
+         새 숫자를 base 에 더하면 저절로 따라온다(두 개의 진실을 안 만든다). */
+    for (const k of Object.keys(DEF)) {
+      if (typeof DEF[k] !== "number") continue;
+      const v = +m[k];
+      m[k] = (typeof m[k] === "number" && isFinite(v) && v >= 0) ? v : DEF[k];
+    }
+    /* 층·레벨·최고 기록은 **1 아래로 못 내려간다** — 0층은 없는 층이라 floorN(0) 같은
+       자리가 빈 판을 만든다. quests 는 object 가 아니면 통째로 버린다. */
+    for (const k of ["lv", "deepest", "best"]) m[k] = Math.max(1, Math.floor(m[k]));
+    for (const k of ["relics", "rebirths", "runs", "corpses"]) m[k] = Math.floor(m[k]);
+    if (!m.quests || typeof m.quests !== "object") m.quests = {};
     return m;
   }
   catch { return base; }
@@ -481,6 +504,16 @@ export const UPS = {
   dmg:  { n:"어둠의 힘", d:"소환수 피해 +8%",  base:22 },
   army: { n:"군세",     d:"소환수 상한 +1",    base:40 },
 };
+/* ★ **강화도 저장을 안 믿는다**(재련·장비와 같은 자리 · 같은 방식). `up` 에 모르는
+ *  칸이 섞이면 `upCost` 의 `UPS[k].base` 가 그 자리서 터지고(마을 상점이 통째로
+ *  멈춘다), 문자열·음수·NaN 이 들어오면 `pow` 가 NaN 을 뱉어 값이 「-」 로 뜬다.
+ *  목록은 UPS 하나 — 칸 이름을 고치면 여기가 따라온다. */
+if (!META.up || typeof META.up !== "object") META.up = {};
+for (const k of Object.keys(META.up)) if (!UPS[k]) delete META.up[k];
+for (const k of Object.keys(UPS)) {
+  const v = +META.up[k];
+  META.up[k] = (isFinite(v) && v > 0) ? Math.floor(v) : 0;
+}
 export const upCost = (k) => Math.round(UPS[k].base * Math.pow(1.55, META.up[k] || 0));
 
 /* ══ 장비 ══ 병수님: "마을에서 아이템 구매 / 강화 등을 진행할 수 있게".
@@ -1015,6 +1048,25 @@ export const TREE = [
 const NODE = {};
 for (const c of TREE) for (const nd of c.nodes) NODE[nd.id] = nd;
 export const nodeOf = (id) => NODE[id];
+
+/** ★ **트리도 저장을 안 믿는다** — 여기가 「저장을 믿지 않는 자리」의 마지막 한 곳
+ *  (장비·재련·강화·숫자에 이어 · ROADMAP 2026-08-13). 트리는 특히 위험하다:
+ *  ① 모르는 노드가 남아 있으면 `spUsed` 가 **없는 노드에 쓴 점수까지 세어**, 찍을
+ *     수 있는 점수가 사라진다(노드 이름을 한 번 고치면 그 뒤 사용자 전부).
+ *  ② 랭크가 max 를 넘으면 `rank("legion")` 같은 값이 그대로 상한·배수에 들어가
+ *     소환수 상한이 튄다 — 저장을 손으로 고친 판이 정상 판으로 보인다.
+ *  ③ 문자열·음수·소수면 `| 0` 이 조용히 0 이나 엉뚱한 값으로 접어 버린다.
+ *  ★ 여기여야 하는 이유: NODE 가 선 **바로 다음**. load() 안에서는 TREE 가 아직
+ *    없어 TDZ 로 죽는다(GEAR 를 거르는 자리와 같은 사정).
+ *  ★ 레벨 관문(nd.lv)으로는 안 지운다 — lv 이 깎여 들어온 저장에서 **정당하게 찍은
+ *    것까지** 날아간다. 여기서 보는 것은 「있는 노드인가 · 단계가 범위 안인가」뿐. */
+if (!META.tree || typeof META.tree !== "object") META.tree = {};
+for (const id of Object.keys(META.tree)) {
+  const nd = NODE[id];
+  const v = +META.tree[id];
+  if (!nd || !isFinite(v) || v < 1) { delete META.tree[id]; continue; }
+  META.tree[id] = Math.min(nd.max, Math.floor(v));
+}
 
 export const rank = (id) => META.tree[id] | 0;
 /** 점수는 **레벨에서 나온다** — 레벨 2부터 한 점씩. */
