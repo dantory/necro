@@ -131,6 +131,38 @@ export const floorN    = (f) => 5 + Math.floor(f * 0.7);
 export const isGate    = (f) => f % 5 === 0;
 export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
 
+/* ══ 관문의 주인 넷 ══ 관문(5·10·15…)은 여태 **체력만 불어난 같은 놈**이었다 — 이름도
+   「층의 주인」 하나, 수법도 없다. 그래서 5·10·15 층이 그림도 싸움도 똑같아 「이 층 주인은
+   이렇게 싸운다」가 없었다(ROADMAP 2단계 ④). 이름 있는 주인 넷을 관문 층 번호로 **돌려
+   세우고**(gateIndex = floor/5 - 1, 넷을 돌려 씀) **수법 하나씩**을 준다:
+     · 장판(pool)   — 발밑에 남아 머무는 장판이 지속 피해
+     · 소환(add)    — 주기적으로 졸개를 부른다
+     · 돌진(charge) — 간격을 두고 네크로 쪽으로 달려들어 큰 한 방
+     · 저주(curse)  — 넓은 원 안의 아군/소환수에 한 번에 피해 + 잠깐 약화
+   ★ **체력·피해 총량은 예전과 비슷하게 유지한다.** 수법을 얹은 만큼 기본 근접(예전 floorDmg×2.1)
+     을 dmgMul 로 낮춰 균형을 맞춘다 — 관문이 벽이 되면 최고층이 깎인다(battle.js 관문 이력·
+     ROADMAP 「관문 체력 ×7 → ×4.5 가 더 나빠졌다」). 체력은 ×7 그대로 둔다.
+   ★ 수법은 **행동**이다(값만 비트는 땜질이 아니라). 그리고 터지기 전 **예고**(fx)가 보인다 —
+     예고 없이 터지면 「불공평」으로 읽힌다(battle.js 가 각 수법에 warn_* fx 를 그린다).
+   cd = 수법 주기(초) · tell = 예고 길이(초) · col = 고유 색(명패·고리·예고에 쓴다). */
+export const GATELORDS = [
+  { mech: "pool",   n: "역병술사",        col: "#7ab04a", dmgMul: 1.5, cd: 2.8, tell: 0.8 },
+  { mech: "add",    n: "뼈 부리는 자",    col: "#b48be0", dmgMul: 1.3, cd: 4.5, tell: 0.7 },
+  { mech: "charge", n: "짓쳐드는 파수꾼", col: "#d0702c", dmgMul: 1.5, cd: 3.8, tell: 0.9 },
+  { mech: "curse",  n: "저주받은 왕",     col: "#8f6ad0", dmgMul: 1.3, cd: 5.0, tell: 1.0 },
+];
+/** 이 관문 층을 지키는 주인. 검수기는 `globalThis.__FORCE_LORD`(0~3)로 한 주인만 세워
+ *  같은 주인을 여러 씨앗으로 재고 죽은 원인 분포를 모은다 — 없으면 층 번호로 돌려 쓴다.
+ *  게임 루프에 난수를 새로 넣지 않는다(A/B 유지). */
+export const gatelordFor = (f) => {
+  const raw = (typeof globalThis !== "undefined" && globalThis.__FORCE_LORD != null)
+    ? (globalThis.__FORCE_LORD | 0)
+    : (Math.floor(f / 5) - 1);
+  const i = ((raw % GATELORDS.length) + GATELORDS.length) % GATELORDS.length;
+  return GATELORDS[i];
+};
+export const gatelordIdx = (lord) => GATELORDS.indexOf(lord);
+
 /* ══ 표식(되짚기) ══ 죽으면 늘 1층부터 다시 내려왔다. 6분을 눈금으로 쪼개 보니
    그 왕복(되짚기)이 **35%**(124초)를 먹었고, 힘의 손잡이 여섯을 대도 벽이 안 밀린
    자리에서 아무도 손대지 않은 조각이 이것 하나였다(2026-08-12 ROADMAP).
@@ -163,6 +195,8 @@ export const S = {
   /** 떠오르는 피해 숫자. **얼마나 아팠는지**가 판에 없으면 강화를 해도 똑같아 보인다. */
   nums: [],
   bolts: [],                  // **본인이 던진 뼈** — 날아가는 중인 것
+  pools: [],                  // 관문 주인(장판)이 발밑에 남긴 장판 — 안에 서면 지속 피해
+  hurtLog: [],                // 네크로가 입은 피해의 원인 꼬리표 {t,cause,dmg} — die() 가 최다 사인을 뽑는다
   natk: 0,                    // 다음 기본공격까지 남은 시간
   hurt: 0, hkx: 0, hky: 0,    // 본인이 맞고 움찔하는 시간·밀리는 방향
   drops: [],                  // 판에 떨어져 아직 안 빨려 들어온 전리품

@@ -3,6 +3,7 @@ import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScal
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
+         GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
@@ -160,7 +161,8 @@ export function enterFloor(f) {
     /* 관문은 **큰 놈이 먼저** 나온다. 졸개 뒤에 붙이면 이미 싸움이 붙은 뒤라
        등장이 묻힌다. */
     S.spawnQ.unshift({ f, i: 0, n: 1, boss: true });
-    say(`<b style="color:#c8aa6e">${f}층 · 관문</b> 층의 주인이 지키는 중`);
+    const lord = gatelordFor(f);
+    say(`<b style="color:${lord.col}">${f}층 · 관문</b> ${lord.n} 이(가) 지키는 중`);
   } else {
     say(`<b>${f}층</b> 진입`);
   }
@@ -182,9 +184,13 @@ function popSpawn() {
      시간을 born0 에 함께 적어 둔다 — 그리는 쪽이 관문 보스(0.8)와 졸개(0.4)를
      같은 식으로 재려면 「얼마 동안」을 알아야 한다(예전엔 0.4 를 박아 뒀다). */
   if (q.boss) {
-    m.boss = true; m.kind = "boss";
+    const lord = gatelordFor(q.f);
+    m.boss = true; m.kind = "boss"; m.lord = lord;
+    /* 수법 상태: mechCd 는 다음 수법까지, mstate/mtell 은 돌진 상태머신(0 대기·1 예고·2 돌진).
+       첫 수법은 등장 직후 존재감을 위해 살짝 빨리 튼다(cd 의 60%). */
+    m.mechCd = lord.cd * 0.6; m.mstate = 0; m.mtell = 0;
     m.hp = m.hpMax = floorHp(q.f) * 7;
-    m.dmg = floorDmg(q.f) * 2.1; m.h = bossH(q.f); m.r = m.h * FOOT_R;
+    m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * FOOT_R;
     /* ★ **큰 몸은 같은 속도로 걸으면 굼떠 보인다.** 병수님 2026-08-13: "특히 보스
        움직임이 부자연스럽고 굼뜬느낌이 강하네". 절대 속도로는 보스도 졸개도 22~32 로
        **똑같아서** 여태 어느 자에도 안 걸렸다 — 사람 눈은 「제 몸 폭의 몇 배/초」로 본다.
@@ -273,6 +279,28 @@ export function popNum(x, y, v, kind) {
   S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9,
                 vx: (Math.random() - 0.5) * 16, seed: Math.random() });
   if (S.nums.length > NUM_MAX) S.nums.shift();
+}
+
+/* ══ 죽은 원인을 적는 곳 ══ 네크로가 죽는 순간(die→endRun)에 **직전 5초 최다 사인**을
+   여기 쌓는다 {floor,gate,cause,lordIdx,lord}. 검수기가 window.__deathLog(main.js)로 읽어
+   주인마다 죽은 원인 분포가 다른지 본다. 판을 넘어 사는 누계라 newRun 이 안 지운다. */
+export const DEATHLOG = [];
+
+/** 네크로가 피해를 입는 **한 자리로 모은다.** 근접·장판(pool)·돌진(charge)·저주(curse)가
+ *  전부 여기로 와서 원인 꼬리표(cause)를 S.hurtLog 에 남긴다 — 예전엔 근접 한 방만 p.core
+ *  자리에서 직접 깎았다. dx,dy 는 밀리는 방향(적→중앙). 체력·움찔·불꽃·숫자·죽음 판정을
+ *  그 자리의 안무 그대로 옮겼다. */
+export function hurtNecro(dmg, cause, dx = 0, dy = 0) {
+  if (dmg <= 0 || S.dead) return;
+  S.hp -= dmg;
+  popNum(0, 0, dmg, "core");
+  S.hurt = 0.18;
+  const l = Math.hypot(dx, dy) || 1;
+  S.hkx = dx / l; S.hky = dy / l;
+  S.hknock = knockOf({ hpMax: hpMaxOf() }, dmg);
+  S.fx.push({ t: 0.12, kind: "hit", x: -(dx / l) * CORE_R * 0.8, y: -(dy / l) * CORE_R * 0.8 });
+  (S.hurtLog || (S.hurtLog = [])).push({ t: S.t, cause: cause || "melee", dmg });
+  if (S.hp <= 0) { S.hp = 0; die(); }
 }
 
 /* ══ 시체는 **판 위에 실물로 남는다** ══
@@ -569,7 +597,7 @@ export function step(dt) {
      (한 바퀴 2.3초). 화면이 「걷는 그림」을 내보이는 동안은 다리도 그만큼 움직여야 한다.
      병수님 2026-08-13 "하수인 걷는모션 없이 떠다님". */
   const walkT = (e) => { if (e.moving > 0) { e.moving -= dt; e.moveT = (e.moveT || 0) + dt; } };
-  for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; }
+  for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; if (e.weak > 0) e.weak -= dt; }
   for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
 
   /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
@@ -588,16 +616,10 @@ export function step(dt) {
        그래서 같은 길로 옮겨 여기서 푼다: 체력·움찔·불꽃·숫자·죽음 판정이 한 프레임에 온다.
        ★ 숫자는 "core" — 곧 게임이 끝난다는 뜻이라 다른 어떤 숫자보다 눈에 띄어야 한다. */
     if (p.core) {
-      S.hp -= p.dmg;
-      popNum(0, 0, p.dmg, "core");
-      S.hurt = 0.18; S.hkx = u.sdx; S.hky = u.sdy;
-      /* ★ 여기서는 **p.dmg 로 읽어야 한다.** 아래 461 줄의 `const { tgt, dmg, heal }` 이
-         같은 블록(for 몸통)에 있어서, 이름 `dmg` 는 이 자리에서 아직 죽어 있다(TDZ) —
-         적이 본인에게 닿는 첫 순간 예외가 나 판이 통째로 멈췄다. */
-      S.hknock = knockOf({ hpMax: hpMaxOf() }, p.dmg);   // 본인도 같은 규칙
-      /* 불꽃은 본인 둘레의 **적이 선 쪽**에 — u.sdx 는 적→가운데 방향이라 반대로 민다 */
-      S.fx.push({ t: 0.12, kind: "hit", x: -u.sdx * CORE_R * 0.8, y: -u.sdy * CORE_R * 0.8 });
-      if (S.hp <= 0) { S.hp = 0; die(); return; }
+      /* 근접·장판·돌진·저주가 모두 hurtNecro 한 자리로 온다(원인 꼬리표를 남긴다).
+         근접 한 방은 cause 가 없으면 "melee", 소환된 졸개(add)는 p.cause="add" 로 온다. */
+      hurtNecro(p.dmg, p.cause || "melee", u.sdx, u.sdy);
+      if (S.dead) return;
       continue;
     }
     const { tgt, dmg, heal } = p;
@@ -767,6 +789,96 @@ export function step(dt) {
     const e = Math.min(1, dt * 1.5);
     S.push.x += (tx - S.push.x) * e; S.push.y += (ty - S.push.y) * e;
   }
+  /* ══ 관문 주인의 수법 ══ 주인 넷은 각자 **행동**으로 싸운다(core.js GATELORDS). 예고
+     (warn_* fx)가 먼저 보이고 tell 초 뒤 발동한다 — 예고 없이 터지면 「불공평」이다.
+     · pool   발밑(중앙)에 장판을 깔아 지속 피해 — 네크로가 못 피하는 자리라 약하게 오래
+     · add    졸개 둘을 불러 둘레 압력을 늘린다(그 졸개의 근접은 cause "add")
+     · charge 예고 뒤 중앙으로 돌진해 큰 한 방 — 길목 소환수도 관통하며 때린다
+     · curse  중앙 넓은 원에 한 번에 피해 + 원 안 소환수 잠깐 약화(weak)
+     ★ 돌진 중(mstate≠0)에는 일반 이동/근접을 건너뛴다 — 아래 「적」 루프가 mstate 를 본다. */
+  const hitMinion = (u, dmg, dx, dy) => {
+    if (dmg <= 0 || !u || u.hp <= 0) return;
+    u.hp -= dmg; popNum(u.x, u.y, dmg, "hurt");
+    u.flinch = 0.18; const l = Math.hypot(dx, dy) || 1; u.kx = dx / l; u.ky = dy / l;
+    u.knock = knockOf(u, dmg);
+    S.fx.push({ t: 0.12, kind: "hit", x: u.x, y: u.y });
+  };
+  for (const m of S.mobs) {
+    if (!m.boss || !m.lord || m.born > 0) continue;
+    const lord = m.lord;
+    if (lord.mech === "charge") {
+      if (m.mstate === 1) {                                 // 예고 — 멈춰 겨눈다
+        m.swing = 0;
+        if ((m.mtell -= dt) <= 0) {
+          const d = Math.hypot(m.x, m.y) || 1;
+          m.cvx = -m.x / d; m.cvy = -m.y / d; m.mstate = 2; m.mtell = 1.1;
+          for (const u of S.minions) u.hitByCharge = 0;
+        }
+        continue;
+      }
+      if (m.mstate === 2) {                                 // 돌진 — 중앙으로 빠르게
+        const sp = m.spd * 6;
+        m.x += m.cvx * sp * dt; m.y += m.cvy * sp * dt;
+        m.walked = (m.walked || 0) + sp * dt; m.moving = 0.12;
+        m.face = m.cvx < 0 ? -1 : 1; m.dx = m.cvx; m.dy = m.cvy;
+        for (const u of S.minions)                          // 길목 소환수도 관통하며 때린다(한 번씩)
+          if (!u.hitByCharge && dist(m, u) < m.r + u.r) { hitMinion(u, m.dmg * 3.0 * ampMul, m.cvx, m.cvy); u.hitByCharge = 1; }
+        if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R + m.r * 0.5) {
+          hurtNecro(m.dmg * 3.0 * ampMul, "charge", m.cvx, m.cvy);
+          m.mstate = 0; m.mechCd = lord.cd; if (S.dead) return;
+        } else if ((m.mtell -= dt) <= 0) { m.mstate = 0; m.mechCd = lord.cd; }
+        continue;
+      }
+      if ((m.mechCd -= dt) <= 0) {                           // 예고 시작
+        m.mstate = 1; m.mtell = lord.tell;
+        S.fx.push({ t: lord.tell, x: m.x, y: m.y, kind: "warn_charge", col: lord.col, tx: -m.x, ty: -m.y });
+      }
+      continue;
+    }
+    if (m.mtell > 0) {                                       // 예고 중 — 아직 발동 전(일반 근접은 유지)
+      if ((m.mtell -= dt) <= 0) {
+        if (lord.mech === "pool")
+          S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: m.dmg * 0.85, col: lord.col });
+        else if (lord.mech === "add") {
+          /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
+             다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
+             로 확인). 진(150) 안쪽 코앞에서 솟아 군대가 오기 전에 직접 문다(cause "add"). */
+          const cnt = 4;
+          for (let i = 0; i < cnt; i++) {
+            const a = spawnMob(S.floor, i, cnt); a.cause = "add"; a.born = a.born0 = 0.4;
+            /* 불려 나온 졸개는 **두 배로 질기다**(hp×2) — 예전 값이면 네크로·군대가 솟자마자
+               치워 12분에 한 번도 안 물었다(gatelord_probe: 죽음 0). 질겨야 살아남아 문다. */
+            a.hp = a.hpMax = floorHp(S.floor) * 2;
+            const ang = (i / cnt) * 6.2832 + (Math.random() - 0.5) * 0.6, rad = 75;
+            a.x = Math.cos(ang) * rad; a.y = Math.sin(ang) * rad;
+          }
+        }
+        else if (lord.mech === "curse") {
+          for (const u of S.minions)
+            if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, m.dmg * 1.7 * ampMul, u.x, u.y); u.weak = 3.0; }
+          hurtNecro(m.dmg * 3.8 * ampMul, "curse", 0, -1);
+          if (S.dead) return;
+        }
+      }
+      continue;
+    }
+    if ((m.mechCd -= dt) <= 0) {                             // 예고 시작(pool·add·curse)
+      m.mtell = lord.tell; m.mechCd = lord.cd;
+      const wk = lord.mech === "pool" ? "warn_pool" : lord.mech === "add" ? "warn_add" : "warn_curse";
+      const wr = lord.mech === "curse" ? 200 : lord.mech === "pool" ? 92 : 85;
+      S.fx.push({ t: lord.tell, x: 0, y: 0, kind: wk, col: lord.col, r: wr });
+    }
+  }
+  /* ── 장판 ── 발밑에 남아 머무는 것(pool 주인). 안에 선 네크로는 지속 피해(pool), 소환수는 절반. */
+  for (let i = S.pools.length - 1; i >= 0; i--) {
+    const pl = S.pools[i];
+    if ((pl.t -= dt) <= 0) { S.pools.splice(i, 1); continue; }
+    if (Math.hypot(pl.x, pl.y * SQUASH_VIEW) < pl.r) { hurtNecro(pl.dmg * dt, "pool", 0, -1); if (S.dead) return; }
+    for (const u of S.minions)
+      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) hitMinion(u, pl.dmg * 0.5 * dt, 0, -1);
+  }
+  while (S.hurtLog.length && S.t - S.hurtLog[0].t > 5) S.hurtLog.shift();   // 사인 판정은 직전 5초만
+
   /* ── 소환수 ── **제 자리를 지키되 가까이 온 적은 마중 나간다.**
      사방 판에서 전원이 한 적에게 몰려가면 그 순간 나머지 방향이 통째로 비어 본체가 맞는다.
      그래서 "내 구역"(제 각도)에서 제일 가까운 적만 본다. */
@@ -818,7 +930,7 @@ export function step(dt) {
     /* **때는 아직이다.** 팔이 뻗는 칸에서 터지도록 적어만 둔다(위 IMPACT_AT). */
     /* 먹어서 커진 만큼 세다 — 몸집과 힘이 따로 놀면 「커졌는데 약함」이 된다.
        지배한 놈은 제 피를 못 빤다(구울만 문다). */
-    u.pending = { tgt, dmg: (u.dmg || K.dmg) * dmgMulOf() * minionMulOf() * ampMul * feedMul(u),
+    u.pending = { tgt, dmg: (u.dmg || K.dmg) * dmgMulOf() * minionMulOf() * ampMul * feedMul(u) * (u.weak > 0 ? 0.6 : 1),
                   heal: u.kind === "ghoul" && !u.own };
   }
 
@@ -866,7 +978,7 @@ export function step(dt) {
       const ml = Math.hypot(m.x, m.y) || 1;
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
-      m.pending = { core: true, dmg: m.dmg * MOB_CD };
+      m.pending = { core: true, dmg: m.dmg * MOB_CD, cause: m.cause };
     }
   }
 
@@ -1018,6 +1130,18 @@ function endRun(dead) {
   LASTRUN.summoned = S.summoned | 0;
   LASTRUN.used = S.used | 0;
   LASTRUN.secs = Math.max(0, Math.round(S.t));
+  /* ── 죽은 원인 ── 전멸일 때만, 직전 5초에 **가장 큰 몫**을 준 원인을 뽑아 층·주인과 함께
+     DEATHLOG 에 적는다(검수기가 주인별 사인 분포를 본다). 물러남(retreat)은 죽음이 아니다. */
+  if (dead) {
+    const by = {};
+    for (const e of S.hurtLog || []) if (S.t - e.t <= 5) by[e.cause] = (by[e.cause] || 0) + e.dmg;
+    let cause = "melee", best = -1;
+    for (const k in by) if (by[k] > best) { best = by[k]; cause = k; }
+    const gate = isGate(S.floor), lord = gate ? gatelordFor(S.floor) : null;
+    DEATHLOG.push({ floor: S.floor, gate, cause,
+                    lordIdx: lord ? gatelordIdx(lord) : -1, lord: lord ? lord.n : null });
+    if (DEATHLOG.length > 800) DEATHLOG.shift();
+  }
   saveMeta();
   say(dead ? `<b style="color:#8b1a1a">전멸</b> · ${S.floor}층에서 쓰러짐`
            : `<b style="color:#c8aa6e">물러남</b> · ${S.floor}층에서 발길을 돌림`);
@@ -1037,7 +1161,7 @@ export function newRun() {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });

@@ -48,6 +48,7 @@ const RULERS = [
   { name: "walk_qa",     args: ["25", "3"],       secs: 240,  tier: "slow" },
   { name: "march_qa",    args: ["40", "3"],       secs: 300,  tier: "slow" },
   { name: "boss_qa",     args: ["5", "30", "3"],  secs: 300,  tier: "slow" },
+  { name: "gatelord_probe", args: ["12", "1,7,13"], secs: 900, tier: "slow", expect: /판정/ },
   { name: "run_end",     args: [],                secs: 600,  tier: "slow" },
   { name: "rebirth_qa",  args: ["10", "1,7"],     secs: 1500, tier: "slow", expect: /판정/ },
   { name: "loop_health", args: [],                secs: 1500, tier: "slow" },

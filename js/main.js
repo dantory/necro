@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen } from "./core.js";
-import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -813,7 +813,40 @@ function draw(dt) {
     ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 6.284); ctx.fill();
   }
 
+  /* ══ 장판 ══ 발밑에 남아 머무는 것(pool 주인). 바닥에 옅게 깔리고 사라질 때 옅어진다.
+     ★ 개체(S.fx)가 아니라 판 위의 지속 위험이라 fx 고리 앞에 그린다 — 유닛 아래처럼 보이게. */
+  for (const pl of S.pools || []) {
+    const x = px(pl.x), y = py(pl.y), rr = pl.r * us, a = Math.min(1, pl.t / 0.6);
+    ctx.save();
+    ctx.globalAlpha = 0.26 * a; ctx.fillStyle = pl.col || "#7ab04a";
+    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = pl.col || "#7ab04a"; ctx.lineWidth = 2 * us;
+    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
   for (const f of S.fx) {
+    /* ══ 관문 주인의 예고 ══ 수법이 터지기 전 **어디에 온다**를 깜빡이는 점선으로 보인다 —
+       예고 없이 터지면 「불공평」이다(battle.js GATELORDS). 색은 주인 고유색(f.col). */
+    if (f.kind === "warn_charge") {                        // 돌진 겨냥선 — 보스에서 중앙으로
+      const x = px(f.x || 0), y = py(f.y || 0);
+      const ex = px((f.x || 0) + (f.tx || 0)), ey = py((f.y || 0) + (f.ty || 0));
+      const blink = 0.35 + 0.4 * Math.abs(Math.sin(f.t * 12));
+      ctx.save(); ctx.globalAlpha = blink;
+      ctx.strokeStyle = f.col || "#d0702c"; ctx.lineWidth = 3 * us; ctx.setLineDash([8 * us, 6 * us]);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
+      ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      continue;
+    }
+    if (f.kind === "warn_pool" || f.kind === "warn_curse" || f.kind === "warn_add") {
+      const x = px(f.x || 0), y = py(f.y || 0), rr = (f.r || 80) * us;
+      const blink = 0.3 + 0.35 * Math.abs(Math.sin(f.t * 12));
+      ctx.save(); ctx.globalAlpha = blink;
+      ctx.strokeStyle = f.col || "#c8aa6e"; ctx.lineWidth = 2.5 * us; ctx.setLineDash([7 * us, 5 * us]);
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+      ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      continue;
+    }
     if (f.kind === "bossring") {
       /* ══ 관문 보스가 서는 자리 ══ **여긴 다르다.** 관문은 색이 다른 글줄 하나 말고는
          졸개 층과 똑같이 생겼다 — 보스가 배어 나오기 직전 그 자리 바닥에 붉은 고리를
@@ -823,7 +856,7 @@ function draw(dt) {
       const rr = 96 * us * (p < 0.5 ? p * 2 : 1 - (p - 0.5) * 1.5);
       ctx.save();
       ctx.globalAlpha = Math.max(0, 0.6 * (1 - p * p));
-      ctx.strokeStyle = "#c83232"; ctx.lineWidth = Math.max(1.5, 3 * us * (1 - p * 0.5));
+      ctx.strokeStyle = f.col || "#c83232"; ctx.lineWidth = Math.max(1.5, 3 * us * (1 - p * 0.5));
       ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
       ctx.globalAlpha = Math.max(0, 0.2 * (1 - p));
       ctx.fillStyle = "#5a1010";
@@ -1624,6 +1657,7 @@ window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 �
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
+window.__deathLog = DEATHLOG;   // 죽은 원인 누계 — tools/gatelord_probe.mjs 가 주인별 사인 분포를 읽는다
 window.__GEAR_KEYS = GEAR_KEYS;   // 검수용 — 자가 가방을 채울 때 슬롯 이름을 손으로 적지 않게(winscroll_qa 의 "amul" 사고)
 
 /* ══ 로딩 ══ **다 올 때까지 덮는다.**
