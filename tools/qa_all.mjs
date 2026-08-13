@@ -4,6 +4,7 @@
  *   node tools/qa_all.mjs --all      느린 자까지 전부 (수십 분 — detached 로 돌릴 것)
  *   node tools/qa_all.mjs --only tap_qa,log_qa
  *   node tools/qa_all.mjs --list
+ *   node tools/qa_all.mjs --no-revive   썩은 브라우저를 고치지 말고 멈춰라 (진단만)
  *
  * 왜 만들었나 (2026-08-13): 「스킬 자가 죽은 것」을 한참 뒤에야 알았다. 브라우저가
  * 썩어 있었는데 자는 exit 0 으로 조용히 끝났다 — 실패가 아니라 **아무 말도 안 한
@@ -14,14 +15,15 @@
  * DEAD 를 PASS 와 같은 칸에 두면 또 못 본다. 그래서 판정 줄에 따로 센다.
  *
  * 앞서 브라우저부터 본다 — 자가 죽는 첫째 원인이 썩은 헤드리스 크롬이라서(TOOLS.md).
+ * 썩었으면 말만 하지 않고 **그 자리에서 다시 세운다**(chrome_guard.mjs).
  */
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { ensureChrome } from "./chrome_guard.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, "..");
-const CDP = "http://127.0.0.1:9333";
 const APP = "http://127.0.0.1:8774/index.html";
 
 /* ── 자 목록 ────────────────────────────────────────────────────────────────
@@ -70,29 +72,19 @@ if (ONLY) {
 }
 
 /* ── 앞서 보기: 브라우저와 서버가 살아 있나 ────────────────────────────────
- * 여기서 멈추는 편이 낫다 — 죽은 브라우저에 열여섯 번 절하고 「전부 DEAD」를
- * 받아 봐야 원인은 하나다. RSS 1GB 넘으면 재기동하라고 말해 준다(TOOLS.md).
+ * 죽은 브라우저에 열여섯 번 절하고 「전부 DEAD」를 받아 봐야 원인은 하나다.
+ * 브라우저는 **여기서 고친다** — 진단(RSS·나이·CDP)이 곧 처방이라서(chrome_guard).
+ * 고쳐지지 않을 때만 멈춘다. 앱 서버는 여전히 멈춤 사유다(띄우는 자리가 사람 쪽).
  */
 async function preflight() {
   const bad = [];
-  try {
-    const v = await (await fetch(CDP + "/json/version", { signal: AbortSignal.timeout(4000) })).json();
-    console.log(`브라우저  ${v.Browser}`);
-  } catch (e) { bad.push(`CDP 9333 응답 없음 (${e.message}) — 헤드리스 크롬을 띄울 것`); }
+  const g = await ensureChrome({ revive: !argv.includes("--no-revive") });
+  if (!g.ok) bad.push(`브라우저를 세우지 못했다 — ${g.notes.join(" · ")}`);
+
   try {
     const r = await fetch(APP, { signal: AbortSignal.timeout(4000) });
     if (!r.ok) bad.push(`앱 서버 HTTP ${r.status}`); else console.log(`앱 서버  200  ${APP}`);
   } catch (e) { bad.push(`앱 서버 8774 응답 없음 (${e.message}) — python3 -m http.server 8774 를 띄울 것`); }
-
-  const rss = await new Promise(res => {
-    const p = spawn("bash", ["-lc", `ps -Ao rss,command | grep "[r]emote-debugging-port=9333" | grep -v "type=" | awk '{print $1}' | head -1`]);
-    let o = ""; p.stdout.on("data", d => o += d); p.on("close", () => res(parseInt(o.trim(), 10) || 0));
-  });
-  if (rss) {
-    const gb = rss / 1024 / 1024;
-    console.log(`브라우저 RSS  ${gb.toFixed(2)} GB`);
-    if (gb > 1) bad.push(`브라우저가 썩었다 (RSS ${gb.toFixed(2)} GB > 1 GB) — pkill -f "user-data-dir=/tmp/delve_chrome" 후 재기동`);
-  }
   return bad;
 }
 
