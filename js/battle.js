@@ -342,6 +342,25 @@ function novaGulp() {
   if (!NOVA_GULP_DIV) return 1;
   return Math.max(1, Math.min(NOVA_GULP_CAP, Math.ceil(S.corpses / NOVA_GULP_DIV)));
 }
+
+/* ⑥ 시체 소비처 셋. burn 은 시체당 마나, wall 은 길목을 막는 뼈 벽(수명 초),
+   offer 는 관문 주인이 받는 피해 배수와 지속·수법 지연. */
+const BURN_MP = 4;
+const WALL_SEG = 3, WALL_R = 34, WALL_LIFE = 6.0;
+const WALL_RAD = RING_HOLD * 1.15, WALL_SPREAD = 0.30, WALL_MAX = 9;
+const OFFER_WK = 1.6, OFFER_DUR = 10, OFFER_TELL = 1.5;
+/** 적이 몰린 쪽(단위벡터 합)의 길목에 뼈 벽 조각 여럿을 짧은 호로 세운다. 난수 안 먹는다. */
+function buildWall() {
+  if (!S.walls) S.walls = [];
+  let ax = 0, ay = 0, n = 0;
+  for (const m of S.mobs) { const l = Math.hypot(m.x, m.y) || 1; ax += m.x / l; ay += m.y / l; n++; }
+  const base = n ? Math.atan2(ay, ax) : 0;
+  for (let i = 0; i < WALL_SEG; i++) {
+    const a = base + (i - (WALL_SEG - 1) / 2) * WALL_SPREAD;
+    S.walls.push({ x: Math.cos(a) * WALL_RAD, y: Math.sin(a) * WALL_RAD, r: WALL_R, t: WALL_LIFE, life: WALL_LIFE });
+    if (S.walls.length > WALL_MAX) S.walls.shift();
+  }
+}
 /** @param pw 이 시체 주인의 **최대 체력.** 일어나는 놈이 이것을 물려받는다
  *  (core.js 의 「소환수는 제가 일어난 시체만큼 세다」). 0 이면 종족 기본값으로만 선다. */
 export function addCorpse(x, y, sort, n = 1, pw = 0) {
@@ -378,11 +397,11 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
   }
 }
 /** 시체 n 구를 쓴다. **쓴 자리**를 돌려준다(거기서 소환수가 일어서게) */
-export function useCorpse(n = 1, nearX = 0, nearY = 0) {
-  let at = null, refund = 0, refPw = 0;
+export function useCorpse(n = 1, nearX = 0, nearY = 0, why = "?") {
+  let at = null, refund = 0, refPw = 0, took = 0;
   for (let i = 0; i < n; i++) {
     if (S.corpses <= 0) break;
-    S.corpses--;
+    S.corpses--; took++;
     S.used = (S.used | 0) + 1;         // 이 판에서 자원으로 쓴 시체 — 정산이 읽는다
     /* 쓸 것은 **가까운 것부터** — 눈은 제일 가까운 시체가 사라지기를 기대한다 */
     let bi = -1, bd = 1e9;
@@ -401,6 +420,9 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0) {
       if (hasUnique("twice") && Math.random() < TWICE_P) { refund++; refPw = Math.max(refPw, p.pw | 0); }
     }
   }
+  /* 소비처별 집계는 여기 한 자리에서만 갈린다(더하고 빼는 길이 addCorpse/useCorpse 둘뿐).
+     newRun 이 일부러 안 지운다 — 죽음을 건너 한 측정 전체를 누적해야 표본이 성립한다. */
+  if (took) { const u = S.corpseUse || (S.corpseUse = {}); u[why] = (u[why] | 0) + took; }
   if (refund) addCorpse(at ? at.x : nearX, at ? at.y : nearY, "bones", refund, refPw);
   return at;
 }
@@ -453,6 +475,7 @@ export function cast(id) {
   const mpNeed = mpCost(sk);
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < sk.corpse) return false;
   if (isRaise(id) && armyN() >= armyCap()) return false;
+  if (id === "offer" && (!isGate(S.floor) || !S.mobs.some(m => m.boss))) return false;
 
   S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul();
   /* 시체를 쓰면 **판 위의 그것이 없어진다.** 어디 것을 썼는지가 보여야 자원이 된다.
@@ -471,7 +494,8 @@ export function cast(id) {
     for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW);
       if (d < bd) { bd = d; anchorX = m.x; anchorY = m.y; } }
   }
-  const usedAt = sk.corpse ? useCorpse(gulp, anchorX, anchorY) : null;
+  const why = isRaise(id) ? "summon" : id;
+  const usedAt = sk.corpse ? useCorpse(gulp, anchorX, anchorY, why) : null;
   if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
@@ -488,7 +512,7 @@ export function cast(id) {
        시체가 자원이고 그 시체가 터진다. 쓴 자리를 폭심으로 삼는다. */
     const bx = usedAt ? usedAt.x : 0, by = usedAt ? usedAt.y : 0;
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
-      m.hp -= dmg; hit++; popNum(m.x, m.y, dmg, "nova"); }
+      const dd = dmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; hit++; popNum(m.x, m.y, dd, "nova"); }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
@@ -507,6 +531,25 @@ export function cast(id) {
     }
     S.fx.push({ t: 0.35, x: bx, y: by, kind: "nova", rad });
     say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` 시체 ${gulp}구` : ""} · ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
+  }
+  if (id === "burn") {
+    const gain = gulp * BURN_MP;
+    S.mp = Math.min(mpMaxOf(), S.mp + gain);
+    S.fx.push({ t: RISE_T, x: usedAt ? usedAt.x : 0, y: usedAt ? usedAt.y : 0, kind: "rise" });
+    say(`<b style="color:#ff8000">시체 태우기</b> 시체 ${gulp}구 → 마나 +${Math.round(gain)}`);
+  }
+  if (id === "wall") {
+    buildWall();
+    say(`<b style="color:#c8c0b0">백골 벽</b> 시체 ${gulp}구 · 길목을 막는다`);
+  }
+  if (id === "offer") {
+    let boss = null; for (const m of S.mobs) if (m.boss) { boss = m; break; }
+    if (boss) {
+      boss.wk = OFFER_WK; boss.wkT = OFFER_DUR;
+      boss.mtell = (boss.mtell || 0) + OFFER_TELL; boss.mechCd = (boss.mechCd || 0) + OFFER_TELL;
+      S.fx.push({ t: 0.5, x: boss.x, y: boss.y, kind: "nova", rad: 70 });
+      say(`<b style="color:#a06ad0">제물</b> · ${boss.lord ? boss.lord.n : "주인"}이(가) 약해진다`);
+    }
   }
   if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`); }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
@@ -603,7 +646,7 @@ export function step(dt) {
      병수님 2026-08-13 "하수인 걷는모션 없이 떠다님". */
   const walkT = (e) => { if (e.moving > 0) { e.moving -= dt; e.moveT = (e.moveT || 0) + dt; } };
   for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; if (e.weak > 0) e.weak -= dt; }
-  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; }
+  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; if (e.wkT > 0) e.wkT -= dt; }
 
   /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
      휘두름은 SWING_T 에서 0 으로 준다. 진행도가 IMPACT_AT 을 넘는 순간(=swing 이
@@ -629,7 +672,7 @@ export function step(dt) {
     }
     const { tgt, dmg, heal } = p;
     if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
-    tgt.hp -= dmg;
+    tgt.hp -= dmg * (tgt.wkT > 0 ? tgt.wk : 1);         // 제물로 약해진 관문 주인은 더 크게 맞는다
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
     popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
@@ -675,7 +718,7 @@ export function step(dt) {
       let bx = 0, by = 0, bd = 1e9;
       for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
       const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
-      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { m.hp -= dmg; popNum(m.x, m.y, dmg, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
       S.overflow = 0;
     }
@@ -777,9 +820,10 @@ export function step(dt) {
     let hit = null;
     for (const m of S.mobs) if (Math.hypot(m.x - b.x, m.y - b.y) < m.r * 0.7) { hit = m; break; }
     if (hit) {
-      hit.hp -= b.dmg * ampMul;
-      popNum(hit.x, hit.y, b.dmg * ampMul, "dmg");
-      hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, b.dmg * ampMul);
+      const bd = b.dmg * ampMul * (hit.wkT > 0 ? hit.wk : 1);
+      hit.hp -= bd;
+      popNum(hit.x, hit.y, bd, "dmg");
+      hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, bd);
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
       S.bolts.splice(i, 1); continue;
     }
@@ -898,6 +942,7 @@ export function step(dt) {
     for (const u of S.minions)
       if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) hitMinion(u, pl.dmg * 0.5 * dt, 0, -1);
   }
+  if (S.walls) for (let i = S.walls.length - 1; i >= 0; i--) if ((S.walls[i].t -= dt) <= 0) S.walls.splice(i, 1);
   while (S.hurtLog.length && S.t - S.hurtLog[0].t > 5) S.hurtLog.shift();   // 사인 판정은 직전 5초만
 
   /* ── 소환수 ── **제 자리를 지키되 가까이 온 적은 마중 나간다.**
@@ -1000,6 +1045,16 @@ export function step(dt) {
       m.atk = MOB_CD; m.swing = SWING_T;
       m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
       m.pending = { core: true, dmg: m.dmg * MOB_CD, cause: m.cause };
+    }
+  }
+
+  /* ── 뼈 벽이 길을 막는다 ── 적을 벽 조각 바깥 껍질로 되민다(겹침과 같은 화면 거리로).
+     돌진 중인 관문 주인(mstate 2)은 예고된 큰 한 방이라 관통시킨다 — 벽으로 못 막는다. */
+  if (S.walls && S.walls.length) for (const m of S.mobs) {
+    if (m.mstate === 2) continue;
+    for (const w of S.walls) {
+      const dx = m.x - w.x, dy = (m.y - w.y) * SQUASH_VIEW, d = Math.hypot(dx, dy), min = m.r + w.r;
+      if (d < min && d > 0.01) { const k = (min - d) / d; m.x += dx * k; m.y += dy * k / SQUASH_VIEW; }
     }
   }
 
@@ -1112,7 +1167,7 @@ export function step(dt) {
        된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
     if (hasUnique("blast") && dead.dmg) {
       const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
-      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { m.hp -= bdmg; popNum(m.x, m.y, bdmg, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
     }
   }
@@ -1189,7 +1244,7 @@ export function newRun() {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [],
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0,
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,

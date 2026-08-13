@@ -826,6 +826,17 @@ function draw(dt) {
     ctx.restore(); ctx.globalAlpha = 1;
   }
 
+  /* ══ 뼈 벽 ══ 길목을 막는 시체 무더기(⑥). 솟은 뼈 무더기로 그리고 수명 끝 1.2초에 옅어진다. */
+  for (const w of S.walls || []) {
+    const x = px(w.x), y = py(w.y), rr = w.r * us, a = Math.min(1, w.t / 1.2);
+    ctx.save();
+    ctx.globalAlpha = 0.85 * a; ctx.fillStyle = "#b8b0a0";
+    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.9 * a; ctx.strokeStyle = "#6a6458"; ctx.lineWidth = 2 * us;
+    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+
   for (const f of S.fx) {
     /* ══ 관문 주인의 예고 ══ 수법이 터지기 전 **어디에 온다**를 깜빡이는 점선으로 보인다 —
        예고 없이 터지면 「불공평」이다(battle.js GATELORDS). 색은 주인 고유색(f.col). */
@@ -1141,6 +1152,7 @@ function hud() {
     $("gArmy").textContent   = `군세 ${armyCap()}`;   // 「최대」는 뺀다 — 좁은 줄에서 수를 밀어낸다(실측 22px)
   } else {
   $("gCorpse").textContent = `시체 ${S.corpses}/${CORPSE_MAX}`;
+  $("gCorpse").classList.toggle("full", S.corpses >= CORPSE_MAX);   // 상한에 붙으면 색이 달라진다 — 쌓기만 하면 손해다
   /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
   $("gArmy").textContent   = `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : "");
   }
@@ -1199,7 +1211,17 @@ function auto() {
      이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도
      남을 때만 터진다. 문턱을 상한의 3/4 로 둬서 **아직 모자란 구간은 사람의 몫으로** 남긴다
      — 아껴 뒀다 쓰는 판단은 그 아래에서만 뜻이 있다. */
+  /* ⑥ 시체 소비처 셋 — 소환·폭발뿐이던 시체를 쓰는 길을 넓힌다. 소환·저주가 먼저 마나를
+     가져간 뒤라(위) 군대를 안 굶긴다. offer·wall 은 **폭발보다 먼저** 둔다 — 폭발의 한 입
+     (gulp)이 쌓인 시체를 통째로 삼켜 버리면 뒤에 남는 게 없어 관문·길목에서 못 쓴다. 대신
+     진짜 쌓일 때만(문턱 높게) 돌아 평소엔 폭발이 그대로 주 소비처다. __NOSINK 는
+     검수기(corpse_probe)가 같은 빌드로 before/after 를 가르는 스위치다. */
+  if (!globalThis.__NOSINK) {
+    if (S.corpses >= CORPSE_MAX * 0.85 && S.mobs.some(m => m.boss)) cast("offer");
+    if (S.mobs.length >= 5 && S.corpses >= CORPSE_MAX * 0.85) cast("wall");
+  }
   if (S.mobs.length && S.corpses >= CORPSE_MAX * 0.2) cast("nova");
+  if (!globalThis.__NOSINK && S.corpses >= CORPSE_MAX * 0.85 && S.mp < mpMaxOf() * 0.90) cast("burn");
 }
 
 /* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".

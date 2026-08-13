@@ -108,6 +108,12 @@ const ALL_SKILLS = [
   { id:"golem", n:"흙 골렘",      ico:"◆", mp:30, cd:6.0, corpse:1, d:"시체 1 → 흙 골렘 1", need:"golem" },
   { id:"nova",  n:"시체 폭발",    ico:"✹", mp:18, cd:2.2, corpse:1, d:"시체 1 → 주위 광역 피해" },
   { id:"amp",   n:"약화의 저주",  ico:"✜", mp:12, cd:8,   corpse:0, d:"일정 시간 적이 받는 피해 증가" },
+  /* ══ 시체 소비처 셋(2단계 ⑥) ══ 소환·폭발뿐이던 시체를 쓰는 길을 넓힌다. 성격이
+     겹치지 않게: burn 은 넘칠 때 마나로, wall 은 길목을 막고, offer 는 관문에서만.
+     기술 틀(SKILLS) 안에 넣어 소모/재사용/마나 검사가 cast() 한 자리를 지나게 한다. */
+  { id:"burn",  n:"시체 태우기", ico:"✷", mp:0,  cd:3.0, corpse:4,  d:"시체 4 → 마나 (넘칠 때만 이득)" },
+  { id:"wall",  n:"백골 벽",     ico:"▤", mp:14, cd:9.0, corpse:8,  d:"시체 8 → 길목을 막는 뼈 벽(때리지 않고 막기만)" },
+  { id:"offer", n:"제물",        ico:"❖", mp:20, cd:12,  corpse:16, d:"관문에서 시체 16 → 주인이 받는 피해 증가" },
 ];
 export const SKILLS = [];
 export function syncSkills() {

@@ -53,6 +53,7 @@ const RULERS = [
   { name: "run_end",     args: [],                secs: 600,  tier: "slow" },
   { name: "rebirth_qa",  args: ["10", "1,7"],     secs: 1500, tier: "slow", expect: /판정/ },
   { name: "loop_health", args: [],                secs: 1500, tier: "slow" },
+  { name: "corpse_probe", args: ["30", "1,13"],   secs: 1500, tier: "slow", expect: /판정/ },
 ];
 
 /* ── 인자 ── */
