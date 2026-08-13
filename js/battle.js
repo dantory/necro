@@ -5,7 +5,8 @@ import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScal
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
-         hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R } from "./core.js";
+         hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
+         questNote, registerQuestToast } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -116,6 +117,9 @@ export const say = (s) => {
   lastSaid = s; lastN = 1;
   S.log.unshift(s); if (S.log.length > 6) S.log.pop();
 };
+/* ⑦ 일지 알림은 **핵심 사건이 이미 흐르는 로그(say)를 그대로 쓴다** — 새 토스트 틀은
+   안 만든다. core.js 가 say 를 직접 import 하면 순환이라, 콜백으로 건넨다. */
+registerQuestToast((q) => say(`<b style="color:#ffcf5a">일지</b> 「${q.n}」 달성 · 유해 <b class="t3">+${q.reward}</b>`));
 
 /** 적이 나오는 **간격**. 병수님: "너무 한번에 짠! 하고 나오는듯".
  *  한꺼번에 세워 놓으면 「배치된 것」으로 보이고, 하나씩 걸어 나오면 「몰려오는 것」이
@@ -174,6 +178,11 @@ export function enterFloor(f) {
      서 있는데 「가장 깊이 15층」). 「더 깊이」가 목표인 게임에서 그 숫자가 안 움직이면
      벽에 막힌 것처럼 보인다 — 실제로는 나아가고 있었다. */
   META.deepest = Math.max(META.deepest | 0, f);
+  /* ⑦ 관문을 하나 지나 새 층에 들어섰다(직전 층 f-1 이 관문) — 죽으면 newRun 이 S.qrun 을
+     비우니 「한 판에 다섯」이 저절로 리셋된다. f>1 은 시작(1층)의 f-1=0 이 isGate(0)=참이라
+     생기는 헛계수를 막는다. 대군(열)으로 이 깊이에 닿았는지도 같은 자리에서 본다. */
+  if (f > 1 && isGate(f - 1)) questNote("gate", 1);
+  if (f >= 20 && armyN() >= 10) questNote("army10", 1);
 }
 
 /** 줄에서 하나 꺼내 세운다. */
@@ -478,6 +487,7 @@ export function summon(kind, at) {
                    x: sx, y: sy, rise: RISE_T, dmg: dmg0,
                    hp: hp0, hpMax: hp0, atk: 0, r: K.h * usc * FOOT_R });
   S.summoned = (S.summoned | 0) + 1;   // 판이 끝나면 정산이 읽는다(빈손일 때 가운데를 채운다)
+  if (S.floor >= 20 && armyN() >= 10) questNote("army10", 1);   // ⑦ 대군이 층 도중 채워질 때도 잡는다(enterFloor 는 입장 순간만 봄)
   return true;
 }
 
@@ -540,6 +550,7 @@ export function cast(id) {
       const g = Math.min(e.hpMax - e.hp, dmg * 0.4); e.hp += g; popNum(e.x, e.y, g, "heal");
       if ((e.fed | 0) < FEED_MAX) {
         e.fed = (e.fed | 0) + 1;
+        questNote("feast", e.fed);             // ⑦ 한 소환수를 여덟 번 먹이면 「시체 잔치」(max 로 최고 먹인 수를 본다)
         const grow = 1 + 0.05;                 // 이번 한 입만큼 체력 그릇도 같이 큰다
         e.hpMax = Math.round(e.hpMax * grow); e.hp = Math.round(e.hp * grow);
         e.r *= grow;                           // 몸이 크면 자리도 그만큼 차지한다
@@ -565,6 +576,7 @@ export function cast(id) {
       boss.wk = OFFER_WK; boss.wkT = OFFER_DUR;
       boss.mtell = (boss.mtell || 0) + OFFER_TELL; boss.mechCd = (boss.mechCd || 0) + OFFER_TELL;
       S.fx.push({ t: 0.5, x: boss.x, y: boss.y, kind: "nova", rad: 70 });
+      questNote("offer", 1);                          // ⑦ 관문에서 제물을 바쳤다(cast 가드가 관문·보스를 이미 보장)
       say(`<b style="color:#a06ad0">제물</b> · ${boss.lord ? boss.lord.n : "주인"}이(가) 약해진다`);
     }
   }
@@ -1277,7 +1289,8 @@ export function newRun() {
     corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
-    uniqCtr: 0, overflow: 0,
+    uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
+
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다

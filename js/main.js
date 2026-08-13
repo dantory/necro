@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
- UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf } from "./core.js";
+ UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1422,8 +1422,9 @@ const gearCell = (it, attr, sel) => {
  *  화면에서 다시 계산하지 않는다(같은 식이 두 곳이면 갈라진다). */
 const statNumbers = () => {
   const rows = [
-    /* ★ 유해(환생 배수)는 **환생을 한 번이라도 했을 때만** 뜬다 — 갓 시작한 사람에게는
-       뜻 없는 줄이다. 금·경험치·시체에 곱해지는 영구 배수이자 「되풀이한 자국」이다. */
+    /* ★ 유해(환생 배수)는 **한 구라도 있을 때만** 뜬다 — 0 이면 갓 시작한 사람에게 뜻 없는
+       줄이다. 예전엔 「환생을 했을 때만」이었는데, ⑦ 일지가 환생 전에도 유해를 줄 수 있어
+       판단을 relics>0 으로 옮겼다(유해는 환생이든 일지든 「되풀이한 자국」이라 그림이 안 어긋난다). */
     ...((META.relics | 0) ? [["유해", `${META.relics}구 · ${mul(relicMul())}`]] : []),
     /* 구슬과 **같은 자**로 적는다 — 구슬은 2.3k 인데 여기만 2280 이면 같은 값이 달라 보인다. */
     ["체력",      num(hpMaxOf())],
@@ -1463,10 +1464,24 @@ const statTipHtml = () => {
       : "");
 };
 
+/** ⑦ 일지 — 능력치 창 **안**에 붙인다(새 창을 만들지 않는다 · 수치 아래 자리). 수치와 같은
+ *  검은 판(.sStat)·같은 줄(.tipStat)을 재사용한다. 깬 것은 눌린 상태(.on)로, 아직인 것은
+ *  진행도(3/5)를 보인다 — 보상 유해는 등급 금색(t3)으로. 화면은 이 목록만 읽고 판정은
+ *  전부 core.js(questProg/questDone)가 한다(같은 식이 두 곳이면 갈라진다). */
+const questListHtml = () =>
+  `<div class="sStat jList"><div class="tipKind">일지 <span class="dim">— 다르게 놀 이유 · 보상은 유해로</span></div>` +
+  QUESTS.map((q) => {
+    const done = questDone(q), prog = questProg(q);
+    return `<div class="jRow${done ? " on" : ""}">
+      <div class="jL"><b class="jN">${q.n}</b><span class="jD">${q.d}</span></div>
+      <div class="jR"><span class="jP">${done ? "달성" : `${prog}/${q.goal}`}</span>
+        <span class="jRew t3">유해 +${q.reward}</span></div></div>`;
+  }).join("") + `</div>`;
+
 /** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
- *  합쳐져있는데 추후을 위해 분리필요"). 앞으로 환생 배수·일지가 붙을 자리가 여기다. */
+ *  합쳐져있는데 추후을 위해 분리필요"). 그 아래에 ⑦ 일지가 붙는다. */
 function drawStat() {
-  $("statBody").innerHTML = statNumbers();
+  $("statBody").innerHTML = statNumbers() + questListHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
 }
 

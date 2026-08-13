@@ -710,6 +710,19 @@ body.in-town #hLeave{ display:none; }
 /* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
 .sStat{margin-top:2px;background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
 .sStat .tipStat{display:flex;justify-content:space-between;margin:3px 0}
+/* ⑦ 일지 — 수치와 같은 검은 판(.sStat) 아래에 붙는 목록. 한 줄에 과제 하나: 왼쪽 제목·설명,
+   오른쪽 진행도·보상. 깬 것(.on)은 초록으로 물들고 살짝 가라앉는다(눌린 상태). */
+.jList{margin-top:8px}
+.jRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #2a2318}
+.jRow:first-of-type{border-top:0}
+.jL{min-width:0}
+.jN{display:block;color:#c9bda4;font-weight:400}
+.jD{display:block;color:#6b5f4e;font-size:11px;letter-spacing:-.2px;word-break:keep-all}
+.jR{flex:none;text-align:right;white-space:nowrap}
+.jP{display:block;color:#9d907a;font-size:12px}
+.jRew{font-size:11px}
+.jRow.on{opacity:.72}
+.jRow.on .jN,.jRow.on .jP{color:#8ac06a}
 /* 고른 것 툴팁은 **내용 크기**로 둔다 — 늘려 채우면 빈 검은 상자가 커 보인다. */
 #statTip{flex:0 0 auto}
 @media (min-width:480px){

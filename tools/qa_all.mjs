@@ -43,6 +43,7 @@ const RULERS = [
   { name: "skill_qa",     args: ["/tmp/necro_qa_skill.png"],    secs: 150, tier: "fast", expect: /판정/ },
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
+  { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
 
   // ── 느린 자: 판을 실제로 굴려서 재는 것들 (--all)
   { name: "walk_qa",     args: ["25", "3"],       secs: 240,  tier: "slow" },

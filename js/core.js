@@ -336,7 +336,72 @@ export function rebirth() {
   META.tree  = {};
   syncSkills();                                // 트리가 비었으니 벨트도 해골 하나로 되돌아간다
   saveMeta();
+  questNote("rebirth", 1);                      // ⑦ 되풀이의 첫 발 — META.quests 는 환생이 안 지운다(1회성)
   return { gain, relics: META.relics, rebirths: META.rebirths };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 일지(도전 과제) ⑦ ══ 지금 목표는 「가장 깊이」 하나뿐이라, 벽에 부딪히면 할 일이
+   끝난다. **다르게 놀 이유**를 준다 — 관문을 안 죽고 답파하거나, 대군을 이끌거나,
+   규칙을 바꾸는 유니크를 손에 쥐거나. 보상은 새 화폐를 만들지 않고 **유해(환생 배수)로
+   이어 붙인다** — 이미 있는 축을 굵게 만든다(환생 ①·②와 같은 규칙).
+   ──────────────────────────────────────────────────────────────
+   지켜야 하는 것 넷:
+   ① **결정적이다.** 판정·보상에 난수가 한 톨도 없다(A/B 성립). 유해가 0 이면 배수 1.0.
+   ② **1회성.** 깬 것은 META.quests[id]=1 로 못 박아 다시 지급하지 않는다(누적 반복 금지).
+   ③ **옛 저장 호환.** 한 과제도 안 깬 사람은 relics 가 안 붙어 손대기 전과 byte 단위로 같다.
+   ④ **한 자리에서 센다.** 모든 진행은 questNote(tag, n) 하나로 들어온다(④ hurtLog·⑥ useCorpse
+      의 「꼬리표 하나로 모으기」를 본떴다) — 훅을 여기저기 흩뿌리지 않는다.
+
+   과제를 고른 결은 **base 안전**이다. loop_health 는 저장을 지우고 마을 없이 자동으로만
+   돌려 12분을 굴린다(투자 0) — 그래서 다음은 그 판에서 **절대 안 깨진다**:
+     · unique  — 유니크는 손으로만 낀다(takeDrop 이 자동 착용 안 함) → 자동판은 못 깬다
+     · army10  — armyCap 은 대장간·트리 없이는 최대 6 → 열이 안 된다
+     · dig4    — 무덤 파기는 마을에서 금을 쓴다 → 자동판은 안 판다
+     · rebirth — 자동판은 환생을 안 누른다
+     · offer   — 시체 소비처 밸브는 12분엔 한 번도 안 돈다(⑥ 실측)
+     · feast   — 시체 잔치는 트리 끝 노드라 자동판엔 없다
+     · gate    — 관문 다섯은 26층 진입이 필요한데 base 최고층은 24 → 못 닿는다
+   그래서 base 24·19·10 이 회귀 없이 유지된다(⑥ 회귀표). 대신 quest_qa 가 투자를 갖춘
+   판에서 **하나하나 달성 가능함**을 따로 판정한다. */
+export const QUESTS = [
+  { id:"unique",  n:"규칙을 쥐다",   d:"유니크 하나를 장착한다",             axis:"빌드", tag:"unique",  goal:1, mode:"max", reward:2 },
+  { id:"army10",  n:"대군",         d:"군세 열 이상으로 20층에 이른다",       axis:"군세", tag:"army10",  goal:1, mode:"max", reward:2 },
+  { id:"dig4",    n:"도굴꾼",       d:"무덤 파기로 4등급을 캔다",            axis:"재화", tag:"dig4",    goal:1, mode:"max", reward:1 },
+  { id:"gate5",   n:"무결의 답파",   d:"한 판에 관문 다섯을 죽지 않고 지난다", axis:"관문", tag:"gate",    goal:5, mode:"sum", reward:3 },
+  { id:"rebirth", n:"윤회",         d:"환생을 한 번 한다",                  axis:"환생", tag:"rebirth", goal:1, mode:"max", reward:2 },
+  { id:"offer",   n:"제물",         d:"관문에서 제물을 바친다",              axis:"시체", tag:"offer",   goal:1, mode:"max", reward:1 },
+  { id:"feast",   n:"시체 잔치",     d:"시체 잔치로 소환수를 여덟 번 먹인다",  axis:"시체", tag:"feast",   goal:8, mode:"max", reward:1 },
+];
+/* tag → 과제. 진행은 tag 로 들어오고(꼬리표), 저장·판정은 id 로 한다. */
+const QUEST_BY_TAG = {};
+for (const q of QUESTS) QUEST_BY_TAG[q.tag] = q;
+/** 유해 총합 — 초반 환생(REBIRTH_MIN 25 → 유해 1)보다 과하지 않게 10~14 안에 든다(지금 12). */
+export const questRelicTotal = () => QUESTS.reduce((s, q) => s + q.reward, 0);
+
+/** 깨는 순간 화면에 짧게 알리는 자리 — 로그 함수(say)를 battle.js 가 끼워 준다. core.js 는
+ *  say 를 import 하지 않는다(순환). 자동판·검수기엔 없을 수 있어 부르기 전에 있는지 본다. */
+let questToast = null;
+export const registerQuestToast = (fn) => { questToast = fn; };
+
+export const questDone = (q) => !!(META.quests && META.quests[q.id]);
+/** 진행도 — 깬 것은 목표값, 아닌 것은 이 판의 신호(연속 조건)를 목표에서 클램프해 보인다. */
+export const questProg = (q) => questDone(q) ? q.goal : Math.min(q.goal, (S.qrun && S.qrun[q.tag]) | 0);
+
+/** ══ 일지의 **유일한 진입점** ══ tag 로 신호를 넣으면 이 판의 신호(S.qrun)에 모으고
+ *  (sum=누적 · max=최댓값), 목표에 닿으면 그 자리에서 깬 것으로 못 박아 **유해를 더한다.**
+ *  ★ 이미 깬 것은 곧장 물러난다 — 1회성이라 두 번 주지 않는다(중복 지급 없음). 난수 0 톨. */
+export function questNote(tag, n = 1) {
+  const q = QUEST_BY_TAG[tag];
+  if (!q || questDone(q)) return false;
+  const r = S.qrun || (S.qrun = {});
+  r[tag] = q.mode === "sum" ? (r[tag] | 0) + n : Math.max(r[tag] | 0, n | 0);
+  if (r[tag] < q.goal) return false;
+  (META.quests || (META.quests = {}))[q.id] = 1;
+  META.relics = (META.relics | 0) + q.reward;   // ← 유해로 이어 붙인다(환생 축을 굵게 · 결정적)
+  saveMeta();
+  if (questToast) questToast(q);
+  return true;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -744,6 +809,7 @@ export function digDraw() {
   if (META.gold < cost) return null;
   META.gold -= cost;
   const r = takeDrop(rollDrop(META.deepest));
+  if (r && r.ref && (r.ref.uid || (r.ref.tier | 0) >= 4)) questNote("dig4", 1);   // ⑦ 스스로 파서 4등급(또는 유니크)을 캤다
   saveMeta();
   return r;
 }
@@ -756,6 +822,7 @@ export function equipFromBag(i) {
   META.bag.splice(i, 1);
   const old = equipped(it.k);
   META.equip[it.k] = it;
+  if (isUnique(it)) questNote("unique", 1);      // ⑦ 유니크는 손으로만 낀다 — 낀 그 순간이 「규칙을 쥐다」
   if (old) META.bag.push(old);                   // 벗은 것은 가방으로(빈손이면 안 넣는다)
   bagFuse();                                     // 손으로 끼운 뒤에도 가방에 셋이 남으면 저절로 합쳐진다
   saveMeta();
