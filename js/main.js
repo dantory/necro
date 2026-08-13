@@ -1624,6 +1624,7 @@ window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 �
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
+window.__GEAR_KEYS = GEAR_KEYS;   // 검수용 — 자가 가방을 채울 때 슬롯 이름을 손으로 적지 않게(winscroll_qa 의 "amul" 사고)
 
 /* ══ 로딩 ══ **다 올 때까지 덮는다.**
    ★ 진행률을 「내가 부른 횟수」로 세면 실제와 어긋난다 — 받는 곳(sprite8 의 img)에서

@@ -87,6 +87,35 @@ const ex = `(async()=>{
 })()`;
 const r = await S("Runtime.evaluate", { expression: ex, awaitPromise: true, returnByValue: true });
 const results = JSON.parse(r.result.value);
+
+/* ⑤ **저장이 모르는 슬롯을 들고 와도 판이 안 터진다.** 2026-08-13 winscroll_qa 가 GEAR 에
+   없는 `amul` 넷을 저장에 심었고, 그것을 물려받은 leave_qa 가 **가방이 넘치는 순간**
+   `meltGold` 의 `GEAR[it.k].cost` 에서 터졌다 — 하필 그 자리가 「물러남」이라 판을 접을
+   때마다 맞았다. 슬롯 이름은 언제든 바뀌므로(옛 이름·오타·지워진 슬롯) 저장을 믿지 않는다.
+   ★ 씨앗을 심고 **새로 띄워서** 잰다 — 거르는 자리가 모듈이 뜰 때라 reload 없이는 못 잰다.
+     그리고 「걸러졌나」만 보지 않고 **넘치게 넣어 터지는지까지** 본다(터지던 그 자리가 거기다). */
+await S("Runtime.evaluate", { expression: `localStorage.setItem("necro.meta.v1", JSON.stringify({
+  gold: 0, bag: [ {k:"amul",tier:1,af:[]}, {k:"wand",tier:1,af:[]}, {k:"robe",tier:99,af:[]} ],
+  equip: { wand: {k:"amul",tier:2,af:[]}, robe: null, charm: null } }))` });
+await S("Page.reload", { ignoreCache: true });
+await new Promise(r => setTimeout(r, 4200));
+const errs0 = errs.length;
+const r5 = await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression: `(async()=>{
+  const C = await import("/js/core.js"); const M = C.META;
+  window.S && (window.S.speed = 0);
+  const 남은것 = M.bag.map(x=>x.k+":"+x.tier);
+  const 낀것   = C.equipped("wand");
+  let 터짐 = null;
+  try { for (let i=0;i<20;i++) C.bagPut(C.mkItem("wand",1,true)); }   // 넘치게 넣어 녹이는 길을 지난다
+  catch (e) { 터짐 = String(e && e.message || e); }
+  return JSON.stringify({ 남은것, 낀것: 낀것 ? 낀것.k : null, 터짐, 칸: M.bag.length });
+})()` });
+const g5 = JSON.parse(r5.result.value);
+const ok5 = g5.남은것.length === 1 && g5.남은것[0] === "wand:1" && g5.낀것 === null
+            && g5.터짐 === null && g5.칸 <= 12 && errs.length === errs0;
+results.push({ name: "⑤ 모르는 슬롯이 든 저장 → 걸러지고 넘쳐도 안 터진다", ok: ok5,
+  detail: "남은가방=" + JSON.stringify(g5.남은것) + " 낀것=" + g5.낀것 + " 터짐=" + g5.터짐 + " 칸=" + g5.칸 });
+
 let bad = 0;
 for (const t of results) { if (!t.ok) bad++; console.log((t.ok ? "PASS" : "FAIL") + "  " + t.name + " — " + t.detail); }
 if (errs.length || netfail.length) console.log("errors:", errs.slice(0,4), "netfail:", netfail.slice(0,4));

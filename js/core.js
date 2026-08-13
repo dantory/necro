@@ -399,6 +399,19 @@ export const dropChance = (f) => DROP_PER_FLOOR / Math.max(1, floorN(f));
  *  5층마다 한 단계 — 20층이면 마지막 등급까지 나온다. */
 export const dropTierCap = (f) => Math.min(4, 1 + Math.floor(f / 5));
 export const GEAR_KEYS = Object.keys(GEAR);
+
+/** ★ **저장이 들고 온 물건을 여기서 한 번 거른다.** `GEAR` 에 없는 슬롯(k)이나 없는
+ *  등급(tier)이 섞여 오면 `meltGold` 의 `GEAR[it.k].cost[it.tier]` 가 그 자리서 터진다 —
+ *  그런데 그 자리가 하필 **가방이 넘칠 때(bagPut)** 라서, 판을 접는 순간에 맞는다
+ *  (2026-08-13 `leave_qa`: 「물러남」이 정산부터 통째로 멈췄다).
+ *  슬롯 이름은 언제든 바뀔 수 있는 것(옛 이름·오타·지워진 슬롯)이라 **저장을 믿지 않는다.**
+ *  ★ `load()` 안에서 못 거른다 — META 는 GEAR 보다 **먼저** 만들어져(183행) 거기서
+ *    GEAR 를 보면 TDZ 로 죽는다. 그래서 GEAR 가 선 **바로 다음**인 여기가 자리다.
+ *  ★ 목록을 새로 적지 않는다 — 진실은 GEAR 하나여야 이름을 고칠 때 같이 따라온다. */
+const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null);
+META.bag = (META.bag || []).filter(gearOk);
+for (const k of Object.keys(META.equip || {}))
+  if (META.equip[k] && !gearOk(META.equip[k])) META.equip[k] = null;
 /** 떨어진 물건 하나를 뽑는다 — {슬롯 k, 등급 tier}. 낮은 등급이 더 흔하다.
  *  ★★ 등급 이름을 `t` 로 뒀다가 **판 위의 나이(t)와 부딪혔다** — 떨어진 물건에
  *  `{...d, t: 0}` 로 나이를 얹는 순간 등급이 0 이 되고, 나이가 흐르면 등급이

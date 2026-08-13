@@ -36,7 +36,10 @@ await wait(5200);
 
 /* **구를 것을 만든다** — 가방을 꽉 채우고 트리 점수도 넉넉히. 빈 창은 표본이 아니다. */
 await S("Runtime.evaluate", { expression: `(()=>{const M=window.META;
-  M.lv=40; M.bag=[]; const K=["wand","robe","amul"];
+  /* ★ 슬롯 이름은 **GEAR 에서 가져온다** — 여기에 "amul" 이라고 손으로 적었다가
+     GEAR 에 없는 물건 넷을 저장에 심었고, 그 저장을 물려받은 다음 자(leave_qa)가
+     가방이 넘치는 순간 meltGold 에서 터졌다(2026-08-13). 자가 게임을 망가뜨렸다. */
+  M.lv=40; M.bag=[]; const K=window.__GEAR_KEYS || ["wand","robe","charm"];
   for(let i=0;i<12;i++) M.bag.push({k:K[i%3], tier:(i%4), af:[{id:"dmg",v:12},{id:"hp",v:60}]});
   window.saveMeta();})()` });
 
