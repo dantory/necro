@@ -181,8 +181,15 @@ export const S = {
 
 export const META_KEY = "necro.meta.v1";
 export const META = load();
+/* ② 부팅 순간의 lastSeen 을 **붙잡아 둔다** — 마을 진입이 saveMeta 로 lastSeen 을 now 로
+   밀어내기 전의 값이라야 「그동안」을 잰다. 부팅 때 applyOffline 이 이 값을 since 로 쓴다. */
+export const bootSeen = +META.lastSeen || 0;
 function load() {
   const base = { gold: 0, lv: 1, xp: 0, deepest: 1, runs: 0,
+                 /* ② 오프라인 진행 — **마지막으로 본 시각(ms)**·정산으로 쌓인 **시체 창고.**
+                    둘 다 primitive 라 아래 Object.assign(base, raw) 가 저절로 올린다 — 옛
+                    저장엔 없으니 0 이 남아 「처음 켠 사람」은 경과 0(갑자기 8시간치가 안 든다). */
+                 lastSeen: 0, corpses: 0,
                  /* ══ 환생(전승) ══ **회차를 넘어 사는 값.** 초기화되는 것(층·레벨·금·
                     가방·트리)과 갈라 여기 셋만 남긴다: 유해(누적 배수)·회차 수·최고 기록.
                     전부 primitive 라 아래 Object.assign(base, raw) 가 저절로 올려 준다 —
@@ -223,6 +230,9 @@ function load() {
   catch { return base; }
 }
 export function saveMeta() {
+  /* ② lastSeen 은 **max 로만** 오른다 — 시계를 되돌려도 뒤로 안 가야 오프라인 경과가 음수가
+     안 된다. 층 이동·구매마다 saveMeta 가 도므로 강제종료해도 마지막 시각이 크게 안 어긋난다. */
+  META.lastSeen = Math.max(META.lastSeen || 0, Date.now());
   try { localStorage.setItem(META_KEY, JSON.stringify(META)); } catch { /* 시크릿 창 */ }
 }
 
@@ -271,7 +281,7 @@ export function rebirth() {
   META.relics   = (META.relics | 0) + gain;
   META.rebirths = (META.rebirths | 0) + 1;
   META.best     = Math.max(META.best | 0, META.deepest | 0);
-  META.gold = 0; META.lv = 1; META.xp = 0; META.deepest = 1;
+  META.gold = 0; META.lv = 1; META.xp = 0; META.deepest = 1; META.corpses = 0;
   META.up    = { hp: 0, mp: 0, dmg: 0, army: 0 };
   META.equip = { wand: null, robe: null, charm: null };
   META.bag   = [];
@@ -279,6 +289,47 @@ export function rebirth() {
   syncSkills();                                // 트리가 비었으니 벨트도 해골 하나로 되돌아간다
   saveMeta();
   return { gain, relics: META.relics, rebirths: META.rebirths };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 오프라인 진행 ② ══ 껐다 켜면 「그동안 N분 · 금 X · 시체 Y」를 정산으로 준다.
+   ──────────────────────────────────────────────────────────────
+   환생과 같은 원칙 넷:
+   ① **난수 없음.** 검수기가 씨앗으로 A/B 를 하므로 게임 루프에 Math.random 을 한 톨도
+      넣지 않는다 — 획득량은 최근 실력(deepest)에서 결정적으로 뽑는다.
+   ② **경과 0 이면 손대기 전과 한 톨도 안 다르다.** 옛 저장(lastSeen 없음=0)도 경과 0.
+   ③ **상한 8시간·효율 50%** — 12시간 비웠어도 8시간치의 절반만.
+   ④ **시계 되돌림 방어** — now < lastSeen 이면 경과 0(saveMeta 가 lastSeen 을 max 로만 올린다).
+   유해 배수(relicMul)는 금·시체 획득의 그 규칙과 **일관되게 여기 한 곳에서만** 곱한다. */
+export const OFFLINE_CAP_MIN = 480;    // 상한 — 8시간(480분)까지만 쌓인다
+export const OFFLINE_EFF = 0.5;        // 효율 — 지켜보는 것의 절반
+/** 분당 금 — 최근 실력의 한 층 금 수입(goldFor)에 매단다. 결정적(난수 없음). */
+export const offlineGoldPerMin   = (meta) => goldFor(Math.max(1, meta.deepest | 0));
+/** 분당 시체 — 그 깊이 한 층의 마릿수(floorN)만큼. 결정적. */
+export const offlineCorpsePerMin = (meta) => floorN(Math.max(1, meta.deepest | 0));
+/** ms 경과와 meta 만으로 정산을 뽑는 **순수 함수**(검수기가 직접 부른다).
+ *  돌려주는 값 {min, gold, corpses, capped} — min 은 상한을 씌운 뒤의 정산 분이다. */
+export function offlineGain(ms, meta) {
+  const rawMin = Math.floor(Math.max(0, ms) / 60000);   // 음수·소수 분은 버린다(시계 되돌림 방어)
+  const capped = rawMin > OFFLINE_CAP_MIN;
+  const min = Math.min(rawMin, OFFLINE_CAP_MIN);
+  const mul = relicMul();
+  const gold    = Math.round(min * offlineGoldPerMin(meta)   * OFFLINE_EFF * mul);
+  const corpses = Math.round(min * offlineCorpsePerMin(meta) * OFFLINE_EFF * mul);
+  return { min, gold, corpses, capped };
+}
+/** lastSeen 을 읽어 경과를 정산해 META 에 넣는다. now(ms)는 밖에서 준다 — 함수 안에 시계가
+ *  없어야 검수기가 시각을 밀어 넣어 검사할 수 있다. 1분 미만이면 정산할 것이 없어 null 을
+ *  돌려준다(부르는 쪽이 패널을 안 띄운다). 반영한 뒤 saveMeta 가 lastSeen 을 now 로 전진시킨다. */
+export function applyOffline(now, since = META.lastSeen) {
+  const last = +since || 0;                             // ms 라 |0(32비트)로 자르면 깨진다
+  const g = offlineGain(last > 0 ? now - last : 0, META); // lastSeen 없으면 경과 0
+  META.lastSeen = Math.max(+META.lastSeen || 0, now);
+  if (g.min < 1) { saveMeta(); return null; }
+  META.gold += g.gold;
+  META.corpses = (META.corpses | 0) + g.corpses;
+  saveMeta();
+  return g;
 }
 
 /* ══ 이번 판의 스냅샷 ══ ④ 정산 화면이 읽는다. **S 가 아니라 여기에 굳힌다** —

@@ -1011,11 +1011,12 @@ export function newRun() {
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
-    corpses: 3,                 // 첫 시체 셋은 그냥 준다 — 빈손이면 첫 소환을 못 한다
+    corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
+  META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다
   sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0; runFloor0 = f0;
   corpseCarry = 0;

@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1156,7 +1156,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1447,6 +1447,21 @@ function drawReborn() {
        유해와 최고 기록만 남는다 — <b>되돌릴 수 없다.</b></div>`;
 }
 
+/* ══ 오프라인 정산 패널 ② ══ 껐다 켠 사이의 벌이를 「그동안 N분 · 금 X · 시체 Y」로 보여
+   준다. 상한(8시간)에 걸렸으면 그것도 알린다. 정산·환생과 같은 돌(winFoot·tip). */
+function drawOffline(off) {
+  const hrs = Math.floor(off.min / 60), mins = off.min % 60;
+  const dur = hrs ? `${hrs}시간 ${mins}분` : `${mins}분`;
+  $("offBody").innerHTML =
+    `<div class="tip">
+       <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
+       <div class="tipStat">금 <b class="t3">+${off.gold.toLocaleString()}</b></div>
+       <div class="tipStat">시체 <b class="t3">+${off.corpses.toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
+       ${off.capped ? `<div class="tipStat dim">8시간까지만 쌓입니다</div>` : ""}
+     </div>`;
+  $("offGold").textContent = (META.gold | 0).toLocaleString();
+}
+
 /* ══ 창 밖을 누르면 닫힌다 ══ 병수님 2026-08-13: "UI 창 외에 다른 곳 클릭하면 자동으로
    닫히면 좋겠는데 (물론 변경사항이 있으면 적용할거냐고 물어보고)".
    ★ **물어볼 것이 없다.** 이 창들은 누르는 순간 이미 적용된다 — 상점의 구매는 그 자리에서
@@ -1457,7 +1472,7 @@ function drawReborn() {
      사라지면 안 된다. 그건 「마을로」로만 닫는다.
    ★ 잡는 단계는 **capture** 다. 여기서 안 삼키면 같은 한 번의 누름이 마을 건물까지
      닿아, 창을 닫자마자 다른 창이 열린다. */
-const softWins = () => WINS.filter((w) => w !== "winEnd" && $(w).classList.contains("on"));
+const softWins = () => WINS.filter((w) => w !== "winEnd" && w !== "winOffline" && $(w).classList.contains("on"));
 document.addEventListener("click", (e) => {
   if (!softWins().length) return;
   const t = e.target;
@@ -1531,7 +1546,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -1548,6 +1563,7 @@ window.__openWin = (which) => {
      한다(줄바꿈은 값 길이에 달렸으므로 판을 한 번 죽여 나온 한 벌로는 못 잰다). */
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
   if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
+  if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
 };
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
@@ -1700,6 +1716,10 @@ $("hName").addEventListener("click", () => window.__openWin("stat"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
+/* ② 오프라인 진행 — 껐다 켠 사이 쌓인 금·시체를 정산해 마을에서 맞는다. 1분 미만이거나
+   옛 저장(lastSeen 없음)·시계 되돌림이면 applyOffline 이 null 을 줘 패널이 안 뜬다. */
+window.__lastOffline = applyOffline(Date.now(), bootSeen);
+if (window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); belt(); hud(); }
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
