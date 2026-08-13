@@ -211,6 +211,7 @@ export const S = {
   uniqCtr: 0,                 // 이 생(生)에 f≥10 에서 주운 전리품 수 — UNIQ_DROP_EVERY 마다 유니크(rollDrop)
   overflow: 0,                // 넘친 마나가 쌓인 몫(유니크 overflow) — OVF_TRIG 을 넘으면 쏟아진다
   summoned: 0, used: 0,       // 이 판에서 불러낸 하수인 수 · 자원으로 쓴 시체 수(정산이 읽는다)
+  qrun: {},                   // ⑦ 이 판의 일지 신호 — questNote 가 모으고 newRun 이 비운다(연속 조건은 판마다 리셋)
   /** ══ 「들어섰다」 ══ **한 번 켜지고 스스로 꺼지는 상태.** 층이 바뀌는 가장 큰
    *  사건(내려간다·관문이다)이 로그 글줄 하나로만 지나갔다 — 방치형은 보는 게임이라
    *  판에 흔적이 남아야 한다. enterFloor 가 켜고(= {t,f,gate}), step 이 t 를 줄여
@@ -246,7 +247,11 @@ function load() {
                  /* 찍은 것 — { 노드id: 랭크 }. **남은 점수는 저장하지 않는다**(아래
                     spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
                     옛 저장에도 저절로 맞고 어긋날 여지가 없다. */
-                 tree: {} };
+                 tree: {},
+                 /* ⑦ 일지(도전 과제) — **깬 것만** { id: 1 } 로 남긴다(1회성이라 boolean 이면 족하다).
+                    object 라 아래 merge 가 올려 준다 — 옛 저장엔 없으니 {} 가 남아 「한 과제도 안 깬
+                    사람」의 게임은 손대기 전과 한 톨도 안 다르다(relics 는 그대로, 배수 1.0 경로 유지). */
+                 quests: {} };
   /* ★ 얕은 Object.assign 이라 **중첩된 것은 통째로 덮인다** — 예전 저장에 gear 가 없으면
      통째로 사라지는 게 아니라, 있으면 통째로 옛것이 된다. up/gear 는 따로 합친다.
      안 그러면 새 항목을 더할 때마다 기존 사용자에게 undefined 가 간다. */
@@ -256,6 +261,7 @@ function load() {
     m.up    = Object.assign({}, base.up,    raw.up    || {});
     m.equip = Object.assign({}, base.equip, raw.equip || {});
     m.tree  = Object.assign({}, base.tree,  raw.tree  || {});
+    m.quests = Object.assign({}, base.quests, raw.quests || {});
     m.bag   = Array.isArray(raw.bag) ? raw.bag : [];
     /* ★ 옛 저장은 `gear: {wand:2,…}` 라는 **등급 숫자**를 갖고 있다. 그것을 옵션 없는
        개체로 올려 준다 — 세이브를 깨면 지금까지 굴린 것이 통째로 사라진다.

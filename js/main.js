@@ -894,9 +894,40 @@ function draw(dt) {
       ctx.globalAlpha = 1;
       continue;
     }
+    /* ── 뼛조각 ── 시체가 터진 자리에서 튀어 올랐다 떨어진다(battle.js gib).
+       ★ **높이(z)는 그림자와 몸을 갈라 그린다** — 그림자는 땅에 붙어 작아지고 몸만
+         떠오른다. 둘이 같이 뜨면 발이 땅에서 떨어져 통째로 들썩여 보인다
+         (마을 네크로멘서 숨쉬기에서 배운 것과 같은 자리다). */
+    if (f.kind === "gib") {
+      const gx = px(f.x), gy = py(f.y), sc2 = (window.__geo && window.__geo.sc) || 1;
+      const z = f.z * sc2, sz = (f.big ? 4 : 2.6) * Math.max(1, sc2 * 2.2);
+      const fade = Math.min(1, f.t * 4);
+      ctx.save();
+      /* 땅 그림자 — 높이 오를수록 작고 옅게 */
+      ctx.globalAlpha = 0.32 * fade * Math.max(0.15, 1 - f.z / 90);
+      ctx.fillStyle = "#120c08";
+      ctx.beginPath(); ctx.ellipse(gx, gy, sz * 0.9, sz * 0.45, 0, 0, 6.2832); ctx.fill();
+      /* 조각 — 누운 것은 안 돌고 바닥에 붙는다(자국처럼 남는다) */
+      ctx.globalAlpha = fade;
+      ctx.translate(gx, gy - z - (f.landed ? 0 : sz * 0.4));
+      if (!f.landed) ctx.rotate(f.spin);
+      /* ★ **네모가 아니라 조각이다.** 처음엔 정사각형으로 그렸더니 「흰 네모가 날아간다」로
+         보였다 — 뼛조각은 **길쭉하다.** 가로 대 세로를 1:0.42 로 두고 도는 각도를 주면
+         같은 픽셀 수로도 「부러진 뼈」로 읽힌다. 색도 한 톤 낮췄다(#d9cdb4 는 이 판에서
+         제일 밝은 축이라 눈이 그리로만 갔다). */
+      ctx.fillStyle = f.landed ? "#5e5344" : "#bfb298";
+      ctx.fillRect(-sz, -sz * 0.21, sz * 2, sz * 0.42);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     const im = sprite("fx/" + (f.kind === "nova" ? "nova" : "hit"));
     ctx.globalAlpha = Math.max(0, Math.min(1, f.t * 3));
-    const hh = f.kind === "nova" ? 190 : 28;
+    /* ★ 폭발은 **작게 시작해 커지며** 옅어진다. 예전엔 크기가 붙박이라 알파만 오르내려
+       「원이 깜빡」였다 — 터지는 것은 퍼져 나가야 터진 것으로 읽힌다.
+       f.t 는 남은 시간이라 0.35→0 으로 준다. 시작 0.55배 → 끝 1.18배. */
+    const grow = f.kind === "nova" ? 0.55 + 0.63 * (1 - Math.max(0, Math.min(1, f.t / 0.35))) : 1;
+    const hh = (f.kind === "nova" ? 190 : 28) * grow;
     const x = px(f.x || 0), y = py(f.y || 0);
     if (im) { ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
     else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";

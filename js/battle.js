@@ -397,6 +397,22 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
   }
 }
 /** 시체 n 구를 쓴다. **쓴 자리**를 돌려준다(거기서 소환수가 일어서게) */
+/** ══ 터진 뼛조각 ══ 쓴 시체 수만큼 조금 더 많이 튄다.
+ *  값은 판을 **안 건드린다**(피해 없음) — 그림만이라 A/B 로 잰 밸런스가 그대로 유효하다.
+ *  난수를 쓰긴 하지만 검수기가 씨앗을 박으므로 같은 씨앗이면 같은 조각이 튄다. */
+function gib(x, y, n = 1) {
+  const cnt = Math.min(18, 7 + n * 3);
+  for (let i = 0; i < cnt; i++) {
+    const a = Math.random() * 6.2832, sp = 40 + Math.random() * 110;
+    /* 누운 조각이 곧바로 사라지면 「터진 자리」가 안 남는다 — 넉넉히 둔다(1.4~2.3초). */
+    S.fx.push({ kind: "gib", t: 1.4 + Math.random() * 0.9,
+      x, y, z: 6 + Math.random() * 10,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * SQUASH_VIEW, vz: 90 + Math.random() * 150,
+      spin: Math.random() * 6.28, dspin: (Math.random() - 0.5) * 14,
+      big: Math.random() < 0.3, landed: 0 });
+  }
+}
+
 export function useCorpse(n = 1, nearX = 0, nearY = 0, why = "?") {
   let at = null, refund = 0, refPw = 0, took = 0;
   for (let i = 0; i < n; i++) {
@@ -530,6 +546,7 @@ export function cast(id) {
       }
     }
     S.fx.push({ t: 0.35, x: bx, y: by, kind: "nova", rad });
+    gib(bx, by, gulp);                              // 터진 자리에서 뼛조각이 튄다
     say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` 시체 ${gulp}구` : ""} · ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
   }
   if (id === "burn") {
@@ -724,7 +741,21 @@ export function step(dt) {
     }
   }
   S.mp = Math.min(mcap, S.mp + reg);
-  for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
+  for (let i = S.fx.length - 1; i >= 0; i--) {
+    const f = S.fx[i];
+    /* ★ **뼛조각은 날아가 떨어진다.** 병수님 2026-08-13: "시체폭발 스킬과 이펙트가
+       안어울림, 시체가 터지는 느낌이 아닌듯?". 맞다 — 여태 그림 한 장을 띄워 알파만
+       줄였을 뿐이라 「주황 원이 깜빡」이었지 **시체가 터진 것**이 아니었다.
+       조각에 높이(z)와 떨어지는 힘을 준다. 바닥에 닿으면 그 자리에 눕는다 —
+       터진 자리가 남아야 「무언가를 썼다」로 읽힌다. */
+    if (f.kind === "gib") {
+      f.x += f.vx * dt; f.y += f.vy * dt;
+      f.z += f.vz * dt; f.vz -= 620 * dt;              // 중력
+      f.spin += f.dspin * dt;
+      if (f.z <= 0) { f.z = 0; f.vx *= 0.25; f.vy *= 0.25; f.vz = 0; f.landed = 1; }
+    }
+    if ((f.t -= dt) <= 0) S.fx.splice(i, 1);
+  }
 
   const ampMul = S.amp > 0 ? ampPower() : 1;
 
