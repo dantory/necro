@@ -4,7 +4,8 @@ import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScal
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          GATELORDS, gatelordFor, gatelordIdx,
-         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul } from "./core.js";
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
+         hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -378,7 +379,7 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
 }
 /** 시체 n 구를 쓴다. **쓴 자리**를 돌려준다(거기서 소환수가 일어서게) */
 export function useCorpse(n = 1, nearX = 0, nearY = 0) {
-  let at = null;
+  let at = null, refund = 0, refPw = 0;
   for (let i = 0; i < n; i++) {
     if (S.corpses <= 0) break;
     S.corpses--;
@@ -395,8 +396,12 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0) {
       /* 먼지는 **일어서는 내내** 인다 — 몸이 다 올라오기 전에 먼지가 걷히면
          둘이 남남으로 보인다(그리는 쪽이 RISE_T 로 진행도를 잰다). */
       S.fx.push({ t: RISE_T, x: p.x, y: p.y, kind: "rise" });
+      /* ══ 유니크 twice ══ **쓴 시체의 절반이 되돌아온다** — 시체가 두 번 쓰인다.
+         쓴 자리·격 그대로 되살려, 다음 소환·폭발이 곧장 다시 먹을 수 있게 한다. */
+      if (hasUnique("twice") && Math.random() < TWICE_P) { refund++; refPw = Math.max(refPw, p.pw | 0); }
     }
   }
+  if (refund) addCorpse(at ? at.x : nearX, at ? at.y : nearY, "bones", refund, refPw);
   return at;
 }
 
@@ -560,8 +565,8 @@ export function step(dt) {
     d.x -= (d.x / dd) * sp * dt; d.y -= (d.y / dd) * sp * dt;
     if (dd < 16) {
       const r = takeDrop(d);
-      const g = GEAR[d.k], nm = nameOf(d);
-      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n, ref: r.ref });
+      const g = GEAR[d.k], nm = nameOf(d), nc = d.uid ? "uniq" : "t" + d.tier;
+      S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n, ref: r.ref, uid: d.uid });
       /* 붙은 것을 **로그에 적는다** — 안 적으면 「같은 4등급인데 왜 갈아 끼웠지」가
          화면 어디에도 없어서, 랜덤 옵션을 넣고도 없는 것과 같아진다. */
       const opts = (d.af || []).map((a) => afText(a)).join(" · ");
@@ -571,10 +576,10 @@ export function step(dt) {
          — 안 그러면 r.melted[0] 이 없어(재료는 녹은 것이 아니다) 금 줄에서 터진다. */
       const pickedFused = r.fused.some((f) => f.mats.includes(r.ref));
       let spill;
-      if (r.worn)          { say(`<b class="t${d.tier}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
-      else if (r.bagged)   { say(`<b class="t${d.tier}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
+      if (r.worn)          { say(`<b class="${nc}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
+      else if (r.bagged)   { say(`<b class="${nc}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
       else if (pickedFused){ spill = r.melted; }
-      else                 { say(`<b class="t${d.tier}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
+      else                 { say(`<b class="${nc}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
       for (const m of spill) say(`가방이 차서 <b class="t${m.tier}">${m.n}</b> → 금 ${m.gold}`);
       /* ⑤ 합성 — 같은 것 셋이 하나로. 사라진 재료는 정산에서 「재료」로 갈고(이번 판에 주운 것·중간
          산물이면 그 칸을 찾아), 생긴 것은 「합침」 칸으로 세운다. 로그는 한 줄, 등급 색은 기존과 같은 t{tier}. */
@@ -659,7 +664,23 @@ export function step(dt) {
   }
   if (S.pswing > 0) S.pswing -= dt;
   if (S.pcast  > 0) S.pcast  -= dt;
-  S.mp = Math.min(mpMaxOf(), S.mp + dt * mpRegenOf());
+  /* ══ 유니크 overflow ══ **넘친 마나가 화력이 된다.** 자동 시전이 마나를 다 쓰면
+     넘칠 일이 없고(약함), 스킬을 아끼면 넘쳐 쏟아진다(셈) — 남는 자원을 다른 자원으로
+     바꾸는 물건이라 스스로 균형이 잡힌다. 넘친 몫을 모아 두었다가 제일 가까운 적 무리에
+     한 번에 터뜨린다. 쌓임은 상한을 둬 한 방이 판을 끝내지 않게 한다. */
+  const reg = dt * mpRegenOf(), mcap = mpMaxOf();
+  if (hasUnique("overflow")) {
+    S.overflow = Math.min((S.overflow || 0) + Math.max(0, S.mp + reg - mcap), OVF_TRIG * 2);
+    if (S.overflow >= OVF_TRIG && S.mobs.length) {
+      let bx = 0, by = 0, bd = 1e9;
+      for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
+      const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
+      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { m.hp -= dmg; popNum(m.x, m.y, dmg, "nova"); }
+      S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
+      S.overflow = 0;
+    }
+  }
+  S.mp = Math.min(mcap, S.mp + reg);
   for (let i = S.fx.length - 1; i >= 0; i--) if ((S.fx[i].t -= dt) <= 0) S.fx.splice(i, 1);
 
   const ampMul = S.amp > 0 ? ampPower() : 1;
@@ -1073,7 +1094,7 @@ export function step(dt) {
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
     if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small", 1, m.hpMax);
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
-    META.gold += Math.round(goldFor(S.floor) * goldMulOf() * relicMul()) * (m.boss ? 8 : 1);
+    META.gold += Math.round(goldFor(S.floor) * goldMulOf() * relicMul() * gateFactor()) * (m.boss ? 8 : 1);
     const xpGain = Math.round((m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6)) * relicMul());
     META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
@@ -1087,6 +1108,13 @@ export function step(dt) {
     fall(dead, dead.art || ("minion/" + dead.kind), (dead.h || 40) * feedMul(dead));
     /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
     addCorpse(dead.x, dead.y, "bones", 1, dead.hpMax);   // 내 편의 주검도 자원이다
+    /* ══ 유니크 blast ══ **죽은 자리가 터진다** — 소환수의 죽음이 시체 폭발의 작은 판이
+       된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
+    if (hasUnique("blast") && dead.dmg) {
+      const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
+      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { m.hp -= bdmg; popNum(m.x, m.y, bdmg, "nova"); }
+      S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
+    }
   }
 
   /* ── 층이 비면 내려간다 ──
@@ -1163,6 +1191,7 @@ export function newRun() {
     corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
+    uniqCtr: 0, overflow: 0,
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
   });
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다

@@ -1,4 +1,5 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen } from "./core.js";
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
+ UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1238,6 +1239,10 @@ const syncReborn = () =>
 
 /** 등급 색 — D2 의 규칙 그대로. */
 const TIER_CLS = ["t0", "t1", "t2", "t3", "t4"];
+/** 이름 색 — 유니크는 등급 색(t0~t4) 대신 **고유 색(uniq)** 하나로 한눈에 다르게 보인다. */
+const clsOf = (it) => (it && it.uid) ? "uniq" : TIER_CLS[(it && it.tier) | 0];
+/** 유니크면 규칙 한 줄(d) — 「이게 나오면 판이 달라진다」를 말로 보인다. */
+const ruleHtml = (it) => { const u = uniqOf(it); return u ? `<div class="tipRule">${u.d}</div>` : ""; };
 
 let shopPick = "wand";                       // 좌판에서 고른 것
 let lastDig = null;                           // 직전에 무덤을 판 결과(takeDrop 반환) — 툴팁 한 줄로 남긴다
@@ -1247,13 +1252,13 @@ let lastDig = null;                           // 직전에 무덤을 판 결과(
  *  같은 판정(pickedFused)이고, 이름 색은 TIER_CLS 로 등급을 그대로 보인다. */
 const digFateHtml = (r) => {
   if (!r) return "";
-  const t = r.ref.tier, nm = nameOf(r.ref);
+  const cls = clsOf(r.ref), nm = nameOf(r.ref);
   const fused = r.fused.find((f) => f.mats.includes(r.ref));
   let line;
-  if (r.worn)       line = `<b class="${TIER_CLS[t]}">${nm}</b> 갈아 끼움`;
-  else if (r.bagged) line = `<b class="${TIER_CLS[t]}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})`;
+  if (r.worn)       line = `<b class="${cls}">${nm}</b> 갈아 끼움`;
+  else if (r.bagged) line = `<b class="${cls}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})`;
   else if (fused)   line = `셋이 하나로 — <b class="${TIER_CLS[fused.tier]}">${fused.n}</b>`;
-  else              line = `<b class="${TIER_CLS[t]}">${nm}</b> → 금 ${r.melted[0].gold}`;
+  else              line = `<b class="${cls}">${nm}</b> → 금 ${r.melted[0].gold}`;
   return `<div class="tipDig">방금 · ${line}</div>`;
 };
 
@@ -1298,9 +1303,10 @@ function drawShop() {
             : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
-    `<div class="tipName ${TIER_CLS[t]}">${nameOf(it)}</div>
+    `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
      <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${META.bag.length}/${BAG_MAX}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
+    ruleHtml(it) +
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
     ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +
     (nx !== null ? `<div class="tipNote sm">상인이 파는 것엔 <b>옵션이 없다</b> — 붙은 건 던전에서</div>` : "") +
@@ -1353,9 +1359,9 @@ let statSel = null;                           // 고른 칸 — {src:"eq",k} 또
 
 /** 한 칸을 상점 좌판과 같은 모양으로 — 그림·등급 숫자(색)·옵션 점. */
 const gearCell = (it, attr, sel) => {
-  const n = it.af.length;
-  return `<div class="cell${sel ? " sel" : ""}" ${attr}>
-    <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>
+  const n = it.af.length, uq = !!it.uid;
+  return `<div class="cell${sel ? " sel" : ""}${uq ? " uniq" : ""}" ${attr}>
+    <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
     ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
 };
 
@@ -1394,9 +1400,10 @@ const statTipHtml = () => {
   const g = GEAR[it.k];
   const fmt = (v) => it.k === "wand" ? `+${Math.round(v * 100)}%`
             : it.k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
-  return `<div class="tipName ${TIER_CLS[it.tier]}">${nameOf(it)}</div>
+  return `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
     <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${statSel.src === "eq" ? " · 낀 것" : ""}</div>
     <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
+    ruleHtml(it) +
     it.af.map((a) => `<div class="tipAf">${afText(a)}</div>`).join("") +
     (statSel.src === "bag"
       ? `<div class="tipBuy"><button class="btn" data-bagwear="${statSel.i}">끼기</button></div>`
@@ -1457,9 +1464,9 @@ function drawEnd() {
   const cell = (it) => {
     const fate = it.made ? ["made", "합침"] : it.mat ? ["mat", "재료"]
                : it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
-    const n = (it.af || []).length;
-    return `<div class="cell ${fate[0]}"><span class="eFate">${fate[1]}</span>
-      <i class="gear-${it.k}"></i><span class="q ${TIER_CLS[it.tier]}">${it.tier}</span>
+    const n = (it.af || []).length, uq = !!it.uid;
+    return `<div class="cell ${fate[0]}${uq ? " uniq" : ""}"><span class="eFate">${fate[1]}</span>
+      <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   };
   /* 빈손이어도 **한 일은 있다** — 예전엔 「빈손으로 돌아왔다」 한 줄만 남아 창의
@@ -1657,6 +1664,16 @@ window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 �
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
 window.__bossH = bossH; window.__mobKinds = mobKindsFor; window.__MOB_H_OF = (k) => MOB_H[k] || 48;      // 관문 보스 크기 검수(tools/boss_probe.mjs)가 실제 값을 읽는다
+/* 검수용 — tools/unique_probe.mjs 가 유니크 하나를 강제로 껴 A/B 를 한다. id 를 주면 그 슬롯에
+   유니크를 껴 저장하고, 인자가 없으면 유니크를 전부 벗는다(base 팔). */
+window.__UNIQUE_IDS = UNIQUE.map((u) => u.id);
+window.__forceUnique = (id) => {
+  const u = id && UNIQ_BY_ID[id];
+  for (const k of GEAR_KEYS) if (META.equip[k] && META.equip[k].uid) META.equip[k] = null;
+  if (u) META.equip[u.k] = mkUnique(u);
+  saveMeta();
+  return u ? u.id : null;
+};
 window.__deathLog = DEATHLOG;   // 죽은 원인 누계 — tools/gatelord_probe.mjs 가 주인별 사인 분포를 읽는다
 window.__GEAR_KEYS = GEAR_KEYS;   // 검수용 — 자가 가방을 채울 때 슬롯 이름을 손으로 적지 않게(winscroll_qa 의 "amul" 사고)
 

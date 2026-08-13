@@ -202,6 +202,8 @@ export const S = {
   drops: [],                  // 판에 떨어져 아직 안 빨려 들어온 전리품
   loot: [],                   // 이번 판에 얻은 것 — 정산 화면이 읽는다
   cd: {}, log: [], killed: 0, deepest: 1,
+  uniqCtr: 0,                 // 이 생(生)에 f≥10 에서 주운 전리품 수 — UNIQ_DROP_EVERY 마다 유니크(rollDrop)
+  overflow: 0,                // 넘친 마나가 쌓인 몫(유니크 overflow) — OVF_TRIG 을 넘으면 쏟아진다
   summoned: 0, used: 0,       // 이 판에서 불러낸 하수인 수 · 자원으로 쓴 시체 수(정산이 읽는다)
   /** ══ 「들어섰다」 ══ **한 번 켜지고 스스로 꺼지는 상태.** 층이 바뀌는 가장 큰
    *  사건(내려간다·관문이다)이 로그 글줄 하나로만 지나갔다 — 방치형은 보는 게임이라
@@ -415,6 +417,59 @@ export const GEAR = {
            cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
 };
 
+/* ══════════════════════════════════════════════════════════════
+   ══ 유니크 ══ **옵션이 아니라 규칙을 바꾸는 물건.** (ROADMAP 2단계 ⑤)
+   ──────────────────────────────────────────────────────────────
+   등급×접두는 「좋고 나쁨」뿐이다 — %가 몇 오른다. 뽑기의 맛은 「이게 나오면 판이
+   달라진다」에서 온다. 그래서 유니크는 **새 다섯 번째 축이 아니라** 기존 슬롯
+   (wand/robe/charm)을 채우는 개체다 — 슬롯이 늘면 화면·상점·자동착용이 다 는다.
+   유니크는 **등급 4 취급**(gearTier 가 4 라 GEAR[k].val[4] 를 그대로 받는다)이고,
+   그 위에 **규칙 하나**를 얹는다. 옵션(af)은 두지 않는다 — 규칙이 곧 값어치다.
+
+   다섯 중 셋은 **위로만**(더 셈), 둘은 **주고받기**다. 다 좋은 물건이면 「끼울까」가
+   사라지고 그냥 다음 등급이 된다.
+     · twice    (위)   시체를 쓰면 절반이 되돌아온다 — 시체가 두 번 쓰인다
+     · blast    (위)   소환수가 죽으면 그 자리가 터진다 — 죽음이 광역 피해가 된다
+     · overflow (위)   마나가 넘치면 넘친 만큼 적에게 쏟아진다 — 남는 자원을 화력으로
+     · gate    (주고받기) 관문에선 피해·금이 배로, 평지에선 못 미친다
+     · lonely  (주고받기) 군세는 반, 소환수 한 방은 갑절 — 축을 통째로 맞바꾼다
+   ★ **규칙 효과는 한 자리에서 읽는다** — hasUnique(id) 하나만 battle.js 가 본다.
+     효과 코드를 여기저기 흩지 않는다. */
+export const UNIQUE = [
+  { id:"twice",    k:"charm", n:"망자의 손아귀", d:"쓴 시체가 이따금 되돌아온다",         rule:"corpse-refund" },
+  { id:"blast",    k:"charm", n:"역병의 낙인",   d:"소환수가 죽으면 그 자리가 터진다",     rule:"death-nova"    },
+  { id:"overflow", k:"wand",  n:"범람의 홀",     d:"넘치는 마나가 적에게 쏟아진다",        rule:"mana-spill"    },
+  { id:"gate",     k:"wand",  n:"도살자의 인장", d:"관문에선 배로 · 평지에선 못 미친다",   rule:"gate-swing"    },
+  { id:"lonely",   k:"robe",  n:"고독한 왕관",   d:"군세는 반, 소환수 한 방은 더 세게",     rule:"few-strong"    },
+];
+export const UNIQ_BY_ID = {};
+for (const u of UNIQUE) UNIQ_BY_ID[u.id] = u;
+/** 이 물건이 유니크인가 — **uid 하나로 표식한다.** 저장이 uid 를 들고 오면 gearOk 가
+ *  아는 것만 통과시킨다(모르는 uid 는 옛 유니크·오타라 걸러진다). */
+export const isUnique = (it) => !!(it && it.uid);
+export const uniqOf   = (it) => (it && it.uid) ? (UNIQ_BY_ID[it.uid] || null) : null;
+/** 낀 것 셋 중에 이 규칙의 유니크가 있는가 — battle.js 가 규칙을 읽는 **유일한 물음**. */
+export function hasUnique(id) {
+  for (const k of GEAR_KEYS) { const it = META.equip[k]; if (it && it.uid === id) return true; }
+  return false;
+}
+/* ── 규칙 값 ── **감이 아니라 잰 값이다**(tools/unique_probe.mjs · 씨앗 1·3·9 · 8분).
+   판정선은 base 대비 +8%~+60%(위로 유니크) — 아래는 장식, 위는 「유니크 없으면 못 하는
+   게임」. twice/blast 는 첫 측정에서 +84/86% 로 과열이라 내렸고, lonely 는 +59% 로 붙어
+   있어 소환수 배수를 낮췄다. overflow(+45%)·gate(+30%)는 그대로 뒀다. */
+export const UNIQ_DROP_EVERY = 12;   // 한 생(生)에 f≥10 전리품 이만큼마다 유니크 하나(깊이가 열쇠)
+const GATE_UP = 1.8, GATE_DOWN = 0.7;
+export const TWICE_P    = 0.11;      // 시체를 쓰면 이 확률로 한 구 되돌아온다(0.18=+66% 아직 과열 → 0.11)
+export const LONELY_POW = 0.5;       // 소수정예 — 소환수 한 방 +50%(0.9→0.5, 과열 내림)
+export const BLAST_MUL  = 1.4;       // 소환수 죽음 폭발 — 그 소환수 한 방의 이만큼(3.0→1.4, 과열 내림)
+export const BLAST_R    = 95;
+export const OVF_TRIG   = 10;        // 넘친 마나가 이만큼 쌓이면 쏟아진다
+export const OVF_MUL    = 3.0;
+export const OVF_R      = 110;
+/** 관문 배수 — hasUnique("gate") 일 때만. 관문 층에서 크게 오르고 평지에서 손해다.
+ *  dmgMulOf(피해)와 goldFor(금) **두 곳**에서 이 하나를 곱한다(정의는 여기 한 곳). */
+export const gateFactor = () => hasUnique("gate") ? (isGate(S.floor | 0) ? GATE_UP : GATE_DOWN) : 1;
+
 /* ══ 던전에서 떨어지는 것 ══ 병수님 취향의 한가운데(뽑기·숫자가 불어나는 맛)인데
    지금 판에서 얻는 건 금·경험치 **숫자뿐**이었다. 장비는 상점에서 등급을 사는
    사다리라 평생 열두 번 누르면 끝이고, 「한 판 더」를 만드는 것이 없었다.
@@ -442,7 +497,8 @@ export const GEAR_KEYS = Object.keys(GEAR);
  *  ★ `load()` 안에서 못 거른다 — META 는 GEAR 보다 **먼저** 만들어져(183행) 거기서
  *    GEAR 를 보면 TDZ 로 죽는다. 그래서 GEAR 가 선 **바로 다음**인 여기가 자리다.
  *  ★ 목록을 새로 적지 않는다 — 진실은 GEAR 하나여야 이름을 고칠 때 같이 따라온다. */
-const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null);
+const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null
+                          && (!it.uid || UNIQ_BY_ID[it.uid]));
 META.bag = (META.bag || []).filter(gearOk);
 for (const k of Object.keys(META.equip || {}))
   if (META.equip[k] && !gearOk(META.equip[k])) META.equip[k] = null;
@@ -451,11 +507,20 @@ for (const k of Object.keys(META.equip || {}))
  *  `{...d, t: 0}` 로 나이를 얹는 순간 등급이 0 이 되고, 나이가 흐르면 등급이
  *  1.06 같은 **소수**가 됐다(그 값으로 cost 를 읽어 금이 NaN 이 됐다).
  *  자가 「장비_후 1.0666」을 뱉어서 잡혔다 — 이름은 뜻이 다르면 달라야 한다. */
+let uniqRotor = 0;
 export function rollDrop(f) {
   const k = GEAR_KEYS[Math.floor(Math.random() * GEAR_KEYS.length)];
   const cap = dropTierCap(f);
   /* 위쪽 등급일수록 드물게 — 제곱으로 눌러 「높은 게 나왔다」가 사건이 되게. */
   const tier = 1 + Math.floor(Math.pow(Math.random(), 2.1) * cap);
+  /* ★ 유니크는 **깊이가 열쇠**(f≥10)이고 **난수를 새로 안 먹는다** — 위 두 draw 를
+     그대로 소비한 뒤 결정적으로 얹는다(rotor 로 다섯을 돌려 씀). 그래서 유니크 없는
+     판(base)은 난수열이 한 톨도 안 어긋나 loop_health 회귀가 정확히 성립한다(A/B).
+     한 생에 f≥10 전리품을 UNIQ_DROP_EVERY 개 모아야 하나 — S.uniqCtr 는 newRun 이 0 으로. */
+  if (f >= 10 && ++S.uniqCtr >= UNIQ_DROP_EVERY) {
+    S.uniqCtr = 0;
+    return mkUnique(UNIQUE[uniqRotor++ % UNIQUE.length]);
+  }
   return mkItem(k, Math.min(cap, tier));
 }
 
@@ -517,15 +582,21 @@ export function mkItem(k, tier, plain = false) {
   if (!plain) { const n = afCount(tier); for (let i = 0; i < n; i++) af.push(rollAffix(tier, af.map((x) => x.id))); }
   return { k, tier, af };
 }
+/** 유니크 하나를 만든다 — **등급 4 취급**(GEAR[k] 최고 등급)에 uid 로 규칙을 표식하고,
+ *  옵션은 두지 않는다(규칙이 값어치다 · 난수를 안 먹어 결정적이다). */
+export function mkUnique(u) {
+  return { k: u.k, tier: GEAR[u.k].tiers.length - 1, af: [], uid: u.id };
+}
 /** 물건끼리 견주는 **하나의 자.** 자동 착용·자동 처분이 전부 이걸 본다 —
  *  자가 여럿이면 「왜 이게 안 끼워졌지」가 설명이 안 된다. */
 export const scoreOf = (it) =>
-  !it ? -1 : it.tier * 100 + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
+  !it ? -1 : it.tier * 100 + (it.uid ? 60 : 0) + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
 /** 이름 — 제일 센 옵션이 앞에 붙는다(디아블로의 접두사).
  *  ★ 접두사는 **「~의」로 끝내지 않는다.** 등급 이름 절반이 이미 「심장의 홀」·「왕의 제의」
  *  처럼 「의」로 끝나서 「군단의 심장의 홀」이 됐다 — 관형형(잔혹한·흐르는)으로만 쓴다. */
 export function nameOf(it) {
   if (!it) return "없음";
+  if (it.uid) return UNIQ_BY_ID[it.uid]?.n || GEAR[it.k].tiers[it.tier];
   const base = GEAR[it.k].tiers[it.tier];
   if (!it.af.length) return base;
   const top = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v))[0];
@@ -568,7 +639,9 @@ export function bagFuse() {
     /* 같은 슬롯·같은 등급끼리 자리(index)를 모아 셋 이상인 것을 찾는다. 꼭대기 등급은 건너뛴다. */
     const groups = {};
     for (let i = 0; i < META.bag.length; i++) {
-      const it = META.bag[i], key = it.k + ":" + it.tier;
+      const it = META.bag[i];
+      if (it.uid) continue;                                   // 유니크는 합치지 않는다 — 손으로만 다룬다
+      const key = it.k + ":" + it.tier;
       (groups[key] = groups[key] || []).push(i);
     }
     let hit = null;
@@ -587,7 +660,7 @@ export function bagFuse() {
     const src = mats[0];
     const made = mkItem(src.k, src.tier + 1);                 // 옵션은 등급이 올랐으니 새로 굴린다
     let worn = false;
-    if (scoreOf(made) > scoreOf(equipped(src.k))) {           // 낀 것보다 좋으면 그 자리서 갈아 끼운다
+    if (!isUnique(equipped(src.k)) && scoreOf(made) > scoreOf(equipped(src.k))) {  // 낀 것보다 좋으면 갈아 끼운다(낀 유니크는 손으로만 벗는다)
       const old = equipped(src.k);
       META.equip[src.k] = made; worn = true;
       if (old) META.bag.push(old);                            // 벗은 것은 가방으로(또 셋이 되면 연쇄가 잡는다)
@@ -612,9 +685,12 @@ export function bagPut(it) {
   lastFused = bagFuse();                          // ★ 녹이기 전에 합친다 — 중복은 금이 아니라 재료
   const melted = [];
   while (META.bag.length > BAG_MAX) {
-    let lo = 0;                                   // 점수가 제일 낮은 칸을 찾아 녹인다
-    for (let i = 1; i < META.bag.length; i++)
-      if (scoreOf(META.bag[i]) < scoreOf(META.bag[lo])) lo = i;
+    let lo = -1;                                  // 점수가 제일 낮은 칸을 찾아 녹인다 — 단 유니크는 건너뛴다
+    for (let i = 0; i < META.bag.length; i++) {
+      if (META.bag[i].uid) continue;              // 유니크는 규칙이 점수로 안 잡혀 저절로 녹으면 안 된다
+      if (lo < 0 || scoreOf(META.bag[i]) < scoreOf(META.bag[lo])) lo = i;
+    }
+    if (lo < 0) break;                            // 가방이 통째로 유니크뿐 — 녹일 것이 없다(넘쳐도 둔다)
     const [gone] = META.bag.splice(lo, 1);
     const gold = meltGold(gone);
     META.gold += gold;
@@ -633,7 +709,10 @@ export function takeDrop(d) {
   const it = { k: d.k, tier: d.tier, af: d.af || [] };
   let worn = false, melted = [];
   lastFused = [];                                // 이번 처리의 합성만 담기게 비운다(worn·빈손이면 bagPut 을 안 거친다)
-  if (scoreOf(it) > scoreOf(equipped(d.k))) {
+  /* ★ 유니크는 **저절로 껴지지 않는다** — 주고받기 유니크(관문·소수정예)가 자동으로
+     껴져 판을 망치면 안 되고, 낀 유니크도 자동 교체하지 않는다(손으로만 벗는다).
+     그래서 유니크가 걸리는 두 자리(주운 것이 유니크 · 낀 것이 유니크)는 곧장 가방으로. */
+  if (!it.uid && !isUnique(equipped(d.k)) && scoreOf(it) > scoreOf(equipped(d.k))) {
     const old = equipped(d.k);
     META.equip[d.k] = it; worn = true;
     if (old) melted = bagPut(old);               // 벗은 것을 가방으로(빈손이면 안 넣는다)
@@ -711,12 +790,13 @@ export const DEPTH_MUL = 1.0625;
 export const depthMul = () => Math.pow(DEPTH_MUL, Math.max(0, (S.floor | 0) - 1));
 export const dmgMulOf = () => depthMul()
                             * (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
-                            * (1 + rank("bone") * 0.10);
+                            * (1 + rank("bone") * 0.10)
+                            * gateFactor();
 /* dmgMulOf 는 **둘 다에게 걸리는 바탕**이다(레벨·강화·뼈 트리). 옵션은 그 위에서
    갈라진다 — 안 그러면 「본인 피해」가 소환수까지 올려서 이름이 거짓말이 된다. */
 export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 /** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
-export const minionMulOf = () => 1 + afSum("mdmg") / 100;
+export const minionMulOf = () => 1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0);
 export const goldMulOf   = () => 1 + afSum("gold") / 100;
 /** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
  *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
@@ -728,7 +808,10 @@ export const minionDmgMul = () => dmgMulOf() * minionMulOf();
    끝나 있었던 셈이다. 셋으로 시작해 세 레벨마다 하나씩, Lv.10 에 예전의 6 이 된다
    (그 뒤는 강화·트리·옵션이 이어받으므로 중반 이후는 그대로다). */
 export const armyBase = () => Math.min(6, 3 + Math.floor((META.lv - 1) / 3));
-export const armyCap  = () => armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
+export const armyCap  = () => {
+  const c = armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
+  return hasUnique("lonely") ? Math.max(1, Math.ceil(c / 2)) : c;   // 소수정예 — 군세는 반(대신 minionMulOf 가 갑절)
+};
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
