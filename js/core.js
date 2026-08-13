@@ -239,6 +239,10 @@ function load() {
                     옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
                  relics: 0, rebirths: 0, best: 1,
                  up: { hp:0, mp:0, dmg:0, army:0 },
+                 /* 재련(reforge) — **슬롯별 강화 수치.** 물건이 아니라 슬롯에 붙여, 더 좋은
+                    드랍으로 갈아 껴도 태운 금이 안 날아간다(ROADMAP ⑧-a). object 라 아래
+                    merge 가 올려 주고, 옛 저장엔 없으니 0 이 남는다(손대기 전과 안 다르다). */
+                 plus: { wand:0, robe:0, charm:0 },
                  /* 낀 것 셋. **등급 숫자가 아니라 개체다** — {k, tier, af:[{id,v}]}.
                     옵션이 랜덤이면 같은 4등급이라도 물건마다 달라야 하므로, 슬롯에
                     숫자를 적어 두는 것으로는 표현할 수가 없다. */
@@ -259,6 +263,7 @@ function load() {
     const raw = JSON.parse(localStorage.getItem(META_KEY) || "{}");
     const m = Object.assign(base, raw);
     m.up    = Object.assign({}, base.up,    raw.up    || {});
+    m.plus  = Object.assign({}, base.plus,  raw.plus  || {});
     m.equip = Object.assign({}, base.equip, raw.equip || {});
     m.tree  = Object.assign({}, base.tree,  raw.tree  || {});
     m.quests = Object.assign({}, base.quests, raw.quests || {});
@@ -331,6 +336,7 @@ export function rebirth() {
   META.best     = Math.max(META.best | 0, META.deepest | 0);
   META.gold = 0; META.lv = 1; META.xp = 0; META.deepest = 1; META.corpses = 0;
   META.up    = { hp: 0, mp: 0, dmg: 0, army: 0 };
+  META.plus  = { wand: 0, robe: 0, charm: 0 };
   META.equip = { wand: null, robe: null, charm: null };
   META.bag   = [];
   META.tree  = {};
@@ -494,6 +500,22 @@ export const GEAR = {
            cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
 };
 
+/* ══ 재련(reforge) ══ 등급은 15층이면 꼭대기 4에 닿고(dropTierCap) 옵션 셋도 곧 차서
+   장비 축은 구조적으로 ≈1500 이 천장이었다(ROADMAP ⑧-a). 그 「등급 4 위」에 층에 안 묶인
+   무한 축 하나를 얹는다 — 슬롯마다 +N. 금을 무한히 먹어 ⑧-b 의 금 싱크도 같이 닫는다.
+   ★ 수치를 코드에 박지 않는다: step 은 그 슬롯 **최고등급값의 비율**이라 슬롯마다 자동
+     비례한다(지팡이 0.114 · 망토 33.6 · 부적 0.312). */
+export const REFORGE_STEP = 0.06;
+export const reforgeStep = (k) => GEAR[k].val[GEAR[k].val.length - 1] * REFORGE_STEP;
+/* 값은 지수로 오른다 — 밑은 대장간(upCost 1.55)과 **같은 계열**. 기본값은 감이 아니라
+   60분 금 곡선(tmp/lh_a60_s1.json)에 맞췄다: plus 30 이면 cost≈1000만 이라 후반의 분당
+   수천만 금을 실제로 먹고(무한 싱크), plus 0~4 는 수백 금이라 10분 안에 천장을 뚫는다. */
+export const REFORGE_BASE = 20, REFORGE_POW = 1.55;
+export const reforgeCost = (k) => Math.round(REFORGE_BASE * Math.pow(REFORGE_POW, META.plus[k] | 0));
+/* 자가 보는 무게 — 한 등급(100)보다 작게 두어 등급이 여전히 뼈대다. 슬롯이 같으면 모든
+   물건에 **똑같이** 더해지므로 자동착용/처분 비교가 안 어긋난다(등급·옵션으로만 갈린다). */
+export const PLUS_W = 35;
+
 /* ══════════════════════════════════════════════════════════════
    ══ 유니크 ══ **옵션이 아니라 규칙을 바꾸는 물건.** (ROADMAP 2단계 ⑤)
    ──────────────────────────────────────────────────────────────
@@ -579,6 +601,14 @@ const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null
 META.bag = (META.bag || []).filter(gearOk);
 for (const k of Object.keys(META.equip || {}))
   if (META.equip[k] && !gearOk(META.equip[k])) META.equip[k] = null;
+/* ★ 재련 단계도 같은 자리에서 거른다(ROADMAP ⑧-a·382 「저장을 믿지 않는 자리를 한 곳 더」).
+ *  문자열·음수·소수·모르는 슬롯이 들어오면 reforgeCost 의 pow 나 gearVal 이 NaN 을 뱉는다. */
+if (!META.plus || typeof META.plus !== "object") META.plus = {};
+for (const k of Object.keys(META.plus)) if (!GEAR[k]) delete META.plus[k];
+for (const k of GEAR_KEYS) {
+  const v = META.plus[k];
+  META.plus[k] = (typeof v === "number" && isFinite(v) && v > 0) ? Math.floor(v) : 0;
+}
 /** 떨어진 물건 하나를 뽑는다 — {슬롯 k, 등급 tier}. 낮은 등급이 더 흔하다.
  *  ★★ 등급 이름을 `t` 로 뒀다가 **판 위의 나이(t)와 부딪혔다** — 떨어진 물건에
  *  `{...d, t: 0}` 로 나이를 얹는 순간 등급이 0 이 되고, 나이가 흐르면 등급이
@@ -667,7 +697,8 @@ export function mkUnique(u) {
 /** 물건끼리 견주는 **하나의 자.** 자동 착용·자동 처분이 전부 이걸 본다 —
  *  자가 여럿이면 「왜 이게 안 끼워졌지」가 설명이 안 된다. */
 export const scoreOf = (it) =>
-  !it ? -1 : it.tier * 100 + (it.uid ? 60 : 0) + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
+  !it ? -1 : it.tier * 100 + (it.uid ? 60 : 0) + (META.plus[it.k] | 0) * PLUS_W
+             + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
 /** 이름 — 제일 센 옵션이 앞에 붙는다(디아블로의 접두사).
  *  ★ 접두사는 **「~의」로 끝내지 않는다.** 등급 이름 절반이 이미 「심장의 홀」·「왕의 제의」
  *  처럼 「의」로 끝나서 「군단의 심장의 홀」이 됐다 — 관형형(잔혹한·흐르는)으로만 쓴다. */
@@ -834,7 +865,7 @@ export const gearNext = (k) => {
   const t = gearTier(k) + 1;
   return t < GEAR[k].tiers.length ? t : null;
 };
-export const gearVal = (k) => GEAR[k].val[gearTier(k)];
+export const gearVal = (k) => GEAR[k].val[gearTier(k)] + (META.plus[k] | 0) * reforgeStep(k);
 
 /* ══ 금은 저절로 쓰인다 ══ 방치형인데 **마을에 들러 손으로 눌러야만** 금이 줄었다.
    60분 곡선(ROADMAP ⑧)에서 금만 혼자 지수로 뛰어 1.4~5.2억이 쌓였고 군세 상한은
@@ -852,14 +883,20 @@ function forgeReserve() {
   return r;
 }
 /** 살 수 있는 만큼 산다(한 번에 `max` 개까지 — 후반에 금이 폭주해도 한 틱이 안 길어진다).
- *  돌려주는 값: 이번에 산 강화의 키 목록(비면 아무것도 안 샀다). */
+ *  돌려주는 값: 이번에 산 것의 키 목록(비면 아무것도 안 샀다).
+ *  ★ 대장간(UPS)과 재련(reforge)을 **한 저울에** 올려 매번 제일 싼 것을 산다 — 둘 다 밑이
+ *    1.55 라 저절로 번갈아 오르고, 재련이 무한 축이라 대장간이 다 차도 금이 계속 쓰인다.
+ *    forgeReserve() 를 그대로 존중해 상점(손으로 사는 축) 몫은 남긴다. */
 export function autoForge(max = 8) {
   const bought = [], keep = forgeReserve();
   for (let i = 0; i < max; i++) {
-    let pick = null, lo = Infinity;
-    for (const k in UPS) { const c = upCost(k); if (c < lo) { lo = c; pick = k; } }
+    let pick = null, lo = Infinity, reforge = false;
+    for (const k in UPS)       { const c = upCost(k);      if (c < lo) { lo = c; pick = k; reforge = false; } }
+    for (const k of GEAR_KEYS) { const c = reforgeCost(k); if (c < lo) { lo = c; pick = k; reforge = true;  } }
     if (!pick || META.gold - lo < keep) break;
-    META.gold -= lo; META.up[pick] = (META.up[pick] | 0) + 1;
+    META.gold -= lo;
+    if (reforge) META.plus[pick] = (META.plus[pick] | 0) + 1;
+    else         META.up[pick]   = (META.up[pick]   | 0) + 1;
     bought.push(pick);
   }
   return bought;

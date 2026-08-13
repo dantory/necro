@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
  UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1396,12 +1396,15 @@ function drawForge() {
 
   const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
   const cost = upCost(k), can = META.gold >= cost;
+  const pl = META.plus, reNext = GEAR_KEYS.reduce((a, b) => reforgeCost(b) < reforgeCost(a) ? b : a, GEAR_KEYS[0]);
   $("forgeTip").innerHTML =
     `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
      <div class="tipKind">대장간</div>
      <div class="tipStat">${u.d}</div>
      <div class="tipStat up">지금 · 체력 <b>${hpMaxOf()}</b> · 마나 <b>${mpMaxOf()}</b>
        · 군세 <b>${armyCap()}</b></div>
+     <div class="tipStat">재련 · 지팡이 <b>+${pl.wand | 0}</b> · 망토 <b>+${pl.robe | 0}</b> · 부적 <b>+${pl.charm | 0}</b></div>
+     <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
@@ -1414,10 +1417,11 @@ function drawForge() {
 let statSel = null;                           // 고른 칸 — {src:"eq",k} 또는 {src:"bag",i}
 
 /** 한 칸을 상점 좌판과 같은 모양으로 — 그림·등급 숫자(색)·옵션 점. */
-const gearCell = (it, attr, sel) => {
+const gearCell = (it, attr, sel, plus = 0) => {
   const n = it.af.length, uq = !!it.uid;
   return `<div class="cell${sel ? " sel" : ""}${uq ? " uniq" : ""}" ${attr}>
     <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
+    ${plus ? `<span class="plusBadge">+${plus}</span>` : ""}
     ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
 };
 
@@ -1457,7 +1461,8 @@ const statTipHtml = () => {
   const g = GEAR[it.k];
   const fmt = (v) => it.k === "wand" ? `+${Math.round(v * 100)}%`
             : it.k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
-  return `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
+  const pl = statSel.src === "eq" ? (META.plus[it.k] | 0) : 0;
+  return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""}</div>
     <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${statSel.src === "eq" ? " · 낀 것" : ""}</div>
     <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
     ruleHtml(it) +
@@ -1494,7 +1499,7 @@ function drawBag() {
   const eqCells = GEAR_KEYS.map((k) => {
     const it = equipped(k);
     if (!it) return `<div class="cell empty"><i class="gear-${k}"></i></div>`;
-    return gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k);
+    return gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k, META.plus[k] | 0);
   }).join("");
 
   /* 가방 — 12칸. 채운 칸은 그 물건, 빈 칸은 .cell.empty. */
