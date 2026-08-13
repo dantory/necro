@@ -835,6 +835,36 @@ export const gearNext = (k) => {
   return t < GEAR[k].tiers.length ? t : null;
 };
 export const gearVal = (k) => GEAR[k].val[gearTier(k)];
+
+/* ══ 금은 저절로 쓰인다 ══ 방치형인데 **마을에 들러 손으로 눌러야만** 금이 줄었다.
+   60분 곡선(ROADMAP ⑧)에서 금만 혼자 지수로 뛰어 1.4~5.2억이 쌓였고 군세 상한은
+   6~8 에 박혀 있었다 — 상한이 «못» 자란 게 아니라 **아무도 안 산 것**이다.
+   그래서 셋 중 «대장간(강화)»만 저절로 산다:
+     · 강화 = 「조금씩 오르는 몸」 — 고를 것이 없다. 손이 할 일이 아니다.
+     · 상점(장비) = 「한 번이 사건」 · 트리 = 되돌릴 수 없는 갈림길 → **손에 남긴다.**
+   ★ 다음에 살 수 있는 **장비 한 벌 값은 남겨 둔다**(forgeReserve). 안 그러면 상점에
+     갈 때마다 금이 0 이라 「살 것이 없는 가게」가 되고, 손으로 하는 축이 통째로 죽는다.
+   제일 싼 것부터 사므로 넷이 고르게 오르고, 값이 1.55^n 이라 저절로 느려진다 —
+   상한을 새로 두지 않아도 곡선이 알아서 눕는다. */
+function forgeReserve() {
+  let r = 0;
+  for (const k of GEAR_KEYS) { const nx = gearNext(k); if (nx !== null) r = Math.max(r, GEAR[k].cost[nx]); }
+  return r;
+}
+/** 살 수 있는 만큼 산다(한 번에 `max` 개까지 — 후반에 금이 폭주해도 한 틱이 안 길어진다).
+ *  돌려주는 값: 이번에 산 강화의 키 목록(비면 아무것도 안 샀다). */
+export function autoForge(max = 8) {
+  const bought = [], keep = forgeReserve();
+  for (let i = 0; i < max; i++) {
+    let pick = null, lo = Infinity;
+    for (const k in UPS) { const c = upCost(k); if (c < lo) { lo = c; pick = k; } }
+    if (!pick || META.gold - lo < keep) break;
+    META.gold -= lo; META.up[pick] = (META.up[pick] | 0) + 1;
+    bought.push(pick);
+  }
+  return bought;
+}
+
 /* ══ 본인도 **그 층의 격**만큼은 버틴다 ══
    깊이 배수(depthMul)를 넣을 때 **공격에만** 걸고 체력에는 안 걸었다. 그래서 50층에서
    층 피해 4,662 대 최대 체력 410 — **0.09대**, 스치면 즉사였다(자의 판정도 「벽은 본인
