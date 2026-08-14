@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
- UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants } from "./core.js";
+ UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1237,7 +1237,13 @@ function auto() {
        고칠 것은 값이 아니라 **차례**다 — 재 봤다(tools/ab_mana.sh, 씨앗 3·9·5 · 12분, 최고층 합):
        그대로 45(15/15/15) · 저주를 소환 뒤로 48(17/16/15) · **군세가 상한일 때만 51(15/18/18)**.
        군대를 먼저 채우고 남는 마나로 저주한다. 씨앗 3 만 15 에 머무니 그쪽은 다른 벽이다. */
-  if (S.mobs.length && armyN() >= armyCap()) cast("amp");
+  /* ★ 저주·폭발의 「언제」는 이제 **사람이 고른 운용(core.js TACTIC)에서 뽑는다** — 예전엔
+     여기 문턱이 박혀 있었다(저주 군세 상한 · 폭발 시체 20%). 기본값 `steady` 는 그 문턱과
+     정확히 같은 식이라, 운용을 안 건드린 판은 손대기 전과 한 톨도 안 다르다(RNG 소비도).
+     ★ **차례는 그대로다** — 소환 → 저주 → (offer·wall) → 폭발 → burn. 마나를 누가 먼저
+       먹느냐는 재 보고 정한 순서다(ab_mana.sh). 표에서 뽑는 건 조건뿐, 자리는 안 옮긴다. */
+  const tac = tacticOf(), boss = S.mobs.some(m => m.boss);
+  if (S.mobs.length && (!tac.ampCapped || armyN() >= armyCap()) && (!tac.ampBossOnly || boss)) cast("amp");
   /* ★ **넘치기 직전의 시체는 터뜨린다.** 상한을 두는 것만으로는 「버려진다」가 될 뿐이라
      자원이 되지 않는다 — 남는 몫을 화력으로 바꾸는 자리를 낸다(저주를 마나에 낸 것과 같은
      이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도
@@ -1252,7 +1258,7 @@ function auto() {
     if (S.corpses >= CORPSE_MAX * 0.85 && S.mobs.some(m => m.boss)) cast("offer");
     if (S.mobs.length >= 5 && S.corpses >= CORPSE_MAX * 0.85) cast("wall");
   }
-  if (S.mobs.length && S.corpses >= CORPSE_MAX * 0.2) cast("nova");
+  if (S.mobs.length && S.corpses >= CORPSE_MAX * tac.novaCorpse && (!tac.novaBossOnly || boss)) cast("nova");
   if (!globalThis.__NOSINK && S.corpses >= CORPSE_MAX * 0.85 && S.mp < mpMaxOf() * 0.90) cast("burn");
 }
 
@@ -1263,7 +1269,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine", "winTactic"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1427,6 +1433,28 @@ function drawDoctrine() {
      <div class="tipStat">${d.d}</div>
      <div class="tipStat up">벽(골렘) <b>${w.golem}</b> · 몸(구울) <b>${w.ghoul}</b> · 나머지 수(해골) <b>${Math.max(0, cap - w.golem - w.ghoul)}</b></div>
      <div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`;
+}
+
+/* 운용 — **주술을 언제 쓸지 고른다.** 편성 창과 같은 격자+툴팁이되, 여기서 고르는 것은
+ *  auto() 의 폭발·저주 조건(core.js TACTIC)이다. 툴팁은 그 운용이 폭발·저주를 어느 문턱에서
+ *  쓰는지를 사람 말로 풀어 보여 준다(편성이 벽·몸·수를 계산해 보여 주는 것과 같은 결). */
+function drawTactic() {
+  const cur = tacticId();
+  $("tacGrid").innerHTML = TACTIC_IDS.map((id) => {
+    const t = TACTIC[id];
+    return `<div class="cell${id === cur ? " sel" : ""}" data-tac="${id}"><span class="lvl">${t.ico}</span></div>`;
+  }).join("") + '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - TACTIC_IDS.length));
+
+  const t = TACTIC[cur];
+  const nova = `시체 ${Math.round(t.novaCorpse * 100)}% 이상${t.novaBossOnly ? " · 보스 있을 때만" : ""}`;
+  const amp  = `${t.ampBossOnly ? "보스 있을 때 · " : ""}${t.ampCapped ? "군세가 상한일 때" : "상한을 안 기다림"}`;
+  $("tacNow").textContent = t.n;
+  $("tacTip").innerHTML =
+    `<div class="tipName t2">${t.n}</div>
+     <div class="tipKind">운용 · 주술을 언제 쓰나</div>
+     <div class="tipStat">${t.d}</div>
+     <div class="tipStat up">폭발 <b>${nova}</b> · 저주 <b>${amp}</b></div>
+     <div class="tipNote sm">고르면 바로 바뀐다 — 되돌릴 수 있다(확인 창 없음)</div>`;
 }
 
 /* ══ 상태창 ══ 병수님: "왼쪽에 낀 것 셋, 오른쪽에 가방, 아래에 합쳐진 수치."
@@ -1656,6 +1684,8 @@ document.addEventListener("click", (e) => {
   /* 편성 칸 — 고르는 즉시 META 에 쓰고 저장한다(사는 것이 아니라 고르는 것 · 확인 없음). */
   const dpick = t.closest && t.closest("[data-doc]");
   if (dpick) { META.doctrine = dpick.getAttribute("data-doc"); saveMeta(); drawDoctrine(); return; }
+  const tpick = t.closest && t.closest("[data-tac]");
+  if (tpick) { META.tactic = tpick.getAttribute("data-tac"); saveMeta(); drawTactic(); return; }
   /* 상태창의 고르기·끼기도 **같은 핸들러의 갈래**로 — 새 리스너를 남발하지 않는다. */
   const spick = t.closest && t.closest("[data-spick]");
   if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawBag(); return; }
@@ -1703,7 +1733,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine", tactic:"winTactic" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -1721,6 +1751,7 @@ window.__openWin = (which) => {
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
   if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
   if (which === "doctrine"){ closeAll(); drawDoctrine(); win("winDoctrine", true); }
+  if (which === "tactic")  { closeAll(); drawTactic();   win("winTactic", true); }
   if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
 };
 $("stage").addEventListener("click", (e) => {
@@ -1891,6 +1922,7 @@ $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat
 $("hReborn").addEventListener("click", () => { if (canRebirth()) window.__openWin("reborn"); });
 $("hName").addEventListener("click", () => window.__openWin("stat"));
 $("hDoctrine").addEventListener("click", () => window.__openWin("doctrine"));
+$("hTactic").addEventListener("click", () => window.__openWin("tactic"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다

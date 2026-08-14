@@ -43,6 +43,9 @@
   <!-- 편성 — **마을에서 늘** 뜨는 단추(왼쪽 위 하늘). 환생이 오른쪽인 것과 짝으로 왼쪽에 둔다.
        CSS 의 body.in-town 만으로 켜고 끈다(늘 열려 있어 syncReborn 같은 조건이 없다). -->
   <button id="hDoctrine" class="hBtn" title="편성 — 어떤 군대를 세울지 고른다">편성 ⚔</button>
+  <!-- 운용 — 편성과 짝. **마을에서 늘** 뜬다(편성 바로 아래). 「무엇을 세울지」(편성)와
+       「주술을 언제 쓸지」(운용)는 방치형에서 사람이 쥔 두 손잡이라 나란히 둔다. -->
+  <button id="hTactic" class="hBtn" title="운용 — 폭발·저주를 언제 쓸지 고른다">운용 ✹</button>
 
   <div id="log"></div>
 
@@ -160,6 +163,17 @@
     <div class="grid" id="docGrid"></div>
     <div class="tip" id="docTip"></div>
     <div class="winFoot"><span class="purse">지금 · <b id="docNow">균형</b></span>
+      <button class="btn" data-close>나가기</button></div>
+  </div></div>
+
+  <!-- 운용 — **주술을 언제 쓸지 고른다.** 편성 창과 같은 돌(.grid·.cell·.tip·winFoot).
+       사는 것이 아니라 고르는 것이라 값(금)이 없다 — 고르면 그 자리서 바뀐다(확인 창 없음). -->
+  <div class="win" id="winTactic"><div class="frame">
+    <h2>운 용</h2>
+    <div class="wSub">「주술을 언제 쓸 것인가.」</div>
+    <div class="grid" id="tacGrid"></div>
+    <div class="tip" id="tacTip"></div>
+    <div class="winFoot"><span class="purse">지금 · <b id="tacNow">평시</b></span>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 

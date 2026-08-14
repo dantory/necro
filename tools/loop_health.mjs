@@ -51,7 +51,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_VOWCAP != null ? `globalThis.__GATE_VOW_CAP = ${+process.env.LH_VOWCAP};` : ""}
    ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
-   ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}` });
+   ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
+   ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
@@ -138,6 +139,17 @@ const tick = (sec) => `(async()=>{
            ★ 읽기만 한다 — 게임 상태를 안 건드리므로 난수 소비가 안 달라진다. */
         const V = T.위험 || (T.위험 = { 초: 0, 절반아래: 0, 사분아래: 0, 빠진횟수: 0,
                                         반토막: 0, 최저체력율: 1, 띠: {} });
+        /* ── ★ **주술을 몇 번 썼나**(B-2 운용) ── 사람이 고른 운용이 폭발·저주를 실제로
+           가르는지 보려면 횟수를 세야 하는데 게임은 세어 주지 않는다. 검수기가 **읽기만**
+           해서 센다(게임 상태·난수 소비를 안 건드리므로 A/B 가 그대로 유지된다):
+             · 폭발 — "nova" fx 중 **주된 폭발**(rad≥100)만. 곁불(보스 마무리 rad70 · 넘침
+               rad OVF_R)은 걸러 낸다. fx 는 개체라 **참조로 dedup** 하면 한 폭발을 겹세지 않는다.
+             · 저주 — S.amp 가 **위로 튀는** 순간이 새 저주다(battle.js 697 이 ampSecs() 로 다시 참). */
+        const CN = R.주술 || (R.주술 = { 폭발: 0, 저주: 0, 저주초: 0, seen: new Set() });
+        for (const fx of S.fx) if (fx.kind === "nova" && (fx.rad || 0) >= 100 && !CN.seen.has(fx)) { CN.seen.add(fx); CN.폭발++; }
+        if (S.amp > (R.ampPrev || 0)) CN.저주++;
+        R.ampPrev = S.amp;
+        if (S.amp > 0) CN.저주초 += 0.05;
         const hpm = C.hpMaxOf() || 1, hpr = S.hp / hpm;
         V.초 += 0.05;
         if (hpr < V.최저체력율) V.최저체력율 = hpr;
@@ -361,6 +373,15 @@ if (deaths.length) {
   const 후보 = [["본인 체력", 버팀 / 5], ["군세", 군세], ["마나", 마나]].sort((a, b) => a[1] - b[1]);
   console.log(`→ 벽은 **${후보[0][0]}** 쪽이 제일 모자람(체력 ${(버팀 / 5).toFixed(2)} · 군세 ${군세.toFixed(2)} · 마나 ${마나.toFixed(2)}, 1.0 이 넉넉함)`);
 }
+/* ── ★ **주술 — 운용이 실제로 갈랐나**(B-2) ── 위 tick 이 읽기만 해서 센 폭발·저주 횟수.
+   운용(steady/gate/hoard/always)마다 이 숫자가 갈리면 손잡이가 판을 바꾼 것이고,
+   넷이 비슷하면 손잡이가 장식이라는 뜻이다(그때도 그대로 적는다). */
+let 주술 = null;
+try {
+  const rs = await S("Runtime.evaluate", { expression: "JSON.stringify((()=>{const m=(window.__R||{}).주술;return m?{폭발:m.폭발,저주:m.저주,저주초:m.저주초}:null;})())", returnByValue: true });
+  주술 = JSON.parse(rs.result.value || "null");
+} catch {}
+if (주술) console.log(`\n주술 — 폭발 **${주술.폭발}번** · 저주 **${주술.저주}번** · 저주 지속 ${주술.저주초.toFixed(0)}초`);
 /* ── **시간이 어디로 새는가** ────────────────────────────────────────────
    싸움의 세기로는 벽이 안 밀렸다. 그러면 남은 후보는 시간이다 — 한 층에 몇 초를 쓰고
    그 초가 어느 통으로 가는지 본다. **뒷정리**가 크면 화력이 답이고, **기다림**이 크면
@@ -485,6 +506,6 @@ if (시간) {
       console.log(`→ 체력이 절반 아래인 시간이 전체의 ${(V.절반아래 / V.초 * 100).toFixed(1)}% 뿐이다 — A-2 의 「아슬아슬」은 화면에 **없다**`);
   }
 }
-fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간 }, null, 1));
+fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간, 주술 }, null, 1));
 console.log("errors:", errs.slice(0, 3), "netfail:", netfail.slice(0, 3));
 await raw("Target.closeTarget", { targetId }); bws.close();

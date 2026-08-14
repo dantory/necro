@@ -73,6 +73,38 @@ export const doctrineWants = (cap) => {
            ghoul: Math.floor(cap * d.body) };
 };
 
+/* ══ 운용(tactic) ══ **사람이 「주술을 언제 쓸지」 고를 자리.** 여태 폭발·저주는 auto() 안에
+   문턱 하나로만 박혀 있었다 — 저주는 「군세가 상한이면 늘」, 폭발은 「시체가 상한의 20% 를
+   넘으면 늘」. 방치형에서 사람이 하는 판단이 「평지에선 아꼈다 관문에서 몰아친다」 같은
+   운용인데(위 파일 머리 주석) 그 손잡이가 빠져 있던 셈이다. B-1(편성 · 군대를 어떻게 짜나)의
+   짝으로 넷을 준다: 평시·관문에서만·넘칠 때만·늘.
+   ★ 값을 **한 곳(이 표)에 모은다.** auto() 에 흩어 두면 검수기가 운용별로 A/B 를 못 돌리고,
+     「평시가 예전과 한 톨도 안 달라야 한다」를 눈으로 대조할 수도 없다(DOCTRINE 과 같은 결).
+   ★ **난수 한 톨 없다.** 전부 문턱 비교뿐이라 결정적이고, `steady`(기본) 는 예전 하드코딩
+     조건(폭발 시체≥0.20 · 저주 군세 상한)과 **정확히 같은 식**이라 기본 운용에서는 검수기의
+     A/B 가 그대로 성립한다. 플래그의 뜻(auto() 가 읽는다):
+       novaCorpse   폭발 문턱 — 시체가 `CORPSE_MAX×이 값` 이상이면 터뜨린다
+       novaBossOnly 폭발을 **보스가 있을 때만**(평지에선 시체를 쌓아 둔다)
+       ampCapped    저주를 **군세가 상한일 때만**(false 면 상한을 안 기다린다)
+       ampBossOnly  저주를 **보스가 있을 때만** */
+export const TACTIC_DEF = "steady";
+export const TACTIC = {
+  steady: { n:"평시",       ico:"☯", d:"여태의 기본 — 시체가 차면 터뜨리고, 군세가 상한이면 저주한다",       novaCorpse:0.20, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
+  gate:   { n:"관문에서만", ico:"⚑", d:"평지에선 아꼈다 관문에서 몰아친다 — 폭발·저주를 보스가 있을 때만",  novaCorpse:0.20, novaBossOnly:true,  ampCapped:true,  ampBossOnly:true  },
+  hoard:  { n:"넘칠 때만",   ico:"⬢", d:"넘칠 때만 터뜨린다 — 폭발 문턱을 시체벽·제물과 같은 자리로(85%)",   novaCorpse:0.85, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
+  always: { n:"늘",         ico:"✷", d:"쉬지 않고 몰아친다 — 시체가 조금만 있어도 터뜨리고, 상한을 안 기다려 저주한다", novaCorpse:0.05, novaBossOnly:false, ampCapped:false, ampBossOnly:false },
+};
+export const TACTIC_IDS = Object.keys(TACTIC);
+/** 지금 세운 운용의 **id**. 머리 없는 자(검수기)를 위한 문 — `globalThis.__TACTIC` 이 있으면
+ *  META 보다 앞선다(doctrineId 의 `__DOCTRINE` 과 같은 규칙). 모르는 값이면 기본값으로
+ *  떨어진다(옛 저장·오타 방어). */
+export const tacticId = () => {
+  const t = (typeof globalThis !== "undefined" && globalThis.__TACTIC != null)
+    ? globalThis.__TACTIC : (META && META.tactic);
+  return TACTIC[t] ? t : TACTIC_DEF;
+};
+export const tacticOf = () => TACTIC[tacticId()];
+
 /** **적의 그림 높이.** 예전엔 `48 + (r-10)*2.6` 으로 충돌 반경에서 크기를 뽑아 썼다.
  *  그래서 반경을 그림에 맞추려 하면 그림이 따라 커지는 고리에 걸린다 — 갈라 둔다. */
 /** ══ 본인의 기본공격 ══ 병수님: "중앙 네크로멘서는 기본공격이 원거리고
@@ -278,6 +310,7 @@ function load() {
                     옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
                  relics: 0, rebirths: 0, best: 1,
                  doctrine: DOCTRINE_DEF,
+                 tactic: TACTIC_DEF,
                  up: { hp:0, mp:0, dmg:0, army:0 },
                  /* 재련(reforge) — **슬롯별 강화 수치.** 물건이 아니라 슬롯에 붙여, 더 좋은
                     드랍으로 갈아 껴도 태운 금이 안 날아간다(ROADMAP ⑧-a). object 라 아래
@@ -342,6 +375,7 @@ function load() {
     for (const k of ["relics", "rebirths", "runs", "corpses"]) m[k] = Math.floor(m[k]);
     if (!m.quests || typeof m.quests !== "object") m.quests = {};
     if (!DOCTRINE[m.doctrine]) m.doctrine = DOCTRINE_DEF;   // 모르는 편성(옛 저장·오타)은 기본값으로 — 저장을 안 믿는 그 자리
+    if (!TACTIC[m.tactic]) m.tactic = TACTIC_DEF;           // 운용도 같은 자리에서 거른다(같은 이유)
     return m;
   }
   catch { return base; }
