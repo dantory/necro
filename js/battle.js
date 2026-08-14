@@ -190,6 +190,28 @@ const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GAT
 export const GATE_VOW_DEF = 0;
 const GATE_VOW_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW != null)
   ? +globalThis.__GATE_VOW : GATE_VOW_DEF;
+/* ══ 약속의 세기는 **층이 아니라 내 체력으로** 매긴다(GATE_VOW_CAP) ══════════════
+   GATE_VOW 첫 쓸기(2026-08-14 11:39 · 15분 × 씨앗 1·3·9)에서 조건 ①은 넉넉히 열렸는데
+   (깊은 띠 초당 1.2~1.7% 대 얕은 띠 0.8~1.1%) 조건 ②가 또 무너졌다 — 최고층 합이
+   기준선의 69%(팔 2) · 50%(팔 5)이고 **세 씨앗이 전부 같은 층에서 멈춘다**
+   (팔 2 → 35·35·35 · 팔 5 → 25·26·25). 씨앗이 달라도 같은 층이면 확률이 아니라 **산수**다.
+   ★ 그 산수는 이렇다: 내 체력의 바닥은 `hpMaxOf = max(bodyHp, floorDmg(f) × SURVIVE_HITS)`
+     이고 SURVIVE_HITS 는 5 다. 그런데 약속의 세기는 `m.dmg = floorDmg(f)` 이고 저주는
+     그 **3.8배**로 닿는다 — 체력이 그 바닥에 붙는 층부터 **약속 한 번이 최대체력의 76%**,
+     두 번이면 넘는다. 그 층이 곧 벽이고, 세기를 절반으로 낮춰 봐야 **벽의 자리만 옮긴다**
+     (GATE_SEC 다섯 눈금이 이미 그렇게 졌다 — 같은 자리를 두 번 고치면 방법을 바꾼다).
+   ★ 그래서 눈금을 바꾼다 — 약속 하나가 가져갈 수 있는 몫을 **그때 내 최대체력의 몇 %**
+     로 묶는다. 깊이를 따라 자라는 성질은 그대로다(hpMaxOf 자체가 층을 따라 큰다).
+     어느 깊이에서도 한 방이 나를 지우지 못하므로 **벽이 설 자리가 산수에서 사라진다.**
+     묶는 것은 **약속만 남은 수법**뿐 — 주인이 제 손으로 내는 수법은 한 톨도 안 건드린다.
+   0 이면 손 안 댐(상한 없음 = 예전 그대로) — 검수기가 `globalThis.__GATE_VOW_CAP` 로 쓴다. */
+export const GATE_VOW_CAP_DEF = 0;
+const GATE_VOW_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW_CAP != null)
+  ? +globalThis.__GATE_VOW_CAP : GATE_VOW_CAP_DEF;
+/** 수법마다 **한 방이 실제로 닿는 배수** — fireMech 안의 곱을 그대로 옮겨 적은 것이다.
+ *  상한을 「최대체력의 몇 %」로 걸려면 이 배수를 나눠 줘야 눈금이 수법끼리 같아진다.
+ *  add 는 졸개를 세우는 것이라 한 방이 없다(상한 대상이 아니다 — 1 로 둔다). */
+const MECH_HIT = { curse: 3.8, charge: 3.0, pool: 0.85, add: 1 };
 /** 「지금 군대가 내는 화력」의 기억 길이(초). 짧으면 한 방에 출렁이고, 길면 관문에
  *  들어선 뒤의 화력을 못 따라간다. */
 const DPS_TAU = 4;
@@ -1048,7 +1070,14 @@ export function step(dt) {
     }
     if ((p.t -= dt) > 0) continue;
     S.pendMech.splice(i, 1);
-    if (fireMech(p.mech, p.dmg, p.col, p.cvx, p.cvy)) return;
+    /* ★ **약속만 남은 수법은 내 체력으로 묶는다**(위 GATE_VOW_CAP 주석) — 상한은 «터지는
+       그 순간»의 최대체력으로 잡는다(약속할 때가 아니라). 그래야 층을 내려가며 몸이
+       커진 만큼 위험도 같이 커지고, 어느 깊이에서도 한 방이 나를 지우지 못한다.
+       주인이 제 손으로 내는 수법(아래 루프)은 여기를 지나지 않는다. */
+    let pd = p.dmg;
+    { const cap = p.vow ? GATE_VOW_CAP_OF() : 0;
+      if (cap > 0) pd = Math.min(pd, hpMaxOf() * cap / (MECH_HIT[p.mech] || 1)); }
+    if (fireMech(p.mech, pd, p.col, p.cvx, p.cvy)) return;
   }
   for (const m of S.mobs) {
     /* ★ **배어 나오는 중(born)에도 수법의 시계는 돈다.** 여기가 A-1 의 진짜 자리였다 —
@@ -1311,7 +1340,7 @@ export function step(dt) {
     if (m.boss && m.lord && m.vow > 0)
       for (let k = 0; k < m.vow; k++)
         S.pendMech.push({ t: m.lord.tell + k * m.lord.cd, warnT: m.lord.tell, mech: m.lord.mech,
-                          dmg: m.dmg, col: m.lord.col, cvx: mcx, cvy: mcy });
+                          dmg: m.dmg, col: m.lord.col, cvx: mcx, cvy: mcy, vow: 1 });
     S.mobs.splice(i, 1);
     S.killed++;
     /* ── 떨어뜨린다 ── 확률은 **층당 기대값**에서 뽑는다(마릿수가 늘어도 총량이 안 는다).
