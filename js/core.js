@@ -960,8 +960,30 @@ const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
                    + gearVal("robe") + afSum("hp");
 export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
+/* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
+   ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
+   죽은 층 중앙값을 5 에서 **한 톨도 못 옮겼다**(2026-08-14 13:38 · 네 팔 전부).
+   진 이유가 그 판의 죽는 순간 사진에 그대로 있다 — 네 팔 스무 번의 죽음이 전부:
+     **시체 26~32(넉넉) · 상한 6~7(넉넉) · 그런데 군세는 0~2 · 마나 0~5 / 43~54**
+   자리를 열어 줘도 **채울 마나가 없다.** 해골 하나가 6 인데 회복이 2.2/초라
+   한 마리에 2.7초 · 상한까지 채우는 데 16초다. 관문 주인은 그 사이에 벽을 지운다.
+   ★ 그래서 이미 세 번 통한 방법을 그대로 쓴다(「몸도 층을 따라 큰다」 ·
+     「주인 체력을 내 군대로 매긴다」 · 「군세 바닥을 그 층의 적 수에」):
+     **바닥을 「초당 소환 몇 마리를 감당하는가」에 둔다.**
+     max() 라 부적·강화로 회복이 그 바닥을 넘어서면 **저절로 손을 뗀다** —
+     초반만 건드리고 중반 이후는 한 톨도 안 달라진다(조건 ② 보호).
+   MANA_WALL = 초당 되살리기 몇 번 몫을 바닥으로 삼는가. **0 이면 손 안 댐** —
+   검수기가 `globalThis.__MANA_WALL` 로 쓴다. */
+export const MANA_WALL_DEF = 0;
+const MANA_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__MANA_WALL != null)
+  ? +globalThis.__MANA_WALL : MANA_WALL_DEF;
+const RAISE_MP = ALL_SKILLS.find(s => s.id === "raise").mp;
 /** 마나가 차는 속도 — 부적이 올린다. */
-export const mpRegenOf = () => 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
+export const mpRegenOf = () => {
+  const base = 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
+  const w = MANA_WALL_OF();
+  return w ? Math.max(base, RAISE_MP * w) : base;
+};
 /** ══ 깊이가 힘이다 ══ 적 체력은 `floorHp` 로 층마다 **1.19배**씩 자라는데 한 판 안에서
  *  내 힘은 그만큼 안 자랐다. 그래서 층마다 쓰는 시간이 곱절로 커지고
  *  **최고층 ≈ log(굴린 시간)** 이 된다 — 손잡이 열 개(머릿수·마중·소환수 화력·적 체력·

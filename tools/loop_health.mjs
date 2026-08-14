@@ -49,7 +49,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_GATE != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATE};` : ""}
    ${process.env.LH_VOW != null ? `globalThis.__GATE_VOW = ${+process.env.LH_VOW};` : ""}
    ${process.env.LH_VOWCAP != null ? `globalThis.__GATE_VOW_CAP = ${+process.env.LH_VOWCAP};` : ""}
-   ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}` });
+   ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}
+   ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
