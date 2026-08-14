@@ -17,17 +17,24 @@ REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
 SEEDS="3 9 5 1 2 4 6 7"
 # 팔: RUSH 환경변수만 가른다(코드 치환 없음). 첫 인자=arm, 둘째=LH_RUSH 값(빈 값이면 문 꺼짐).
+# ★ 앞에 붙이는 환경변수를 **확장 결과로 만들지 말 것**(2026-08-14, 팔 하나를 통째로 날렸다).
+#   `LH_SEED=$s ${rush:+LH_RUSH=$rush} node …` 는 확장이 끝난 뒤라 bash 가 `LH_RUSH=1` 을
+#   **명령 이름**으로 읽는다 → `LH_RUSH=1: command not found` 로 rush 여덟 판이 전부 빈손.
+#   그런데 파이프(`| tail`)의 종료 코드는 tail 것이라 `|| FAIL` 도 안 찍혀 **조용히** 지나갔다.
+#   그래서 `env` 로 넘긴다(env 는 VAR=val 인자를 제 손으로 푼다) + 실패를 PIPESTATUS 로 본다.
 arm() {
   local a=$1 rush=${2:-}
   for s in $SEEDS; do
     echo "───────── ARM $a · SEED $s ─────────"
-    LH_SEED=$s ${rush:+LH_RUSH=$rush} node tools/loop_health.mjs 12 "tmp/rush_${a}_$s.json" 2>&1 | tail -10 \
-      || echo "FAIL $a $s"
+    env LH_SEED=$s ${rush:+LH_RUSH=$rush} node tools/loop_health.mjs 12 "tmp/rush_${a}_$s.json" 2>&1 | tail -10
+    [ "${PIPESTATUS[0]}" = 0 ] || echo "★ FAIL $a $s (rc=${PIPESTATUS[0]})"
   done
 }
 
-arm base
-arm rush 1
+# 팔을 고를 수 있다: `ab_rush.sh rush` 면 rush 만(base 판이 이미 tmp/rush_base_*.json 에 있을 때).
+ONLY=${1:-}
+[ "$ONLY" = rush ] || arm base
+[ "$ONLY" = base ] || arm rush 1
 
 echo "═════ 끝 · $(date +%H:%M) ═════"
 # 팔별 표 — 판을 건너뛴 절대 수치는 못 믿으므로 **같은 씨앗의 두 팔끼리만** 견준다.
