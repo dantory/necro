@@ -54,16 +54,27 @@ const probe = `(async () => {
     out.push({ f, ...read() });
   }
   /* 양성 샘플 — **고치기 전 화면을 그대로 되돌려** 본다(「남은 」을 다시 보이게 + 옛 ×19.50).
-     이것이 안 잘리면 자가 눈을 감은 것이다. 배치는 동기라 hud() 가 되돌리기 전에 읽힌다. */
+     이것이 안 잘리면 자가 눈을 감은 것이다. 배치는 동기라 hud() 가 되돌리기 전에 읽힌다.
+     ★ 2026-08-15: 오른쪽에서 「· 금」 낱말을 접고 금을 줄인 표기로 바꾸자(hud.css/main.js)
+       줄에 16px 쯤이 생겨 **옛 화면조차 안 잘렸다** — 자가 눈을 감은 것이 아니라 자가
+       **옛 화면을 반만 되돌린** 탓이다. 되돌릴 것은 왼쪽·오른쪽 **둘 다**여야 한다. */
   const old = [];
   const lw = left.querySelector(".lw");
+  const gw = document.querySelector("#top .who .gw");
+  const gold = document.getElementById("hGold");
+  const goldNow = gold ? gold.textContent : "";
   for (const f of FLOORS) {
     if (lw) lw.style.display = "inline";
+    if (gw) gw.style.display = "inline";
+    /* 옛 금 표기 — toLocaleString() 은 자릿수가 자랄수록 넓어진다(제일 나쁜 일곱 자리). */
+    if (gold) { gold.textContent = (1234567).toLocaleString(); gold.style.color = "inherit"; }
     dep.textContent = "×" + Math.pow(1.0625, f - 1).toFixed(2);
     void left.offsetWidth;
     old.push({ f, dep: dep.textContent, clip: Math.max(0, left.scrollWidth - left.clientWidth) });
   }
   if (lw) lw.style.display = "";
+  if (gw) gw.style.display = "";
+  if (gold) { gold.textContent = goldNow; gold.style.color = ""; }
   return JSON.stringify({ at: window.__MODE.at, floor: st.floor, now: out, old });
 })()`;
 const r = await S("Runtime.evaluate", { expression: probe, awaitPromise: true, returnByValue: true });
@@ -75,7 +86,9 @@ for (const c of o.now) console.log(`  now f${c.f}\t${c.dep}\t"${c.left}"\tclip $
 for (const c of o.old) console.log(`  old f${c.f}\t${c.dep}\t(남은 다시 보임)\tclip ${c.clip}`);
 await S("Target.closeTarget", { targetId }).catch(() => {});
 /* 수가 성한지도 같이 본다 — 잘림 0 이어도 「적 2」로 적혀 있으면 숫자가 거짓말한 것이다. */
-const bad   = o.now.filter(c => c.clip > 0 || c.left.includes("…") || !/적 24$/.test(c.left));
+/* ★ 마릿수는 **두 자리면 된다** — 24 로 못 박아 뒀더니 줄에서 한 마리가 더 걸어 나온 뒤
+   (「적 25」) 자가 제 숫자를 못 알아보고 울었다. 재는 것은 마릿수가 아니라 **잘림**이다. */
+const bad   = o.now.filter(c => c.clip > 0 || c.left.includes("…") || !/적 \d\d$/.test(c.left));
 const calib = o.old.some(c => c.f === 50 && c.clip > 0);
 if (!calib)     { console.log("FAIL 캘리브레이션 — 고치기 전 화면이 50층에서 안 잘렸다(자가 눈을 감았다)"); process.exit(1); }
 if (bad.length) { console.log("FAIL " + bad.map(c => `f${c.f} ${c.dep} "${c.left}" +${c.clip}px`).join(" · ")); process.exit(1); }

@@ -12,7 +12,9 @@ const num = (v) => {
   v = Math.max(0, Math.round(v));
   return v < 1000     ? String(v)
        : v < 10000    ? (v / 1000).toFixed(1).replace(/\.0$/, "") + "k"
-       : v < 1000000  ? Math.round(v / 1000) + "k"
+       /* ★ 경계는 1,000,000 이 아니라 **999,500** 이다 — 반올림이 먼저라 999,999 가
+          「1000k」로 떴다(M 자리를 코앞에 두고 네 자리 k). */
+       : v < 999500   ? Math.round(v / 1000) + "k"
        : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
 };
 
@@ -1146,7 +1148,15 @@ function hud() {
      자리를 이름으로 잡는다 — 안쪽 차림이 바뀌어도 안 깨진다. */
   $("hLvT").textContent = "Lv." + META.lv;
   markSp();
-  $("hGold").textContent = (META.gold | 0).toLocaleString();
+  /* ★ 위 띠의 금은 **줄인 표기**(num)로 적는다 — `toLocaleString()` 은 자릿수가 자랄수록
+     넓어지는데(1,234,567 은 아홉 글자), 이 줄에서 줄어들 수 있는 칸은 `overflow:hidden` 이
+     걸린 왼쪽 하나뿐이라 **금이 불어난 만큼 「깊이 137층」·「적 25」가 먹혔다**.
+     그래서 자가 「가끔」 울었다 — 금은 판마다 다르니 되풀이가 안 됐던 것이다
+     (tools/topbar_stress.mjs 로 360px·금 9,528 부터 8px 씩 밀리는 것을 잼).
+     낱수는 상인·대장간·능력치 창이 그대로 보여 준다(거기는 자리가 넉넉하다) —
+     위 띠는 **어림수**면 족하고, title 에 낱수를 남겨 둔다. */
+  { const g = META.gold | 0, el = $("hGold");
+    el.textContent = num(g); el.title = g.toLocaleString() + " 금"; }
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
      띠는 가로로 차오르는데, 어느 쪽을 쓸지는 판의 결(테마)이 정한다 — 여기서는 둘 다 준다. */
   /* 구슬은 **캔버스에 픽셀로** 그린다(js/orb.js) — CSS 원은 가장자리가 매끄러워

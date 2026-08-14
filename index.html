@@ -30,7 +30,10 @@
          (인벤토리는 따로 없다. 능력치 창 안에 낀 것 3칸 + 가방 12칸으로 들어 있다.) -->
     <span class="who"><button id="hName" class="hBtn" title="능력치 — 지금 이 몸의 수치">능력치</button>
       <button id="hLv" class="hBtn lvBtn" title="스킬 트리">스킬 <span id="hLvT">Lv.1</span><i id="spDot"></i></button>
-      · 금 <span id="hGold">0</span></span>
+      <!-- ★ 「금」이라는 **낱말**은 따로 싼다 — 360px 에서는 이것만 접고 수는 남긴다
+           (여기 여유는 원래 0 이라, 금이 네 자리(995k)가 되면 왼쪽 「적 25」가 먹혔다).
+           낱말이 없어도 금빛 수 하나면 무엇인지 안다. -->
+      <span class="gw">· 금 </span><span id="hGold">0</span></span>
   </div>
 
   <!-- 로그 — 판 안이 아니라 전장 아래쪽에 반투명으로 겹친다(판 바로 위) -->

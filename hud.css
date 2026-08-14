@@ -658,6 +658,12 @@ body.in-town #hTactic{ display:inline-block; }
      좁은 화면에서는 「적 24」. ellipsis 에 맡기면 하필 끝에 있는 수가 먹힌다. */
   #top .left .lw{display:none}
   #top .who{font-size:13px;white-space:nowrap}
+  /* ★ 같은 규칙을 오른쪽에도 — **말을 버리고 수를 지킨다.** 금은 판마다 자릿수가 달라
+     「995k」(네 글자)에서 왼쪽이 4px 먹혔다(tools/topbar_stress.mjs). 수를 줄이는 것은
+     이미 num() 으로 했으니, 여기서는 **낱말 「· 금」을 접고** 금빛으로 무엇인지 알린다.
+     낱수는 눌러서 여는 상인·능력치 창이 그대로 보여 준다(title 에도 남겨 뒀다). */
+  #top .who .gw{display:none}
+  #top .who #hGold{color:var(--gold);margin-left:5px}
   /* 아래 자원 줄은 좁은 폭에서 원래부터 밀려 있었다(「군세 최대 …」가 구슬에 잘렸다).
      자간을 걷고 **경험치 낱수(30/579)를 감춘다** — 바로 아래 띠가 같은 것을 그린다. */
   /* 좁은 폭에서는 **레벨 칸을 통째로 감춘다.** 「가방 11/12 · Lv.12 499/579 · 군세 최대 11」

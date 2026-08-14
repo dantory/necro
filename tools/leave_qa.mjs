@@ -94,7 +94,11 @@ const g = await ev(`(()=>{const e=document.getElementById("hLeave"); if(!e) retu
                          닿는것: hit?(hit.id||hit.className||hit.tagName)+"":null});})()`);
 say(!!g.제것, `던전에서 손가락이 단추에 닿는다 (닿는 것: ${g.닿는것})`);
 
-/* ⑤ 진짜 탭 → 정산이 뜨고, 마을에 있고, **잃은 것이 없다.** */
+/* ⑤ 진짜 탭 → 정산이 뜨고, 마을에 있고, **잃은 것이 없다.**
+   ★ 견줄 값은 `b4`(9초 전)가 아니라 **누르기 직전**의 것이다 — 그 사이에도 판은 돌아
+   층이 넘어가고 전리품이 는다. b4 로 견줬더니 「끝난 층이 맞다 (12 → 13)」로 울었는데
+   정작 정산 부제는 「13층에서 발길을 돌림」이었다(자가 틀린 것이지 게임이 아니다). */
+const now = await ev(`JSON.stringify({ 금: window.META.gold, 전리품: window.S.loot.length, 층: window.S.floor })`);
 await S("Input.dispatchMouseEvent", { type: "mousePressed",  x: g.cx, y: g.cy, button: "left", clickCount: 1 });
 await S("Input.dispatchMouseEvent", { type: "mouseReleased", x: g.cx, y: g.cy, button: "left", clickCount: 1 });
 await wait(700);
@@ -106,9 +110,9 @@ const af = await ev(`JSON.stringify({ 정산: document.getElementById("winEnd").
 say(af.정산, `정산 창이 뜬다`);
 say(af.어디 === "town", `마을로 돌아왔다 (at=${af.어디})`);
 say(af.죽음판정 === false, `「쓰러짐」이 아니라 「물러남」으로 적힌다 (dead=${af.죽음판정})`);
-say(af.금 >= b4.금, `금을 잃지 않았다 (${b4.금} → ${af.금})`);
-say(af.전리품 === b4.전리품, `전리품을 다 지고 왔다 (${b4.전리품} → ${af.전리품})`);
-say(af.층 === b4.층, `끝난 층이 맞다 (${b4.층} → ${af.층})`);
+say(af.금 >= now.금, `금을 잃지 않았다 (${now.금} → ${af.금})`);
+say(af.전리품 === now.전리품, `전리품을 다 지고 왔다 (${now.전리품} → ${af.전리품})`);
+say(af.층 === now.층, `끝난 층이 맞다 (${now.층} → ${af.층})`);
 say(/발길을 돌림/.test(af.부제), `정산 부제: "${af.부제}"`);
 say(/물러남/.test(af.로그), `기록에 물러남이 남는다`);
 
