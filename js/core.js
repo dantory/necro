@@ -974,7 +974,7 @@ export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
      초반만 건드리고 중반 이후는 한 톨도 안 달라진다(조건 ② 보호).
    MANA_WALL = 초당 되살리기 몇 번 몫을 바닥으로 삼는가. **0 이면 손 안 댐** —
    검수기가 `globalThis.__MANA_WALL` 로 쓴다. */
-export const MANA_WALL_DEF = 0;
+export const MANA_WALL_DEF = 0.75;
 const MANA_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__MANA_WALL != null)
   ? +globalThis.__MANA_WALL : MANA_WALL_DEF;
 const RAISE_MP = ALL_SKILLS.find(s => s.id === "raise").mp;
@@ -1025,7 +1025,7 @@ export const minionDmgMul = () => dmgMulOf() * minionMulOf();
      Lv.10 뒤로는 레벨 쪽이 크거나 같아 저절로 손을 뗀다(깊은 층은 한 톨도 안 달라진다).
    ARMY_WALL = 그 층 적 수의 몇 곱을 바닥으로 삼는가. **0 이면 손 안 댐**(예전 그대로) —
    검수기가 `globalThis.__ARMY_WALL` 로 쓴다. */
-export const ARMY_WALL_DEF = 0;
+export const ARMY_WALL_DEF = 0.5;
 const ARMY_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_WALL != null)
   ? +globalThis.__ARMY_WALL : ARMY_WALL_DEF;
 export const armyBase = () => {
