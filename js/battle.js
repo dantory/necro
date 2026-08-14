@@ -174,6 +174,22 @@ const OPEN_MUL_OF = () => (typeof globalThis !== "undefined" && globalThis.__OPE
 export const GATE_SEC_DEF = 0;
 const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_SEC != null)
   ? +globalThis.__GATE_SEC : GATE_SEC_DEF;
+
+/* ══ 관문은 **서는 순간 수법을 약속한다**(GATE_VOW) ══
+   GATE_SEC(주인 체력을 내 군대로 매기기)는 2026-08-14 11:0x 에 졌다 — 조건 ①(깊은 띠에
+   피해가 닿는가)은 처음으로 열렸는데, 어느 눈금(1.5·2.5·4·6·14)에서도 **최고층이
+   기준선의 60~70% 로 무너졌다.** 세 씨앗이 전부 25~40층에서 죽고 되돌아오기를 반복한다.
+   눈금 탓이 아니다 — 이 축은 **내 화력이 층 체력을 앞지르는 그 층**에서 갑자기 켜져
+   거기에 벽을 세운다. 값을 낮춰도 벽의 자리만 조금 옮길 뿐이다(같은 자리를 두 번 고치면
+   방법을 바꾼다).
+   ★ 그래서 위험을 **주인의 질김에서 완전히 떼어 낸다.** 주인이 서면 그 자리에서 수법
+     GATE_VOW 번을 약속하고, 그 전에 치워져도 **약속한 만큼은 예정대로 터진다**(예고 fx 를
+     제 시각에 띄우므로 「예고 없이 터짐」이 아니다). 체력은 한 톨도 안 건드리니 관문이
+     벽이 되지 않고, 세기는 m.dmg = floorDmg(f) 라 **깊이를 따라 저절로 큰다.**
+   0 이면 손 안 댐(예전 그대로) — 검수기가 `globalThis.__GATE_VOW` 로 쓸어 본다. */
+export const GATE_VOW_DEF = 0;
+const GATE_VOW_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW != null)
+  ? +globalThis.__GATE_VOW : GATE_VOW_DEF;
 /** 「지금 군대가 내는 화력」의 기억 길이(초). 짧으면 한 방에 출렁이고, 길면 관문에
  *  들어선 뒤의 화력을 못 따라간다. */
 const DPS_TAU = 4;
@@ -199,6 +215,9 @@ export function enterFloor(f) {
   { const nm = hpMaxOf(), om = S.hpMax || nm;
     S.hp = Math.max(1, Math.round(S.hp * nm / om)); S.hpMax = nm; }
   S.mobs = [];
+  /* 앞 층 관문이 남긴 약속(pendMech · GATE_VOW)은 여기서 끊는다 — 내려온 뒤에 앞 층
+     수법이 터지면 「어디서 온 것인지 알 수 없는 피해」가 된다(add 는 졸개까지 세운다). */
+  S.pendMech.length = 0;
   S.push.x = 0; S.push.y = 0;                 // 새 층은 본인 곁에서 시작한다
   const n = floorN(f);
 
@@ -251,6 +270,9 @@ function popSpawn() {
        하나도 안 바뀌고, 깊은 관문만 「최소 GATE_SEC 초는 선다」로 끌어올려진다 —
        그래야 수법이 다 여문 뒤에 터진다(OPEN_MUL 로 안 깎인다). 0 이면 손 안 댐. */
     m.hp = m.hpMax = Math.max(floorHp(q.f) * 7, (S.armyDps || 0) * GATE_SEC_OF());
+    /* ★ **서면서 약속한다**(위 GATE_VOW 주석) — 제가 낸 수법마다 하나씩 갚고, 갚지 못한
+       채 치워지면 죽는 자리에서 남은 약속을 예정대로 걸어 둔다. */
+    m.vow = GATE_VOW_OF();
     m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * FOOT_R;
     /* ★ **큰 몸은 같은 속도로 걸으면 굼떠 보인다.** 병수님 2026-08-13: "특히 보스
        움직임이 부자연스럽고 굼뜬느낌이 강하네". 절대 속도로는 보스도 졸개도 22~32 로
@@ -1007,10 +1029,23 @@ export function step(dt) {
     }
     return !!S.dead;
   };
+  /** 수법의 **예고**를 띄우는 자리 — 살아 있는 주인(아래 루프)과 약속만 남은 수법
+   *  (pendMech · GATE_VOW)이 같은 몸을 쓴다. 예고 없이 터지면 「불공평」이다. */
+  const warnFx = (mech, col, tell, cvx = 0, cvy = -1) => {
+    if (mech === "charge") { S.fx.push({ t: tell, x: -cvx * 260, y: -cvy * 260, kind: "warn_charge", col, tx: cvx, ty: cvy }); return; }
+    const wk = mech === "pool" ? "warn_pool" : mech === "add" ? "warn_add" : "warn_curse";
+    const wr = mech === "curse" ? 200 : mech === "pool" ? 92 : 85;
+    S.fx.push({ t: tell, x: 0, y: 0, kind: wk, col, r: wr });
+  };
   /* ── 예고를 남기고 죽은 수법 ── 주인이 치워져도 예고한 시각에 예정대로 터진다.
-     (예고 fx 는 이미 판에 떠 있으므로 「예고 없이 터졌다」가 되지 않는다.) */
+     (예고 fx 는 이미 판에 떠 있으므로 「예고 없이 터졌다」가 되지 않는다.)
+     ★ 약속만 남은 수법(GATE_VOW)은 아직 예고를 안 띄웠다 — 제 차례가 tell 초 앞으로
+       다가오면 그때 띄운다(warnT). 그래야 「예고 → tell 초 → 발동」이 그대로 지켜진다. */
   for (let i = S.pendMech.length - 1; i >= 0; i--) {
     const p = S.pendMech[i];
+    if (p.warnT != null && !p.warned && p.t - dt <= p.warnT) {
+      p.warned = 1; warnFx(p.mech, p.col, p.warnT, p.cvx, p.cvy);
+    }
     if ((p.t -= dt) > 0) continue;
     S.pendMech.splice(i, 1);
     if (fireMech(p.mech, p.dmg, p.col, p.cvx, p.cvy)) return;
@@ -1051,6 +1086,7 @@ export function step(dt) {
       }
       if ((m.mechCd -= dt) <= 0) {                           // 예고 시작
         m.mstate = 1; m.mtell = lord.tell;
+        if (m.vow > 0) m.vow--;                              // 제 손으로 낸 수법은 약속에서 갚는다
         S.fx.push({ t: lord.tell, x: m.x, y: m.y, kind: "warn_charge", col: lord.col, tx: -m.x, ty: -m.y });
       }
       continue;
@@ -1061,6 +1097,7 @@ export function step(dt) {
     }
     if ((m.mechCd -= dt) <= 0) {                             // 예고 시작(pool·add·curse)
       m.mtell = lord.tell; m.mechCd = lord.cd;
+      if (m.vow > 0) m.vow--;                                // 제 손으로 낸 수법은 약속에서 갚는다
       /* ★ **덜 여문 채 내는 수법은 약하다.** 예고를 배어 나오는 중에 시작하면 깊은 관문도
          수법을 한 번은 내는데(위), 그대로 온 힘을 실으면 관문이 벽이 된다 — 손 안 대고
          재니 최고층 합이 292 → 125 로 반토막 났다(2026-08-14). 그래서 **다 서기 전에
@@ -1263,9 +1300,18 @@ export function step(dt) {
        0.8 초를 사는데(a1_gate 2026-08-14) 예고만 tell 초라 여태 전부 「예고 중 사망」으로
        사라졌다 — 50-99층에서 네크로가 받은 피해가 **50분 내내 0** 이었던 자리가 여기다.
        위험을 주인의 생존에서 떼어 낸다(값이 아니라 구조). */
+    const md = Math.hypot(m.x, m.y) || 1, mcx = -m.x / md, mcy = -m.y / md;
     if (m.boss && m.lord && m.mtell > 0 && (m.lord.mech !== "charge" || m.mstate === 1))
       S.pendMech.push({ t: m.mtell, mech: m.lord.mech, dmg: (m.mdmg != null ? m.mdmg : m.dmg), col: m.lord.col,
-                        cvx: -m.x / (Math.hypot(m.x, m.y) || 1), cvy: -m.y / (Math.hypot(m.x, m.y) || 1) });
+                        cvx: mcx, cvy: mcy });
+    /* ★ **갚지 못한 약속은 죽어도 남는다**(위 GATE_VOW 주석). 위험이 주인의 질김과 아무
+       상관이 없어지는 자리다 — 관문이 한 대에 치워져도 약속한 수법 수는 그대로 터진다.
+       세기는 **다 여문 값**(m.dmg)이다: 약속은 주인이 서면서 한 것이고 터지는 것은 그
+       뒤이므로 덜 여문 수법(OPEN_MUL)이 아니다. 첫 것은 제 차례가 되면 예고부터 띄운다. */
+    if (m.boss && m.lord && m.vow > 0)
+      for (let k = 0; k < m.vow; k++)
+        S.pendMech.push({ t: m.lord.tell + k * m.lord.cd, warnT: m.lord.tell, mech: m.lord.mech,
+                          dmg: m.dmg, col: m.lord.col, cvx: mcx, cvy: mcy });
     S.mobs.splice(i, 1);
     S.killed++;
     /* ── 떨어뜨린다 ── 확률은 **층당 기대값**에서 뽑는다(마릿수가 늘어도 총량이 안 는다).

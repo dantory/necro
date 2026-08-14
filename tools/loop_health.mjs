@@ -46,7 +46,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
   `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
    ${process.env.LH_OPEN != null ? `globalThis.__OPEN_MUL = ${+process.env.LH_OPEN};` : ""}
-   ${process.env.LH_GATE != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATE};` : ""}` });
+   ${process.env.LH_GATE != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATE};` : ""}
+   ${process.env.LH_VOW != null ? `globalThis.__GATE_VOW = ${+process.env.LH_VOW};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
