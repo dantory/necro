@@ -459,7 +459,10 @@ export function rebirth() {
 
    과제를 고른 결은 **base 안전**이다. loop_health 는 저장을 지우고 마을 없이 자동으로만
    돌려 12분을 굴린다(투자 0) — 그래서 다음은 그 판에서 **절대 안 깨진다**:
-     · unique  — 유니크는 손으로만 낀다(takeDrop 이 자동 착용 안 함) → 자동판은 못 깬다
+     · unique  — ★ **D-4(2026-08-15) 로 이 자리가 깨졌다.** 위로만인 유니크 셋은 이제
+                 저절로 껴지므로(autoWear) f≥10 전리품 12개마다 하나 떨어지는 자동판도
+                 이 과제를 깰 수 있다 — base 회귀표(24·19·10)와 「유해 0 → 배수 1.0」이
+                 그만큼 움직인다. loop_health 로 다시 재고 표를 갈아 끼울 것.
      · army10  — armyCap 은 대장간·트리 없이는 최대 6 → 열이 안 된다
      · dig4    — 무덤 파기는 마을에서 금을 쓴다 → 자동판은 안 판다
      · rebirth — 자동판은 환생을 안 누른다
@@ -643,9 +646,9 @@ export const PLUS_W = 35;
    ★ **규칙 효과는 한 자리에서 읽는다** — hasUnique(id) 하나만 battle.js 가 본다.
      효과 코드를 여기저기 흩지 않는다. */
 export const UNIQUE = [
-  { id:"twice",    k:"charm", n:"망자의 손아귀", d:"쓴 시체가 이따금 되돌아온다",         rule:"corpse-refund" },
-  { id:"blast",    k:"charm", n:"역병의 낙인",   d:"소환수가 죽으면 그 자리가 터진다",     rule:"death-nova"    },
-  { id:"overflow", k:"wand",  n:"범람의 홀",     d:"넘치는 마나가 적에게 쏟아진다",        rule:"mana-spill"    },
+  { id:"twice",    k:"charm", n:"망자의 손아귀", d:"쓴 시체가 이따금 되돌아온다",         rule:"corpse-refund", up:true },
+  { id:"blast",    k:"charm", n:"역병의 낙인",   d:"소환수가 죽으면 그 자리가 터진다",     rule:"death-nova",    up:true },
+  { id:"overflow", k:"wand",  n:"범람의 홀",     d:"넘치는 마나가 적에게 쏟아진다",        rule:"mana-spill",    up:true },
   { id:"gate",     k:"wand",  n:"도살자의 인장", d:"관문에선 배로 · 평지에선 못 미친다",   rule:"gate-swing"    },
   { id:"lonely",   k:"robe",  n:"고독한 왕관",   d:"군세는 반, 소환수 한 방은 더 세게",     rule:"few-strong"    },
 ];
@@ -655,6 +658,13 @@ for (const u of UNIQUE) UNIQ_BY_ID[u.id] = u;
  *  아는 것만 통과시킨다(모르는 uid 는 옛 유니크·오타라 걸러진다). */
 export const isUnique = (it) => !!(it && it.uid);
 export const uniqOf   = (it) => (it && it.uid) ? (UNIQ_BY_ID[it.uid] || null) : null;
+/** **저절로 껴도 되는 물건인가** (D-4). 평범한 전리품은 늘 그렇고, 유니크는 `up`
+ *  (위로만 — 손해 보는 자리가 없는 것) 셋만 그렇다. `gate`·`lonely` 는 **주고받기**라
+ *  저절로 껴지면 판을 망칠 수 있어(관문 밖에서 못 미치고, 군세가 반이 된다) 손으로만 낀다.
+ *  방치형인데 유니크가 가방에 앉아만 있으면 「규칙을 바꾸는 물건」이 방치판엔 없는 것과
+ *  같다 — 그래서 「손해 없는 것만 저절로」로 갈랐다. 자는 하나(scoreOf)를 그대로 쓴다
+ *  (유니크는 +60 을 이미 받는다) — 여기서 새 자를 만들지 않는다. */
+export const autoWear = (it) => !!it && (!it.uid || !!(UNIQ_BY_ID[it.uid]?.up));
 /** 낀 것 셋 중에 이 규칙의 유니크가 있는가 — battle.js 가 규칙을 읽는 **유일한 물음**. */
 export function hasUnique(id) {
   for (const k of GEAR_KEYS) { const it = META.equip[k]; if (it && it.uid === id) return true; }
@@ -939,10 +949,13 @@ export function takeDrop(d) {
     return { worn: false, gold, bagged: false,
              melted: [{ n: nameOf(it), gold, tier: it.tier }], fused: [], ref: it };
   }
-  /* ★ 유니크는 **저절로 껴지지 않는다** — 주고받기 유니크(관문·소수정예)가 자동으로
-     껴져 판을 망치면 안 되고, 낀 유니크도 자동 교체하지 않는다(손으로만 벗는다).
-     그래서 유니크가 걸리는 두 자리(주운 것이 유니크 · 낀 것이 유니크)는 곧장 가방으로. */
-  if (!it.uid && !isUnique(equipped(d.k)) && scoreOf(it) > scoreOf(equipped(d.k))) {
+  /* ★ **손해 없는 것만 저절로 껴진다**(D-4, 2026-08-15). 예전엔 유니크를 전부 안 끼웠는데
+     (주고받기가 자동으로 껴져 판을 망지면 안 된다는 결정) 방치로 두면 유니크가 **가방에
+     앉아만 있어** 「규칙을 바꾸는 물건」이 방치판엔 없는 것과 같았다. 그래서 `autoWear`
+     로 갈랐다 — 위로만인 셋(twice·blast·overflow)은 자가 높으면 저절로, 주고받기 둘
+     (gate·lonely)은 손으로만. **낀 유니크는 여전히 자동 교체하지 않는다**(손으로 벗는다) —
+     저절로 낀 규칙이 저절로 사라지면 판이 왜 달라졌는지 설명이 안 된다. */
+  if (autoWear(it) && !isUnique(equipped(d.k)) && scoreOf(it) > scoreOf(equipped(d.k))) {
     const old = equipped(d.k);
     META.equip[d.k] = it; worn = true;
     if (old) melted = bagPut(old);               // 벗은 것을 가방으로(빈손이면 안 넣는다)
