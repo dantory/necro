@@ -160,6 +160,27 @@ export const OPEN_MUL_DEF = 0.12;
 const OPEN_MUL_OF = () => (typeof globalThis !== "undefined" && globalThis.__OPEN_MUL != null)
   ? +globalThis.__OPEN_MUL : OPEN_MUL_DEF;
 
+/* ══ 관문 주인은 **제 층이 아니라 내 군대**를 기준으로 선다 ══
+   60분 곡선(2026-08-14 10:04)이 남긴 자리다. 구멍(수법을 못 쓰고 죽음)은 OPEN_MUL 로
+   메웠는데도 깊은 띠에서 네크로에게 닿는 것이 **초당 최대체력의 0.04%**(얕은 띠 1.25%
+   의 3%)였다 — 손 놓고 맞아도 2430초를 산다. 왜냐면 주인이 한 번에 **1.2초**밖에
+   못 살아서(얕은 관문 16.4초) 수법이 관문당 0.8번밖에 안 터지고, 그마저 born 중이라
+   OPEN_MUL 로 깎인다.
+   ★ 값이 아니라 눈금이 틀렸다. 주인 체력을 `floorHp(f)×7` 로 매기는데 층 체력은
+     1.19^f 로 자라고 **한 판 안의 내 화력은 장비·재련·유해가 겹쳐 그보다 빨리 큰다.**
+     이미 두 번 통한 방법을 그대로 쓴다(「몸도 층을 따라 큰다」·「시체가 제 격을 기억한다」):
+     **바닥을 지금 내 군대에 둔다** — 주인은 어느 깊이에서도 최소 GATE_SEC 초는 선다.
+   0 이면 손 안 댐(예전 그대로) — 검수기가 `globalThis.__GATE_SEC` 로 쓸어 본다. */
+export const GATE_SEC_DEF = 0;
+const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_SEC != null)
+  ? +globalThis.__GATE_SEC : GATE_SEC_DEF;
+/** 「지금 군대가 내는 화력」의 기억 길이(초). 짧으면 한 방에 출렁이고, 길면 관문에
+ *  들어선 뒤의 화력을 못 따라간다. */
+const DPS_TAU = 4;
+/** 적에게 들어간 피해가 **전부 여기를 지난다**(hurtNecro 의 반대쪽). 여섯 자리에서
+ *  제각기 `m.hp -=` 하던 것을 한 길로 모아, 화력을 한 군데서 셀 수 있게 했다. */
+export function hurtMob(m, dd) { m.hp -= dd; S.dealtAcc = (S.dealtAcc || 0) + dd; }
+
 export function enterFloor(f) {
   /* ── 앞 층 시체 그림을 걷는다 ── ②는 「개수 S.corpses 와 그림 S.piles 는
      addCorpse/useCorpse 두 길로만 움직인다」가 규칙이다. **여기가 그 유일한 예외.**
@@ -226,7 +247,10 @@ function popSpawn() {
          50-99층 관문 29/29 번이 **수법을 한 번도 못 쓰고** 치워졌다(a1_gate 2026-08-14).
          기다리는 1.7초를 없애고, 예고를 남기고 죽으면 아래 pendMech 가 이어 터뜨린다. */
     m.mechCd = 0; m.mstate = 0; m.mtell = 0;
-    m.hp = m.hpMax = floorHp(q.f) * 7;
+    /* ★ **바닥을 지금 내 군대에 둔다**(위 GATE_SEC 주석). 얕은 관문은 층 체력 쪽이 더 커서
+       하나도 안 바뀌고, 깊은 관문만 「최소 GATE_SEC 초는 선다」로 끌어올려진다 —
+       그래야 수법이 다 여문 뒤에 터진다(OPEN_MUL 로 안 깎인다). 0 이면 손 안 댐. */
+    m.hp = m.hpMax = Math.max(floorHp(q.f) * 7, (S.armyDps || 0) * GATE_SEC_OF());
     m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * FOOT_R;
     /* ★ **큰 몸은 같은 속도로 걸으면 굼떠 보인다.** 병수님 2026-08-13: "특히 보스
        움직임이 부자연스럽고 굼뜬느낌이 강하네". 절대 속도로는 보스도 졸개도 22~32 로
@@ -571,7 +595,7 @@ export function cast(id) {
        시체가 자원이고 그 시체가 터진다. 쓴 자리를 폭심으로 삼는다. */
     const bx = usedAt ? usedAt.x : 0, by = usedAt ? usedAt.y : 0;
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
-      const dd = dmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; hit++; popNum(m.x, m.y, dd, "nova"); }
+      const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); hit++; popNum(m.x, m.y, dd, "nova"); }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
@@ -645,6 +669,12 @@ export function step(dt) {
        안 고친 뒤, 장비가 바뀌어 상한이 내려가서 남은 자국이었다. 어느 길로 넘치든
        여기서 한 번에 걷는다. */
     S.hp = Math.min(S.hp, nm); }
+  /* **지금 군대가 내는 화력**(초당) — hurtMob 이 모아 둔 이번 틱 몫을 초당으로 고쳐
+     DPS_TAU 만큼의 기억으로 고른다. 관문 주인의 체력 바닥이 이 값을 쓴다(GATE_SEC).
+     읽기만 하는 셈이라 난수를 안 쓴다 — GATE_SEC=0 이면 게임은 예전 그대로다. */
+  { const inst = (S.dealtAcc || 0) / Math.max(dt, 1e-3);
+    S.dealtAcc = 0;
+    S.armyDps = (S.armyDps || 0) + (inst - (S.armyDps || 0)) * Math.min(1, dt / DPS_TAU); }
   if (S.hurt > 0) S.hurt -= dt;                    // 본인이 맞고 움찔하는 시간
   if (S.shake > 0) S.shake -= dt;                  // 관문 보스가 설 때의 짧은 흔들림
   /* 「들어섰다」 연출이 스스로 꺼진다 — 켠 곳(enterFloor)과 끄는 곳을 한 군데로 모아,
@@ -734,7 +764,7 @@ export function step(dt) {
     }
     const { tgt, dmg, heal } = p;
     if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
-    tgt.hp -= dmg * (tgt.wkT > 0 ? tgt.wk : 1);         // 제물로 약해진 관문 주인은 더 크게 맞는다
+    hurtMob(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1));     // 제물로 약해진 관문 주인은 더 크게 맞는다
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
     popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
@@ -780,7 +810,7 @@ export function step(dt) {
       let bx = 0, by = 0, bd = 1e9;
       for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
       const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
-      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
       S.overflow = 0;
     }
@@ -897,7 +927,7 @@ export function step(dt) {
     for (const m of S.mobs) if (Math.hypot(m.x - b.x, m.y - b.y) < m.r * 0.7) { hit = m; break; }
     if (hit) {
       const bd = b.dmg * ampMul * (hit.wkT > 0 ? hit.wk : 1);
-      hit.hp -= bd;
+      hurtMob(hit, bd);
       popNum(hit.x, hit.y, bd, "dmg");
       hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, bd);
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
@@ -1282,7 +1312,7 @@ export function step(dt) {
        된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
     if (hasUnique("blast") && dead.dmg) {
       const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
-      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); m.hp -= dd; popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
     }
   }
@@ -1364,6 +1394,7 @@ export function newRun() {
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
 
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
+    dealtAcc: 0, armyDps: 0,           // 「지금 군대가 내는 화력」 — 판이 바뀌면 앞 판 기억을 안 물려받는다
   });
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다
   sayReset();
