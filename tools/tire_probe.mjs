@@ -66,8 +66,18 @@ const tick = `(async()=>{
     if (S.dead) { R.deaths++; C.META.runs++; B.newRun(); }
   }
   let b = null; for (const m of S.mobs) if (m.boss) { b = m; break; }
-  const dealt = S.dealtAcc || 0, d5 = dealt - R.prevDealt; R.prevDealt = dealt;
+  /* ★ **「곱해질 피해」 칸이 넉 대째 거짓이었다**(2026-08-14 · 결함 ④) — S.dealtAcc 는
+     누적이 아니라 **한 틱 몫**이고 step 이 끝날 때마다 0 으로 지운다(battle.js 776줄).
+     그래서 (dealt - prevDealt) 는 늘 0 이거나 -63 같은 **음수**로 나왔다. 하필 이 칸이
+     「27배를 곱해도 안 죽는다」의 곱해질 쪽이라, 여기가 거짓이면 벽을 못 가른다.
+     → 이제 **주인 체력이 실제로 준 몫**을 잰다(같은 개체일 때만 — 층이 바뀌어 새 주인이
+       서면 앞 주인의 체력과 빼면 안 된다). 군대 전체 화력은 step 이 이미 고르게 다듬어
+       둔 S.armyDps 를 그대로 읽는다. */
+  let 주인피해 = 0;
+  if (b && R.prevBoss === b) 주인피해 = Math.max(0, (R.prevBossHp || 0) - b.hp);
+  R.prevBoss = b; R.prevBossHp = b ? b.hp : 0;
   return JSON.stringify({ t: Math.round(R.t), 층: S.floor, 죽음: R.deaths,
+    주인피해: Math.round(주인피해), 화력: Math.round(S.armyDps || 0),
     주인: b ? { hp: Math.round(100 * b.hp / b.hpMax), 산시간: Math.round(b.age || 0),
                 지침: b.tired ? +(b.wk || 1).toFixed(1) : 0, 거리: Math.round(Math.hypot(b.x - S.x, b.y - S.y)) } : null,
     /* ★ S.corpses 는 개수(숫자)다 — 배열이 아니다(battle.js 478줄 addCorpse/useCorpse).
@@ -75,7 +85,7 @@ const tick = `(async()=>{
        이 칸으로 하므로, 여기가 비면 벽의 원인을 못 가른다.
        (이 주석은 tick 템플릿 안이다 — 백틱을 쓰면 문자열이 끊긴다.) */
     군세: S.minions.length, 시체: Math.round(S.corpses || 0), 마나: Math.round(S.mp || 0),
-    피해5초: Math.round(d5), 내체력: Math.round(100 * S.hp / (S.hpMax || 1)), 적수: S.mobs.length });
+    내체력: Math.round(100 * S.hp / (S.hpMax || 1)), 적수: S.mobs.length });
 })()`;
 
 /* ★ **지침이 페이지에 닿았는지를 먼저 적는다**(2026-08-14) — 앞선 7분 판에서 「지침」 칸이
@@ -90,7 +100,7 @@ const tick = `(async()=>{
     + ` → 실제로 쓰이는 값 ${g.주입 ?? g.기본}${(g.주입 ?? g.기본) > 0 ? "" : " (꺼짐 — 「지침」 칸은 늘 - 로 나온다)"}`); }
 
 console.log(`씨앗 ${SEED} · ${MIN}분 · ${STEP}초 눈금`);
-console.log(`  ${"때".padStart(5)} │ 층 │ ${"주인hp%".padStart(7)} │ ${"산시간".padStart(5)} │ ${"지침".padStart(5)} │ 군세 │ 시체 │ 마나 │ ${"5초피해".padStart(7)} │ 내hp% │ 적`);
+console.log(`  ${"때".padStart(5)} │ 층 │ ${"주인hp%".padStart(7)} │ ${"산시간".padStart(5)} │ ${"지침".padStart(5)} │ ${"거리".padStart(4)} │ 군세 │ 시체 │ 마나 │ ${"주인피해".padStart(8)} │ ${"화력".padStart(6)} │ 내hp% │ 적`);
 for (let k = 0; k < (MIN * 60) / STEP; k++) {
   const r = await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression: tick });
   const d = JSON.parse(r.result.value);
@@ -98,8 +108,9 @@ for (let k = 0; k < (MIN * 60) / STEP; k++) {
   const mm = `${Math.floor(d.t / 60)}:${String(d.t % 60).padStart(2, "0")}`;
   console.log(`  ${mm.padStart(5)} │ ${String(d.층).padStart(2)} │ ${String(b ? b.hp + "%" : "-").padStart(7)} │`
     + ` ${String(b ? b.산시간 : "-").padStart(5)} │ ${String(b ? (b.지침 ? "×" + b.지침 : "-") : "-").padStart(5)} │`
+    + ` ${String(b ? b.거리 : "-").padStart(4)} │`
     + ` ${String(d.군세).padStart(4)} │ ${String(d.시체).padStart(4)} │ ${String(d.마나).padStart(4)} │`
-    + ` ${String(d.피해5초).padStart(7)} │ ${String(d.내체력).padStart(5)} │ ${d.적수}`);
+    + ` ${String(b ? d.주인피해 : "-").padStart(8)} │ ${String(d.화력).padStart(6)} │ ${String(d.내체력).padStart(5)} │ ${d.적수}`);
 }
 console.log("errors:", errs.slice(0, 3));
 await fetch(`${CDP}/json/close/${targetId}`).catch(() => {});
