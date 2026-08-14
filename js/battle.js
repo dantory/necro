@@ -186,8 +186,10 @@ const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GAT
      GATE_VOW 번을 약속하고, 그 전에 치워져도 **약속한 만큼은 예정대로 터진다**(예고 fx 를
      제 시각에 띄우므로 「예고 없이 터짐」이 아니다). 체력은 한 톨도 안 건드리니 관문이
      벽이 되지 않고, 세기는 m.dmg = floorDmg(f) 라 **깊이를 따라 저절로 큰다.**
-   0 이면 손 안 댐(예전 그대로) — 검수기가 `globalThis.__GATE_VOW` 로 쓸어 본다. */
-export const GATE_VOW_DEF = 0;
+   0 이면 손 안 댐(예전 그대로) — 검수기가 `globalThis.__GATE_VOW` 로 쓸어 본다.
+   ★ **2 로 박았다**(2026-08-14 12:08 · 아래 GATE_VOW_CAP 주석의 쓸기 결과). 상한 없이는
+     이 축도 벽을 세웠지만, 상한 0.18 과 같이 쓰면 조건 ①·② 가 **처음으로 동시에** 열린다. */
+export const GATE_VOW_DEF = 2;
 const GATE_VOW_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW != null)
   ? +globalThis.__GATE_VOW : GATE_VOW_DEF;
 /* ══ 약속의 세기는 **층이 아니라 내 체력으로** 매긴다(GATE_VOW_CAP) ══════════════
@@ -204,8 +206,19 @@ const GATE_VOW_OF = () => (typeof globalThis !== "undefined" && globalThis.__GAT
      로 묶는다. 깊이를 따라 자라는 성질은 그대로다(hpMaxOf 자체가 층을 따라 큰다).
      어느 깊이에서도 한 방이 나를 지우지 못하므로 **벽이 설 자리가 산수에서 사라진다.**
      묶는 것은 **약속만 남은 수법**뿐 — 주인이 제 손으로 내는 수법은 한 톨도 안 건드린다.
-   0 이면 손 안 댐(상한 없음 = 예전 그대로) — 검수기가 `globalThis.__GATE_VOW_CAP` 로 쓴다. */
-export const GATE_VOW_CAP_DEF = 0;
+   0 이면 손 안 댐(상한 없음 = 예전 그대로) — 검수기가 `globalThis.__GATE_VOW_CAP` 로 쓴다.
+   ★ **0.18 로 박았다**(2026-08-14 12:08 · 15분 × 씨앗 1·3·9 · `tools/a1_vowcap.sh`):
+
+         약속 0 · 상한 0     최고층 합 153 (기준선) · 죽음 7 · 깊은 띠 0.10~0.59% (얕은 0.96~1.25)
+         약속 2 · 상한 0.08  합 171 (112%) · 죽음 6 · 깊은 띠 0.43·0.58·0.75% ← ① 한 씨앗이 38%(실패)
+         약속 2 · 상한 0.18  합 159 (104%) · 죽음 7 · 깊은 띠 0.74·0.85·1.29% ← ①·② **둘 다 통과**
+         약속 2 · 상한 0.30  합 135 ( 88%) · 죽음 9 · 깊은 띠 1.03·1.19·1.45% ← 최고층 45·45·45(벽 조짐)
+
+     상한이 **조건 ②를 살렸다** — 여태 세 축(OPEN_MUL·GATE_SEC·상한 없는 GATE_VOW)이 모두
+     최고층을 50~70% 로 무너뜨렸는데, 여기선 기준선을 오히려 넘는다(104%). 0.30 은 ①이 제일
+     세지만 씨앗 셋이 **전부 45층**에서 멈춘다 — 확률이 아니라 산수, 즉 벽이 다시 서는 자리다.
+     0.08 은 ②가 제일 좋아도 깊은 띠가 얕은 띠의 38% 인 씨앗이 있어 ①을 못 넘는다. */
+export const GATE_VOW_CAP_DEF = 0.18;
 const GATE_VOW_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW_CAP != null)
   ? +globalThis.__GATE_VOW_CAP : GATE_VOW_CAP_DEF;
 /** 수법마다 **한 방이 실제로 닿는 배수** — fireMech 안의 곱을 그대로 옮겨 적은 것이다.
