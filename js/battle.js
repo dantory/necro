@@ -81,14 +81,20 @@ export const PUSH_MAX = RING_HOLD * 0.62;
    다가감 40~49% · 놀고 28~33%). 값(화력·머릿수·마나)으론 다섯 번 졌고(ROADMAP C-1),
    ab_walk 는 **소환수 쪽**(귀가·구역 해제)을 이미 대 봤다. 이번엔 **적 쪽**을 움직인다 —
    줄이 빈 뒤 남은 적이 (a) 아무 거리의 소환수에게나 붙고 (b) 아직 못 때릴 땐 더 빨리 걷는다.
-   ★ 머리 없는 자(검수기)를 위한 문 — `globalThis.__RUSH` 가 참이면 켜진다(core.js
-     doctrineId 의 `__DOCTRINE` · gatelordFor 의 `__FORCE_LORD` 와 같은 규칙). 없으면
-     꺼짐(기본)이라 「적」 루프가 예전 산수(상한 90 · 걸음 m.spd) 그대로 돈다 — 문이 꺼지면
-     **난수 소비가 한 톨도 안 달라진다**(A/B 유지, byte 단위로 같다). 세기값은 여기 한
+   ★ **기본 켜짐**(2026-08-14) — ab_rush 씨앗 여덟×12분의 중앙값이 끝 조건을 넘겼다:
+     뒷정리 29.4%→**28.0%**(30% 아래) · 최고층 42.0→**48.0**(44.8 기준 대비 안 깎임).
+     다가감은 39.8%→41.1% 로 되레 조금 늘었는데, 걸음을 1.8배로 준 만큼 **빨리 붙어 더
+     깊이 내려가기** 때문이다 — 뒷정리 통 자체가 줄었으니 그 안의 비율은 끝 조건이 아니다.
+   ★ 문은 남겨 둔다 — `globalThis.__RUSH` 가 **정해져 있으면** 그것이 앞선다(core.js
+     doctrineId 의 `__DOCTRINE` · gatelordFor 의 `__FORCE_LORD` 와 같은 규칙). `__RUSH=0`
+     이면 「적」 루프가 예전 산수(상한 90 · 걸음 m.spd) 그대로 돌아 **난수 소비가 한 톨도
+     안 달라진다**(A/B 유지 · ab_rush.sh 의 base 팔이 이 값을 쓴다). 세기값은 여기 한
      표(RUSH)에 모은다 — auto() 처럼 흩어 두면 검수기가 값으로 A/B 를 못 가른다. */
-export const RUSH = { spd: 1.8 };   // b: 아직 못 때릴 때의 걸음 배수
+export const RUSH = { on: true, spd: 1.8 };   // spd: 아직 못 때릴 때의 걸음 배수
 export const rushOn = () =>
-  typeof globalThis !== "undefined" && !!globalThis.__RUSH;
+  (typeof globalThis !== "undefined" && globalThis.__RUSH != null)
+    ? !!globalThis.__RUSH
+    : RUSH.on;
 
 /* ══ 죽는 순간 · 일어서는 순간 ══
    병수님: "전투화면 처음부터 다시 재검토". 화면을 늘려 보니 **죽는 게 안 보였다** —

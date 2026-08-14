@@ -5,7 +5,9 @@
 # 12분을 눈금으로 쪼개 보면 제일 큰 통이 뒷정리이고, 그 안은 **걷는 시간**(다가감)이 제일
 # 크다(tmp/wl_* 열 판: 때림 23~27% · 다가감 40~49% · 놀고 28~33%). 값으론 다섯 번 졌고
 # ab_walk 는 소환수 쪽을 이미 대 봤다 — 이번엔 **적 쪽**을 움직인다.
-#   base : 문 꺼짐(예전 코드 그대로 · 상한 90 · 걸음 m.spd)
+#   base : LH_RUSH=0 — 문 꺼짐(예전 코드 그대로 · 상한 90 · 걸음 m.spd)
+#          ★ 2026-08-14 에 문이 **기본 켜짐**이 됐으므로 base 는 0 을 **명시해야** 한다
+#            (안 주면 아무것도 안 가른 두 팔이 나온다).
 #   rush : LH_RUSH=1 — 줄이 빈 뒤 (a) 표적 상한 90 을 풀고 (b) 아직 못 때릴 땐 RUSH.spd 배로 걷는다
 # ★ **코드를 갈아끼우지 않는다.** battle.js 의 rushOn() 문을 loop_health 의 LH_RUSH 로만 가른다
 #   (ab_walk 의 python 치환과 다른 점) — 문이 꺼지면 난수 소비가 한 톨도 안 달라지므로 base 는
@@ -16,7 +18,7 @@ set -u
 REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
 SEEDS="3 9 5 1 2 4 6 7"
-# 팔: RUSH 환경변수만 가른다(코드 치환 없음). 첫 인자=arm, 둘째=LH_RUSH 값(빈 값이면 문 꺼짐).
+# 팔: RUSH 환경변수만 가른다(코드 치환 없음). 첫 인자=arm, 둘째=LH_RUSH 값(빈 값이면 **기본**).
 # ★ 앞에 붙이는 환경변수를 **확장 결과로 만들지 말 것**(2026-08-14, 팔 하나를 통째로 날렸다).
 #   `LH_SEED=$s ${rush:+LH_RUSH=$rush} node …` 는 확장이 끝난 뒤라 bash 가 `LH_RUSH=1` 을
 #   **명령 이름**으로 읽는다 → `LH_RUSH=1: command not found` 로 rush 여덟 판이 전부 빈손.
@@ -33,7 +35,7 @@ arm() {
 
 # 팔을 고를 수 있다: `ab_rush.sh rush` 면 rush 만(base 판이 이미 tmp/rush_base_*.json 에 있을 때).
 ONLY=${1:-}
-[ "$ONLY" = rush ] || arm base
+[ "$ONLY" = rush ] || arm base 0
 [ "$ONLY" = base ] || arm rush 1
 
 echo "═════ 끝 · $(date +%H:%M) ═════"
