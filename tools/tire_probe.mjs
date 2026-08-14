@@ -37,6 +37,10 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });
    피해가 0 이었다」가 안 갈린다. TP_TIRE=45 로 켜고 아래 「지침」 칸을 직접 읽는다. */
 const TIRE = +(process.env.TP_TIRE || 0);
 if (TIRE > 0) await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__TIRE_AT = ${TIRE};` });
+/* **졸개 상한**(ADD_CAP · ROADMAP D-3 축 ①) — 이 자의 잣대는 「주인피해가 0 을 벗어나는가」다.
+   TP_ADDCAP=N 으로 켜고 같은 씨앗·같은 길이로 돌려 앞 판(0)과 나란히 읽는다. */
+const ADDCAP = +(process.env.TP_ADDCAP || 0);
+if (ADDCAP > 0) await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__ADD_CAP = ${ADDCAP};` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 1, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await wait(1500);
@@ -98,10 +102,13 @@ const tick = `(async()=>{
    페이지에서 직접 __TIRE_AT 과 TIRE_AT_DEF 를 읽어 첫 줄에 박는다. */
 { const r = await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression:
     `(async()=>{ const B = await import("/js/battle.js");
-       return JSON.stringify({ 주입: globalThis.__TIRE_AT ?? null, 기본: B.TIRE_AT_DEF }); })()` });
+       return JSON.stringify({ 주입: globalThis.__TIRE_AT ?? null, 기본: B.TIRE_AT_DEF,
+         상한주입: globalThis.__ADD_CAP ?? null, 상한기본: B.ADD_CAP_DEF }); })()` });
   const g = JSON.parse(r.result.value);
   console.log(`지침 설정 · 주입 __TIRE_AT=${g.주입 === null ? "없음" : g.주입} · 기본 TIRE_AT_DEF=${g.기본}`
-    + ` → 실제로 쓰이는 값 ${g.주입 ?? g.기본}${(g.주입 ?? g.기본) > 0 ? "" : " (꺼짐 — 「지침」 칸은 늘 - 로 나온다)"}`); }
+    + ` → 실제로 쓰이는 값 ${g.주입 ?? g.기본}${(g.주입 ?? g.기본) > 0 ? "" : " (꺼짐 — 「지침」 칸은 늘 - 로 나온다)"}`);
+  console.log(`졸개 상한 · 주입 __ADD_CAP=${g.상한주입 === null ? "없음" : g.상한주입} · 기본 ADD_CAP_DEF=${g.상한기본}`
+    + ` → 실제로 쓰이는 값 ${g.상한주입 ?? g.상한기본}${(g.상한주입 ?? g.상한기본) > 0 ? "" : " (꺼짐 — 부르는 쪽에 상한이 없다)"}`); }
 
 console.log(`씨앗 ${SEED} · ${MIN}분 · ${STEP}초 눈금`);
 console.log(`  ${"때".padStart(5)} │ 층 │ ${"주인hp%".padStart(7)} │ ${"산시간".padStart(5)} │ ${"지침".padStart(5)} │ ${"거리".padStart(4)} │ 군세 │ 시체 │ 마나 │ ${"주인피해".padStart(8)} │ ${"화력".padStart(6)} │ 내hp% │ 적`);

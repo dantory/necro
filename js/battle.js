@@ -218,6 +218,21 @@ export const TIRE_AT_DEF = 0, TIRE_RAMP = 10;
 const TIRE_AT_OF = () => (typeof globalThis !== "undefined" && globalThis.__TIRE_AT != null)
   ? +globalThis.__TIRE_AT : TIRE_AT_DEF;
 
+/* ══ 관문 벽의 진짜 이름은 **「졸개 벽」**이었다(ADD_CAP) ══
+   2026-08-14 22:0x · tools/tire_probe.mjs · 씨앗 7 · 7분: **주인피해가 7분 내내 정확히 0**
+   인데 군대 화력(armyDps)은 109~142 였다. 군대는 쉬지 않고 때리는데 **주인만 빼고** 때린다.
+   왜 — 관문 주인의 `add` 가 네크로 발밑(75)에 졸개 넷을 체력 두 배로 솟게 하는데 **상한이
+   없다**(1097줄). 표 끝에서 적 수가 5초마다 정확히 +4 로 늘었다(6:20 206 → 7:00 233).
+   소환수는 늘 제일 가까운 적을 잡으므로 발밑에서 솟는 졸개가 언제나 먼저다 → 되먹임이
+   닫힌다: **주인이 안 죽는다 → 층이 안 끝난다 → 졸개가 는다 → 더 못 닿는다.**
+   ADD_CAP 은 그 고리에서 **부르는 쪽**을 끊는다 — 살아 있는 add 졸개가 상한을 넘으면
+   그 수법이 쉰다. 위협 자체를 없애는 게 아니라 **쌓이는 것만** 막는다.
+   ★ 기본은 꺼 둔다(0) — TIRE_AT 이 그랬듯 재 보지도 않고 켜면 벽의 자리만 옮긴다.
+     잣대는 **주인피해가 0 을 벗어나는가**(그 다음이 최고층·최대간격 · ROADMAP D-3 축 ①). */
+export const ADD_CAP_DEF = 0;
+const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
+  ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
+
 /* ══ 관문은 **서는 순간 수법을 약속한다**(GATE_VOW) ══
    GATE_SEC(주인 체력을 내 군대로 매기기)는 2026-08-14 11:0x 에 졌다 — 조건 ①(깊은 띠에
    피해가 닿는가)은 처음으로 열렸는데, 어느 눈금(1.5·2.5·4·6·14)에서도 **최고층이
@@ -1098,6 +1113,16 @@ export function step(dt) {
       /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
          다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
          로 확인). 진(150) 안쪽 코앞에서 솟아 군대가 오기 전에 직접 문다(cause "add"). */
+      /* ★ **부르는 쪽에 상한**(ADD_CAP · 기본 꺼짐) — 살아 있는 add 졸개가 상한을 넘으면
+         이 수법은 **쉰다.** 씨앗 7 의 10층 관문이 7분을 버틴 이유가 여기였다: 표에서 적 수가
+         5초마다 정확히 +4 로 늘고(6:20 206 → 7:00 233), 소환수는 늘 제일 가까운 적을 잡으므로
+         (1246줄 `d < td`) 발밑에서 솟는 졸개가 언제나 먼저다 → **주인피해가 7분 내내 정확히 0**
+         인데 화력(armyDps)은 109~142 였다. 되먹임이 닫힌다: 주인이 안 죽는다 → 층이 안 끝난다
+         → 졸개가 더 는다. 상한은 그 고리의 **부르는 쪽**을 끊는다(ROADMAP D-3 축 ①).
+         기본 0(꺼짐) — `globalThis.__ADD_CAP` 로 A/B 한 뒤에야 기본값을 건드린다. */
+      const cap = ADD_CAP_OF();
+      if (cap > 0) { let live = 0; for (const m of S.mobs) if (m.cause === "add") live++;
+        if (live >= cap) return !!S.dead; }
       const cnt = 4;
       for (let i = 0; i < cnt; i++) {
         const a = spawnMob(S.floor, i, cnt); a.cause = "add"; a.born = a.born0 = 0.4;
