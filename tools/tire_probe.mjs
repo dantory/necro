@@ -79,7 +79,11 @@ const tick = `(async()=>{
   return JSON.stringify({ t: Math.round(R.t), 층: S.floor, 죽음: R.deaths,
     주인피해: Math.round(주인피해), 화력: Math.round(S.armyDps || 0),
     주인: b ? { hp: Math.round(100 * b.hp / b.hpMax), 산시간: Math.round(b.age || 0),
-                지침: b.tired ? +(b.wk || 1).toFixed(1) : 0, 거리: Math.round(Math.hypot(b.x - S.x, b.y - S.y)) } : null,
+                /* ★ 결함 ⑤ — 네크로는 **늘 원점(0,0)** 이다(S.x 라는 칸이 없다). 빼기를 하니
+                   NaN 이 되어 JSON 에서 null 로 찍혔다. 판의 다른 자리도 같은 식을 쓴다
+                   (battle.js 921줄 overflow: hypot(m.x, m.y * SQUASH_VIEW)). */
+                지침: b.tired ? +(b.wk || 1).toFixed(1) : 0,
+                거리: Math.round(Math.hypot(b.x, b.y * (B.SQUASH_VIEW ?? C.SQUASH_VIEW ?? 1))) } : null,
     /* ★ S.corpses 는 개수(숫자)다 — 배열이 아니다(battle.js 478줄 addCorpse/useCorpse).
        .length 로 읽어 7분 내내 undefined 를 찍었다(2026-08-14). 「57구가 쌓였다」는 판단을
        이 칸으로 하므로, 여기가 비면 벽의 원인을 못 가른다.
