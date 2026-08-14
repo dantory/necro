@@ -2,8 +2,9 @@
    affix_probe 와 같은 뼈대(CDP 9333 + 8774/index.html)다. 저건 「붙는 옵션이 맞나」,
    이건 「가방이 차면 제일 나쁜 것부터 녹나」.
 
-   재는 것 넷 — 하나라도 FAIL 이면 exit code 1:
-     ① 12칸을 넘겨 200개를 넣어도 bag.length<=12 이고, 남은 것이 **점수 상위 12개**인가
+   재는 것 — 하나라도 FAIL 이면 exit code 1:
+     ①ㄱ **진짜 길**(takeDrop)로 200개를 주워도 12칸을 안 넘고 유니크가 가방을 안 먹는가
+     ①ㄴ 유니크를 뺀 200개를 bagPut 에 직접 넣으면 남는 것이 **점수 상위 12개**인가
      ② 넘칠 때 녹은 금이 meltGold 와 일치하고 META.gold 가 그만큼 늘었는가
      ③ 더 좋은 것을 주우면 착용되고 **벗은 것이 가방에 들어갔는가**
      ④ 더 나쁜 것을 주우면 가방으로 가고, 가방이 꽉 차고 그것이 제일 나쁘면 **그 자리서 금**인가
@@ -41,14 +42,35 @@ const ex = `(async()=>{
   const out = [];
   const rec = (name, ok, detail) => out.push({ name, ok, detail });
 
-  // ① 200개를 넣어도 12칸 유지 · 남은 것이 점수 상위 12
+  /* ①ㄱ **사람이 지나는 길로 잰다**(2026-08-15). 예전엔 rollDrop 을 bagPut 에 **직접**
+     넣었는데, 그건 유니크가 생긴 뒤로는 없는 길이다 — bagPut 은 유니크를 안 녹이고
+     중복을 그 자리서 금으로 바꾸는 자리는 takeDrop 이라, 직접 넣으면 유니크 열여섯 개가
+     쌓여 bag=16 으로 FAIL 했다(판은 멀쩡한데 자가 틀린 것이다). 그래서 ①ㄱ 은 진짜 길
+     (takeDrop)로 200개를 줍고, ①ㄴ 이 「상위 12」 셈을 유니크 없이 따로 본다. */
+  reset();
+  let 터짐1 = null;
+  try { for (let i=0;i<200;i++) C.takeDrop(C.rollDrop(20)); }
+  catch (e) { 터짐1 = String(e && e.message || e); }
+  const 낀유니크  = ["wand","robe","charm"].map(k=>M.equip[k]).filter(x=>x&&x.uid).map(x=>x.uid);
+  const 가방유니크 = M.bag.filter(x=>x&&x.uid).map(x=>x.uid);
+  const uids = 낀유니크.concat(가방유니크);
+  const 중복없음 = new Set(uids).size === uids.length;          // 같은 유니크는 두 번 안 쌓인다(둘째는 그 자리서 금)
+  const 평범칸 = M.bag.length - 가방유니크.length;
+  const ok1 = 터짐1===null && M.bag.length<=C.BAG_MAX && 중복없음
+              && 평범칸 >= C.BAG_MAX - C.UNIQUE.length;         // 유니크가 가방을 통째로 먹지 않는다(합성 고리가 산다)
+  rec("①ㄱ 진짜 길(takeDrop) 200개 → 12칸 유지 · 유니크가 가방을 안 먹는다", ok1,
+      "bag="+M.bag.length+" 유니크(낀/가방)="+낀유니크.length+"/"+가방유니크.length
+      +" 평범칸="+평범칸+" 중복없음="+중복없음+" 터짐="+터짐1);
+
+  // ①ㄴ 셈 — 유니크를 뺀 200개를 직접 넣으면 남는 것이 점수 상위 12
   reset();
   const scores = [];
-  for (let i=0;i<200;i++){ const it = C.rollDrop(20); scores.push(C.scoreOf(it)); C.bagPut(it); }
+  for (let n=0;n<200;){ const it = C.rollDrop(20); if (it.uid) continue;   // 유니크는 이 셈의 밖(녹지 않는다)
+    scores.push(C.scoreOf(it)); C.bagPut(it); n++; }
   const kept  = M.bag.map(C.scoreOf).sort((a,b)=>a-b);
   const top12 = scores.slice().sort((a,b)=>b-a).slice(0,12).sort((a,b)=>a-b);
   const sameTop = kept.length===12 && kept.every((s,i)=>Math.abs(s-top12[i])<1e-6);
-  rec("① 200개 → 12칸 유지 · 남은 것이 점수 상위 12", M.bag.length<=12 && sameTop,
+  rec("①ㄴ 유니크 뺀 200개 → 12칸 유지 · 남은 것이 점수 상위 12", M.bag.length<=12 && sameTop,
       "bag="+M.bag.length+" 상위12일치="+sameTop);
 
   // ② 넘칠 때 녹은 금 = meltGold · META.gold 그만큼 증가
