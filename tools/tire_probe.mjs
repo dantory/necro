@@ -46,6 +46,13 @@ await wait(4500);
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(900);
 await S("Runtime.evaluate", { expression: "window.requestAnimationFrame = () => 0" });
+/* ★ **끊고 나서 한 박자 쉰다** — loop_health 가 이미 겪고 적어 둔 자리인데(그 파일 82줄)
+   이 자를 만들 때 그 한 줄을 안 옮겼다. rAF 를 끊어도 **이미 예약된 콜백 하나**가 남아
+   벽시계로 돌 수도, 안 돌 수도 있다. 그 한 번이 newRun 뒤에 떨어지면 step 을 돌리고
+   난수를 한 움큼 퍼 가서 **같은 씨앗인데 판이 달라진다.**
+   실측(2026-08-14): 이 줄이 없을 때 씨앗 7 을 두 번 돌리니 0:15 부터 갈렸다
+   (군세 3/2 · 시체 5/6 · 마나 29/35). 넣은 뒤 두 판이 완전히 같아졌다. */
+await wait(200);
 await S("Runtime.evaluate", { awaitPromise: true, expression:
   `(async()=>{ const B = await import("/js/battle.js"); ${seedSrc} B.newRun(); return "ok"; })()` });
 
@@ -63,9 +70,24 @@ const tick = `(async()=>{
   return JSON.stringify({ t: Math.round(R.t), 층: S.floor, 죽음: R.deaths,
     주인: b ? { hp: Math.round(100 * b.hp / b.hpMax), 산시간: Math.round(b.age || 0),
                 지침: b.tired ? +(b.wk || 1).toFixed(1) : 0, 거리: Math.round(Math.hypot(b.x - S.x, b.y - S.y)) } : null,
-    군세: S.minions.length, 시체: (S.corpses || []).length, 마나: Math.round(S.mp || 0),
+    /* ★ S.corpses 는 개수(숫자)다 — 배열이 아니다(battle.js 478줄 addCorpse/useCorpse).
+       .length 로 읽어 7분 내내 undefined 를 찍었다(2026-08-14). 「57구가 쌓였다」는 판단을
+       이 칸으로 하므로, 여기가 비면 벽의 원인을 못 가른다.
+       (이 주석은 tick 템플릿 안이다 — 백틱을 쓰면 문자열이 끊긴다.) */
+    군세: S.minions.length, 시체: Math.round(S.corpses || 0), 마나: Math.round(S.mp || 0),
     피해5초: Math.round(d5), 내체력: Math.round(100 * S.hp / (S.hpMax || 1)), 적수: S.mobs.length });
 })()`;
+
+/* ★ **지침이 페이지에 닿았는지를 먼저 적는다**(2026-08-14) — 앞선 7분 판에서 「지침」 칸이
+   내내 "-" 로 나왔는데, 그것이 ①주입이 안 닿았다 인지 ②닿았는데 조건이 안 섰다 인지
+   갈리지 않았다. 「밟혔는가」를 재려는 자가 밟힘 여부를 못 보이면 자가 아니다.
+   페이지에서 직접 __TIRE_AT 과 TIRE_AT_DEF 를 읽어 첫 줄에 박는다. */
+{ const r = await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression:
+    `(async()=>{ const B = await import("/js/battle.js");
+       return JSON.stringify({ 주입: globalThis.__TIRE_AT ?? null, 기본: B.TIRE_AT_DEF }); })()` });
+  const g = JSON.parse(r.result.value);
+  console.log(`지침 설정 · 주입 __TIRE_AT=${g.주입 === null ? "없음" : g.주입} · 기본 TIRE_AT_DEF=${g.기본}`
+    + ` → 실제로 쓰이는 값 ${g.주입 ?? g.기본}${(g.주입 ?? g.기본) > 0 ? "" : " (꺼짐 — 「지침」 칸은 늘 - 로 나온다)"}`); }
 
 console.log(`씨앗 ${SEED} · ${MIN}분 · ${STEP}초 눈금`);
 console.log(`  ${"때".padStart(5)} │ 층 │ ${"주인hp%".padStart(7)} │ ${"산시간".padStart(5)} │ ${"지침".padStart(5)} │ 군세 │ 시체 │ 마나 │ ${"5초피해".padStart(7)} │ 내hp% │ 적`);
