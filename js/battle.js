@@ -75,6 +75,21 @@ const TAUNT_R = 130;
 /** 진이 적 쪽으로 기우는 최대 거리 — 이보다 멀리 나가면 본인 둘레가 통째로 빈다. */
 export const PUSH_MAX = RING_HOLD * 0.62;
 
+/* ══ 몰려옴(rush) C-1 ② ══ **줄이 빈 뒤 남은 적이 제 발로 몰려온다.**
+   12분을 눈금으로 쪼개 보면 제일 큰 통이 **뒷정리**(줄이 빈 뒤 남은 놈만 죽이는 시간)이고,
+   그 안을 다시 갈라 보면 **걷는 시간**(다가감)이 제일 크다(tmp/wl_* 열 판: 때림 23~27% ·
+   다가감 40~49% · 놀고 28~33%). 값(화력·머릿수·마나)으론 다섯 번 졌고(ROADMAP C-1),
+   ab_walk 는 **소환수 쪽**(귀가·구역 해제)을 이미 대 봤다. 이번엔 **적 쪽**을 움직인다 —
+   줄이 빈 뒤 남은 적이 (a) 아무 거리의 소환수에게나 붙고 (b) 아직 못 때릴 땐 더 빨리 걷는다.
+   ★ 머리 없는 자(검수기)를 위한 문 — `globalThis.__RUSH` 가 참이면 켜진다(core.js
+     doctrineId 의 `__DOCTRINE` · gatelordFor 의 `__FORCE_LORD` 와 같은 규칙). 없으면
+     꺼짐(기본)이라 「적」 루프가 예전 산수(상한 90 · 걸음 m.spd) 그대로 돈다 — 문이 꺼지면
+     **난수 소비가 한 톨도 안 달라진다**(A/B 유지, byte 단위로 같다). 세기값은 여기 한
+     표(RUSH)에 모은다 — auto() 처럼 흩어 두면 검수기가 값으로 A/B 를 못 가른다. */
+export const RUSH = { spd: 1.8 };   // b: 아직 못 때릴 때의 걸음 배수
+export const rushOn = () =>
+  typeof globalThis !== "undefined" && !!globalThis.__RUSH;
+
 /* ══ 죽는 순간 · 일어서는 순간 ══
    병수님: "전투화면 처음부터 다시 재검토". 화면을 늘려 보니 **죽는 게 안 보였다** —
    체력이 0 이 되는 프레임에 몸이 통째로 없어지고 다음 프레임에 시체가 놓여 있었다.
@@ -1219,16 +1234,25 @@ export function step(dt) {
 
   /* ── 적 ── **가운데를 향해 온다.** 길목에 소환수가 있으면 그것부터 친다 —
      그래서 둘레를 어떻게 덮었느냐가 곧 본인이 맞는 양이 된다. */
+  /* ★ 몰려옴(rush · 위 RUSH 문) — **줄이 빈 뒤(뒷정리)에만, 문이 켜졌을 때만** 켠다.
+     문이 꺼지면 rush=false 라 아래 lim·sp 가 예전 값(90·m.spd)으로 떨어져 「적」 루프가
+     byte 단위로 같이 돈다(RNG 0 톨). 판단을 mob 루프 밖에서 한 번만 해 per-mob 로 난수를
+     새로 먹지 않는다(rushOn·spawnQ 는 이 루프 동안 안 변한다). */
+  const rush = rushOn() && !(S.spawnQ && S.spawnQ.length);
   for (const m of S.mobs) {
     let tgt = null, td = 1e9;
     /* ★ 적이 길목의 소환수를 알아보는 거리는 **90 그대로 둔다.** 진을 넓히면서
        이것도 진에 매달아 봤는데(105 시절 비율 0.857 → 129), 적이 죄다 소환수에게
        붙잡혀 본인은 한 번도 안 죽는 대신 **군대가 다 갈렸다**(씨앗 셋 평균 점유
-       85% → 56% · 「거의 전멸」 0분 → 8분). 새는 놈이 조금 있는 편이 낫다. */
+       85% → 56% · 「거의 전멸」 0분 → 8분). 새는 놈이 조금 있는 편이 낫다.
+       ★ (a) 몰려옴이 켜지면 뒷정리에선 이 상한을 **푼다**(lim=1e9) — 남은 한둘이
+          아무 거리의 소환수에게나 붙어 제 발로 다가온다. 이건 관문 주인(m.boss)에게도
+          적용한다(걷다 붙는 것뿐이라 돌진 안무와 무관하다). */
     let wall = null, wd = 1e9;
+    const lim = rush ? 1e9 : 90;
     for (const u of S.minions) {
       const d = dist(m, u);
-      if (d < td && d < 90) { td = d; tgt = u; }
+      if (d < td && d < lim) { td = d; tgt = u; }
       if (u.kind === "golem" && !u.own && d < wd && d < TAUNT_R) { wd = d; wall = u; }
     }
     if (wall) { tgt = wall; td = wd; }   // ★ 도발 거리 안에 벽이 있으면 벽으로 끌린다(위 TAUNT_R)
@@ -1249,8 +1273,13 @@ export function step(dt) {
        ★ toward(한가운데) 대신 approach(도착 반경): 표적(소환수)엔 닿을 거리 m.r+tgt.r,
        가운데(본인)엔 CORE_R 껍질까지만 걷는다 — 그 안쪽으론 안 파고든다(위 approach 주석). */
     const rooted = (m.swing || 0) > 0;
-    if (tgt) { if (!rooted) approach(m, tgt.x, tgt.y, m.r + tgt.r, m.spd, dt); continue; }
-    if (!rooted) approach(m, 0, 0, CORE_R, m.spd, dt);
+    /* ★ (b) 몰려옴이 켜지면 **아직 못 때리는 동안**의 걸음만 RUSH.spd 배로 — approach 에
+       넘기는 속도 자리만 바꾼다(휘두르는 중 rooted 는 위에서 이미 발이 멎어 손 안 댄다).
+       관문 주인(m.boss)은 **뺀다**(a 만 준다) — 여기 속도를 건드리면 돌진 상태머신
+       (mstate/mtell)의 몸놀림과 섞여 「예고 없는 돌진」이 된다. 문이 꺼지면 sp=m.spd. */
+    const sp = (rush && !m.boss) ? m.spd * RUSH.spd : m.spd;
+    if (tgt) { if (!rooted) approach(m, tgt.x, tgt.y, m.r + tgt.r, sp, dt); continue; }
+    if (!rooted) approach(m, 0, 0, CORE_R, sp, dt);
     if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
       face(m, { x: 0, y: 0 });                          // 기다리는 동안에도 본체를 본다
       if ((m.atk -= dt) > 0) continue;
