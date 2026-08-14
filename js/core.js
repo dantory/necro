@@ -991,7 +991,26 @@ export const minionDmgMul = () => dmgMulOf() * minionMulOf();
    그 뒤로는 아무 일도 안 일어났다 — 방치형에서 제일 눈에 띄는 성장이 시작부터
    끝나 있었던 셈이다. 셋으로 시작해 세 레벨마다 하나씩, Lv.10 에 예전의 6 이 된다
    (그 뒤는 강화·트리·옵션이 이어받으므로 중반 이후는 그대로다). */
-export const armyBase = () => Math.min(6, 3 + Math.floor((META.lv - 1) / 3));
+/* ══ 초반의 벽 ══ 60분 곡선(2026-08-14 12:35)에서 씨앗 셋이 **전부** 층 5 · 분 2 와 분 3 에
+   두 번씩 죽었다. 씨앗이 다른데 층·분이 겹치면 그건 확률이 아니라 **산수**다 —
+   죽는 순간의 판이 셋 다 같은 모양이었다: **군세 상한 3 인데 적이 6~8**(floorN(5)=8).
+   벽이 셋인데 적이 여덟이라 벽을 못 세우고 **전부 네크로에게 들어온다.**
+   깊은 층의 「관문이 수법을 못 쓴다」와 정반대의, 그러나 같은 종류의 구조 결함이다.
+   ★ 레벨로만 자라는 상한은 그 자리에 **닿지 못한다** — 분 2·3 은 아직 Lv.1~4 다.
+     그래서 이미 두 번 통한 방법을 그대로 쓴다(「몸도 층을 따라 큰다」 ·
+     「주인 체력을 내 군대로 매긴다」): **바닥을 그 층의 적 수에 둔다.**
+     위는 예전의 6 으로 막으므로 이 손잡이는 **초반을 앞당길 뿐 천장을 안 올린다** —
+     Lv.10 뒤로는 레벨 쪽이 크거나 같아 저절로 손을 뗀다(깊은 층은 한 톨도 안 달라진다).
+   ARMY_WALL = 그 층 적 수의 몇 곱을 바닥으로 삼는가. **0 이면 손 안 댐**(예전 그대로) —
+   검수기가 `globalThis.__ARMY_WALL` 로 쓴다. */
+export const ARMY_WALL_DEF = 0;
+const ARMY_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_WALL != null)
+  ? +globalThis.__ARMY_WALL : ARMY_WALL_DEF;
+export const armyBase = () => {
+  const lv = Math.min(6, 3 + Math.floor((META.lv - 1) / 3));
+  const w  = ARMY_WALL_OF();
+  return w ? Math.max(lv, Math.min(6, Math.round(floorN(S.floor) * w))) : lv;
+};
 export const armyCap  = () => {
   const c = armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
   return hasUnique("lonely") ? Math.max(1, Math.ceil(c / 2)) : c;   // 소수정예 — 군세는 반(대신 minionMulOf 가 갑절)
