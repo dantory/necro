@@ -922,9 +922,23 @@ export function bagPut(it) {
  *  돌려주는 값: worn(갈아 끼웠나) · gold(이번에 녹은 금의 합) · bagged(주운 그것이 가방에 남았나) ·
  *  melted(녹인 목록 {n,gold,tier}). */
 export function takeDrop(d) {
+  /* ★ **uid 를 같이 옮긴다.** 여기서 새 개체를 만들면서 uid 를 안 옮겼더니 rollDrop 이
+     굽던 유니크가 **한 번도 손에 안 들어왔다**(30분 × 씨앗 여덟에서 유니크 0번 —
+     D-1 측정이 잡았다, 2026-08-14). 아래 두 갈래가 `it.uid` 를 읽으므로 여기가 진짜 자리다. */
   const it = { k: d.k, tier: d.tier, af: d.af || [] };
+  if (d.uid) it.uid = d.uid;
   let worn = false, melted = [];
   lastFused = [];                                // 이번 처리의 합성만 담기게 비운다(worn·빈손이면 bagPut 을 안 거친다)
+  /* ★ **이미 가진 유니크가 또 나오면 그 자리에서 금으로.** 유니크는 합쳐지지도 녹지도
+     않으므로(bagFuse·bagPut 이 건너뛴다) 중복이 쌓이면 12칸을 유니크가 다 먹어 평범한
+     전리품이 들어오는 족족 녹는다 — 합성 고리가 통째로 죽는다. 중복만 막으면 가방에
+     남는 유니크는 많아야 다섯(UNIQUE 의 수)이다. */
+  if (it.uid && (hasUnique(it.uid) || META.bag.some((b) => b && b.uid === it.uid))) {
+    const gold = meltGold(it);
+    META.gold += gold;
+    return { worn: false, gold, bagged: false,
+             melted: [{ n: nameOf(it), gold, tier: it.tier }], fused: [], ref: it };
+  }
   /* ★ 유니크는 **저절로 껴지지 않는다** — 주고받기 유니크(관문·소수정예)가 자동으로
      껴져 판을 망치면 안 되고, 낀 유니크도 자동 교체하지 않는다(손으로만 벗는다).
      그래서 유니크가 걸리는 두 자리(주운 것이 유니크 · 낀 것이 유니크)는 곧장 가방으로. */
