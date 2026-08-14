@@ -196,6 +196,28 @@ export const GATE_SEC_DEF = 0;
 const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_SEC != null)
   ? +globalThis.__GATE_SEC : GATE_SEC_DEF;
 
+/* ══ 관문 주인이 **지친다**(D-3) ══ 2026-08-14
+   30분 곡선(D-1)에서 조용한 자리는 **늘 같은 한 자리**였다 — 씨앗 7 이 2:03→6:31(268초),
+   씨앗 1 이 3:11→6:18(188초). 둘 다 그 사이 **층이 10 에 못 박혀** 있었다. 군대가 한 번
+   무너지면 화력이 바닥으로 떨어지는데 주인 체력은 그대로라 **끝나지 않는 싸움**이 된다.
+   레벨도 안 오르니(적을 못 죽이니까) 스스로 풀리지도 않는 고리다.
+   ★ 값으로는 못 푼다 — 체력을 깎으면 **벽의 자리만 옮긴다**(OPEN_MUL·GATE_SEC 이 그렇게
+     졌다). 그래서 축을 **시간**으로 바꾼다: 주인이 TIRE_AT 초를 넘겨 살아 있으면 그때부터
+     받는 피해가 TIRE_RAMP 초마다 한 배씩 는다(이미 있는 `wk` 길을 그대로 탄다 — 제물이
+     더 세게 걸려 있으면 그쪽을 안 덮는다). 화력이 0 만 아니면 **어떤 체력이든 유한한
+     시간에** 끝난다 → 벽이 설 자리가 산수에서 사라진다. 평범한 관문은 수십 초에 끝나
+     이 문턱에 닿지도 않으므로 잘 굴러가는 판은 한 톨도 안 바뀐다.
+   ★ **기본은 꺼 둔다**(0) — GATE_SEC 이 그랬듯 축 하나를 재 보지도 않고 켜면 벽의 자리만
+     옮긴다. 검수기가 `globalThis.__TIRE_AT`(= tools/ab_tire.sh) 로 쓸어 보고, 씨앗 여덟에서
+     ①조용한 구간이 사라지고 ②최고층이 안 무너지면 그때 기본값을 바꾼다.
+   ★★ 이것만으로는 **안 풀린다는 것을 이미 봤다** — 씨앗 7 의 10층 관문은 지침을 켜도
+     249초를 살았다. 그 판의 군세는 **1** 인데 시체가 **57** 개 쌓여 있었다(금도 안 늘었다).
+     곱할 피해 자체가 0 에 가까우면 21 배를 해도 0 이다. 진짜 벽은 「주인이 단단하다」가
+     아니라 **군대가 다시 안 선다** 쪽이다(tools/tire_probe.mjs · ROADMAP D-3). */
+export const TIRE_AT_DEF = 0, TIRE_RAMP = 10;
+const TIRE_AT_OF = () => (typeof globalThis !== "undefined" && globalThis.__TIRE_AT != null)
+  ? +globalThis.__TIRE_AT : TIRE_AT_DEF;
+
 /* ══ 관문은 **서는 순간 수법을 약속한다**(GATE_VOW) ══
    GATE_SEC(주인 체력을 내 군대로 매기기)는 2026-08-14 11:0x 에 졌다 — 조건 ①(깊은 띠에
    피해가 닿는가)은 처음으로 열렸는데, 어느 눈금(1.5·2.5·4·6·14)에서도 **최고층이
@@ -816,7 +838,20 @@ export function step(dt) {
      병수님 2026-08-13 "하수인 걷는모션 없이 떠다님". */
   const walkT = (e) => { if (e.moving > 0) { e.moving -= dt; e.moveT = (e.moveT || 0) + dt; } };
   for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; if (e.weak > 0) e.weak -= dt; }
-  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; if (e.wkT > 0) e.wkT -= dt; }
+  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; if (e.wkT > 0) e.wkT -= dt;
+    /* ★ 주인이 오래 서 있으면 **지친다**(위 TIRE_AT 주석) — 끝나지 않는 싸움을 산수로 막는다. */
+    if (e.boss) {
+      const at = TIRE_AT_OF();
+      e.age = (e.age || 0) + dt;
+      if (at > 0 && e.age > at) {
+        if (!e.tired) { e.tired = true;
+          say(`<b style="color:#d0a06a">${e.lord ? e.lord.n : "주인"}</b>이(가) <b>지친다</b> — 받는 피해가 점점 는다`);
+          S.fx.push({ t: 0.5, x: e.x, y: e.y, kind: "nova", rad: 70 }); }
+        const t = 1 + (e.age - at) / TIRE_RAMP;
+        if (!(e.wkT > 0) || e.wk < t) { e.wk = t; e.wkT = Math.max(e.wkT || 0, dt * 2); }   // 제물(1.6)이 더 세면 안 덮는다
+      }
+    }
+  }
 
   /* ── 예약된 타격을 **팔이 뻗는 칸에서** 터뜨린다 ──
      휘두름은 SWING_T 에서 0 으로 준다. 진행도가 IMPACT_AT 을 넘는 순간(=swing 이
