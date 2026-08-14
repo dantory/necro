@@ -201,6 +201,36 @@ const tick = (sec) => `(async()=>{
           if (pn > (R.poolN || 0)) gz(띠).장판 += pn - R.poolN;
           R.poolN = pn;
         }
+        /* ── ★ **화면에서 사건이 얼마나 자주 나는가**(D-1) ─────────────────
+           여태 잰 것은 깊이·시간·점유뿐인데 셋 다 **누적된 결과**라, 보는 사람 앞에서
+           30분 동안 아무 일도 안 일어나도 숫자는 예쁘게 늘어난다. 방치형은 **보는**
+           게임이므로 지루함을 정하는 것은 총량이 아니라 **사건 사이의 빈 구간**이다.
+           다섯을 센다:
+             · 레벨업 — META.lv 가 오른 순간
+             · 유니크 — 가방·낀 것에 uid 달린 물건이 는 순간(주움·합성 어느 쪽이든)
+             · 관문   — 관문 주인이 서는 순간(위에서 이미 세는 g.관문 의 늘어남)
+             · 위기   — 체력이 절반 아래로 빠지거나 군세가 반토막 난 순간
+             · 환생   — 손으로 누르는 것이라 검수기에서는 0 이 정상(자리만 둔다)
+           ★ **새 논리를 안 만든다** — 이미 세고 있는 통의 늘어남만 읽는다. 게임 상태를
+             안 건드리므로 난수 소비가 그대로고 예전 판과 그대로 견줄 수 있다. */
+        {
+          const E = R.사건 || (R.사건 = { 목록: [], 수: {}, prev: null });
+          let 관문수 = 0; for (const bk in (V.관문 || {})) 관문수 += V.관문[bk].관문;
+          let 유니크수 = 0;
+          for (const it of (C.META.bag || [])) if (it && it.uid) 유니크수++;
+          for (const gk of C.GEAR_KEYS) { const it = C.META.equip[gk]; if (it && it.uid) 유니크수++; }
+          const now = { 레벨업: C.META.lv | 0, 유니크: 유니크수, 관문: 관문수,
+                        위기: V.빠진횟수 + V.반토막, 환생: C.META.rebirths | 0 };
+          if (!E.prev) E.prev = now;      // 첫 눈금은 기준선 — 0분의 상태 자체는 사건이 아니다
+          else for (const kind in now) {
+            const d = now[kind] - E.prev[kind];
+            for (let j = 0; j < d; j++) {          // 한 눈금(0.05초)에 둘이 겹칠 수 있다
+              E.수[kind] = (E.수[kind] || 0) + 1;
+              if (E.목록.length < 6000) E.목록.push({ t: Math.round(R.t * 10) / 10, 종: kind, 층: f });
+            }
+            E.prev[kind] = now[kind];              // 환생으로 되돌아가면(음수) 세지 않고 기준만 옮긴다
+          }
+        }
         /* ── **뒷정리 안을 다시 쪼갠다** ────────────────────────────────
            시간을 어디서 아껴 와도 뒷정리가 그대로 삼켰다(되짚기를 0 으로 만들었더니
            59%→83%). 뒷정리는 「줄이 빈 뒤 남은 놈(거의 관문 주인) 하나를 붙잡고 있는
@@ -507,6 +537,40 @@ if (시간) {
       console.log(`→ 체력이 절반 아래인 시간이 전체의 ${(V.절반아래 / V.초 * 100).toFixed(1)}% 뿐이다 — A-2 의 「아슬아슬」은 화면에 **없다**`);
   }
 }
-fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간, 주술 }, null, 1));
+/* ── ★ **사건 사이가 얼마나 비는가**(D-1) ─────────────────────────────────
+   위의 자들은 전부 「얼마나 쌓였나」를 말한다. 이건 **언제 아무 일도 안 일어났나**를
+   말한다 — 보는 게임에서 지루함을 정하는 것은 총량이 아니라 빈 구간이다.
+   끝 조건: **사건 사이 최대 간격이 3분(180초) 아래.** 넘는 구간이 곧 다음에 할 일이다.
+   ★ 마지막 사건부터 끝까지의 꼬리도 간격으로 센다 — 30분째에 20분을 조용히 흘려보내고
+     「최대 간격 2분」이라고 말하면 자가 거짓말을 하는 것이다. */
+let 사건 = null;
+try {
+  const re = await S("Runtime.evaluate", { expression: "JSON.stringify((window.__R||{}).사건||null)", returnByValue: true });
+  사건 = JSON.parse(re.result.value || "null");
+} catch {}
+if (사건) {
+  const L = 사건.목록 || [], 끝 = MIN * 60;
+  const 수 = 사건.수 || {};
+  console.log("\n── 화면의 사건(D-1) ──");
+  console.log("  " + ["레벨업", "유니크", "관문", "위기", "환생"]
+    .map(k => `${k} ${수[k] || 0}번`).join(" · ") + ` · 모두 ${L.length}번`
+    + (L.length ? ` (평균 ${(끝 / L.length).toFixed(0)}초에 한 번)` : ""));
+  /* 간격 — 0초(판 시작)부터 재고, 마지막 사건 뒤 꼬리까지 넣는다. */
+  const gaps = []; let prev = 0;
+  for (const e of L) { gaps.push({ from: prev, to: e.t, len: e.t - prev, 종: e.종, 층: e.층 }); prev = e.t; }
+  gaps.push({ from: prev, to: 끝, len: 끝 - prev, 종: "(끝)", 층: null });
+  const 최대 = gaps.reduce((a, g) => g.len > a.len ? g : a, gaps[0]);
+  const 넘김 = gaps.filter(g => g.len >= 180).sort((a, b) => b.len - a.len);
+  const mm = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+  console.log(`  최대 간격 **${최대.len.toFixed(0)}초** (${mm(최대.from)} → ${mm(최대.to)})`
+    + ` · 3분 넘는 구간 ${넘김.length}개`);
+  for (const g of 넘김.slice(0, 6))
+    console.log(`    · ${mm(g.from)} → ${mm(g.to)} = ${g.len.toFixed(0)}초 조용 (끝낸 사건: ${g.종}${g.층 ? ` · ${g.층}층` : ""})`);
+  console.log(최대.len < 180
+    ? `→ **끝 조건 충족** — 사건 사이가 3분을 한 번도 안 넘는다(최대 ${최대.len.toFixed(0)}초)`
+    : `→ **끝 조건 못 넘김** — ${최대.len.toFixed(0)}초 동안 화면에서 아무 일도 안 났다.`
+      + ` 그 구간(${mm(최대.from)}~${mm(최대.to)})이 다음 작업이다`);
+}
+fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간, 주술, 사건 }, null, 1));
 console.log("errors:", errs.slice(0, 3), "netfail:", netfail.slice(0, 3));
 await raw("Target.closeTarget", { targetId }); bws.close();
