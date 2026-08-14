@@ -40,6 +40,9 @@
   <button id="hLeave" class="hBtn" title="여기까지만 하고 마을로 — 얻은 것은 그대로 가져간다">나가기</button>
   <!-- 환생 — 나가기와 짝. **마을에서, 임계 층을 넘겼을 때만** 뜬다(js/main.js syncReborn). -->
   <button id="hReborn" class="hBtn" title="환생 — 처음부터 다시, 대신 영구 배수(유해)">환생 ⟳</button>
+  <!-- 편성 — **마을에서 늘** 뜨는 단추(왼쪽 위 하늘). 환생이 오른쪽인 것과 짝으로 왼쪽에 둔다.
+       CSS 의 body.in-town 만으로 켜고 끈다(늘 열려 있어 syncReborn 같은 조건이 없다). -->
+  <button id="hDoctrine" class="hBtn" title="편성 — 어떤 군대를 세울지 고른다">편성 ⚔</button>
 
   <div id="log"></div>
 
@@ -146,6 +149,17 @@
     <div class="grid" id="forgeGrid"></div>
     <div class="tip" id="forgeTip"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="forgeGold">0</b></span>
+      <button class="btn" data-close>나가기</button></div>
+  </div></div>
+
+  <!-- 편성 — **군대의 결을 고른다.** 상인·대장간과 같은 돌(.grid·.cell·.tip·winFoot).
+       사는 것이 아니라 고르는 것이라 값(금)이 없다 — 고르면 그 자리서 바뀐다(확인 창 없음). -->
+  <div class="win" id="winDoctrine"><div class="frame">
+    <h2>편 성</h2>
+    <div class="wSub">「어떤 군대를 세울 것인가.」</div>
+    <div class="grid" id="docGrid"></div>
+    <div class="tip" id="docTip"></div>
+    <div class="winFoot"><span class="purse">지금 · <b id="docNow">균형</b></span>
       <button class="btn" data-close>나가기</button></div>
   </div></div>
 

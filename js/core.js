@@ -39,6 +39,40 @@ export const MINIONS = {
 };
 export const MINION_IDS = Object.keys(MINIONS);
 
+/* ══ 편성(doctrine) ══ **사람이 「내 군대」를 짤 자리.** 여태 소환 비율은 auto() 안에
+   숫자로 박혀 있어(벽 max(1,min(3,floor(cap/4))) · 몸 0.35 · 나머지 수) 사람이 고를 데가
+   없었다 — 방치형에서 사람이 하는 둘 중 하나가 「무엇을 소환할지」인데(위 파일 머리 주석)
+   그 손잡이가 빠져 있던 셈이다. 넷을 준다: 골고루(균형)·머릿수(해골)·자힐 몸(구울)·벽(골렘).
+   ★ 값을 **한 곳(이 표)에 모은다.** auto() 에 흩어 두면 A/B(검수기가 편성별로 재는 것)를
+     못 돌리고, 「균형이 예전과 한 톨도 안 달라야 한다」를 눈으로 대조할 수도 없다.
+   ★ **난수 한 톨 없다.** wallMin~wallMax 사이를 floor(cap/wallDiv) 로 결정적으로 뽑는다 —
+     balance 는 예전 식(max(1,min(3,floor(cap/4))) · 0.35)과 **정확히 같은 산수**라, 기본
+     편성에서는 검수기의 A/B 가 그대로 성립한다(균형이 기본값이다). */
+export const DOCTRINE_DEF = "balance";
+export const DOCTRINE = {
+  balance: { n:"균형",     ico:"⚖", d:"벽·몸·수를 고루 세운다 — 여태의 기본",          wallMin:1, wallMax:3, wallDiv:4,   body:0.35 },
+  bone:    { n:"해골 위주", ico:"☠", d:"머릿수로 민다 — 벽·몸을 줄이고 거의 다 해골",     wallMin:1, wallMax:2, wallDiv:6,   body:0.15 },
+  flesh:   { n:"구울 위주", ico:"✦", d:"물어뜯어 버틴다 — 자힐하는 몸(구울)을 두껍게",   wallMin:1, wallMax:2, wallDiv:6,   body:0.60 },
+  wall:    { n:"골렘 벽",   ico:"◆", d:"두꺼운 벽으로 막는다 — 골렘을 여럿 앞세운다",     wallMin:2, wallMax:5, wallDiv:2.5, body:0.30 },
+};
+export const DOCTRINE_IDS = Object.keys(DOCTRINE);
+/** 지금 세우는 편성의 **id**. 머리 없는 자(검수기)를 위한 문 — `globalThis.__DOCTRINE`
+ *  이 있으면 META 보다 앞선다(gatelordFor 의 `__FORCE_LORD` 와 같은 규칙). 모르는 값이면
+ *  기본값으로 떨어진다(옛 저장·오타 방어). */
+export const doctrineId = () => {
+  const d = (typeof globalThis !== "undefined" && globalThis.__DOCTRINE != null)
+    ? globalThis.__DOCTRINE : (META && META.doctrine);
+  return DOCTRINE[d] ? d : DOCTRINE_DEF;
+};
+export const doctrineOf = () => DOCTRINE[doctrineId()];
+/** auto() 가 읽는다 — 이 편성이 원하는 **벽(골렘)·몸(구울) 수.** 나머지는 전부 수(해골)라
+ *  auto() 의 채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 그대로다. */
+export const doctrineWants = (cap) => {
+  const d = doctrineOf();
+  return { golem: Math.max(d.wallMin, Math.min(d.wallMax, Math.floor(cap / d.wallDiv))),
+           ghoul: Math.floor(cap * d.body) };
+};
+
 /** **적의 그림 높이.** 예전엔 `48 + (r-10)*2.6` 으로 충돌 반경에서 크기를 뽑아 썼다.
  *  그래서 반경을 그림에 맞추려 하면 그림이 따라 커지는 고리에 걸린다 — 갈라 둔다. */
 /** ══ 본인의 기본공격 ══ 병수님: "중앙 네크로멘서는 기본공격이 원거리고
@@ -243,6 +277,7 @@ function load() {
                     전부 primitive 라 아래 Object.assign(base, raw) 가 저절로 올려 준다 —
                     옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
                  relics: 0, rebirths: 0, best: 1,
+                 doctrine: DOCTRINE_DEF,
                  up: { hp:0, mp:0, dmg:0, army:0 },
                  /* 재련(reforge) — **슬롯별 강화 수치.** 물건이 아니라 슬롯에 붙여, 더 좋은
                     드랍으로 갈아 껴도 태운 금이 안 날아간다(ROADMAP ⑧-a). object 라 아래
@@ -306,6 +341,7 @@ function load() {
     for (const k of ["lv", "deepest", "best"]) m[k] = Math.max(1, Math.floor(m[k]));
     for (const k of ["relics", "rebirths", "runs", "corpses"]) m[k] = Math.floor(m[k]);
     if (!m.quests || typeof m.quests !== "object") m.quests = {};
+    if (!DOCTRINE[m.doctrine]) m.doctrine = DOCTRINE_DEF;   // 모르는 편성(옛 저장·오타)은 기본값으로 — 저장을 안 믿는 그 자리
     return m;
   }
   catch { return base; }

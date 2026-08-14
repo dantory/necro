@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
- UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone } from "./core.js";
+ UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1212,13 +1212,11 @@ function auto() {
   const cap = armyCap(), mine = S.minions.filter(m => !m.own);
   const nGolem = mine.filter(m => m.kind === "golem").length;
   const nGhoul = mine.filter(m => m.kind === "ghoul").length;
-  /* 벽은 **둘레를 덮을 만큼만**(각 골렘이 도발로 제 구역을 붙잡는다). 상한 4마다 한 벽,
-     최소 1·최대 3 — 사방을 셋이면 대개 덮인다. 벽은 잘 안 죽어(30분 죽음 0~1회) 한 번
-     세우면 남으므로 적게 잡아도 유지된다. 마나 30 이 비싸 못 세우면 아래에서 몸·수로 샌다. */
-  const wantGolem = Math.max(1, Math.min(3, Math.floor(cap / 4)));
-  /* 몸은 상한의 ~35%(자힐로 버티는 중핵). 나머지는 전부 수(해골)라 **최다가 해골**이
-     되어 어느 종도 70%를 안 넘는다 — 이게 끝 조건이다. 값은 A/B 로 고른다(주석 위 커밋). */
-  const wantGhoul = Math.floor(cap * 0.35);
+  /* 벽 몇 · 몸 얼마는 이제 **사람이 고른 편성(core.js DOCTRINE)에서 뽑는다** — 예전엔
+     여기 숫자로 박혀 있었다(벽 max(1,min(3,floor(cap/4))) · 몸 0.35). 기본값 `balance` 는
+     그 식과 정확히 같은 산수라, 편성을 안 건드린 판은 손대기 전과 한 톨도 안 다르다.
+     채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 아래 그대로 둔다. */
+  const { golem: wantGolem, ghoul: wantGhoul } = doctrineWants(cap);
   if (armyN() < cap) {
     /* 벽 → 몸 → 수 차례로 채우되, 못 세우면(마나·재사용·시체) **다음 결로 샌다** —
        cast 는 못 쓰면 side-effect 없이 false 라(battle.js) 이 한 줄 사슬이 안전하다. */
@@ -1265,7 +1263,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1408,6 +1406,27 @@ function drawForge() {
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
+}
+
+/** 편성 — **군대의 결을 고른다.** 상인·대장간과 같은 격자+툴팁이되, 사는 것이 아니라
+ *  고르는 것이라 값이 없고 즉시 적용된다(확인 창 없음 · 되돌릴 수 있다). 지금 고른 것은
+ *  칸의 금테(.sel)와 발치(docNow)로 보이고, 툴팁은 그 편성이 이번 상한에서 세우는
+ *  벽·몸·수를 그대로 계산해 보여 준다(doctrineWants — auto() 가 읽는 바로 그 함수). */
+function drawDoctrine() {
+  const cur = doctrineId(), cap = armyCap();
+  $("docGrid").innerHTML = DOCTRINE_IDS.map((id) => {
+    const d = DOCTRINE[id];
+    return `<div class="cell${id === cur ? " sel" : ""}" data-doc="${id}"><span class="lvl">${d.ico}</span></div>`;
+  }).join("") + '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length));
+
+  const d = DOCTRINE[cur], w = doctrineWants(cap);
+  $("docNow").textContent = d.n;
+  $("docTip").innerHTML =
+    `<div class="tipName t2">${d.n}</div>
+     <div class="tipKind">편성 · 지금 상한 ${cap} 기준</div>
+     <div class="tipStat">${d.d}</div>
+     <div class="tipStat up">벽(골렘) <b>${w.golem}</b> · 몸(구울) <b>${w.ghoul}</b> · 나머지 수(해골) <b>${Math.max(0, cap - w.golem - w.ghoul)}</b></div>
+     <div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`;
 }
 
 /* ══ 상태창 ══ 병수님: "왼쪽에 낀 것 셋, 오른쪽에 가방, 아래에 합쳐진 수치."
@@ -1634,6 +1653,9 @@ document.addEventListener("click", (e) => {
   if (pick) { shopPick = pick.getAttribute("data-pick"); drawShop(); return; }
   const fpick = t.closest && t.closest("[data-fpick]");
   if (fpick) { forgePick = fpick.getAttribute("data-fpick"); drawForge(); return; }
+  /* 편성 칸 — 고르는 즉시 META 에 쓰고 저장한다(사는 것이 아니라 고르는 것 · 확인 없음). */
+  const dpick = t.closest && t.closest("[data-doc]");
+  if (dpick) { META.doctrine = dpick.getAttribute("data-doc"); saveMeta(); drawDoctrine(); return; }
   /* 상태창의 고르기·끼기도 **같은 핸들러의 갈래**로 — 새 리스너를 남발하지 않는다. */
   const spick = t.closest && t.closest("[data-spick]");
   if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawBag(); return; }
@@ -1681,7 +1703,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -1698,6 +1720,7 @@ window.__openWin = (which) => {
      한다(줄바꿈은 값 길이에 달렸으므로 판을 한 번 죽여 나온 한 벌로는 못 잰다). */
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
   if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
+  if (which === "doctrine"){ closeAll(); drawDoctrine(); win("winDoctrine", true); }
   if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
 };
 $("stage").addEventListener("click", (e) => {
@@ -1867,6 +1890,7 @@ $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat
    (되돌릴 수 없으므로 바로 실행하지 않는다). */
 $("hReborn").addEventListener("click", () => { if (canRebirth()) window.__openWin("reborn"); });
 $("hName").addEventListener("click", () => window.__openWin("stat"));
+$("hDoctrine").addEventListener("click", () => window.__openWin("doctrine"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
