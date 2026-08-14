@@ -150,6 +150,15 @@ export const ARRIVE_T = 1.6;
 export const PILE_FADE = 1.0;
 /** 관문 보스 자리에 퍼졌다 조여드는 붉은 고리의 수명. 그리는 쪽(fx "bossring")도 이 값을 쓴다. */
 export const BOSSRING_T = 0.7;
+/** 다 서기 전(born)에 튼 수법의 세기 — 검수기가 `globalThis.__OPEN_MUL` 로 쓸어 본다. */
+/* 0 · 0.12 · 0.35 를 30분 × 씨앗 1·3·9 로 쓸어 봤다(2026-08-14):
+     0     50-99층 받은 피해 0 (구멍 그대로) · 최고층 합 288
+     0.12  50-99층 **2,496,066** · 최고층 88/99/94 (합 281)   ← 고른 것
+     0.35  50-99층 5,599,423 · 최고층 98/90/81 (합 269 · 한 씨앗이 81 로 내려온다)
+   손 안 대면(1.0) 최고층 합이 292 → 125 로 반토막 난다 — 관문이 벽이 된다. */
+export const OPEN_MUL_DEF = 0.12;
+const OPEN_MUL_OF = () => (typeof globalThis !== "undefined" && globalThis.__OPEN_MUL != null)
+  ? +globalThis.__OPEN_MUL : OPEN_MUL_DEF;
 
 export function enterFloor(f) {
   /* ── 앞 층 시체 그림을 걷는다 ── ②는 「개수 S.corpses 와 그림 S.piles 는
@@ -212,8 +221,11 @@ function popSpawn() {
     const lord = gatelordFor(q.f);
     m.boss = true; m.kind = "boss"; m.lord = lord;
     /* 수법 상태: mechCd 는 다음 수법까지, mstate/mtell 은 돌진 상태머신(0 대기·1 예고·2 돌진).
-       첫 수법은 등장 직후 존재감을 위해 살짝 빨리 튼다(cd 의 60%). */
-    m.mechCd = lord.cd * 0.6; m.mstate = 0; m.mtell = 0;
+       ★ **첫 예고는 서는 즉시 튼다**(예전 cd×0.6 = 1.7초 뒤). 깊은 관문의 주인은 한 번에
+         0.8 초밖에 못 사는데 첫 수법까지 3.3초(born 0.8 + 1.7 + tell 0.8)가 필요해
+         50-99층 관문 29/29 번이 **수법을 한 번도 못 쓰고** 치워졌다(a1_gate 2026-08-14).
+         기다리는 1.7초를 없애고, 예고를 남기고 죽으면 아래 pendMech 가 이어 터뜨린다. */
+    m.mechCd = 0; m.mstate = 0; m.mtell = 0;
     m.hp = m.hpMax = floorHp(q.f) * 7;
     m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * FOOT_R;
     /* ★ **큰 몸은 같은 속도로 걸으면 굼떠 보인다.** 병수님 2026-08-13: "특히 보스
@@ -932,10 +944,59 @@ export function step(dt) {
     u.knock = knockOf(u, dmg);
     S.fx.push({ t: 0.12, kind: "hit", x: u.x, y: u.y });
   };
+  /** 수법이 **터지는** 자리 — 주인이 살아 있든(아래 루프) 예고만 남기고 죽었든(pendMech)
+   *  같은 몸을 쓴다. pool·add·curse 는 원래 중앙(네크로 발밑) 기준이라 주인의 자리가
+   *  필요 없고, charge 는 이미 겨눈 방향(cvx,cvy)만 있으면 된다.
+   *  S.dead 가 되면 true 를 돌려준다 — 부르는 쪽이 그 프레임을 접는다. */
+  const fireMech = (mech, dmg, col, cvx = 0, cvy = -1) => {
+    if (mech === "pool")
+      S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, col });
+    else if (mech === "add") {
+      /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
+         다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
+         로 확인). 진(150) 안쪽 코앞에서 솟아 군대가 오기 전에 직접 문다(cause "add"). */
+      const cnt = 4;
+      for (let i = 0; i < cnt; i++) {
+        const a = spawnMob(S.floor, i, cnt); a.cause = "add"; a.born = a.born0 = 0.4;
+        /* 불려 나온 졸개는 **두 배로 질기다**(hp×2) — 예전 값이면 네크로·군대가 솟자마자
+           치워 12분에 한 번도 안 물었다(gatelord_probe: 죽음 0). 질겨야 살아남아 문다. */
+        a.hp = a.hpMax = floorHp(S.floor) * 2;
+        const ang = (i / cnt) * 6.2832 + (Math.random() - 0.5) * 0.6, rad = 75;
+        a.x = Math.cos(ang) * rad; a.y = Math.sin(ang) * rad;
+      }
+    }
+    else if (mech === "curse") {
+      for (const u of S.minions)
+        if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, dmg * 1.7 * ampMul, u.x, u.y); u.weak = 3.0; }
+      hurtNecro(dmg * 3.8 * ampMul, "curse", 0, -1);
+    }
+    else if (mech === "charge") {
+      /* 주인이 겨눈 채 죽었을 때만 여기로 온다 — 달려들 몸이 없으니 겨눈 그 한 방만
+         네크로에게 닿는다(길목 소환수 관통은 살아 있는 돌진에만 있다). */
+      hurtNecro(dmg * 3.0 * ampMul, "charge", cvx, cvy);
+    }
+    return !!S.dead;
+  };
+  /* ── 예고를 남기고 죽은 수법 ── 주인이 치워져도 예고한 시각에 예정대로 터진다.
+     (예고 fx 는 이미 판에 떠 있으므로 「예고 없이 터졌다」가 되지 않는다.) */
+  for (let i = S.pendMech.length - 1; i >= 0; i--) {
+    const p = S.pendMech[i];
+    if ((p.t -= dt) > 0) continue;
+    S.pendMech.splice(i, 1);
+    if (fireMech(p.mech, p.dmg, p.col, p.cvx, p.cvy)) return;
+  }
   for (const m of S.mobs) {
-    if (!m.boss || !m.lord || m.born > 0) continue;
+    /* ★ **배어 나오는 중(born)에도 수법의 시계는 돈다.** 여기가 A-1 의 진짜 자리였다 —
+       보스의 born 은 0.8 이 아니라 **2.6초**인데(위 「따로 갚는다」) 깊은 관문의 주인은
+       한 번에 **1.0초**를 산다(a1_gate 2026-08-14). 즉 주인은 수법 루프에 **들어와 보지도
+       못하고** 죽었다(첫 수법까지 실제로는 born 2.6 + 1.7 + tell 0.8 = 5.1초였다).
+       예고는 판 한가운데 뜨므로(warn_* fx) 배어 나오는 동안 떠도 「예고 없이 터졌다」가
+       아니다 — 붉은 고리가 조여드는 그 시간이 곧 예고다.
+       돌진만은 몸이 실제로 달려들어야 하므로 다 선 뒤에 시작한다. */
+    if (!m.boss || !m.lord) continue;
     const lord = m.lord;
     if (lord.mech === "charge") {
+      if (m.born > 0) continue;
       if (m.mstate === 1) {                                 // 예고 — 멈춰 겨눈다
         m.swing = 0;
         if ((m.mtell -= dt) <= 0) {
@@ -965,34 +1026,17 @@ export function step(dt) {
       continue;
     }
     if (m.mtell > 0) {                                       // 예고 중 — 아직 발동 전(일반 근접은 유지)
-      if ((m.mtell -= dt) <= 0) {
-        if (lord.mech === "pool")
-          S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: m.dmg * 0.85, col: lord.col });
-        else if (lord.mech === "add") {
-          /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
-             다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
-             로 확인). 진(150) 안쪽 코앞에서 솟아 군대가 오기 전에 직접 문다(cause "add"). */
-          const cnt = 4;
-          for (let i = 0; i < cnt; i++) {
-            const a = spawnMob(S.floor, i, cnt); a.cause = "add"; a.born = a.born0 = 0.4;
-            /* 불려 나온 졸개는 **두 배로 질기다**(hp×2) — 예전 값이면 네크로·군대가 솟자마자
-               치워 12분에 한 번도 안 물었다(gatelord_probe: 죽음 0). 질겨야 살아남아 문다. */
-            a.hp = a.hpMax = floorHp(S.floor) * 2;
-            const ang = (i / cnt) * 6.2832 + (Math.random() - 0.5) * 0.6, rad = 75;
-            a.x = Math.cos(ang) * rad; a.y = Math.sin(ang) * rad;
-          }
-        }
-        else if (lord.mech === "curse") {
-          for (const u of S.minions)
-            if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, m.dmg * 1.7 * ampMul, u.x, u.y); u.weak = 3.0; }
-          hurtNecro(m.dmg * 3.8 * ampMul, "curse", 0, -1);
-          if (S.dead) return;
-        }
-      }
+      if ((m.mtell -= dt) <= 0 && fireMech(lord.mech, m.mdmg, lord.col)) return;
       continue;
     }
     if ((m.mechCd -= dt) <= 0) {                             // 예고 시작(pool·add·curse)
       m.mtell = lord.tell; m.mechCd = lord.cd;
+      /* ★ **덜 여문 채 내는 수법은 약하다.** 예고를 배어 나오는 중에 시작하면 깊은 관문도
+         수법을 한 번은 내는데(위), 그대로 온 힘을 실으면 관문이 벽이 된다 — 손 안 대고
+         재니 최고층 합이 292 → 125 로 반토막 났다(2026-08-14). 그래서 **다 서기 전에
+         시작한 수법만** OPEN_MUL 을 먹는다. 세기는 예고를 트는 그 순간에 못 박아
+         두므로(mdmg), 주인이 그 사이 다 서든 죽든 터지는 세기는 안 달라진다. */
+      m.mdmg = m.dmg * (m.born > 0 ? OPEN_MUL_OF() : 1);
       const wk = lord.mech === "pool" ? "warn_pool" : lord.mech === "add" ? "warn_add" : "warn_curse";
       const wr = lord.mech === "curse" ? 200 : lord.mech === "pool" ? 92 : 85;
       S.fx.push({ t: lord.tell, x: 0, y: 0, kind: wk, col: lord.col, r: wr });
@@ -1185,6 +1229,13 @@ export function step(dt) {
   for (let i = S.mobs.length - 1; i >= 0; i--) {
     if (S.mobs[i].hp > 0) continue;
     const m = S.mobs[i];
+    /* ★ **예고를 남기고 죽으면 그 수법은 예정대로 터진다.** 깊은 관문의 주인은 한 번에
+       0.8 초를 사는데(a1_gate 2026-08-14) 예고만 tell 초라 여태 전부 「예고 중 사망」으로
+       사라졌다 — 50-99층에서 네크로가 받은 피해가 **50분 내내 0** 이었던 자리가 여기다.
+       위험을 주인의 생존에서 떼어 낸다(값이 아니라 구조). */
+    if (m.boss && m.lord && m.mtell > 0 && (m.lord.mech !== "charge" || m.mstate === 1))
+      S.pendMech.push({ t: m.mtell, mech: m.lord.mech, dmg: (m.mdmg != null ? m.mdmg : m.dmg), col: m.lord.col,
+                        cvx: -m.x / (Math.hypot(m.x, m.y) || 1), cvy: -m.y / (Math.hypot(m.x, m.y) || 1) });
     S.mobs.splice(i, 1);
     S.killed++;
     /* ── 떨어뜨린다 ── 확률은 **층당 기대값**에서 뽑는다(마릿수가 늘어도 총량이 안 는다).
@@ -1308,7 +1359,7 @@ export function newRun() {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
     corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
-    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], hurtLog: [], walls: [],
+    minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], pendMech: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
 
