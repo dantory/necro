@@ -32,6 +32,11 @@ await S("Network.setCacheDisabled", { cacheDisabled: true });
 const seedSrc = `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
    return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
 await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });
+/* **지침을 켠 채로도 봐야 갈린다**(2026-08-14) — ab_tire 가 「팔 둘이 byte 단위로 같다」를
+   냈는데, say()/fx 는 난수를 안 먹으므로 그것만으론 「안 밟았다」와 「밟았는데 곱해질
+   피해가 0 이었다」가 안 갈린다. TP_TIRE=45 로 켜고 아래 「지침」 칸을 직접 읽는다. */
+const TIRE = +(process.env.TP_TIRE || 0);
+if (TIRE > 0) await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__TIRE_AT = ${TIRE};` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 1, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await wait(1500);
