@@ -1,6 +1,6 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
-import { TOUCH_K_DEF, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -91,8 +91,24 @@ import { drawTown, drawTownLabels, loadTown, townBreath, townGaze, townHitAt, to
    움직이는 것은 캔버스, 읽는 것은 DOM. */
 const cv = $("stage"), ctx = cv.getContext("2d");
 let dpr = 1;
+/* ══ 성능 모드 ══ **여기(맥)에서는 렉이 재현이 안 된다** — 병수님 기기에서만 걸린다
+   (2026-08-15 여러 번). 그래서 값을 짐작으로 깎는 대신 **판이 제 프레임을 재서 스스로
+   내려가게** 한다. 제일 크게 먹는 것은 **칠하는 픽셀 수**이고, 그건 dpr 하나로 정해진다:
+   414 CSS 폭에서 dpr 2 면 828×1792 ≈ **148만 px**, dpr 1.35 면 **67만 px**(55% 감소).
+   ★ 한 번 내려가면 그대로 둔다(오르내리면 화면이 계속 흔들려 더 거슬린다).
+   ★ 사람이 고를 수도 있어야 한다 — `?perf=1`(강제 저해상도) · `?perf=0`(강제 원해상도).
+   ★ 고른 것은 기억한다(다음에 켤 때 또 느려질 때까지 기다리지 않게). */
+const PERF_KEY = "necro.perf.v1";
+const qs = new URLSearchParams(location.search);
+let perfLow = qs.has("perf") ? qs.get("perf") === "1" : localStorage.getItem(PERF_KEY) === "1";
+export function setPerfLow(v) {
+  if (perfLow === !!v) return;
+  perfLow = !!v;
+  try { localStorage.setItem(PERF_KEY, perfLow ? "1" : "0"); } catch {}
+  fit();
+}
 function fit() {
-  dpr = Math.min(2, devicePixelRatio || 1);
+  dpr = Math.min(perfLow ? 1.35 : 2, devicePixelRatio || 1);
   cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
 }
 addEventListener("resize", fit);
@@ -1062,14 +1078,30 @@ function draw(dt) {
    「지금이 관문 층인가」(isGate — 층 내내 상시로 남는 옅은 비네트).
    ★ 흔들림(draw 초입 translate) 밖에 둔다 — 명패가 떨면 못 읽는다. setTransform 으로
      좌표계를 화면에 다시 고정해 캔버스 흔들림을 무른다. */
+const vigCache = new Map();
 function drawArrive(w, h) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const cx = w / 2;
+  /* ★★ **화면 전체 그러데이션을 매 프레임 새로 만들고 칠했다.** 관문 층에서는 이게
+     내내 돈다(isGate 상시 비네트) — 폰에서 제일 비싼 축이다(전면 채우기 + 그러데이션
+     생성). 그림은 **크기와 색에만** 달렸으니 구워 두고 알파만 바꿔 얹는다.
+     ★ 알파를 열쇠에 안 넣는다 — 들어설 때 알파가 프레임마다 바뀌므로 넣으면 캐시가
+       매 프레임 새로 구워져 **되레 느려진다.** 알파 1 로 굽고 globalAlpha 로 조절한다. */
   const vignette = (alpha, rgb) => {
-    const g = ctx.createRadialGradient(cx, h / 2, Math.min(w, h) * 0.32,
-                                       cx, h / 2, Math.max(w, h) * 0.72);
-    g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(1, `rgba(${rgb},${alpha})`);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    if (alpha <= 0) return;
+    const key = `${w}x${h}|${rgb}`;
+    let t = vigCache.get(key);
+    if (!t) {
+      t = document.createElement("canvas"); t.width = w; t.height = h;
+      const g2 = t.getContext("2d");
+      const g = g2.createRadialGradient(cx, h / 2, Math.min(w, h) * 0.32,
+                                        cx, h / 2, Math.max(w, h) * 0.72);
+      g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(1, `rgba(${rgb},1)`);
+      g2.fillStyle = g; g2.fillRect(0, 0, w, h);
+      vigCache.set(key, t);
+      if (vigCache.size > 8) vigCache.clear();
+    }
+    ctx.save(); ctx.globalAlpha = Math.min(1, alpha); ctx.drawImage(t, 0, 0); ctx.restore();
   };
 
   /* 관문 층 **내내** — 옅은 검붉은 비네트가 상시로 남는다. arrive 와 무관하게 isGate 로
@@ -1958,7 +1990,34 @@ function loading(dt) {
 
 let townT = 0, battleT = 0;
 let last = 0, autoT = 0, hudT = 0;
+/* 프레임을 **판이 스스로 잰다** — 밖에서 재면(헤드리스 rAF) 병수님 화면과 무관한 값이
+   나온다는 것을 오늘 배웠다. 최근 90프레임에서 **긴 프레임(>28ms)이 셋 중 하나를 넘으면**
+   한 번 내려간다. 처음 1.5초는 안 센다(로딩·첫 그림이 늦는 건 렉이 아니다). */
+const FR = { gaps: [], long: 0, t0: 0, checked: false, fps: 0, last: 0, n: 0, acc: 0 };
+function watchFrame(t) {
+  if (!FR.t0) FR.t0 = t;
+  if (FR.last) { const g = t - FR.last;
+    FR.acc += g; if (++FR.n >= 30) { FR.fps = Math.round(1000 / (FR.acc / FR.n)); FR.acc = 0; FR.n = 0; }
+    if (t - FR.t0 > 1500) { FR.gaps.push(g); if (FR.gaps.length > 90) FR.gaps.shift(); }
+  }
+  FR.last = t;
+  if (!FR.checked && !perfLow && FR.gaps.length >= 90) {
+    const long = FR.gaps.filter(g => g > 28).length;
+    if (long / FR.gaps.length > 0.33) { setPerfLow(true); FR.checked = true; say(`<b>성능 모드</b> 켜짐 · 화면을 가볍게`); }
+    else if (t - FR.t0 > 12000) FR.checked = true;         // 12초 멀쩡했으면 더 안 본다
+  }
+  if (fpsEl) fpsEl.textContent = `${FR.fps}fps${perfLow ? " · 저" : ""}`;
+}
+/* `?fps=1` — 화면 구석에 프레임을 띄운다. **병수님 기기의 숫자를 알아야** 무엇을 줄일지
+   정할 수 있는데, 여기서는 그 숫자가 안 나온다. */
+let fpsEl = null;
+if (qs.get("fps") === "1") {
+  fpsEl = document.createElement("div");
+  fpsEl.style.cssText = "position:fixed;left:4px;bottom:2px;z-index:99;font:12px monospace;color:#9f8;background:#000a;padding:1px 4px;pointer-events:none";
+  document.body.appendChild(fpsEl);
+}
 function loop(t) {
+  watchFrame(t);
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
   /* 다 받기 전에는 **시간도 멈춘다.** 덮어 놓고 뒤에서 싸움이 진행되면, 걷어냈을 때
      이미 벌어진 판을 보게 된다 — 「시작」이 아니라 「중간부터」가 된다. */
