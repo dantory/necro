@@ -1183,6 +1183,27 @@ export const thrallCap = () => rank("dark") * 4;
 export const armyN    = () => S.minions.reduce((a, u) => a + (u.own ? 0 : 1), 0);
 export const thrallN  = () => S.minions.reduce((a, u) => a + (u.own ? 1 : 0), 0);
 
+/* ══ 상한 위는 시체로 산다 ══ (㉡ __CAP_OVER) 상한 «값»은 이미 두 팔이 졌다(first·depth,
+   ROADMAP ⑧-d): +15% 올렸더니 군세는 +8% 만 늘고 마나부족이 통만 옮겨 앉았으며 최고층은
+   되레 깎였다. 그래서 이건 값이 아니라 **출구**다 — armyCap() 은 한 톨도 안 건드리고, 그 위로
+   최대 __CAP_OVER 기까지 더 세우되 **초과분은 비싸다**(시체 3배·마나 2배 — battle.js cast()).
+   **0 이면 손 안 댐**(예전 그대로) — 검수기가 globalThis.__CAP_OVER 로 쓴다(ARMY_WALL 과 같은 길). */
+export const CAP_OVER_DEF = 0;
+export const CAP_OVER_OF = () => (typeof globalThis !== "undefined" && globalThis.__CAP_OVER != null)
+  ? +globalThis.__CAP_OVER : CAP_OVER_DEF;
+/** 초과분까지 포함한 **실효 상한**. armyCap() 자체는 안 바뀐다 — 이건 「어디까지 세울 수 있나」다. */
+export const armyCapEff = () => armyCap() + CAP_OVER_OF();
+
+/* ══ 꽉 차면 세기로 간다 ══ (㉢ __CAP_MERGE) 자리가 없어서만 못 세울 때 소환을 버리지 않고
+   이미 선 **같은 종 중 제일 약한 하나를 한 단계 키운다**(hp·hpMax·dmg × __CAP_MERGE, 한
+   개체당 최대 MERGE_MAX 단계). 자원(시체·마나)·재사용은 평소 소환과 똑같이 쓴다 — 자리가
+   없어도 자원이 계속 돈다(「상한참」을 통째로 없애는 팔). **0(또는 1 이하)이면 손 안 댐.**
+   battle.js cast() 가 쓴다 — 검수기가 globalThis.__CAP_MERGE 로 켠다. */
+export const CAP_MERGE_DEF = 0;
+export const CAP_MERGE_OF = () => (typeof globalThis !== "undefined" && globalThis.__CAP_MERGE != null)
+  ? +globalThis.__CAP_MERGE : CAP_MERGE_DEF;
+export const MERGE_MAX = 4;
+
 
 /* ══════════════════════════════════════════════════════════════
    ══ 스킬 트리 ══ 병수님: "레벨이 오르면서 더 좋은 소환수를 뽑을 수 있게

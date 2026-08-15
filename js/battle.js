@@ -3,6 +3,7 @@ import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScal
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
+         armyCapEff, CAP_MERGE_OF, MERGE_MAX,
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -677,7 +678,7 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0, why = "?") {
  *  저쪽에 나타나면 둘이 남남이라 「시체로 만들었다」가 안 읽힌다. */
 export function summon(kind, at) {
   const K = MINIONS[kind];
-  if (armyN() >= armyCap()) return false;
+  if (armyN() >= armyCapEff()) return false;   // ㉡ 초과분까지 포함한 실효 상한(꺼지면 == armyCap)
   /* **둘레에 고르게 세운다.** 사방에서 오는 판이므로 한쪽에 몰아 세우면 반대쪽이 그냥
      뚫린다. 서 있는 각도를 이미 선 것들 사이의 **제일 넓은 틈**에 꽂는다 —
      그러면 몇 기가 있든 알아서 사방이 덮인다. */
@@ -712,6 +713,17 @@ export function summon(kind, at) {
   return true;
 }
 
+/** ㉢ 꽉 찼을 때 키울 대상 — **같은 종 중 제일 약한**(hpMax 최소) 하나. 이미 MERGE_MAX
+ *  단계까지 큰 것과 지배한 놈(own)은 뺀다. 읽기만 하므로 난수를 안 쓴다(A/B 유지). */
+function weakestMergeable(kind) {
+  let best = null;
+  for (const u of S.minions) {
+    if (u.own || u.kind !== kind || (u.mg | 0) >= MERGE_MAX) continue;
+    if (!best || u.hpMax < best.hpMax) best = u;
+  }
+  return best;
+}
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 export function cast(id) {
@@ -719,9 +731,18 @@ export function cast(id) {
   /* ★ 값과 재사용은 **트리가 깎는다**(값싼 죽음 · 빠른 손). 쓸 수 있는지 보는 곳과
      실제로 빼는 곳이 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
   if (!sk) return false;
-  const mpNeed = mpCost(sk);
-  if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < sk.corpse) return false;
-  if (isRaise(id) && armyN() >= armyCap()) return false;
+  /* ㉡㉢ 상한 위(over)·상한 꽉(merge) — 둘 다 꺼져 있으면(CAP_OVER=0 · CAP_MERGE≤1) over 는
+     늘 거짓이고 armyCapEff()==armyCap() 이라, 아래 산수와 검사 차례가 예전과 비트까지 같다. */
+  const over = isRaise(id) && armyN() >= armyCap() && armyN() < armyCapEff();
+  const mpNeed = mpCost(sk) * (over ? 2 : 1);            // ㉡ 초과분은 마나 2배
+  const corpseNeed = sk.corpse * (over ? 3 : 1);         // ㉡ 초과분은 시체 3배
+  if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < corpseNeed) return false;
+  let merging = null, mergeMul = 1;
+  if (isRaise(id) && armyN() >= armyCapEff()) {          // 실효 상한까지 꽉 참
+    mergeMul = CAP_MERGE_OF();
+    merging = mergeMul > 1 ? weakestMergeable(MINION_OF[id]) : null;
+    if (!merging) return false;                          // ㉢ 꺼졌거나 더 키울 대상 없음 → 예전처럼 못 섬
+  }
   if (id === "offer" && (!isGate(S.floor) || !S.mobs.some(m => m.boss))) return false;
 
   S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul();
@@ -729,7 +750,7 @@ export function cast(id) {
      시체 폭발은 본인 둘레를 쓸므로 가운데에서, 소환은 세울 자리에서 가까운 것을 쓴다. */
   /* 폭발만 **여러 구를 한 입에** 먹는다(환전). 소환은 한 구 그대로 — 소환수 값이
      시체 수에 따라 흔들리면 군세 상한과 겹쳐 읽을 수 없게 된다. */
-  const gulp = id === "nova" ? novaGulp() : sk.corpse;
+  const gulp = id === "nova" ? novaGulp() : corpseNeed;   // ㉡ 초과분이면 corpseNeed=3(그 외엔 sk.corpse)
   /* ★★ **어느 시체를 쓰느냐**도 스킬마다 다르다.
      소환은 **내 곁**의 시체를 쓴다(불러낸 놈이 진으로 걸어가야 하니 가까울수록 좋다).
      시체 폭발은 **적 쪽**의 시체를 쓴다 — 터지는 자리가 곧 피해가 닿는 자리이므로,
@@ -743,7 +764,19 @@ export function cast(id) {
   }
   const why = isRaise(id) ? "summon" : id;
   const usedAt = sk.corpse ? useCorpse(gulp, anchorX, anchorY, why) : null;
-  if (isRaise(id)) { summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`); }
+  if (isRaise(id)) {
+    if (merging) {
+      /* ㉢ 머릿수 대신 세기 — 제일 약한 같은 종 하나를 한 단계 키운다(자리가 없어도 자원은 돈다).
+         hp 비율이 유지되게 hp·hpMax 를 함께 올리고, 렌더는 mg 로 아주 작게 커진다(main.js). */
+      merging.hp    = merging.hp    * mergeMul;
+      merging.hpMax = merging.hpMax * mergeMul;
+      merging.dmg   = (merging.dmg || MINIONS[merging.kind].dmg) * mergeMul;
+      merging.mg    = (merging.mg | 0) + 1;
+      say(`<b>${MINIONS[MINION_OF[id]].n}</b> 강화`);
+    } else {
+      summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`);
+    }
+  }
   if (id === "nova") {
     /* **시체 폭발** — 이 직업의 상징. 시체 하나로 앞줄을 통째로 지운다. */
     /* 먹은 만큼 세진다 — 피해는 구당 +60%, 범위는 구당 +4%(최대 1.5배). 범위를 피해와

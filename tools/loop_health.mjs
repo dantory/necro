@@ -56,6 +56,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_VOW != null ? `globalThis.__GATE_VOW = ${+process.env.LH_VOW};` : ""}
    ${process.env.LH_VOWCAP != null ? `globalThis.__GATE_VOW_CAP = ${+process.env.LH_VOWCAP};` : ""}
    ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}
+   ${process.env.LH_CAPOVER != null ? `globalThis.__CAP_OVER = ${+process.env.LH_CAPOVER};` : ""}
+   ${process.env.LH_CAPMERGE != null ? `globalThis.__CAP_MERGE = ${+process.env.LH_CAPMERGE};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
    ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
    ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}
@@ -283,18 +285,34 @@ const tick = (sec) => `(async()=>{
              자동 소환(main.js auto)은 **0.35 초마다 한 기**만 세우고 raise 는 재사용
              1.2 초라, 상한을 다 채우려면 셈으로만 20 초가 걸린다 — 그게 사실인지 본다.
              ★ 여기도 **검수기 안에만** 있다(읽기만 한다) — 난수 소비가 안 달라진다. */
-          const A = T.군세 || (T.군세 = { 초: 0, 머릿수합: 0, 상한합: 0, 시체합: 0, 마나율합: 0,
+          const A = T.군세 || (T.군세 = { 초: 0, 머릿수합: 0, 상한합: 0, 시체합: 0, 마나율합: 0, 화력합: 0,
                                           막힘: { 상한참: 0, 시체없음: 0, 마나부족: 0, 재사용: 0, 셀차례: 0 } });
-          const cap = C.armyCap(), have = C.armyN();
-          A.초 += 0.05; A.머릿수합 += have; A.상한합 += cap; A.시체합 += S.corpses;
+          /* ㉡㉢ 상한합은 **base**(armyCap)로 둔다 — 팔끼리 견줄 눈금이 흔들리면 안 된다.
+             capEff 는 초과분까지 포함한 실효 천장(over 꺼지면 == capBase). */
+          const capBase = C.armyCap(), capEff = C.armyCapEff(), have = C.armyN();
+          A.초 += 0.05; A.머릿수합 += have; A.상한합 += capBase; A.시체합 += S.corpses;
           A.마나율합 += S.mp / Math.max(1, C.mpMaxOf());
-          if (have >= cap) A.막힘.상한참 += 0.05;
+          /* ㉢ 실효 화력 — 머지는 머릿수가 아니라 세기를 늘린다(초과 세우기도 함께 잡힌다).
+             지배한 놈(own)은 상한에 안 세니 여기서도 뺀다. */
+          for (const u of S.minions) if (!u.own) A.화력합 += (u.dmg || 0);
+          /* ★ 「상한참」은 **실효 상한까지 꽉 찼고 머지도 못 할 때만** 센다 — 그래야 팔이 정말
+             막힌 시간을 잰다(안 그러면 over 구간·머지 도는 시간을 상한참으로 잘못 문다).
+             ㉡ over(capBase~capEff): 세울 수 있으니 비용(시체 3배·마나 2배)으로 막힘을 가른다.
+             ㉢ merge: 꽉 차도 키울 대상이 있으면 자원이 도는 것이라 상한참이 아니다.
+             둘 다 꺼지면 capEff==capBase·머지대상 없음 → have>=capBase 와 같아 예전과 비트까지 같다. */
+          const sk = C.SKILLS.find(s => s.id === "raise");
+          const over = have >= capBase && have < capEff;
+          const corpseNeed = sk.corpse * (over ? 3 : 1);
+          const mpNeed = C.mpCost(sk) * (over ? 2 : 1);
+          const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
+          const canMerge = have >= capEff && mgOn &&
+            S.minions.some(u => !u.own && u.kind === "skel" && (u.mg | 0) < C.MERGE_MAX);
+          if (have >= capEff && !canMerge) A.막힘.상한참 += 0.05;
           else {
-            const sk = C.SKILLS.find(s => s.id === "raise");
-            const 통 = S.corpses < sk.corpse ? "시체없음"
-                     : S.mp < C.mpCost(sk)   ? "마나부족"
-                     : (S.cd.raise || 0) > 0 ? "재사용"
-                     : "셀차례";              /* 셀 수 있는데 안 섰다 = auto 의 0.35 초 박자 */
+            const 통 = S.corpses < corpseNeed ? "시체없음"
+                     : S.mp < mpNeed          ? "마나부족"
+                     : (S.cd.raise || 0) > 0  ? "재사용"
+                     : "셀차례";              /* 세우거나(over 구간) 머지할 수 있는데 auto 의 0.35 초 박자를 기다림 */
             A.막힘[통] += 0.05;
           }
         }
@@ -474,7 +492,8 @@ if (시간) {
     const s초 = (v) => `${v.toFixed(0)}초(${Math.round(v / A.초 * 100)}%)`;
     console.log(`뒷정리 군세 — 평균 ${(A.머릿수합 / (A.초 / 0.05)).toFixed(1)}기 / 상한 ` +
                 `${(A.상한합 / (A.초 / 0.05)).toFixed(1)} · 시체 ${(A.시체합 / (A.초 / 0.05)).toFixed(1)}개 · ` +
-                `마나 ${Math.round(A.마나율합 / (A.초 / 0.05) * 100)}%`);
+                `마나 ${Math.round(A.마나율합 / (A.초 / 0.05) * 100)}% · ` +
+                `실효화력 ${((A.화력합 || 0) / (A.초 / 0.05)).toFixed(0)}`);
     console.log(`  자리가 빈 채로: 시체없음 ${s초(A.막힘.시체없음)} · 마나부족 ${s초(A.막힘.마나부족)} · ` +
                 `재사용대기 ${s초(A.막힘.재사용)} · 셀차례기다림 ${s초(A.막힘.셀차례)} · [꽉참 ${s초(A.막힘.상한참)}]`);
     const 빈 = A.초 - A.막힘.상한참;

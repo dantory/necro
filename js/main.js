@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -814,7 +814,7 @@ function draw(dt) {
       /* 먹어서 커진 만큼 **그림도 커진다** — 셈만 커지면 병수님 눈엔 아무 일도 안 난다.
          지배한 놈은 원래 적의 그림을 그대로 쓴다(u.art) — 「저 브루트가 내 편이다」가
          한눈에 읽히는 게 이 노드의 전부다. */
-      const u = it.u, hh = (u.h || 40) * us * feedMul(u), x = px(u.x), y = py(u.y);
+      const u = it.u, hh = (u.h || 40) * us * feedMul(u) * (1 + 0.06 * (u.mg | 0)), x = px(u.x), y = py(u.y);
       /* ★ 지배한 놈은 **적과 그림이 똑같다** — 화면만 보면 내 편인지 알 수가 없다
          (첫 판을 찍어 보고 알았다: 붉은 타락자가 사방에 섞여 누가 누군지 안 읽혔다).
          발밑에 보라 테를 둘러 「이건 내 것」을 그림 없이 말한다. */
@@ -1367,7 +1367,10 @@ function auto() {
      그 식과 정확히 같은 산수라, 편성을 안 건드린 판은 손대기 전과 한 톨도 안 다르다.
      채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 아래 그대로 둔다. */
   const { golem: wantGolem, ghoul: wantGhoul } = doctrineWants(cap);
-  if (armyN() < cap) {
+  /* ㉡㉢ 상한 위(over)·꽉 참(merge) 이 켜지면 상한에 닿아도 소환을 시도한다 — cast() 가
+     초과 세우기/머지를 스스로 판단한다(못 하면 side-effect 없이 false 라 이 사슬이 안전).
+     둘 다 꺼졌으면 armyCapEff()==cap · CAP_MERGE_OF()≤1 이라 조건이 예전 `armyN() < cap` 과 같다. */
+  if (armyN() < armyCapEff() || CAP_MERGE_OF() > 1) {
     /* 벽 → 몸 → 수 차례로 채우되, 못 세우면(마나·재사용·시체) **다음 결로 샌다** —
        cast 는 못 쓰면 side-effect 없이 false 라(battle.js) 이 한 줄 사슬이 안전하다. */
     if (!(nGolem < wantGolem && cast("golem")) &&
