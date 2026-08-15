@@ -1469,13 +1469,24 @@ export function step(dt) {
     e.y += (cy - e.spy) / sq;                // 세로는 월드로 되돌린다
     e.spx = cx; e.spy = cy;
   };
+  /* ★ 겹침 허용치는 **한 프레임 내내 같은 값**이다(전역 하나를 읽을 뿐).
+     쌍마다 부르면 몸 마흔에 3패스 × 900쌍 = **한 프레임 2,700번**이라, CPU 프로파일에서
+     touchK 가 JS 자기시간 1.49% 로 올라와 있었다. 프레임 앞에서 한 번만 읽는다. */
+  const tk = touchK();
   for (let pass = 0; pass < 3; pass++) {
     for (let i = 0; i < bodies.length; i++) {
       for (let j = i + 1; j < bodies.length; j++) {
         const a = bodies[i], b = bodies[j];
         let dx = b.x - a.x, dy = (b.y - a.y) * sq;     // ← 화면에서 잰다
+        const min = (a.r + b.r) * tk;             // ← 겹침 허용치. 다가가는 껍질과 **같은 값**이어야 한다
+        /* ★ 쌍의 **대부분은 멀리 떨어져 있다.** 그런데도 전부 hypot(느린 정밀 연산)을
+           불렀다. 제곱끼리 먼저 대 보면 sqrt 없이 걸러진다 — 다만 아슬아슬한 쌍까지
+           여기서 자르면 **판정이 미세하게 달라져** 씨앗 재현이 깨진다. 그래서 이 문은
+           **넉넉하게(1.0001배)** 만 거르고, 통과한 쌍은 아래 원래 판정을 그대로 받는다.
+           d < min 인 쌍은 dsq < min²·1.0001 이 반드시 참이라 놓치는 쌍이 없다. */
+        const dsq = dx * dx + dy * dy;
+        if (dsq >= min * min * 1.0001) continue;
         let d = Math.hypot(dx, dy);
-        const min = (a.r + b.r) * touchK();       // ← 겹침 허용치. 다가가는 껍질과 **같은 값**이어야 한다
         if (d >= min) continue;
         if (d < 0.01) {                        // 완전히 포갠 경우 — 방향을 인덱스로 정해 흔들림 없이
           const ang = (i * 2.399 + j * 0.618);
