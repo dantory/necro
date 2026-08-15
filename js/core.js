@@ -1075,11 +1075,28 @@ export function autoForge(max = 8) {
      군대가 무너지고 여럿이 본체에 닿으면 그대로 죽는다. 바뀌는 것은 「스치면 끝」이
      「버티는 동안 군대를 다시 세울 수 있다」가 되는 것뿐이다. */
 export const SURVIVE_HITS = 5;
+/* ══ 레벨이 쥔 셋을 가른다 ══ (ROADMAP 4막 · 병수님 2026-08-15 17:06 「레벨이 너무 빨리 오른다」)
+   「빨리 오른다」를 **값으로** 눕히려던 여덟 팔이 전부 실패했다(요구 1.7·1.9 · 벌이 깊이
+   0.5·0 · 관문 한 벌까지). 매번 노린 것(12분 Lv 15 아래)은 됐는데 **최고층이 같은 만큼
+   죽었다**(72% · 64%, 문턱 80%). 까닭은 레벨 하나가 셋을 쥐고 있어서다:
+     ① 스킬 점수 `spTotal` — 사람이 **고르는** 몫(모자라야 빌드가 된다)
+     ② 군세 상한 `armyBase` · ③ 체력·마나 `bodyHp`·`mpMaxOf` — **깊이를 미는** 몫
+   ②③을 층에 매달면 레벨을 늦춰도 깊이가 안 죽는다 — ①만 레벨에 남긴다.
+   ★ 매다는 값은 `META.deepest`(최고 도달 층)다. `S.floor` 를 쓰면 층을 되짚어(위로
+     올라감) 내려올 때 상한·체력이 **줄어 판이 무너진다** — deepest 는 안 줄어드는 유일한 값.
+   ★ 얕은 층은 기본값이 커서 한 톨도 안 바뀐다(1층: (D-1)*8=0, 예전 Lv.1 과 같다).
+   SPLIT = 1 이면 ②③을 층에 매단다. **0 이면 지금 그대로** — 검수기가 `__SPLIT` 로 쓴다
+   (다른 손잡이 `__ARMY_WALL`·`__XP_K`·`__GATE_S` 와 같은 꼴). */
+export const SPLIT_DEF = 0;
+const SPLIT_OF = () => (typeof globalThis !== "undefined" && globalThis.__SPLIT != null)
+  ? +globalThis.__SPLIT : SPLIT_DEF;
+/** 깊이를 미는 몫이 매달리는 층수 — 되짚어도 안 줄어드는 최고 도달 층. */
+const splitLv = () => SPLIT_OF() ? Math.max(1, META.deepest | 0) : META.lv;
 /** 키운 것으로 쌓는 체력 — 얕은 층에서는 이쪽이 크다. */
-const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (META.lv - 1) * 8
+const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (splitLv() - 1) * 8
                    + gearVal("robe") + afSum("hp");
 export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
-export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (META.lv - 1) * 3;
+export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3;
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
    죽은 층 중앙값을 5 에서 **한 톨도 못 옮겼다**(2026-08-14 13:38 · 네 팔 전부).
@@ -1149,7 +1166,7 @@ export const ARMY_WALL_DEF = 0.5;
 const ARMY_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_WALL != null)
   ? +globalThis.__ARMY_WALL : ARMY_WALL_DEF;
 export const armyBase = () => {
-  const lv = Math.min(6, 3 + Math.floor((META.lv - 1) / 3));
+  const lv = Math.min(6, 3 + Math.floor((splitLv() - 1) / 3));   // 갈랐으면 층(deepest), 아니면 레벨
   const w  = ARMY_WALL_OF();
   return w ? Math.max(lv, Math.min(6, Math.round(floorN(S.floor) * w))) : lv;
 };

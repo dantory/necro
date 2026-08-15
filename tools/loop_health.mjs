@@ -67,6 +67,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_XPD != null ? `globalThis.__XP_DEPTH = ${+process.env.LH_XPD};` : ""}
    ${process.env.LH_TOUCH != null ? `globalThis.__TOUCH_K = ${+process.env.LH_TOUCH};` : ""}
    ${process.env.LH_GATE != null ? `globalThis.__GATE_S = ${+process.env.LH_GATE};` : ""}
+   ${process.env.LH_SPLIT != null ? `globalThis.__SPLIT = ${+process.env.LH_SPLIT};` : ""}
    ${process.env.LH_SPB != null ? `globalThis.__SPAWN_BASE = ${+process.env.LH_SPB};` : ""}
    ${process.env.LH_SPS != null ? `globalThis.__SPAWN_SLOPE = ${+process.env.LH_SPS};` : ""}
    ${process.env.LH_GAP != null ? `globalThis.__SPAWN_GAP = ${+process.env.LH_GAP};` : ""}` });
