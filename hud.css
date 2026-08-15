@@ -107,13 +107,30 @@
    텍스트가 있음". 맞다 — **유리 안에 글자를 넣으면 액체가 안 보인다.** 차오르고
    줄어드는 것이 이 UI 의 전부인데 그 위에 숫자를 얹으면 제일 중요한 것을 가린다.
    위로 빼면 구슬은 구슬대로, 숫자는 숫자대로 읽힌다. */
-.orb .num{position:absolute;left:-24px;right:-24px;bottom:100%;margin-bottom:5px;
-  display:flex;align-items:baseline;justify-content:center;gap:3px;
-  color:#d8c9a8;text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000;
+/* ★★ 병수님 2026-08-15: "피해 숫자가 바닥과 같은 색"(사진 tmp/look_deep.png 의 「1.5k /1.6k」).
+   숫자를 구슬 위로 뺐더니 **전장 캔버스 위에 맨몸으로** 앉았다 — 돌바닥도 뼈무더기도
+   같은 갈색 계열이라, 글자가 바닥 무늬의 일부로 읽힌다. 검은 그림자는 글자 획에만
+   붙어서 «획 대 그림자» 대비는 높은데(측정 9.5~12.8) 정작 **글자 덩어리 대 배경**이
+   안 갈린다 — 자를 획에 대면 통과하고 사람 눈에는 묻히는, 그 어긋남이다.
+   → 색을 바꾸는 것으로는 못 고친다(무엇으로 바꿔도 흔들리는 바닥 위다).
+     **제 판을 깔아 준다** — 어두운 판 위에 얹으면 바닥이 무엇이든 늘 같게 읽힌다.
+   판이 글자를 감싸야 하므로 좌우로 벌리던 것(-24px)을 걷고 **글자 폭만큼**만 잡는다. */
+/* ★ 판은 «바깥쪽 끝»에 못을 박고 **안쪽으로 자란다**. 가운데 정렬로 두면 자릿수가
+   불어났을 때(398.1k /412.5k) 판이 좌우로 벌어져 **화면 밖으로 나간다**(414·360 에서
+   왼쪽 -10.4px 로 실측). 안쪽에는 가운데 띠까지 여유가 있다 — 자랄 곳은 그쪽이다.
+   짧은 값에서는 판 폭이 구슬 폭과 거의 같아 가운데 정렬과 눈에 띄는 차이가 없다. */
+.orb .num{position:absolute;bottom:100%;margin-bottom:5px;
+  display:flex;align-items:baseline;gap:3px;
+  padding:2px 10px 3px;border-radius:11px;
+  background:rgba(9,7,6,.74);box-shadow:0 0 0 1px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.55);
+  color:#f2e7cf;text-shadow:0 2px 0 #000,0 0 6px #000,1px 0 0 #000,-1px 0 0 #000;
   white-space:nowrap;z-index:2;line-height:1}
-/* 위로 나왔으니 한 줄이다. 현재값은 크게(27), 최대치는 곁다리라 작게(18). */
+.orb.hp .num{left:-8px;right:auto;justify-content:flex-start}
+.orb.mp .num{right:-8px;left:auto;justify-content:flex-end}
+/* 위로 나왔으니 한 줄이다. 현재값은 크게(27), 최대치는 곁다리라 작게(18).
+   최대치는 어두운 판을 깔았으니 예전(#9d8f74)보다 밝혀도 «곁다리»로 남는다. */
 .orb .num b{font-weight:400;font-size:27px}
-.orb .num i{font-style:normal;font-size:18px;color:#9d8f74}
+.orb .num i{font-style:normal;font-size:18px;color:#b5a68a}
 
 /* ── 가운데 ── **남는 폭을 먹는다**(flex:1). 최대 폭만 두어 넓은 화면에서
    끝없이 늘어나지 않게 한다 — 늘어나면 빈 철판이 반복돼 「빈 칸」으로 보인다. */
@@ -623,8 +640,10 @@ body.in-town #hTactic{ display:inline-block; }
 @media (max-width: 560px) {
   :root{ --hudH:126px; --orb:88px; }
   #panel{gap:8px;padding:0 8px 8px}
-  /* 숫자는 구슬 밖으로 나가되 **화면 밖으로는 못 나간다** */
-  .orb .num{left:-8px;right:-8px;margin-bottom:3px}
+  /* 좁은 화면에서는 판도 같이 얇게. ★ 폭에 상한을 두지 않는다 — 상한을 두면
+     자릿수가 불어났을 때(398k/412k) **글자가 판 밖으로 삐져나가** 고치려던 것이
+     그대로 돌아온다. 판은 늘 글자를 감싼다. */
+  .orb .num{padding:1px 8px 2px;margin-bottom:3px}
   .orb .num b{font-size:19px}
   .orb .num i{font-size:13px}
   .mid{padding-bottom:9px;gap:12px}
