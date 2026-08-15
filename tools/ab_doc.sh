@@ -20,6 +20,10 @@ REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
 OUT=tmp; mkdir -p "$OUT"
 DOCS="balance bone flesh wall"
+# ★ 씨앗은 **여섯**이다(`ab_capstruct` 와 같은 목록 — 두 자를 맞대려면 눈금이 같아야 한다).
+#   셋으로 쟀을 때 「편성 사이 폭 12% vs 씨앗 사이 폭 31%」로 **잡음이 신호보다 컸다** —
+#   그 상태의 「미달」은 결론이 아니라 *못 쟀다* 이다([[seed-the-probe]]).
+SEEDS=${SEEDS:-"3 9 5 1 2 4"}
 # ★ kind_probe 는 **실시간**이라 짧게 잡고 싶지만, **골렘이 늦게 선다** — E-1 측정에서
 #   첫 등장이 skel 10초 · ghoul 140초 · **golem 360초**였다. 240초로 재면 어느 편성에서도
 #   골렘이 0 이라 「갈리나」를 물을 수조차 없다(자가 제 눈금으로 답을 정해 버리는 그 모양).
@@ -28,9 +32,9 @@ KSEC=${KSEC:-600}
 
 node tools/chrome_guard.mjs 2>&1 | tail -2
 
-echo "═════ 1부 · 편성 넷 × 씨앗 셋 × 12분 (loop_health) · $(date +%H:%M) ═════"
+echo "═════ 1부 · 편성 넷 × 씨앗 [$SEEDS] × 12분 (loop_health) · $(date +%H:%M) ═════"
 for d in $DOCS; do
-  for s in 3 9 5; do
+  for s in $SEEDS; do
     echo "───────── DOC $d · SEED $s · $(date +%H:%M) ─────────"
     LH_SEED=$s LH_DOC=$d node tools/loop_health.mjs 12 "$OUT/doc_${d}_$s.json" 2>&1 \
       | grep -E '최고|주술|아슬아슬|errors' | head -5
@@ -38,24 +42,33 @@ for d in $DOCS; do
 done
 
 echo ""
+# ★ `SKIP_KIND=1` 이면 2부를 건너뛰고 **지난 로그를 그대로 쓴다**(4×10분 = 40분을 아낀다).
+#   ②(종 비율이 갈리나)는 08-16 03:34 에 이미 OK 로 답이 났고 그 뒤 종을 고르는 길은
+#   안 바뀌었다. 다시 물어야 하는 것은 ①(최고층이 갈리나)뿐이다.
+#   ★ 건너뛴 것을 **말은 하고 건너뛴다** — 안 적으면 다음에 「이번에 쟀다」로 읽는다.
+if [ "${SKIP_KIND:-0}" = "1" ]; then
+  echo "═════ 2부 · 건너뜀(SKIP_KIND=1) — tmp/doc_kind_*.log 는 지난 판(03:34)의 것이다 ═════"
+else
 echo "═════ 2부 · 편성이 판에 보이나 (kind_probe fresh · ${KSEC}초 실시간 · 골렘은 360초쯤 선다) · $(date +%H:%M) ═════"
 for d in $DOCS; do
   echo "───────── kind $d · $(date +%H:%M) ─────────"
   LH_DOC=$d node tools/kind_probe.mjs "$KSEC" fresh > "$OUT/doc_kind_$d.log" 2>&1
   tail -3 "$OUT/doc_kind_$d.log"
 done
+fi
 
 echo ""
 echo "═════ 갈렸나 ═════"
-node - <<'JS'
+SEEDS="$SEEDS" node - <<'JS'
 import fs from "node:fs";
 const DOCS = ["balance", "bone", "flesh", "wall"];
 const NM = { balance: "균형", bone: "해골위주", flesh: "구울위주", wall: "골렘벽" };
-const tops = {}, grid = {}, SEEDS = [3, 9, 5];
+const tops = {}, grid = {};
+const SEEDS = (process.env.SEEDS || "3 9 5").trim().split(/\s+/).map(Number);
 console.log("  편성 │ 최고층 합 │ 판수 │ 12분Lv │ 군세 │ 시체 │ 죽음");
 for (const d of DOCS) {
   let top = 0, ok = 0, lv = 0, army = 0, corpse = 0, deaths = 0, runs = 0;
-  for (const s of [3, 9, 5]) {
+  for (const s of SEEDS) {
     try {
       const o = JSON.parse(fs.readFileSync(`tmp/doc_${d}_${s}.json`, "utf8"));
       const last = o.rows[o.rows.length - 1];
@@ -69,7 +82,7 @@ for (const d of DOCS) {
     } catch { /* 아직 안 끝난 씨앗 */ }
   }
   if (ok) tops[d] = top;
-  console.log(`${NM[d].padEnd(6)} │ ${String(top).padStart(6)} (${ok}/3) │ ${String(runs).padStart(3)} │ ${(lv / (ok || 1)).toFixed(1).padStart(5)} │ ${(army / (ok || 1)).toFixed(1).padStart(4)} │ ${(corpse / (ok || 1)).toFixed(0).padStart(4)} │ ${String(deaths).padStart(4)}`);
+  console.log(`${NM[d].padEnd(6)} │ ${String(top).padStart(6)} (${ok}/${SEEDS.length}) │ ${String(runs).padStart(3)} │ ${(lv / (ok || 1)).toFixed(1).padStart(5)} │ ${(army / (ok || 1)).toFixed(1).padStart(4)} │ ${(corpse / (ok || 1)).toFixed(0).padStart(4)} │ ${String(deaths).padStart(4)}`);
 }
 
 /* 종 비율 — kind_probe 로그의 마지막 JSON 을 집는다. 마을비율 10% 넘으면 못 쓴다. */
@@ -126,6 +139,26 @@ if (vals.length < 4) {
   console.log(`④ 군세 = 상한으로 꽉 찬 판 ${꽉}/${all.length} ... ` +
     (꽉 * 2 > all.length ? "★ 상한이 다 묻는다 — 편성보다 「군세 상한」 항목이 먼저다" : "OK"));
   console.log("→ 미달이면 **값을 만지기 전에** 왜 안 갈리는지부터 본다(auto() 가 편성 표를 정말 읽나 · 상한이 다 묻나).");
+
+  /* ⑤ **두 자를 맞댄다** — 같은 씨앗에서 `ab_doc balance` 와 `ab_capstruct base` 가
+     같은 값을 내는가. 08-16 에 같은 base 를 두 자로 재서 「상한참 20% 대 55~67%」로
+     엇갈렸고, 그걸 **눈으로 대 보기 전까지 팔을 더 만들 뻔했다.** 자가 스스로 대게 한다.
+     (balance 는 프리셋을 켠 것이고 base 는 안 켠 것이라 **다르면 그게 프리셋의 값**이다.) */
+  const 막 = (f) => { try {
+    const A = ((JSON.parse(fs.readFileSync(f, "utf8"))["시간"] || {})["군세"]) || {};
+    const m = A["막힘"] || {}, 초 = A["초"] || 0;
+    return 초 ? { 초, jam: 100 * (m["상한참"] || 0) / 초, cd: 100 * (m["재사용"] || 0) / 초, mp: 100 * (m["마나부족"] || 0) / 초 } : null;
+  } catch { return null; } };
+  const 쌍 = SEEDS.map(s => ({ s, a: 막(`tmp/doc_balance_${s}.json`), b: 막(`tmp/capst_base_${s}.json`) })).filter(x => x.a && x.b);
+  if (!쌍.length) console.log("⑤ 두 자를 맞댈 짝이 없다(capst_base_*.json 이 없다) ... 건너뜀");
+  else {
+    const d = 쌍.map(x => Math.abs(x.a.jam - x.b.jam));
+    const mx = Math.max(...d);
+    console.log(`⑤ 같은 씨앗에서 balance vs capstruct-base 상한참 최대차 ${mx.toFixed(1)}p (짝 ${쌍.length}) ... ` +
+      (mx <= 2 ? "OK — 두 자가 같은 판을 본다(엇갈린 값은 «다른 커밋»이지 자 탓이 아니다)"
+               : "★ 두 자가 다른 판을 본다 — 프리셋이 판을 바꾸는 것이니 그것부터 볼 것"));
+    쌍.forEach(x => console.log(`     씨앗${x.s} 상한참 ${x.a.jam.toFixed(0)}/${x.b.jam.toFixed(0)}% · 재사용 ${x.a.cd.toFixed(0)}/${x.b.cd.toFixed(0)}% · 마나 ${x.a.mp.toFixed(0)}/${x.b.mp.toFixed(0)}%`));
+  }
 }
 JS
 echo "═════ 끝 · $(date +%H:%M) · 잰 커밋 $(git rev-parse --short HEAD) ═════"
