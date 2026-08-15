@@ -95,6 +95,12 @@ const check = async (p) => { if (p in exists) return exists[p];
         exists[p] = r.ok; } catch { exists[p] = false; } return exists[p]; };
 
 const RAISE_SET = new Set(["raise","ghoul","golem"]);
+/* ★ **공통 연출은 겹침이 아니다.** `rise`(시체를 쓴 자리)는 여덟 중 다섯이 **같이 내는**
+   kind 다 — 그 그림 하나를 다섯이 쓰는 것은 「빌려 썼다」가 아니라 그게 공통 연출인
+   것이다. 예전엔 rise 가 코드로 그려져서 이 구분이 필요 없었는데(그림이 "code" 라 겹침
+   판에서 빠졌다), 그림을 걸자마자 ③ 이 다섯 스킬을 한꺼번에 잡았다.
+   대신 아래 ① 이 그대로 남는다 — **공통 것 말고 제 그림이 하나는 있어야 한다.** */
+const COMMON_KIND = new Set(["rise"]);
 const fails = [];
 const used = new Map();                        // 그림 → 그걸 쓰는 스킬들
 for (const r of res) {
@@ -112,13 +118,16 @@ for (const r of res) {
     if (!img) { fails.push(`${r.스킬}: ② kind "${k}" 가 FX_ART 에 없음 — hit 으로 떨어진다`); continue; }
     if (img === "code") continue;                       // 코드로 그린다 — 파일도 겹침도 볼 것이 없다
     if (!await check(img)) { fails.push(`${r.스킬}: ② ${img}.png 없음`); continue; }
+    if (COMMON_KIND.has(k)) continue;                   // 공통 연출 — 있는지만 보고 겹침 판에선 뺀다
     if (!used.has(img)) used.set(img, []);
     used.get(img).push(r.스킬);
   }
   /* ★ **제 것이 하나는 있어야 한다.** 시체를 쓴 자리(rise)는 여덟 중 다섯이 같이 내는
      공통 연출이라, 그것만 내고 끝나면 화면에서 「무슨 스킬을 썼는지」가 안 갈린다.
-     소환 셋은 예외 — 그 고리가 곧 「일으켰다」이다. */
-  if (!RAISE_SET.has(r.스킬) && r.그림.every(g => g === "code"))
+     소환 셋은 예외 — 그 솟는 혼이 곧 「일으켰다」이다.
+     ★ 판정은 **kind** 로 한다 — 예전엔 `그림 === "code"` 로 봤는데, rise 에 그림을 걸자
+       그 줄이 조용히 통과가 되어 「공통 것만 내는 스킬」을 못 잡게 됐다. */
+  if (!RAISE_SET.has(r.스킬) && r.kind.every((k, i) => COMMON_KIND.has(k) || r.그림[i] === "code"))
     fails.push(`${r.스킬}: ① 제 그림이 없다 — 공통 연출(${r.kind.join("·")})만 낸다`);
 }
 /* ③ 두 스킬이 같은 그림 — 다만 소환 셋(raise/ghoul/golem)은 **같은 의식**이라 봐준다. */

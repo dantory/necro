@@ -18,11 +18,14 @@ export const FX_ART = {
   curse: { img: "fx/curse",   h: 210, grow: true, life: 0.6 },
   burn:  { img: "fx/burnfx",  h: 78 },
   offer: { img: "fx/offerfx", h: 108 },
+  /* ★ `rise`(시체를 쓴 자리)는 **고리 + 그림 둘 다**다. 고리만 있던 동안 소환 셋은
+     화면에서 여덟 중 셋이 같은 얼굴이었다 — 30px 짜리 흙고리 하나로는 「일으켰다」가
+     안 읽힌다. `raise.png`(땅에서 솟는 푸른 혼)를 고리 위에 얹는다. 고리는 남긴다 —
+     그림은 「무엇이 섰나」를, 고리는 「여기 것을 썼다」를 말한다. */
+  rise:  { img: "fx/raise",   h: 72, grow: true, life: 0.55 },
   /* ↓ **코드로 그리는 것들**(위쪽 가지에서 그리고 `continue` 한다). 그림이 없는 게 아니라
-     그림이 필요 없는 것이라, 자가 「빠졌다」로 오해하지 않게 여기에 적어 둔다.
-     ★ `rise`(시체를 쓴 자리)는 예전에 타격 불꽃 그림이었다가 고리로 바뀌었다 —
-       그 바람에 `assets/fx/raise.png` 는 **아무 데서도 안 쓰인다**(ROADMAP 에 적어 둠). */
-  rise:      { code: true }, gib:       { code: true }, bossring:  { code: true },
+     그림이 필요 없는 것이라, 자가 「빠졌다」로 오해하지 않게 여기에 적어 둔다. */
+  gib:       { code: true }, bossring:  { code: true },
   warn_pool: { code: true }, warn_add:  { code: true }, warn_curse:{ code: true },
   warn_charge: { code: true },
 };
@@ -912,9 +915,13 @@ function draw(dt) {
       continue;
     }
     if (f.kind === "rise") {
-      /* ══ 시체를 쓴 자리 ══ **땅이 터지며 먼지가 인다.** 예전엔 이걸 타격 불꽃 그림으로
-         그리고 있었다 — 시체가 없어진 자리에서 「맞았다」가 번쩍이니 뜻이 반대였다.
-         바닥에 퍼지는 고리 하나면 「여기 것을 썼다」가 읽힌다. */
+      /* ══ 시체를 쓴 자리 ══ **땅이 터지며 먼지가 일고, 그 위로 혼이 솟는다.**
+         고리만 그리던 동안 소환 셋(해골·구울·골렘)은 판에서 **같은 얼굴**이었다 —
+         30px 흙고리는 12기가 붙어 있는 화면에서 사실상 안 보인다. 두 겹으로 나눈다:
+           · 고리(아래) — 「여기 시체를 썼다」. 퍼지며 옅어진다.
+           · 혼(위)     — 「무엇이 섰다」. `assets/fx/raise.png`, 작게 시작해 커지며 뜬다.
+         ★ 혼은 몸이 땅에서 올라오는 것과 **같은 시간**(RISE_T)을 쓴다 — 유닛의 e.rise
+           가 다 도는 순간 그림도 걷힌다(둘이 어긋나면 남남으로 보인다). */
       const p = 1 - Math.max(0, f.t) / RISE_T;               // 0 → 1
       const x = px(f.x || 0), y = py(f.y || 0), rr = 30 * us * (0.35 + 0.9 * p);
       ctx.save();
@@ -925,6 +932,16 @@ function draw(dt) {
       ctx.fillStyle = "#2a2018";
       ctx.beginPath(); ctx.ellipse(x, y, rr * 0.75, rr * 0.75 * SQUASH, 0, 0, 6.2832); ctx.fill();
       ctx.restore();
+      const art = FX_ART.rise, im = sprite(art.img);
+      if (im) {
+        /* 앞머리는 또렷하게 들어왔다가 뒤로 갈수록 걷힌다 — 솟는 동안 살짝 떠오른다. */
+        const hh = art.h * (0.62 + 0.5 * p);   // h 는 표대로 **화면 px**(us 를 곱하지 않는다)
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, p * 5)) * (1 - p * p * 0.85);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(im, x - hh / 2, y - hh * 0.82 - hh * 0.18 * p, hh, hh);
+        ctx.restore();
+      }
       ctx.globalAlpha = 1;
       continue;
     }
