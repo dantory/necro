@@ -51,7 +51,7 @@ node - <<'JS'
 import fs from "node:fs";
 const DOCS = ["balance", "bone", "flesh", "wall"];
 const NM = { balance: "균형", bone: "해골위주", flesh: "구울위주", wall: "골렘벽" };
-const tops = {};
+const tops = {}, grid = {}, SEEDS = [3, 9, 5];
 console.log("  편성 │ 최고층 합 │ 판수 │ 12분Lv │ 군세 │ 시체 │ 죽음");
 for (const d of DOCS) {
   let top = 0, ok = 0, lv = 0, army = 0, corpse = 0, deaths = 0, runs = 0;
@@ -61,7 +61,11 @@ for (const d of DOCS) {
       const last = o.rows[o.rows.length - 1];
       top += last?.최고층 || 0; lv += last?.레벨 || 0;
       army += last?.군세 || 0; corpse += last?.시체 || 0;
-      runs += last?.판수 || 0; deaths += o.deaths || 0; ok++;
+      /* 낱 판을 따로 남긴다 — 합만 보면 **씨앗 잡음이 편성 차보다 큰지**를 못 본다. */
+      grid[d + "|" + s] = { top: last?.최고층 || 0, army: last?.군세 || 0, cap: last?.상한 || 0 };
+      /* `deaths` 는 죽은 자리마다 한 덩이씩 든 **배열**이다 — 그냥 더하면
+         `0[object Object],...` 가 찍힌다(08-16 04:17 표에 그렇게 나왔다). 길이를 센다. */
+      runs += last?.판수 || 0; deaths += Array.isArray(o.deaths) ? o.deaths.length : (o.deaths || 0); ok++;
     } catch { /* 아직 안 끝난 씨앗 */ }
   }
   if (ok) tops[d] = top;
@@ -104,6 +108,23 @@ if (vals.length < 4) {
   console.log("── 판정 ──");
   console.log(`① 최고층 합 ${mn}~${mx} · 갈림 ${(spread * 100).toFixed(1)}% ≥ 15% ... ${spread >= 0.15 ? "OK" : "미달 — 편성이 판을 안 가른다"}`);
   console.log(kline);
+
+  /* ③ **잡음이 신호보다 크면 15% 문턱은 잴 수가 없다**([[seed-the-probe]]).
+     같은 씨앗 안에서 편성 넷이 벌어지는 폭 ↔ 같은 편성 안에서 씨앗 셋이 벌어지는 폭을
+     나란히 낸다. 뒤가 크면 「편성이 안 갈린다」가 아니라 **아직 못 쟀다**가 맞는 말이다. */
+  const 폭 = (v) => { const a = v.filter(x => x > 0); return a.length < 2 ? 0 : (Math.max(...a) / Math.min(...a) - 1); };
+  const 편성폭 = SEEDS.map(s => 폭(DOCS.map(d => grid[d + "|" + s]?.top || 0)));
+  const 씨앗폭 = DOCS.map(d => 폭(SEEDS.map(s => grid[d + "|" + s]?.top || 0)));
+  const 신호 = 편성폭.reduce((a, b) => a + b, 0) / (편성폭.length || 1);
+  const 잡음 = 씨앗폭.reduce((a, b) => a + b, 0) / (씨앗폭.length || 1);
+  console.log(`③ 편성 사이 폭 ${(신호 * 100).toFixed(0)}% vs 씨앗 사이 폭 ${(잡음 * 100).toFixed(0)}% ... ` +
+    (신호 > 잡음 ? "OK — 편성이 잡음보다 크다" : "★ 잡음이 더 크다 — 씨앗을 늘리기 전엔 ①을 믿지 말 것"));
+  SEEDS.forEach((s, i) => console.log(`     씨앗${s} 안 편성 넷: ${DOCS.map(d => grid[d + "|" + s]?.top || "-").join("/")} → ${(편성폭[i] * 100).toFixed(0)}%`));
+
+  /* ④ **군세가 상한에 붙어 있으면 무엇을 세워도 머릿수가 같다** — 편성이 갈릴 자리가 없다. */
+  const all = Object.values(grid), 꽉 = all.filter(g => g.cap > 0 && g.army >= g.cap).length;
+  console.log(`④ 군세 = 상한으로 꽉 찬 판 ${꽉}/${all.length} ... ` +
+    (꽉 * 2 > all.length ? "★ 상한이 다 묻는다 — 편성보다 「군세 상한」 항목이 먼저다" : "OK"));
   console.log("→ 미달이면 **값을 만지기 전에** 왜 안 갈리는지부터 본다(auto() 가 편성 표를 정말 읽나 · 상한이 다 묻나).");
 }
 JS
