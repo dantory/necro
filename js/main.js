@@ -15,7 +15,9 @@ import { drawTree, markSp } from "./tree.js";
 export const FX_ART = {
   hit:   { img: "fx/hit",     h: 28 },
   nova:  { img: "fx/nova",    h: 190, grow: true, life: 0.35 },
-  curse: { img: "fx/curse",   h: 210, grow: true, life: 0.6 },
+  /* ★ 210 은 **너무 컸다** — 판을 찍어 보니 보라 고리가 화면 네 귀 중 하나를 통째로
+     덮고 가장자리로 잘려 나갔다(2026-08-15 저녁 스샷). 적 무리를 덮되 판을 안 먹는 크기로. */
+  curse: { img: "fx/curse",   h: 132, grow: true, life: 0.6 },
   burn:  { img: "fx/burnfx",  h: 78 },
   offer: { img: "fx/offerfx", h: 108 },
   /* ★ `rise`(시체를 쓴 자리)는 **고리 + 그림 둘 다**다. 고리만 있던 동안 소환 셋은
@@ -561,18 +563,36 @@ function draw(dt) {
    *  크기를 눈대중으로 줄이지 않고 **그림자와 같은 자로 맞춘다** — 그림자는 이미
    *  발 폭(footWidthFrac)에 맞춰 두었으므로, 룬이 그림자를 그대로 따르면 발에
    *  붙어 있으면서 이웃과 안 닿는다(지름 58.6 < 간격 64.4). */
+  /* ★★ **그러데이션을 몸마다 매 프레임 새로 만들고 있었다.** 판에 쉰 몸이면 초당
+     3천 개다 — 이 맥에서는 안 티 나지만(57몸에서 fps 57) 약한 기기에서는 여기부터 샌다
+     (병수님 2026-08-15: "그리고 렉걸림"). 캔버스 그러데이션은 **자리에 매여** 있어
+     그대로는 못 쓰므로, **원점에 만들어 두고 ctx 를 옮겨** 쓴다. 크기는 종마다 몇 가지뿐이라
+     반올림해 열쇠로 삼으면 캐시가 몇 개로 수렴한다. */
+  const gradCache = window.__GRADC || (window.__GRADC = new Map());
+  const radial = (rx, stops) => {
+    const key = Math.round(rx) + "|" + stops;
+    let g = gradCache.get(key);
+    if (!g) {
+      g = ctx.createRadialGradient(0, 0, Math.max(0.01, rx * 0.15), 0, 0, Math.max(0.02, rx));
+      for (const s2 of stops.split(";")) { const [at, c] = s2.split("@"); g.addColorStop(+at, c); }
+      gradCache.set(key, g);
+      if (gradCache.size > 400) gradCache.clear();      // 판 크기가 바뀌면 열쇠가 늘어난다
+    }
+    return g;
+  };
   const footRune = (x, y, hh, col, fm) => {
     /* ★ 처음엔 진한 파란 테를 둘렀더니 **요즘 게임의 선택 표시**처럼 보였다(디아블로 2
        라기보다 RTS 다). 테는 아주 얇게 낮추고 **땅에서 배어 나오는 빛** 쪽으로 옮긴다 —
        「내 것」이 읽히기만 하면 되지, 눈을 끌 필요는 없다. */
     const rx = (fm ? hh * fm.footWidthFrac * 0.55 : hh * 0.26), ry = rx * SQUASH;
+    /* ★ 좌표계를 옮겨 **원점 그러데이션**을 쓴다. 되돌릴 때 setTransform 을 쓰면
+       흔들림(draw 초입의 translate)까지 지워지므로 반드시 save/restore 로 되돌린다. */
     ctx.save();
-    const g = ctx.createRadialGradient(x, y, rx * 0.15, x, y, rx);
-    g.addColorStop(0, col + "3a"); g.addColorStop(0.70, col + "1c"); g.addColorStop(1, col + "00");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.2832); ctx.fill();
+    ctx.translate(x, y);
+    ctx.fillStyle = radial(rx, `0@${col}3a;0.7@${col}1c;1@${col}00`);
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, 6.2832); ctx.fill();
     ctx.globalAlpha = 0.30; ctx.strokeStyle = col; ctx.lineWidth = Math.max(1, us * 0.7);
-    ctx.beginPath(); ctx.ellipse(x, y, rx * 0.88, ry * 0.88, 0, 0, 6.2832); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, 6.2832); ctx.stroke();
     ctx.restore();
   };
   /* 그림 높이는 이제 **개체가 들고 있다**(core.js 의 MINIONS.h · MOB_H).
@@ -785,7 +805,12 @@ function draw(dt) {
       footRune(x, y, hh, u.own ? COL.thrall : (RUNE[u.kind] || "#9fd7ff"), footMetrics(ubase0(u)));
       const ubase = ubase0(u);
       drawOne(ubase, x, y, hh, COL[u.kind] || COL.thrall, u);
-      if (u.hp < u.hpMax) barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069");
+      /* ★ **아군 바는 늘 보인다**(병수님 2026-08-15: "아군 체력바 안뜨는애들이 많네,
+         해골만 뜨는듯"). 예전엔 `hp < hpMax` 일 때만 그렸는데, 종마다 다치는 정도가
+         달라서 **바가 종을 가리는 것처럼 보였다** — 실측(14층 30초): 해골 70.5% ·
+         골렘 60.5% · **구울 45.7%**(물어뜯을 때마다 35% 회복이라 늘 만피에 가깝다).
+         적은 그대로 다쳐야만 뜬다 — 적까지 늘 켜면 화면이 막대밭이 된다. */
+      barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069");
       continue;
     }
     const m = it.m, hh = (m.h || 48) * us, x = px(m.x), y = py(m.y);
@@ -796,10 +821,9 @@ function draw(dt) {
     if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && !m.born) {
       const rr = hh * 0.30;
       ctx.save();
-      const g2 = ctx.createRadialGradient(x, y, rr * 0.15, x, y, rr);
-      g2.addColorStop(0, "#c8323244"); g2.addColorStop(0.7, "#c8323222"); g2.addColorStop(1, "#c8323200");
-      ctx.fillStyle = g2;
-      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.translate(x, y);                                   // 원점 그러데이션(위 radial 캐시)
+      ctx.fillStyle = radial(rr, "0@#c8323244;0.7@#c8323222;1@#c8323200");
+      ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
       ctx.restore();
     }
     drawOne(mbase, x, y, hh, m.boss ? COL.boss : COL.mob, m);
