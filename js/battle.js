@@ -741,7 +741,8 @@ export function cast(id) {
   if (id === "burn") {
     const gain = gulp * BURN_MP;
     S.mp = Math.min(mpMaxOf(), S.mp + gain);
-    S.fx.push({ t: RISE_T, x: usedAt ? usedAt.x : 0, y: usedAt ? usedAt.y : 0, kind: "rise" });
+    /* ★ 예전엔 `kind:"rise"` 였다 — **소환 그림**으로 시체를 태웠다. 태우는 것은 불이다. */
+    S.fx.push({ t: RISE_T, x: usedAt ? usedAt.x : 0, y: usedAt ? usedAt.y : 0, kind: "burn" });
     say(`<b style="color:#ff8000">시체 태우기</b> 시체 ${gulp}구 → 마나 +${Math.round(gain)}`);
   }
   if (id === "wall") {
@@ -753,12 +754,23 @@ export function cast(id) {
     if (boss) {
       boss.wk = OFFER_WK; boss.wkT = OFFER_DUR;
       boss.mtell = (boss.mtell || 0) + OFFER_TELL; boss.mechCd = (boss.mechCd || 0) + OFFER_TELL;
-      S.fx.push({ t: 0.5, x: boss.x, y: boss.y, kind: "nova", rad: 70 });
+      /* ★ 예전엔 `kind:"nova"` 였다 — **시체 폭발 그림**으로 제물을 바쳤다. 바치는 것은
+         터지는 것이 아니라 주인에게 **빨려 올라가는** 기운이다. */
+      S.fx.push({ t: 0.5, x: boss.x, y: boss.y, kind: "offer" });
       questNote("offer", 1);                          // ⑦ 관문에서 제물을 바쳤다(cast 가드가 관문·보스를 이미 보장)
       say(`<b style="color:#a06ad0">제물</b> · ${boss.lord ? boss.lord.n : "주인"}이(가) 약해진다`);
     }
   }
-  if (id === "amp") { S.amp = ampSecs(); say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`); }
+  if (id === "amp") {
+    S.amp = ampSecs();
+    /* ★ **여기 fx 가 아예 없었다.** 8초짜리 저주인데 화면에서는 아무 일도 안 났다 —
+       로그 한 줄이 전부였다. 쓴 티가 안 나는 스킬은 안 쓴 것과 같다. 적 무리 한가운데에
+       고리를 깐다(저주는 판 전체에 걸리므로 자리는 무리의 무게중심). */
+    let cx = 0, cy = 0, n = 0;
+    for (const m of S.mobs) { cx += m.x; cy += m.y; n++; }
+    S.fx.push({ t: 0.6, x: n ? cx / n : 0, y: n ? cy / n : 0, kind: "curse" });
+    say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`);
+  }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
      자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
      그리는 쪽(main.js)이 그 사이 공격 프레임을 튼다. */

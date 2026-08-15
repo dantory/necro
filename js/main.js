@@ -7,6 +7,26 @@ import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
 import { drawTree, markSp } from "./tree.js";
 
+/* ══ 판에서 터지는 그림 ══ **kind 하나에 그림 하나.** 여기 없는 kind 는 그림이 없는
+   것이고, 그리는 쪽은 작은 `hit` 으로 떨어뜨린다 — 그 떨어짐이 조용해서 오래 못 봤다.
+   `img` 는 assets 경로, `h` 는 화면 높이(px), `grow` 는 작게 시작해 커지며 옅어지는 것.
+   ★ 새 스킬을 넣으면 **여기 한 줄부터** 늘린다(docs/checklist.md 「스킬을 새로 넣을 때」).
+     자(tools/fx_art.mjs)가 이 표를 읽어 **두 스킬이 같은 그림을 쓰면 실패**를 낸다. */
+export const FX_ART = {
+  hit:   { img: "fx/hit",     h: 28 },
+  nova:  { img: "fx/nova",    h: 190, grow: true, life: 0.35 },
+  curse: { img: "fx/curse",   h: 210, grow: true, life: 0.6 },
+  burn:  { img: "fx/burnfx",  h: 78 },
+  offer: { img: "fx/offerfx", h: 108 },
+  /* ↓ **코드로 그리는 것들**(위쪽 가지에서 그리고 `continue` 한다). 그림이 없는 게 아니라
+     그림이 필요 없는 것이라, 자가 「빠졌다」로 오해하지 않게 여기에 적어 둔다.
+     ★ `rise`(시체를 쓴 자리)는 예전에 타격 불꽃 그림이었다가 고리로 바뀌었다 —
+       그 바람에 `assets/fx/raise.png` 는 **아무 데서도 안 쓰인다**(ROADMAP 에 적어 둠). */
+  rise:      { code: true }, gib:       { code: true }, bossring:  { code: true },
+  warn_pool: { code: true }, warn_add:  { code: true }, warn_curse:{ code: true },
+  warn_charge: { code: true },
+};
+
 /* 값 표기 — 네 자리부터 k, 백만부터 M. 1000 미만은 그대로 둔다(초반에 1.0k 는 안 읽힌다). */
 const num = (v) => {
   v = Math.max(0, Math.round(v));
@@ -832,10 +852,22 @@ function draw(dt) {
   for (const w of S.walls || []) {
     const x = px(w.x), y = py(w.y), rr = w.r * us, a = Math.min(1, w.t / 1.2);
     ctx.save();
-    ctx.globalAlpha = 0.85 * a; ctx.fillStyle = "#b8b0a0";
-    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
-    ctx.globalAlpha = 0.9 * a; ctx.strokeStyle = "#6a6458"; ctx.lineWidth = 2 * us;
-    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+    /* ★ 그림이 있으면 **뼈 무더기**로 그린다. 없던 동안은 아래 회색 타원이 전부였다 —
+       「백골 벽」이라 이름 붙여 놓고 화면에는 회색 동그라미가 떴다. 그림자는 땅에 남기고
+       무더기만 얹는다(다른 것들과 같은 규칙 — 그림자까지 뜨면 떠 보인다). */
+    const wim = sprite("fx/bonewall");
+    ctx.globalAlpha = 0.5 * a; ctx.fillStyle = "#120c08";
+    ctx.beginPath(); ctx.ellipse(x, y, rr * 0.95, rr * SQUASH * 0.8, 0, 0, 6.2832); ctx.fill();
+    if (wim) {
+      ctx.globalAlpha = a; ctx.imageSmoothingEnabled = false;
+      const hh = rr * 2.1;
+      ctx.drawImage(wim, x - hh / 2, y - hh * 0.78, hh, hh);
+    } else {
+      ctx.globalAlpha = 0.85 * a; ctx.fillStyle = "#b8b0a0";
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 0.9 * a; ctx.strokeStyle = "#6a6458"; ctx.lineWidth = 2 * us;
+      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+    }
     ctx.restore(); ctx.globalAlpha = 1;
   }
 
@@ -923,13 +955,21 @@ function draw(dt) {
       ctx.globalAlpha = 1;
       continue;
     }
-    const im = sprite("fx/" + (f.kind === "nova" ? "nova" : "hit"));
+    /* ★★ **어느 그림을 쓰는지는 표 하나가 답한다**(FX_ART). 예전엔 이 줄이
+       `f.kind === "nova" ? "nova" : "hit"` 였다 — 모르는 kind 가 전부 조용히 `hit` 으로
+       떨어져서, 태우기는 **소환 그림**, 제물은 **폭발 그림**으로 나가고 저주는 아무것도
+       안 떴는데 **404 가 안 나서** 아무도 몰랐다(병수님 2026-08-15: "또 스킬 이펙트 에셋
+       제대로 안만든거 있네"). 게다가 `raise.png` 는 만들어 놓고 **한 번도 안 쓰였다** —
+       소환이 28px 짜리 hit 한 점으로 반짝이고 말았다.
+       표로 모으면 자(tools/fx_art.mjs)가 「이 스킬이 무슨 그림을 쓰나」를 물어볼 곳이 생긴다. */
+    const art = FX_ART[f.kind];
+    const im = sprite(art ? art.img : "fx/hit");
     ctx.globalAlpha = Math.max(0, Math.min(1, f.t * 3));
     /* ★ 폭발은 **작게 시작해 커지며** 옅어진다. 예전엔 크기가 붙박이라 알파만 오르내려
        「원이 깜빡」였다 — 터지는 것은 퍼져 나가야 터진 것으로 읽힌다.
        f.t 는 남은 시간이라 0.35→0 으로 준다. 시작 0.55배 → 끝 1.18배. */
-    const grow = f.kind === "nova" ? 0.55 + 0.63 * (1 - Math.max(0, Math.min(1, f.t / 0.35))) : 1;
-    const hh = (f.kind === "nova" ? 190 : 28) * grow;
+    const grow = art && art.grow ? 0.55 + 0.63 * (1 - Math.max(0, Math.min(1, f.t / (art.life || 0.35)))) : 1;
+    const hh = (art ? art.h : 28) * grow;
     const x = px(f.x || 0), y = py(f.y || 0);
     if (im) { ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
     else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
@@ -1946,4 +1986,4 @@ if (window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("
 requestAnimationFrame(loop);
 
 // 자가 안을 들여다볼 수 있게 — 못 보는 것은 못 잰다
-Object.assign(window, { syncTest: () => { syncSkills(); drawTree(); belt(); }, S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, spLeft, drawTree, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits, LOAD });
+Object.assign(window, { syncTest: () => { syncSkills(); drawTree(); belt(); }, S, META, SKILLS, MINIONS, step, cast, newRun, saveMeta, armyCap, auto, spLeft, drawTree, frames, sprite, dirName, footMetrics, MODE, toTown, toDungeon, __townHits: townHits, LOAD, FX_ART });

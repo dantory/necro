@@ -41,6 +41,11 @@ const RULERS = [
   { name: "leave_qa",     args: [],                             secs: 150, tier: "fast", expect: /(  ok|FAIL)/ },
   { name: "offline_qa",   args: [],                             secs: 150, tier: "fast", expect: /PASS/ },
   { name: "skill_qa",     args: ["/tmp/necro_qa_skill.png"],    secs: 150, tier: "fast", expect: /판정/ },
+  /* ★ skill_qa 는 「어디서 터지나」를 보고, 이건 「**무슨 그림**이 터지나」를 본다 —
+     둘이 다르다. skill_qa 가 셋 다 통과하는 동안 태우기는 소환 그림, 제물은 폭발 그림으로
+     나가고 저주는 아무것도 안 떴다(2026-08-15 병수님 지적). */
+  { name: "fx_art",       args: [],                             secs: 150, tier: "fast", expect: /판정/ },
+  { name: "icon_qa",      args: [],                             secs: 120, tier: "fast", expect: /검사한 칸/ },
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
   { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
