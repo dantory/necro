@@ -1,5 +1,13 @@
 /* **함수가 태운 시간**을 잰다 (2026-08-15 「그리고 렉걸림」의 교훈).
-     node tools/cpu_profile.mjs [초] [층] [몸수]
+     node tools/cpu_profile.mjs [초] [층] [몸수] [느리게배]
+
+   ★ **몫(%)만으로는 폰을 못 본다.** 「1위가 5% 미만」은 *이 판 안에서* 고르다는 뜻이지
+     **일이 적다는 뜻이 아니다** — 이 맥이 워낙 빨라 94.8% 가 네이티브로 잡히면
+     JS 는 뭘 해도 몫이 작게 나온다. 그래서 **절대량**을 같이 낸다:
+     `JS초당ms` = 1초를 사는 동안 JS 가 태운 밀리초. 60fps 의 한 프레임은 16.7ms 이니
+     초당 1000ms 가 천장이고, JS 가 그중 몇을 먹는지가 곧 **폰에 남는 여유**다.
+   ★ 네 번째 인자로 CPU 를 **N 배 느리게**(`Emulation.setCPUThrottlingRate`) 걸 수 있다.
+     폰은 이 맥보다 대략 4~6배 느리다 — `4`·`6` 으로 걸고 `JS초당ms` 를 본다.
 
    왜 이 자가 필요한가 — 그날 처음 잰 것은 rAF 간격이었고, 헤드리스에서 그 간격은
    vsync·합성과 무관해서 **병수님 화면의 프레임이 아니다.** 「긴 프레임 0%」가
@@ -11,6 +19,7 @@
    판은 병수님 화면 크기(414×860 · dpr2)로 세우고, 몸을 불려 무겁게 만든다. */
 const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
 const SEC = +(process.argv[2] || 6), FLOOR = +(process.argv[3] || 30), BODIES = +(process.argv[4] || 0);
+const SLOW = +(process.argv[5] || 1);   /* CPU 를 N 배 느리게 — 1 이면 안 건다 */
 const ver = await (await fetch(CDP + "/json/version")).json();
 const bws = new WebSocket(ver.webSocketDebuggerUrl);
 let id = 0; const pend = new Map(); const errs = [];
@@ -54,9 +63,13 @@ const 판 = await ev(`({몸:(S.minions||[]).length, 적:(S.mobs||[]).length, 시
 
 await S("Profiler.enable");
 await S("Profiler.setSamplingInterval", { interval: 200 });   /* 200µs — 짧은 함수도 잡힌다 */
+/* 느리게 거는 것은 **판을 다 세운 뒤**다 — 마을→던전 내려가는 동안 걸면 그 대기가
+   늘어져 판이 덜 선 채로 재게 된다. */
+if (SLOW > 1) { await S("Emulation.setCPUThrottlingRate", { rate: SLOW }); await wait(800); }
 await S("Profiler.start");
 await wait(SEC * 1000);
 const { profile } = await S("Profiler.stop");
+if (SLOW > 1) await S("Emulation.setCPUThrottlingRate", { rate: 1 });
 
 /* 자기시간을 노드마다 모은다. samples 는 노드 id 열, timeDeltas 는 µs 간격이다. */
 const byId = new Map(profile.nodes.map(n => [n.id, n]));
@@ -92,13 +105,23 @@ const 뜨거운줄 = (키) => {
   return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
     .map(([줄번호, t]) => ({ 줄: 줄번호, 몫: +(t / 합 * 100).toFixed(1) }));
 };
-const out = { 층: FLOOR, 초: SEC, 판, 네이티브퍼센트: 네이티브, JS상위: js.slice(0, 12),
+/* **절대량** — 잰 시간 동안 JS 가 태운 밀리초를 1초당으로 환산한다.
+   몫(%)은 이 맥이 빠를수록 작아지지만, 이 값은 판이 실제로 시킨 일의 양이다. */
+const 잰초 = total / 1e6 || 1;
+const JS초당ms = +(js.reduce((a, r) => a + r.ms, 0) / 잰초).toFixed(1);
+const out = { 층: FLOOR, 초: SEC, 느리게: SLOW, 판, 네이티브퍼센트: 네이티브, JS초당ms,
+  "프레임여유%": +(100 - JS초당ms / 10).toFixed(1), JS상위: js.slice(0, 12),
   "1위줄": js[0] ? { 함수: js[0].이름, 줄: 뜨거운줄(js[0].이름) } : null, 콘솔오류: errs };
 console.log(JSON.stringify(out, null, 1));
-/* 판단 기준: JS 자기시간 1위가 5% 를 넘으면 그 함수가 폰에서 먼저 무너질 자리다.
-   (drawGlows 는 8.2% 였고, 구운 뒤 목록에서 사라졌다.) */
+/* 판단 기준 둘.
+   ① JS 자기시간 1위가 5% 를 넘으면 그 함수가 폰에서 먼저 무너질 자리다
+      (drawGlows 는 8.2% 였고, 구운 뒤 목록에서 사라졌다).
+   ② **JS초당ms 가 400 을 넘으면** 1초 중 0.4초를 JS 가 먹는다는 뜻이라, 남는 것으로
+      그리기·합성까지 못 한다 — 느리게 걸고 재는 판(SLOW>1)은 이쪽이 진짜 문이다. */
 const 우두머리 = js[0];
-const bad = errs.length || !profile.samples.length || (우두머리 && 우두머리.비율 > 5);
-console.log(bad ? `FAIL${우두머리 ? ` — 1위 ${우두머리.이름} ${우두머리.비율}%` : ""}` : "PASS");
+const 넘침 = JS초당ms > 400;
+const bad = errs.length || !profile.samples.length || (우두머리 && 우두머리.비율 > 5) || 넘침;
+console.log(bad ? `FAIL${넘침 ? ` — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})` : ""}${우두머리 && 우두머리.비율 > 5 ? ` — 1위 ${우두머리.이름} ${우두머리.비율}%` : ""}`
+  : `PASS — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})`);
 await raw("Target.closeTarget", { targetId });
 bws.close(); process.exit(bad ? 1 : 0);
