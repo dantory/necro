@@ -260,7 +260,11 @@ function drawOne(base, x, gy, h, fallback, e) {
      휘두르는데 한 칸만 스치는지, 방향이 튀는지. 밖에서는 볼 길이 없어서 여기서 낸다. */
   if (window.__ANIM && e) window.__ANIM.push({ id: e.id, base, state, f: frameIdx, dir,
                                                mv: +(e.moving || 0).toFixed(2), sw: +(e.swing || 0).toFixed(2),
-                                               bob: +(e.bob || 0) });
+                                               bob: +(e.bob || 0), sway: +(+(e.sway || 0)).toFixed(2),
+                                               /* 그 프레임에 적이 몇이었나 — 「적이 없을 때 둘러보는가」는
+                                                  적이 있던 프레임을 빼고 세어야 답이 나온다(자를 쓸어도
+                                                  다음 적이 그 사이에 서므로 방향이 저절로 돌아 버린다). */
+                                               mobs: (window.__ANIM_MOBS ? (S.mobs ? S.mobs.length : 0) : undefined) });
 
   /* 맞은 순간엔 **뒤로 밀린다**(기존 그대로). 흰 번쩍임은 예전에 뺐다 — 밀림 + 닿는 자리의
      불꽃(fx)으로 충분하다. */
@@ -317,6 +321,10 @@ function drawOne(base, x, gy, h, fallback, e) {
      떨어져 통째로 들썩이는 것으로 보인다(모닥불은 떠도 되지만 사람은 땅을 딛는다).
      그래서 밀림(flinch)과 같은 자리에 얹는다 — 그쪽도 몸만 움직이는 몫이다. */
   if (e && e.bob) fy2 += e.bob;
+  /* **좌우 무게 이동**(e.sway, 화면 픽셀) — bob 과 같은 자리, 같은 규칙(몸만·그림자는 땅에).
+     걷기 프레임을 안 틀고 살아 있게 하는 유일한 길이다. 그림자까지 같이 움직이면
+     다리가 안 도는 채로 미끄러져서 그게 곧 「떠다닌다」가 된다(08-13 에 배운 자리). */
+  if (e && e.sway) fx2 += e.sway;
 
   /* 접지 그림자 — 스프라이트보다 **먼저**, 발밑에 깐다(그림이 그 위에 온다). 밀림(flinch)과
      무관하게 바닥에 고정한다 — 몸만 뒤로 밀리고 그림자는 제자리라야 맞은 티가 난다.
@@ -671,6 +679,14 @@ function draw(dt) {
          방향은 그 적 쪽(공격 방향 sdx,sdy 도 같은 방향으로 준다). */
       let nx = 0, ny = 1, nd = Infinity;
       for (const m of S.mobs) { const d = m.x * m.x + m.y * m.y; if (d < nd) { nd = d; nx = m.x; ny = m.y; } }
+      /* ★ **적이 없으면 남쪽에 박혀 있었다.** 뒷정리·층 이동 구간이 판의 3분의 1인데
+         그동안 인물이 한 프레임도 안 바뀐다. 마을에서 쓴 처방(둘러본다)을 그대로 옮긴다 —
+         네 방향을 느리게 돈다(마을은 건물을 보고, 여기는 볼 것이 없으니 등속). */
+      if (!S.mobs.length && !globalThis.__NECRO_STILL) {
+        const g = (battleT * 0.22) % 4;
+        const G4 = [[0, 1], [1, 0.35], [0, -1], [-1, 0.35]][Math.floor(g)];
+        nx = G4[0]; ny = G4[1];
+      }
       /* ★★ **여기를 정규화 안 하고 있었다.** 방향만 쓸 때는 크기가 상관없어서
          적의 좌표를 그대로 넘겼는데, 나중에 **내지르기**(drawOne 의 lunge)를 넣으면서
          그 값에 길이가 곱해졌다 — 적이 300 만큼 떨어져 있으면 본체가 300배로 튕겨
@@ -742,8 +758,19 @@ function draw(dt) {
 
       /* 맞으면 본인도 움찔한다 — 소환수·적은 되는데 본인만 안 되면 「내가 맞았다」가
          숫자로만 온다(그리는 쪽은 flinch 하나로 셋 다 같은 안무를 쓴다). */
+      /* ★ **가운데 고정은 셈의 규칙이라 안 건드린다** — 뼈의 원점도 소환 자리도 (0,0)이다.
+         그림만 살린다(병수님 2026-08-15: "중앙으로 위치 유지하는건 좋은데, 아예 움직이지
+         않는건 좀 이상한듯"). 마을에 이미 넣어 둔 숨을 **던전에 안 옮긴 것**이 잘못이었다.
+         숨은 마을과 같은 처방(아래로만 눌렸다 펴진다), 거기에 좌우 무게 이동을 더한다 —
+         둘 다 몸만 움직이고 그림자는 땅에 둔다. 던지는 동안(pswing)은 둘 다 끈다:
+         내지르기와 겹치면 팔이 흔들려 타격이 뭉갠다. */
+      /* `__NECRO_STILL` — 자가 **옛 상태(멎어 있음)로 되돌려** 스스로를 시험하는 문.
+         고친 뒤에만 돌려 보고 「통과」라고 하면, 그 자가 무엇을 잡는지 아무도 모른다. */
+      const busy = (S.pswing || 0) > 0 || globalThis.__NECRO_STILL;
+      const sway = busy ? 0 : Math.sin(battleT * 0.62) * 2.2 + Math.sin(battleT * 0.37 + 1.1) * 1.3;
       drawOne("char/necro", ncx, ncy, nhh, COL.necro,
-              { dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0,
+              { id: "necro", dx: nx, dy: ny, sdx: nx, sdy: ny, swing: S.pswing || 0, moving: 0, walked: 0,
+                bob: busy ? 0 : townBreath(battleT), sway,
                 flinch: S.hurt || 0, kx: S.hkx, ky: S.hky, knock: S.hknock ?? 1 });
       continue;
     }

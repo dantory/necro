@@ -1496,7 +1496,12 @@ export function step(dt) {
     if (harvestPct() && Math.random() < harvestPct()) addCorpse(m.x, m.y, "small", 1, m.hpMax);
     if (spiritMp()) S.mp = Math.min(mpMaxOf(), S.mp + spiritMp());
     META.gold += Math.round(goldFor(S.floor) * goldMulOf() * relicMul() * gateFactor()) * (m.boss ? 8 : 1);
-    const xpGain = Math.round((m.boss ? 9 : 1) * Math.max(1, Math.round(S.floor * 0.6)) * relicMul());
+    /* ★ **벌이가 깊이에 정비례한다** — 마리당 xp 가 층×0.6 이고 마릿수도 5+0.7층 이라
+       층당 총 xp 가 층² 로 큰다. 요구(lv^1.42)가 다항이라 절대 못 따라잡고, 그래서
+       레벨이 **분당 3 으로 안 눕는다**(2026-08-15). 요구를 lv^1.9 까지 올려 봐도
+       기울기가 되레 커졌다 — 값이 아니라 **이 축**이다. 깊이 민감도를 문으로 낸다. */
+    const XPD = globalThis.__XP_DEPTH != null ? +globalThis.__XP_DEPTH : 1;
+    const xpGain = Math.round((m.boss ? 9 : 1) * Math.max(1, Math.round(Math.pow(S.floor, XPD) * 0.6)) * relicMul());
     META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hpMax = hpMaxOf(); S.hp = S.hpMax; S.mp = mpMaxOf();   // 상한도 같이 — 안 그러면 한 틱 동안 넘쳐 보인다

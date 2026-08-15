@@ -57,7 +57,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_TIRE != null ? `globalThis.__TIRE_AT = ${+process.env.LH_TIRE};` : ""}
    ${process.env.LH_ADDCAP != null ? `globalThis.__ADD_CAP = ${+process.env.LH_ADDCAP};` : ""}
    ${process.env.LH_XPK != null ? `globalThis.__XP_K = ${+process.env.LH_XPK};` : ""}
-   ${process.env.LH_XPP != null ? `globalThis.__XP_P = ${+process.env.LH_XPP};` : ""}` });
+   ${process.env.LH_XPP != null ? `globalThis.__XP_P = ${+process.env.LH_XPP};` : ""}
+   ${process.env.LH_XPD != null ? `globalThis.__XP_DEPTH = ${+process.env.LH_XPD};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));

@@ -46,6 +46,7 @@ const RULERS = [
      나가고 저주는 아무것도 안 떴다(2026-08-15 병수님 지적). */
   { name: "fx_art",       args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   { name: "icon_qa",      args: [],                             secs: 120, tier: "fast", expect: /검사한 칸/ },
+  { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
   { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
