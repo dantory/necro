@@ -1461,10 +1461,18 @@ export function step(dt) {
   const cap = SEP_CAP * dt;
   for (const b of bodies) { b.spx = 0; b.spy = 0; }
   /** 화면 단위로 밀되, 이번 프레임에 밀린 총량이 cap 을 못 넘게 한다. */
+  const capsq = cap * cap;
   const shove = (e, sx, sy) => {
     let cx = e.spx + sx, cy = e.spy + sy;
-    const L = Math.hypot(cx, cy);
-    if (L > cap) { const k = cap / L; cx *= k; cy *= k; }
+    /* ★ 상한에 안 걸리면 **길이를 쓸 데가 없다.** 그런데도 부를 때마다 hypot 을 불렀다 —
+       줄별 프로파일에서 이 함수를 부르는 두 줄이 step 자기시간의 69.5% 였다.
+       제곱끼리 먼저 대 보고, 문은 **0.9999 배로 넉넉히** 열어 아슬아슬한 것은 아래
+       원래 판정으로 넘긴다(`L > cap` 이면 `Lsq > cap²·0.9999` 가 반드시 참이라
+       놓치는 것이 없다 — 밀린 자리가 **비트까지 같다**, tools/shove_probe.mjs). */
+    if (cx * cx + cy * cy > capsq * 0.9999) {
+      const L = Math.hypot(cx, cy);
+      if (L > cap) { const k = cap / L; cx *= k; cy *= k; }
+    }
     e.x += cx - e.spx;                       // 이미 반영한 몫을 빼고 **차이만** 옮긴다
     e.y += (cy - e.spy) / sq;                // 세로는 월드로 되돌린다
     e.spx = cx; e.spy = cy;

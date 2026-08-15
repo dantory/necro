@@ -34,13 +34,19 @@ await ev(`window.toDungeon && window.toDungeon()`); await wait(700);
 await ev(`(async()=>{const B=await import("/js/battle.js");B.enterFloor(${FLOOR});return 1;})()`, true);
 await wait(2500);
 /* 무겁게 만드는 길도 **판이 쓰는 문**으로만 낸다(summon/addCorpse) — 배열을 손으로
-   밀어 넣으면 그림(S.piles)과 개수(S.corpses)가 어긋나 없는 결함을 재게 된다. */
+   밀어 넣으면 그림(S.piles)과 개수(S.corpses)가 어긋나 없는 결함을 재게 된다.
+   ★★ **자리를 손으로 주지 않는다.** 예전엔 `S.nx`·`S.ny` 를 더해 넣었는데 **그런 칸은
+      없다**(S 에 nx/ny 가 아예 없다) — 더한 값이 전부 NaN 이 되어 몸 절반이 NaN 자리에
+      섰다. NaN 은 비교가 죄다 거짓이라 떼어놓기의 제곱 문을 **모든 쌍이 통과**했고,
+      그래서 `step` 이 8.7% 로 1위인 것처럼 보였다 — **자가 제 손으로 만든 병목**이다.
+      `summon(kind)` 을 인자 없이 부르면 판이 알아서 제 고리 자리에 세운다(사람이
+      보는 진형과 같다). 시체도 마찬가지로 네크로 둘레의 실제 좌표계로 흩는다. */
 if (BODIES) await ev(`(async()=>{const B=await import("/js/battle.js");
   const 종 = ["skel","ghoul","golem"];
-  for (let i=(S.minions||[]).length; i<${BODIES}; i++)
-    B.summon(종[i%3], { x: S.nx + (i%7-3)*22, y: S.ny + ((i/7|0)%5-2)*18 });
-  for (let i=0;i<${BODIES} * 4;i++) B.addCorpse(S.nx + (i%11-5)*24, S.ny + ((i/11|0)%7-3)*20, i%3);
-  return { 몸: (S.minions||[]).length, 시체: S.corpses };})()`, true);
+  for (let i=(S.minions||[]).length; i<${BODIES}; i++) B.summon(종[i%3]);
+  for (let i=0;i<${BODIES} * 4;i++) B.addCorpse((i%11-5)*24, ((i/11|0)%7-3)*20, i%3);
+  const 성한몸 = (S.minions||[]).filter(m=>isFinite(m.x)&&isFinite(m.y)).length;
+  return { 몸: (S.minions||[]).length, 성한몸, 시체: S.corpses };})()`, true);
 await wait(1500);
 /* 시체는 **개수(숫자)** 다 — 배열이 아니다(그림은 S.piles). 여기서 .length 를 붙이면
    늘 undefined 라 「시체 0」으로 읽혀 무거운 판을 가벼운 판으로 오인한다. */
@@ -55,6 +61,7 @@ const { profile } = await S("Profiler.stop");
 /* 자기시간을 노드마다 모은다. samples 는 노드 id 열, timeDeltas 는 µs 간격이다. */
 const byId = new Map(profile.nodes.map(n => [n.id, n]));
 const self = new Map();
+const 줄 = new Map();          /* 함수키 → (줄번호 → 표본수) */
 let total = 0;
 for (let i = 0; i < profile.samples.length; i++) {
   const dt = profile.timeDeltas[i] || 0; total += dt;
@@ -63,12 +70,30 @@ for (let i = 0; i < profile.samples.length; i++) {
   const key = `${f.functionName || "(anonymous)"} @ ${(f.url || "").split("/").pop()}:${f.lineNumber + 1}`;
   self.set(key, (self.get(key) || 0) + dt);
 }
+/* ★ **함수 하나가 770줄이면 「step 이 8.7%」는 답이 아니다.** V8 은 노드마다
+   positionTicks(줄별 적중수)를 같이 준다 — 1위 함수 안에서 **어느 줄**이 태우는지
+   여기서 나온다. 이게 없어서 sep 루프를 찾는 데 손으로 프로파일을 두 번 떴다. */
+for (const n of profile.nodes) {
+  if (!n.positionTicks?.length) continue;
+  const f = n.callFrame;
+  const key = `${f.functionName || "(anonymous)"} @ ${(f.url || "").split("/").pop()}:${f.lineNumber + 1}`;
+  const m = 줄.get(key) || new Map(); 줄.set(key, m);
+  for (const t of n.positionTicks) m.set(t.line, (m.get(t.line) || 0) + t.ticks);
+}
 const rows = [...self.entries()].sort((a, b) => b[1] - a[1])
   .map(([이름, us]) => ({ 이름, ms: +(us / 1000).toFixed(1), 비율: +(us / total * 100).toFixed(2) }));
 const js = rows.filter(r => !/^\((program|idle|garbage collector|root)\)/.test(r.이름));
 const 네이티브 = +(rows.filter(r => /^\((program|idle)\)/.test(r.이름)).reduce((a, r) => a + r.비율, 0)).toFixed(1);
 
-const out = { 층: FLOOR, 초: SEC, 판, 네이티브퍼센트: 네이티브, JS상위: js.slice(0, 12), 콘솔오류: errs };
+/* 1위 함수 안에서 제일 뜨거운 줄 여덟. 표본수 비율이라 위 ms 와 자릿수가 다르다. */
+const 뜨거운줄 = (키) => {
+  const m = 줄.get(키); if (!m) return [];
+  const 합 = [...m.values()].reduce((a, b) => a + b, 0) || 1;
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    .map(([줄번호, t]) => ({ 줄: 줄번호, 몫: +(t / 합 * 100).toFixed(1) }));
+};
+const out = { 층: FLOOR, 초: SEC, 판, 네이티브퍼센트: 네이티브, JS상위: js.slice(0, 12),
+  "1위줄": js[0] ? { 함수: js[0].이름, 줄: 뜨거운줄(js[0].이름) } : null, 콘솔오류: errs };
 console.log(JSON.stringify(out, null, 1));
 /* 판단 기준: JS 자기시간 1위가 5% 를 넘으면 그 함수가 폰에서 먼저 무너질 자리다.
    (drawGlows 는 8.2% 였고, 구운 뒤 목록에서 사라졌다.) */
