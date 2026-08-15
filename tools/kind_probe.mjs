@@ -23,7 +23,9 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source: `
    ${process.env.LH_XPP  != null ? `globalThis.__XP_P = ${+process.env.LH_XPP};` : ""}
    ${process.env.LH_XPD  != null ? `globalThis.__XP_DEPTH = ${+process.env.LH_XPD};` : ""}
    ${process.env.LH_GATE != null ? `globalThis.__GATE_S = ${+process.env.LH_GATE};` : ""}
-   ${process.env.LH_SPLIT != null ? `globalThis.__SPLIT = ${+process.env.LH_SPLIT};` : ""}` });
+   ${process.env.LH_SPLIT != null ? `globalThis.__SPLIT = ${+process.env.LH_SPLIT};` : ""}
+   ${process.env.LH_DOC  != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
+   ${process.env.LH_TAC  != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}` });
 /* ★ `fresh` — **갓 만든 세이브로** 잰다. 이게 없던 동안 이 자는 그 프로필에 쌓인 판
    (Lv.20+·유물)으로만 쟀다 — 「처음 켠 사람에게 세 종이 서나」는 그걸로 답이 안 나온다
    (ROADMAP 4막 A-1 의 끝 조건이 바로 그것이다). node tools/kind_probe.mjs 720 fresh */
