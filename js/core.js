@@ -579,7 +579,18 @@ export const LASTRUN = { has: false, loot: [], gold: 0, xp: 0, killed: 0, floor:
    쏟아지면 「조금씩 강해지는」 자리가 없다. 밑을 12→17, 지수를 1.35→1.42 로 올려
    초반 레벨을 **두 배쯤 느리게** 한다. 지수를 크게 안 건드린 것은 깊은 층에서 레벨이
    멎으면 트리가 닫히기 때문이다(그 이유는 바로 위 주석). */
-export const xpNeed  = (lv) => Math.round(17 * Math.pow(lv, 1.42));
+/* ★★ **그런데 이번엔 안 꺾인다**(2026-08-15 병수님: "레벨이 너무 빨리오르는느낌인데,
+   초반이라 그런가"). 12분 세 판을 분마다 재 보니 **초반 탓이 아니었다** — 씨앗 3 은
+   3·5·8·11·14·18·22·25·28·31·34·37 로 **12분 내내 분당 3레벨**, 기울기가 한 번도 안 눕는다.
+   까닭은 이 식과 벌이의 결이 다르기 때문이다:
+     · 요구 = 17·lv^1.42          — **다항식**
+     · 벌이 = (층×0.6) × 마릿수(5+0.7층) ≈ **층²**, 그 층은 시간에 거의 직선
+   지수를 없애 벽을 치웠더니 이번엔 **바닥이 없어졌다.** 값은 A/B 로 정한다 —
+   `__XP_K`(밑) · `__XP_P`(지수)를 자가 갈아 끼울 수 있게 문을 낸다(tools/ab_xp.sh). */
+export const XP_K_DEF = 17, XP_P_DEF = 1.42;
+export const xpNeed  = (lv) => Math.round(
+  (globalThis.__XP_K != null ? +globalThis.__XP_K : XP_K_DEF) *
+  Math.pow(lv, globalThis.__XP_P != null ? +globalThis.__XP_P : XP_P_DEF));
 /** 강화는 **넷뿐이다.** 목록이 길면 방치형이 아니라 표 읽기가 된다. */
 export const UPS = {
   hp:   { n:"생명력",   d:"최대 체력 +25",     base:14 },
