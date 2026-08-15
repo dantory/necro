@@ -132,7 +132,11 @@ const measure = (seed, floor, sec) => `(async()=>{
         const bw = (bwf(metM(A)) * hA + bwf(metM(B)) * hB) / 2;
         const d = Math.hypot(g.dx, g.dy), br = d / bw;
         if (br < foeBody) foeBody = br;
-        if (br < 1) penetFrame = true;
+        /* ★ 「파고들었다」의 금은 **허용치(TOUCH_K)** 다. 예전엔 1 로 박혀 있었는데,
+           2026-08-15 에 겹침을 얼마쯤 허용하기로 하면서(적이 못 다가오던 문제) 그 금이
+           낡았다 — 그대로 두면 **의도한 겹침을 결함으로 운다.** 판이 쓰는 값을 그대로 쓴다. */
+        const LINE = (globalThis.__TOUCH_K != null ? +globalThis.__TOUCH_K : (window.TOUCH_K_DEF ?? 0.8));
+        if (br < LINE) penetFrame = true;
         foePairs++;
       }
       if (penetFrame) foePenet++;
