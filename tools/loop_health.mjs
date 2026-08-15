@@ -46,7 +46,13 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
   `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
    ${process.env.LH_OPEN != null ? `globalThis.__OPEN_MUL = ${+process.env.LH_OPEN};` : ""}
-   ${process.env.LH_GATE != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATE};` : ""}
+   ${/* ★ 이름 하나를 **손잡이 둘**이 나눠 쓰고 있었다(2026-08-15). `LH_GATE` 는 원래
+        관문 주인의 최소 생존 초(__GATE_SEC)였는데, 08-15 에 나무 관문 배율(__GATE_S)이
+        같은 이름으로 들어왔다 — 그래서 `LH_GATE=0.65` 한 번에 **둘이 같이** 움직였고
+        (ab_xpgate 의 base 팔은 __GATE_SEC=1, pair 팔은 0.65 로 서로 다른 축까지 갈렸다),
+        거꾸로 a1_gatesec 의 `LH_GATE=6` 은 나무를 ×6 으로 밀어 구울을 Lv.36 에 두었다.
+        초 쪽을 `LH_GATESEC` 으로 갈라 놓는다 — 기본값(0)은 그대로다. */""}
+   ${process.env.LH_GATESEC != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATESEC};` : ""}
    ${process.env.LH_VOW != null ? `globalThis.__GATE_VOW = ${+process.env.LH_VOW};` : ""}
    ${process.env.LH_VOWCAP != null ? `globalThis.__GATE_VOW_CAP = ${+process.env.LH_VOWCAP};` : ""}
    ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}

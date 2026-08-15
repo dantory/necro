@@ -29,7 +29,13 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source: `
 if (process.argv.includes("fresh")) await ev2(`localStorage.clear()`);
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 2500));
-await ev2(`window.toDungeon && window.toDungeon()`);
+/* ★ 이름이 하나 틀려 이 자가 **12분 내내 던전에 안 들어갔다**(2026-08-15 18:47).
+   `window.toDungeon` 은 없는 이름이다 — 있는 것은 `__toDungeon`(js/main.js:1910).
+   그래서 fresh 팔이 12분에 층 5 · Lv 2 로 기었고(같은 팔을 loop_health 로 재면 층 52 · Lv 16),
+   「세 종이 다 서나」가 해골 100% 로 미달이 났다. 값이 아니라 **자가 딴 길을 걸었다**. */
+if (!(await ev2(`typeof window.__toDungeon === "function"`)))
+  throw new Error("window.__toDungeon 이 없다 — 자가 던전에 못 들어간다(이름이 바뀌었나?)");
+await ev2(`window.__toDungeon()`);
 /* ★ **한 번만 보지 않는다** — 끝에 찍은 한 장은 그 순간 서 있던 것뿐이라, 12분 내내
    해골만 서다 마지막에 구울 하나가 선 판과 셋이 고루 선 판을 **못 가른다**.
    10초마다 세어 **머릿수의 누계**로 비율을 낸다(=시간가중). 「한 번이라도 섰나」는

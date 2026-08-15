@@ -29,7 +29,7 @@ node tools/chrome_guard.mjs || echo "(chrome_guard 실패 — 그대로 간다)"
 for g in $ARMS; do
   for s in 1 3 9; do
     echo "───────── GATE_SEC $g · SEED $s · $(date +%H:%M) ─────────"
-    LH_GATE=$g LH_SEED=$s node tools/loop_health.mjs "$MIN" "tmp/gs_${g}_${s}.json" \
+    LH_GATESEC=$g LH_SEED=$s node tools/loop_health.mjs "$MIN" "tmp/gs_${g}_${s}.json" \
       > "tmp/gs_${g}_${s}.txt" 2>&1 || echo "FAIL $g/$s"
     tail -6 "tmp/gs_${g}_${s}.txt"
   done
