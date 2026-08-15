@@ -325,6 +325,10 @@ function load() {
                     spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
                     옛 저장에도 저절로 맞고 어긋날 여지가 없다. */
                  tree: {},
+                 /* 점을 **저절로 쓸까**(아래 autoSpend). 기본이 켬인 이유는 방치형이라서다 —
+                    창을 한 번도 안 여는 사람에게 구울(Lv.6)·골렘(Lv.16)이 영영 안 열리면
+                    그 갈래는 **없는 것과 같다**. 끄면 그 자리에서 점이 쌓여 손으로 찍는다. */
+                 autoTree: true,
                  /* ⑦ 일지(도전 과제) — **깬 것만** { id: 1 } 로 남긴다(1회성이라 boolean 이면 족하다).
                     object 라 아래 merge 가 올려 준다 — 옛 저장엔 없으니 {} 가 남아 「한 과제도 안 깬
                     사람」의 게임은 손대기 전과 한 톨도 안 다르다(relics 는 그대로, 배수 1.0 경로 유지). */
@@ -374,6 +378,7 @@ function load() {
     for (const k of ["lv", "deepest", "best"]) m[k] = Math.max(1, Math.floor(m[k]));
     for (const k of ["relics", "rebirths", "runs", "corpses"]) m[k] = Math.floor(m[k]);
     if (!m.quests || typeof m.quests !== "object") m.quests = {};
+    if (typeof m.autoTree !== "boolean") m.autoTree = true;   // 저장을 안 믿는 그 자리 — 문자열 "false" 도 참이 된다
     if (!DOCTRINE[m.doctrine]) m.doctrine = DOCTRINE_DEF;   // 모르는 편성(옛 저장·오타)은 기본값으로 — 저장을 안 믿는 그 자리
     if (!TACTIC[m.tactic]) m.tactic = TACTIC_DEF;           // 운용도 같은 자리에서 거른다(같은 이유)
     return m;
@@ -1231,6 +1236,53 @@ export function take(id) {
   META.tree[id] = rank(id) + 1;
   syncSkills(); saveMeta();
   return true;
+}
+
+/* ══ 점은 **저절로 쓰인다** ══ 안 그러면 갈래가 하나뿐인 게임이 된다.
+   ──────────────────────────────────────────────────────────────
+   구울은 Lv.6 `armor`→`ghoul` 뒤에, 골렘은 Lv.16 `legion`→`golem` 뒤에 있는데
+   **자동 진행은 점을 한 번도 안 썼다.** 소환 자체는 이미 셋을 나눠 세울 줄 안다
+   (main.js auto · doctrineWants) — 막고 있던 것은 오직 트리였다. 그래서 12분을
+   돌려도 판에 서는 것은 **해골뿐**이었다(ROADMAP 4막 A-1, 2026-08-15).
+
+   고칠 방법 셋 중(①깊이로 저절로 열림 ②점을 자동으로 쓰되 사람이 바꿈 ③나무에서 뗌)
+   **②**를 골랐다 — ①은 트리를 장식으로 만들고, ③은 「군세를 파면 종이 열린다」는
+   축을 통째로 버린다. ②만이 방치로 둔 사람에게 셋을 다 주면서, 창을 여는 사람에겐
+   여전히 제 빌드를 남긴다(끄면 그 자리에서 점이 쌓이고, 초기화로 다시 판다).
+
+   차례는 **두 관문에 늦지 않게** 짰다: Lv.6 에 구울 · Lv.16 에 골렘이 정확히 열린다
+   (점수는 레벨-1 이므로 Lv.6=5점 · Lv.16=15점 — 아래 목록의 5번째·15번째가 그 둘). */
+export const AUTO_PLAN = [
+  "bone", "armor", "bone", "rot", "ghoul",          // Lv.6 — 구울이 열린다
+  "armor", "bone", "rot", "legion", "armor",
+  "bone", "legion", "harvest", "armor", "golem",    // Lv.16 — 골렘이 열린다
+  "legion", "rot", "harvest", "cheap", "rot",
+  "harvest", "cheap", "chain", "harvest", "wand",
+  "chain", "cheap", "swift", "chain", "feast",
+];
+/** 목록을 다 쓴 뒤에도 레벨은 오른다 — 남는 점은 이 차례로 계속 붓는다. */
+const AUTO_FILL = ["bone", "armor", "rot", "harvest", "cheap", "wand", "swift", "deep", "spirit", "dark"];
+
+/** 남은 점을 계획대로 쓴다. **쓴 개수**를 돌려준다(0 이면 화면을 안 건드려도 된다).
+ *  ★ 목록을 **앞에서부터 집어 쓰지 않는다** — 그렇게 짜면 Lv.6 에 남은 한 점이
+ *    목록 첫 칸(`bone`)으로 새어 구울이 한 레벨씩 밀린다(관문마다 어긋난다).
+ *    총 점수만큼의 **앞 토막이 곧 목표 랭크**이고, 여기서는 그 목표까지만 채운다. */
+export function autoSpend() {
+  if (META.autoTree === false) return 0;
+  let used = 0;
+  const want = {}, n = Math.min(AUTO_PLAN.length, spTotal());
+  for (let i = 0; i < n; i++) want[AUTO_PLAN[i]] = (want[AUTO_PLAN[i]] | 0) + 1;
+  /* 차례는 목록 그대로 — 선행이 먼저 서야 뒤가 열린다(`bone`→`armor`→`ghoul`). */
+  for (const id of AUTO_PLAN) while (rank(id) < (want[id] | 0) && spLeft() > 0 && take(id)) used++;
+  if (spTotal() <= AUTO_PLAN.length) return used;
+  /* 목록이 끝났으면 **더 못 쓸 때까지** 채운다 — 한 바퀴에 하나도 못 쓰면 멈춘다
+     (레벨이 모자라 잠긴 것뿐이면 무한히 돌 자리다). */
+  while (spLeft() > 0) {
+    let any = false;
+    for (const id of AUTO_FILL) if (spLeft() > 0 && take(id)) { any = true; used++; }
+    if (!any) break;
+  }
+  return used;
 }
 
 /* ── 트리가 판에 미치는 값들 ── **한 곳에 모아 둔다.** 흩어 놓으면 노드를 더할 때마다

@@ -11,7 +11,7 @@
    그래서 목록이 아니라 **판**으로 그린다. 상인·대장간과 같은 결(칸 + 툴팁)이되,
    칸이 격자가 아니라 **줄기**로 서 있는 것만 다르다.
    ══════════════════════════════════════════════════════════ */
-import { $, META, TREE, nodeOf, rank, spLeft, spTotal, spUsed, take, takeWhy } from "./core.js";
+import { $, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, spUsed, syncSkills, take, takeWhy, autoSpend } from "./core.js";
 
 let pick = "bone";                 // 고른 칸
 
@@ -67,6 +67,9 @@ export function drawTree() {
 
   $("treeSp").textContent = spLeft();
   $("treeSpAll").textContent = `${spUsed()}/${spTotal()}`;
+  const auto = META.autoTree !== false;
+  $("treeAuto").textContent = `자동 배분: ${auto ? "켬" : "끔"}`;
+  $("treeAuto").classList.toggle("on", auto);
   edgeFade();
   /* 고른 칸이 접힌 자리에 있으면 **설명만 바뀌고 어느 칸인지 안 보인다** — 끌어온다.
      nearest 라 이미 보이는 칸은 화면이 안 흔들린다. */
@@ -101,4 +104,21 @@ document.addEventListener("click", (e) => {
   if (n) { pick = n.getAttribute("data-tn"); drawTree(); return; }
   const tk = e.target.getAttribute && e.target.getAttribute("data-tk");
   if (tk && take(tk)) { drawTree(); markSp(); document.dispatchEvent(new Event("treeChanged")); }
+});
+
+/* ══ 자동 배분을 **사람이 되돌릴 수 있게** ══ (ROADMAP 4막 A-1)
+   자동이 없으면 방치판에 구울·골렘이 안 서고, 되돌릴 길이 없으면 자동이 강요가 된다.
+   둘 다 있어야 「기본은 알아서, 원하면 내 빌드」가 성립한다. */
+$("treeAuto")?.addEventListener("click", () => {
+  META.autoTree = META.autoTree === false;              // 켬 ↔ 끔
+  saveMeta();
+  if (META.autoTree) autoSpend();                       // 켠 그 자리에서 밀린 점을 쓴다
+  drawTree(); markSp(); document.dispatchEvent(new Event("treeChanged"));
+});
+/* 초기화 — 찍은 것을 전부 되돌린다(점수는 레벨에서 나오므로 그대로 살아난다).
+   **자동을 같이 끈다**: 안 그러면 누른 순간 같은 계획이 다시 서 아무 일도 안 한 것처럼 보인다. */
+$("treeWipe")?.addEventListener("click", () => {
+  META.tree = {}; META.autoTree = false;
+  syncSkills(); saveMeta();
+  drawTree(); markSp(); document.dispatchEvent(new Event("treeChanged"));
 });

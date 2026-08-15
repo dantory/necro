@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1935,6 +1935,9 @@ $("hDoctrine").addEventListener("click", () => window.__openWin("doctrine"));
 $("hTactic").addEventListener("click", () => window.__openWin("tactic"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
+/* ★ 켤 때 한 번 **밀린 점을 쓴다** — 레벨업 자리(battle.js)만으로는 이미 올려 둔
+   판이 영영 안 열린다(옛 저장은 점만 쌓여 있다). 끈 사람에겐 0 이라 아무 일도 없다. */
+if (autoSpend()) { belt(); }
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 /* ② 오프라인 진행 — 껐다 켠 사이 쌓인 금·시체를 정산해 마을에서 맞는다. 1분 미만이거나
    옛 저장(lastSeen 없음)·시계 되돌림이면 applyOffline 이 null 을 줘 패널이 안 뜬다. */
