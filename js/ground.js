@@ -636,7 +636,58 @@ export function addGlow(gx, gy, r, warm = 1) { glows.push([gx, gy, r, warm]); }
 
 /** 쌓인 빛을 한 번에 얹는다. **부르는 시점이 중요하다** — addGlow 를 부른 뒤에
  *  불러야 그 프레임에 그려진다(마을은 drawTown 이 끝난 뒤 main 이 부른다). */
+/* ★★ **여기가 판에서 제일 비싼 자리였다**(2026-08-15 병수님 「렉걸림」 · CPU 프로파일에서
+   JS 자기시간 1위 8.2%, draw 와 step 을 합친 것보다 컸다). 빛 하나를 6px 칸으로 채우는데,
+   반지름 120 이면 **한 프레임에 fillRect 1,600 번 + 그만큼의 문자열(rgba…) 생성**이다.
+   불이 여럿이면 초당 수십만 번이라, 이 맥에서는 안 티 나도 폰에서는 여기부터 무너진다.
+   ★ 그림은 **결정적**이다(자리·반지름·따뜻함만으로 정해진다) → **한 번 구워 두고 얹는다.**
+     열쇠는 반지름·따뜻함·눌림. 종류가 몇 개뿐이라 캐시가 금세 수렴한다. */
+const glowCache = new Map();
+function glowTile(r, warm, squash) {
+  const key = Math.round(r) + "|" + warm.toFixed(2) + "|" + squash.toFixed(3);
+  let c = glowCache.get(key);
+  if (c) return c;
+  const n = Math.ceil(r / GLOW_PX);
+  const half = (n + 1) * GLOW_PX, halfY = Math.ceil((n + 1) * GLOW_PX * squash) + 2;
+  const cv = document.createElement("canvas");
+  cv.width = half * 2; cv.height = halfY * 2;
+  const g = cv.getContext("2d");
+  for (let iy = -n; iy <= n; iy++) {
+    const y0 = Math.round(halfY + iy * GLOW_PX * squash);
+    const y1 = Math.round(halfY + (iy + 1) * GLOW_PX * squash);
+    if (y1 === y0) continue;
+    for (let ix = -n; ix <= n; ix++) {
+      const dx = (ix * GLOW_PX) / r, dy = (iy * GLOW_PX) / r;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > 1) continue;
+      const step = d < 0.28 ? 5 : d < 0.45 ? 4 : d < 0.62 ? 3 : d < 0.78 ? 2 : d < 0.92 ? 1 : 0;
+      if (!step) continue;
+      const a = [0, 0.022, 0.042, 0.068, 0.10, 0.14][step] * warm;
+      g.fillStyle = `rgba(255,180,90,${a})`;
+      g.fillRect(half + ix * GLOW_PX, y0, GLOW_PX, y1 - y0);
+    }
+  }
+  c = { cv, half, halfY };
+  glowCache.set(key, c);
+  if (glowCache.size > 64) glowCache.clear();       // 판 크기가 바뀌면 열쇠가 는다
+  return c;
+}
+
 export function drawGlows(ctx, squash) {
+  if (!glows.length) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  /* 구운 것을 얹는다 — 자리를 반올림해 칸 격자가 프레임마다 안 흔들리게. */
+  for (const [gx, gy, r, warm] of glows) {
+    const t = glowTile(r, warm, squash);
+    ctx.drawImage(t.cv, Math.round(gx) - t.half, Math.round(gy) - t.halfY);
+  }
+  ctx.restore();
+  glows = [];
+}
+
+/** 옛 길 — 캐시가 못 미더울 때 견주려고 남겨 둔다(자가 두 길을 대 볼 수 있어야 한다). */
+export function drawGlowsSlow(ctx, squash) {
   if (!glows.length) return;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
