@@ -204,8 +204,53 @@ function drawWang(ctx, w, h, cx, cy, sc, squash) {
   return true;
 }
 
+/* ★★ **바닥은 매 프레임 새로 칠할 이유가 없다**(2026-08-15 병수님 「렉걸리는거좀 우선으로」).
+   칠하는 횟수를 세어 보니 **한 프레임에 drawImage 565번**이었다 — 몸이 43기뿐인데도.
+   대부분이 **돌바닥 타일**이다(828×1720 을 타일로 메우면 수백 장). 그런데 이 판은
+   **화면이 안 움직인다**(네크로가 늘 한가운데, cx·cy 고정) — 즉 바닥·얼룩·소품은
+   **어느 프레임에서나 똑같은 그림**이다. 한 번 구워 두고 통째로 얹는다(drawImage 1번).
+   ★ 빛(glows)만은 밖에 둔다 — 그건 프레임마다 바뀐다.
+   ★ 열쇠에 **에셋이 붙었는지**(floorReady·decorReady)까지 넣는다. 안 넣으면 그림이
+     늦게 도착했을 때 **빈 바닥이 영영 굳는다**. */
+let gcv = null, gctx = null, gkey = "", bakedGlows = [];
+export function groundCacheKey(w, h, cx, cy, sc, squash, scatter) {
+  return [w, h, Math.round(cx), Math.round(cy), sc.toFixed(3), squash.toFixed(3),
+          floorReady, decorReady, wanted, tiles.length,
+          scatter ? [scatter.clear, scatter.density, scatter.decal,
+                     scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-"].join("|");
+}
 /** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
 export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
+  const key = groundCacheKey(w, h, cx, cy, sc, squash, scatter);
+  /* ★★ **소품이 빛을 낸다** — drawScatter 안의 횃불이 `addGlow` 를 부른다. 바닥을 굽고
+     나면 그 부름이 **굽는 그 한 프레임에만** 일어나서, 다음 프레임부터 횃불빛이
+     통째로 사라진다(자로 대 보고 알았다 — 구운 길과 옛 길이 18만 픽셀 달랐다).
+     그래서 굽는 동안 소품이 낸 빛을 **받아 적어 두고** 매 프레임 다시 쌓는다. */
+  if (key !== gkey || !gcv) {
+    if (!gcv) { gcv = document.createElement("canvas"); gctx = gcv.getContext("2d"); }
+    if (gcv.width !== w || gcv.height !== h) { gcv.width = w; gcv.height = h; }
+    /* ★ **상태를 통째로 되돌린다.** 굽는 캔버스는 프레임을 넘어 살아 있어서, 지난번
+       칠하기가 남긴 알파·합성이 그대로 다음 그림에 얹힌다 — 실제로 자로 대 보니
+       구운 길과 옛 길이 **18만 픽셀** 달랐다(최대차 91). 자가 없었으면 「같다」로 넘겼다. */
+    gctx.setTransform(1, 0, 0, 1, 0, 0);
+    gctx.globalAlpha = 1; gctx.globalCompositeOperation = "source-over";
+    gctx.filter = "none"; gctx.imageSmoothingEnabled = true;
+    gctx.clearRect(0, 0, w, h);
+    const before = glows.length;
+    paintGround(gctx, w, h, cx, cy, radius, squash, sc, scatter);
+    bakedGlows = glows.slice(before);       // 소품이 낸 빛만 따로 적어 둔다
+    gkey = key;
+  } else {
+    for (const g of bakedGlows) glows.push(g);
+  }
+  ctx.drawImage(gcv, 0, 0);
+  /* 빛은 **소품을 다 놓은 뒤** 한 번에 얹는다(구운 바닥 위에, 프레임마다 새로). */
+  drawGlows(ctx, squash);
+}
+
+/** 굽지 않고 **그 자리에서** 칠하는 옛 길 — 자가 두 길을 픽셀로 대 보라고 남긴다
+ *  (빛을 구울 때 `drawGlowsSlow` 를 남긴 것과 같은 뜻). */
+export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   ctx.fillStyle = "#070504"; ctx.fillRect(0, 0, w, h);
 
   /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
@@ -245,9 +290,7 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
      보였다. 부르는 곳이 둘이면 순서도 둘이 된다 — 여기 하나로 모은다. */
   if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
                            scatter.clear, scatter.density, scatter.set, scatter.wild);
-  /* 빛은 **소품을 다 놓은 뒤** 한 번에 얹는다(더하기라 순서가 결과를 안 바꾸지만,
-     한 곳에서 부르면 빠뜨릴 일이 없다). */
-  drawGlows(ctx, squash);
+  /* (빛은 여기서 안 얹는다 — 구운 바닥에 굳으면 깜박임이 멈춘다. drawGround 가 위에서 부른다.) */
 
   /* ★★ 병수님: "지도 내 주위로 광원? 같은거 없애면 안됨?"
      **횃불빛을 걷는다.** 어둠은 분위기를 만들지만 **볼 것을 가린다** — 소품을 뿌려도
