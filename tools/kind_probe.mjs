@@ -40,10 +40,26 @@ await ev2(`window.__toDungeon()`);
    해골만 서다 마지막에 구울 하나가 선 판과 셋이 고루 선 판을 **못 가른다**.
    10초마다 세어 **머릿수의 누계**로 비율을 낸다(=시간가중). 「한 번이라도 섰나」는
    `본적`, 「얼마나 오래 판을 차지했나」는 `비율`이 답한다. */
-const tally = {}; let samples = 0;
+/* ★★ **죽으면 사람이 「던전으로」를 다시 누른다** — 이 자에게는 그 손이 없었다
+   (2026-08-15 22:14). 판은 죽으면 마을로 돌아와 정산 창을 열고 **거기 서서 기다린다**
+   (js/main.js:2032). 그래서 이 자는 층 4 에서 죽은 뒤 남은 11분을 **마을에 서서** 세고,
+   해골 100% 로 「미달」을 냈다 — 값이 아니라 자가 멈춰 있었다.
+   ★ 21:00 (dcde0a8, 겹침 0.6→0.5) **전에는 죽음이 0 이라 이 구멍이 안 보였다.**
+     20:16 에 이 자가 낸 「통과」는 한 번도 안 죽은 판의 것이다.
+   `toDungeon()` 이 스스로 closeAll() 을 하므로 부르기만 하면 된다(js/main.js:1931).
+   1초마다 보는 까닭: 10초에 한 번만 보면 죽을 때마다 최대 10초를 마을에서 버린다.
+   ★ 그리고 **몇 번 죽었는지·마을에 몇 초 서 있었는지를 낸다** — 다음에 자가 또
+     멈추면 「미달」이 아니라 그 숫자가 먼저 눈에 띄게([[probe-must-walk-the-real-path]]). */
+const tally = {}; let samples = 0, revives = 0, townT = 0;
 const seenAt = {};
+const beat = async () => {
+  const at = await ev2(`(()=>({at:(window.MODE||{}).at, dead:!!S.dead}))()`);
+  if (!at) return;
+  if (at.at !== "dungeon" || at.dead) { townT++; revives++; await ev2(`window.__toDungeon()`); }
+};
 for (let t = 0; t < SEC; t += 10) {
-  await new Promise(r => setTimeout(r, Math.min(10, SEC - t) * 1000));
+  const span = Math.min(10, SEC - t);
+  for (let i = 0; i < span; i++) { await new Promise(r => setTimeout(r, 1000)); await beat(); }
   const c = await ev2(`(()=>{const c={};for(const m of (S.minions||[])) if(!m.own) c[m.k||m.kind||"?"]=(c[m.k||m.kind||"?"]||0)+1; return c;})()`);
   if (!c) continue;
   samples++;
@@ -54,8 +70,13 @@ const 비율 = Object.fromEntries(Object.entries(tally).map(([k, v]) => [k, +(v 
 const 최대 = Math.max(0, ...Object.values(비율));
 const out = await ev2(`(()=>({층:S.floor, 상한:(window.armyCap?armyCap():null), 레벨:META.lv,
   트리:JSON.stringify(META.tree), 자동:META.autoTree}))()`);
+/* 마을에 오래 서 있었으면 종 비율은 **판의 성질이 아니라 자의 흠**이다 — 그때는
+   통과/미달을 말하지 않고 그렇게 적는다(조용한 미달이 제일 비쌌다). */
+const 마을비율 = SEC ? townT / SEC * 100 : 0;
 console.log(JSON.stringify({ ...out, 표본: samples, 누계: tally, 비율, 최대종비율: 최대,
   본적: Object.fromEntries(Object.entries(seenAt).map(([k, v]) => [k, v + "초"])),
-  판정: (["skel","ghoul","golem"].every(k => tally[k]) && 최대 <= 85) ? "통과" : "미달" }, null, 1));
+  죽음: revives, 마을초: townT, 마을비율: +마을비율.toFixed(1),
+  판정: 마을비율 > 10 ? `자가 마을에 ${townT}초 서 있었다 — 이 표는 못 쓴다`
+      : (["skel","ghoul","golem"].every(k => tally[k]) && 최대 <= 85) ? "통과" : "미달" }, null, 1));
 await fetch(`${CDP}/json/close/${targetId}`);
 process.exit(0);
