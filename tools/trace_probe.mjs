@@ -20,7 +20,10 @@
    ★ 느리게(`Emulation.setCPUThrottlingRate`)는 **렌더러 JS 에만** 걸린다 — 래스터·합성
      스레드는 안 느려진다. 그러니 ×6 의 이 표는 「폰의 합성」이 아니라 **이 맥의 합성**이다.
      그래도 「그 27ms 가 어디에 있나」는 이걸로만 답이 된다. */
-const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
+/* ★ 어느 창에서 재는지 낸다 — 9333 은 `--disable-gpu`(소프트웨어 합성), 9334 는
+   `gpu_chrome.mjs` 가 세우는 **GPU 합성 켠 창**이다. 같은 표라도 이 둘은 다른 기계다. */
+const PORT = process.env.NECRO_CDP_PORT || "9333";
+const CDP = `http://127.0.0.1:${PORT}`, PAGE = "http://127.0.0.1:8774/index.html";
 const SEC = +(process.argv[2] || 6), FLOOR = +(process.argv[3] || 30), BODIES = +(process.argv[4] || 0);
 const SLOW = +(process.argv[5] || 1);
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -34,6 +37,13 @@ bws.addEventListener("message", ev => { const m = JSON.parse(ev.data);
   if (m.method === "Tracing.tracingComplete") { 다받음 && 다받음(); return; }
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
+/* 표에 **어떤 합성인지**를 박아 둔다 — 크롬은 GPU 를 못 쓰면 말없이 소프트웨어로 내려가고,
+   그걸 모르면 소프트웨어 값을 「GPU 켠 값」이라 적게 된다. */
+const 지피유 = await raw("SystemInfo.getInfo").then(i => ({
+  합성: i.gpu?.featureStatus?.gpu_compositing || "?",
+  캔버스: i.gpu?.featureStatus?.["2d_canvas"] || "?",
+  렌더러: (i.gpu?.auxAttributes?.glRenderer || "?").slice(0, 60),
+})).catch(() => ({ 합성: "?", 캔버스: "?", 렌더러: "?" }));
 const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
@@ -58,7 +68,7 @@ const 판 = await ev(`({몸:(S.minions||[]).length, 적:(S.mobs||[]).length, 시
 
 /* fps 는 페이지 안 rAF 로 따로 센다 — 트레이스에서 프레임을 세는 것보다 눈금이 분명하다. */
 await ev(`(()=>{ let n=0, 살아=true; const 톱니=()=>{ if(!살아) return; n++; requestAnimationFrame(톱니); };
-  requestAnimationFrame(톱니); window.__raf={ get n(){return n;}, stop(){살아=false;} }; return 1; })()`);
+  requestAnimationFrame(톱니); window.__raf={ get n(){return n;}, reset(){n=0;}, stop(){살아=false;} }; return 1; })()`);
 if (SLOW > 1) { await S("Emulation.setCPUThrottlingRate", { rate: SLOW }); await wait(800); }
 
 /* ── 트레이스 ────────────────────────────────────────────────────────────
@@ -70,6 +80,11 @@ await raw("Tracing.start", {
   traceConfig: { recordMode: "recordAsMuchAsPossible", includedCategories: [
     "toplevel", "cc", "viz", "gpu", "blink", "benchmark", "sequence_manager",
     "disabled-by-default-devtools.timeline", "disabled-by-default-devtools.timeline.frame"] } });
+/* ★ 프레임 세기는 **트레이스 창과 같은 구간**이라야 한다 — 처음엔 세기를 느리게 걸기
+   *전에* 시작해서, 안 느려진 0.8초(120fps)가 통째로 섞였다. ×6 무거운 판이 「fps 135.7」
+   로 이 맥의 천장(120)을 넘겨 나온 게 그 자국이다(96프레임이 덤으로 들어갔다).
+   재기 직전에 0 으로 되돌린다([[probe-must-walk-the-real-path]]: 자가 제 눈금을 만든 자리). */
+await ev(`window.__raf.reset()`);
 await wait(SEC * 1000);
 const 프레임수 = await ev(`(()=>{ const r=window.__raf; const n=r.n; r.stop(); return n; })()`);
 const 끝남 = new Promise(r => { 다받음 = r; });
@@ -154,7 +169,7 @@ const 렌더러메인 = 줄.filter(r => r.스레드 === "CrRendererMain");
 const 메인초당 = 렌더러메인.reduce((a, r) => a + r.초당ms, 0);
 const 메인프레임당 = +(렌더러메인.reduce((a, r) => a + r.프레임당ms, 0)).toFixed(2);
 
-const out = { 층: FLOOR, 초, 느리게: SLOW, 판,
+const out = { 창: `:${PORT}`, GPU: 지피유, 층: FLOOR, 초, 느리게: SLOW, 판,
   fps: +fps.toFixed(1), 트레이스이벤트: 이벤트.length,
   합성: { "초당ms": 합성초당ms, "프레임당ms": 합성프레임당 },
   렌더러메인: { "초당ms": +메인초당.toFixed(1), "프레임당ms": 메인프레임당 },
@@ -168,6 +183,6 @@ console.log(JSON.stringify(out, null, 1));
 const 넘침 = 합성프레임당 > 8;
 const bad = errs.length || !이벤트.length || !프레임수 || 넘침;
 console.log(bad ? `FAIL${넘침 ? ` — 합성 프레임당 ${합성프레임당}ms` : ""}${!이벤트.length ? " — 트레이스 빔" : ""}${errs.length ? ` — 콘솔오류 ${errs.length}` : ""}`
-  : `PASS — 합성 프레임당 ${합성프레임당}ms(초당 ${합성초당ms}) · 렌더러메인 ${메인프레임당}ms · fps ${fps.toFixed(1)} (느리게 ×${SLOW})`);
+  : `PASS — 합성 프레임당 ${합성프레임당}ms(초당 ${합성초당ms}) · 렌더러메인 ${메인프레임당}ms · fps ${fps.toFixed(1)} (느리게 ×${SLOW} · :${PORT} GPU합성 ${지피유.합성})`);
 await raw("Target.closeTarget", { targetId });
 bws.close(); process.exit(bad ? 1 : 0);

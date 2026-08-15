@@ -19,7 +19,8 @@
      고칠 수 있는 말이다.
    ★ 판은 병수님 화면(414×860 · dpr2)으로 세우고 **사람이 지나는 길**로 내려간다
      — 마을에서 시작해 층으로([[probe-must-walk-the-real-path]]). */
-const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
+/* 창은 골라 쓴다 — 기본 9333(소프트웨어 합성), `NECRO_CDP_PORT=9334` 면 GPU 합성 켠 창(gpu_chrome.mjs). */
+const CDP = `http://127.0.0.1:${process.env.NECRO_CDP_PORT || "9333"}`, PAGE = "http://127.0.0.1:8774/index.html";
 const SEC = +(process.argv[2] || 6), FLOOR = +(process.argv[3] || 30), BODIES = +(process.argv[4] || 0);
 const SLOW = +(process.argv[5] || 1);
 const ver = await (await fetch(CDP + "/json/version")).json();
