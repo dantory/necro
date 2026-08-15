@@ -202,7 +202,9 @@ export const floorDmg  = (f) => Math.round(4  * Math.pow(1.155, f - 1));
 /* ★ **마릿수**(병수님 2026-08-15 17:57 「적군 수 너무 적어, 초반부터 좀 몰아치는걸로
    바꿔라」). 1층이 5마리라 첫 몇 층은 한 마리씩 방울져 나오다 끝난다 — loop_health 의
    「기다림」(줄에 남았는데 판이 비어 있는 시간)이 그 값이다. 밑과 기울기를 문으로 낸다. */
-export const SPAWN_BASE_DEF = 5, SPAWN_SLOPE_DEF = 0.7;
+/* **잰 값: 13 + 1.1f** (씨앗 1·3·9 · 12분, 간격 0.35배와 한 벌).
+   마릿수만 늘리면 기다림이 되레 늘어난다(간격이 그대로라 줄만 길어진다) — 둘은 **한 벌**이다. */
+export const SPAWN_BASE_DEF = 13, SPAWN_SLOPE_DEF = 1.1;
 export const floorN    = (f) => (globalThis.__SPAWN_BASE != null ? +globalThis.__SPAWN_BASE : SPAWN_BASE_DEF)
                               + Math.floor(f * (globalThis.__SPAWN_SLOPE != null ? +globalThis.__SPAWN_SLOPE : SPAWN_SLOPE_DEF));
 export const isGate    = (f) => f % 5 === 0;
