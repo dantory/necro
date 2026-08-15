@@ -14,6 +14,15 @@ const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: tr
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable");
 const ev2 = async (e) => (await S("Runtime.evaluate", { expression: e, returnByValue: true })).result?.value;
+/* ★ 이 자도 **손잡이를 받는다**(2026-08-15). 벌이·관문을 갈아 끼운 팔에서 「세 종이
+   다 서나」를 물어야 하는데, 여태 이 자만 기본값으로 굳어 있어 A/B 의 절반(끝 조건 ①)을
+   못 쟀다. 이름은 loop_health 와 **같은 것**을 쓴다 — 한 팔을 두 자에 태울 때
+   `env LH_XPD=… LH_GATE=…` 를 그대로 앞에 붙이면 되도록. */
+await S("Page.addScriptToEvaluateOnNewDocument", { source: `
+   ${process.env.LH_XPK  != null ? `globalThis.__XP_K = ${+process.env.LH_XPK};` : ""}
+   ${process.env.LH_XPP  != null ? `globalThis.__XP_P = ${+process.env.LH_XPP};` : ""}
+   ${process.env.LH_XPD  != null ? `globalThis.__XP_DEPTH = ${+process.env.LH_XPD};` : ""}
+   ${process.env.LH_GATE != null ? `globalThis.__GATE_S = ${+process.env.LH_GATE};` : ""}` });
 /* ★ `fresh` — **갓 만든 세이브로** 잰다. 이게 없던 동안 이 자는 그 프로필에 쌓인 판
    (Lv.20+·유물)으로만 쟀다 — 「처음 켠 사람에게 세 종이 서나」는 그걸로 답이 안 나온다
    (ROADMAP 4막 A-1 의 끝 조건이 바로 그것이다). node tools/kind_probe.mjs 720 fresh */

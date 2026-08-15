@@ -1204,6 +1204,19 @@ export const TREE = [
     { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"적 처치 시 30% 확률로 <b>아군화</b> · 상한 밖 최대 4기", big:1 },
   ]},
 ];
+/* ★ **관문은 벌이와 한 벌로 움직인다**(2026-08-15 · ROADMAP 4막). 벌이에서 깊이를
+   덜어내면(`__XP_DEPTH`) 12분 레벨이 31 → 13 으로 내려앉는데, 구울이 Lv.6 · 골렘이
+   Lv.16 뒤에 있어서 **그대로 켜면 골렘이 영영 안 선다** — 오늘 아침에 「세 종이 다
+   선다」로 닫은 항목이 조용히 깨진다. 그래서 관문 레벨에 **하나의 배율**을 걸어,
+   벌이를 늦추는 만큼 나무를 같이 내린다(0.65 면 구울 4 · 군단 7 · 골렘 10).
+   ★ 값을 노드마다 손으로 고치지 않는 것은, 그러면 A/B 마다 다섯 줄씩 갈아 끼우다
+     세 갈래의 균형(선행·요구·big)이 어긋나기 때문이다. 배율 하나면 결이 안 바뀐다. */
+export const GATE_S_DEF = 1;
+{
+  const g = globalThis.__GATE_S != null ? +globalThis.__GATE_S : GATE_S_DEF;
+  if (isFinite(g) && g > 0 && g !== 1)
+    for (const c of TREE) for (const nd of c.nodes) nd.lv = Math.max(1, Math.round(nd.lv * g));
+}
 const NODE = {};
 for (const c of TREE) for (const nd of c.nodes) NODE[nd.id] = nd;
 export const nodeOf = (id) => NODE[id];
