@@ -61,6 +61,16 @@ const MOB_CD = 1.6;
  *  「순간이동」이 아니라 두어 프레임에 걸친 비켜서기다. 그래서 130 까지 열어 깊은 층(50층
  *  40마리)의 잔겹침을 그 프레임에 떼어낸다 — 낮추면 파고든 프레임이 도로 는다. */
 const SEP_CAP = 130;
+
+/** **얼마나 겹쳐도 되는가**(닿을 거리 = (a.r+b.r) × 이 값).
+ *  1.0 이면 **한 톨도 안 겹친다** — 몸끼리 어깨를 맞대고 선다. 그런데 그러면 적이
+ *  표적에 닿는 껍질도 그만큼 바깥이라, 뒤에 선 놈들이 **영영 못 다가온다**
+ *  (병수님 2026-08-15: "겹치기를 허용안하니까 너무 적군이 못다가오는듯,,
+ *  어느정도의 겹치기는 허용해야겠네").
+ *  ★ 이 값 하나가 **떼어놓기와 다가가기 둘 다**를 쥔다 — 따로 두면 「닿을 만큼 떼어 놓고
+ *    닿지 않았다고 판정」하는 옛 고리가 되살아난다(아래 dist 주석의 그 사고). */
+export const TOUCH_K_DEF = 1;
+export const touchK = () => (globalThis.__TOUCH_K != null ? +globalThis.__TOUCH_K : TOUCH_K_DEF);
 /** 소환수가 **제 자리에서 적을 알아보는 거리.** 진(RING_HOLD)에 비례해야 진을
  *  넓혀도 둘레 커버가 그대로다 — 숫자를 박아 두면 넓힐 때마다 사이가 뚫린다. */
 const WATCH = RING_HOLD * 1.24;
@@ -1362,7 +1372,7 @@ export function step(dt) {
        관문 주인(m.boss)은 **뺀다**(a 만 준다) — 여기 속도를 건드리면 돌진 상태머신
        (mstate/mtell)의 몸놀림과 섞여 「예고 없는 돌진」이 된다. 문이 꺼지면 sp=m.spd. */
     const sp = (rush && !m.boss) ? m.spd * RUSH.spd : m.spd;
-    if (tgt) { if (!rooted) approach(m, tgt.x, tgt.y, m.r + tgt.r, sp, dt); continue; }
+    if (tgt) { if (!rooted) approach(m, tgt.x, tgt.y, (m.r + tgt.r) * touchK(), sp, dt); continue; }
     if (!rooted) approach(m, 0, 0, CORE_R, sp, dt);
     if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
       face(m, { x: 0, y: 0 });                          // 기다리는 동안에도 본체를 본다
@@ -1428,7 +1438,7 @@ export function step(dt) {
         const a = bodies[i], b = bodies[j];
         let dx = b.x - a.x, dy = (b.y - a.y) * sq;     // ← 화면에서 잰다
         let d = Math.hypot(dx, dy);
-        const min = a.r + b.r;
+        const min = (a.r + b.r) * touchK();       // ← 겹침 허용치. 다가가는 껍질과 **같은 값**이어야 한다
         if (d >= min) continue;
         if (d < 0.01) {                        // 완전히 포갠 경우 — 방향을 인덱스로 정해 흔들림 없이
           const ang = (i * 2.399 + j * 0.618);
