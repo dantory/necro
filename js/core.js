@@ -199,7 +199,12 @@ export const MINION_OF = { raise:"skel", ghoul:"ghoul", golem:"golem" };
    기울기를 눕히면 깊은 층이 되레 쉬워진다(그건 다른 불만이 된다). */
 export const floorHp   = (f) => Math.round(46 * Math.pow(1.19, f - 1));
 export const floorDmg  = (f) => Math.round(4  * Math.pow(1.155, f - 1));
-export const floorN    = (f) => 5 + Math.floor(f * 0.7);
+/* ★ **마릿수**(병수님 2026-08-15 17:57 「적군 수 너무 적어, 초반부터 좀 몰아치는걸로
+   바꿔라」). 1층이 5마리라 첫 몇 층은 한 마리씩 방울져 나오다 끝난다 — loop_health 의
+   「기다림」(줄에 남았는데 판이 비어 있는 시간)이 그 값이다. 밑과 기울기를 문으로 낸다. */
+export const SPAWN_BASE_DEF = 5, SPAWN_SLOPE_DEF = 0.7;
+export const floorN    = (f) => (globalThis.__SPAWN_BASE != null ? +globalThis.__SPAWN_BASE : SPAWN_BASE_DEF)
+                              + Math.floor(f * (globalThis.__SPAWN_SLOPE != null ? +globalThis.__SPAWN_SLOPE : SPAWN_SLOPE_DEF));
 export const isGate    = (f) => f % 5 === 0;
 export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
 

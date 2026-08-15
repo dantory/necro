@@ -196,10 +196,24 @@ async function runSeed(seed) {
   await sleep(600);
   /* 빨리 감기만이 유일한 시간이 되게 rAF 를 끊는다 — 벽시계 고리가 같은 난수열을 같이
      퍼 쓰면 씨앗을 박아도 판이 매번 다르다(loop_health 71행과 같은 이유). */
+  /* ★★ **rAF 를 끄기 전에 한 프레임은 그려져야 한다.** `__geo`(화면 배율)는 draw 가
+     적어 주는데, 그 전에 끊으면 영영 안 생겨서 이 자의 `gapPx` 가
+     「Cannot read properties of undefined (reading 'sc')」로 죽는다 — 그런데 그 예외가
+     페이지 안에서 나므로 밖에서는 `[object Object] is not valid JSON` 만 보인다.
+     오늘까지 **그때그때 운으로** 통과하고 있었다(먼저 그려지면 살고 아니면 죽는다). */
+  for (let i = 0; i < 40 && !(await S("Runtime.evaluate", { returnByValue: true,
+        expression: `!!(window.__geo && window.__geo.sc)` })).result.value; i++) await sleep(100);
   await S("Runtime.evaluate", { expression: `window.requestAnimationFrame = () => 0` });
   await sleep(200);
   const r = await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression: measure(seed, FLOOR, SEC) });
-  const out = JSON.parse(r.result.value);
+  /* ★ 값이 문자열이 아닐 때가 있다(페이지 쪽에서 예외가 나면 그 객체가 온다) —
+     그대로 JSON.parse 하면 「[object Object] is not valid JSON」만 남고 원인이 사라진다. */
+  const v = r.result?.value;
+  if (typeof v !== "string") {
+    console.error("씨앗", seed, "— 판이 답을 안 줬다:", JSON.stringify(r).slice(0, 400));
+    throw new Error("measure 가 문자열을 안 돌려줬다");
+  }
+  const out = JSON.parse(v);
   await raw("Target.closeTarget", { targetId }).catch(() => {});
   return out;
 }
@@ -234,8 +248,11 @@ if (!validFoe.length) {
 } else {
   /* ★★ **판정은 몸(bodyRatio) 중앙값으로만 한다.** foe 는 진이 없으니 싸우는 중 실제
      위치의 최솟값을 씨앗별로 내고 그 중앙값을 본다 — 1 이상이면 어느 순간에도 안 파고든 것. */
-  const ok = foeBodyMed >= 1;
-  console.log(`\nfoe 몸 중앙값 ${foeBodyMed}${ok ? " ≥1 안 파고든다" : " <1 파고든다"}` +
+  /* ★ 금은 **허용치**다 — 1 로 박아 두면 의도한 겹침을 결함으로 운다(오늘 두 번째로
+     같은 자리를 고친다: 앞서 「파고든 프레임」 쪽만 고치고 이 줄을 두었다). */
+  const LINE = +(process.env.LH_TOUCH ?? 0.6);
+  const ok = foeBodyMed >= LINE;
+  console.log(`\nfoe 몸 중앙값 ${foeBodyMed}${ok ? ` ≥${LINE} 허용치 안` : ` <${LINE} 허용치보다 파고든다`}` +
     ` · 파고든 프레임 중앙값 ${foePenetMed != null ? Math.round(foePenetMed * 100) + "%" : "-"}` +
     ` · (참고) army 진 몸 중앙값 ${armyBodyMed}`);
   console.log(ok ? "PASS" : "FAIL 적끼리 겹친다");
