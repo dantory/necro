@@ -31,7 +31,7 @@ arm() {                                   # arm <이름>
   for s in 3 9 5; do
     echo "───────── ARM $1 · SEED $s · $(date +%H:%M) ─────────"
     LH_SEED=$s node tools/loop_health.mjs 12 "tmp/c5_$1_$s.json" 2>&1 \
-      | grep -E "^12분|^ 12분|뒷정리 군세|자리가 빈 채로|^errors:"
+      | grep -E "^12분|^ 12분|뒷정리 군세|자리가 빈 채로|판 전체 막힘|못이 마른|못\(첫|얕은 쪽|^errors:"
   done
 }
 
