@@ -2031,12 +2031,36 @@ let last = 0, autoT = 0, hudT = 0;
 /* 프레임을 **판이 스스로 잰다** — 밖에서 재면(헤드리스 rAF) 병수님 화면과 무관한 값이
    나온다는 것을 오늘 배웠다. 최근 90프레임에서 **긴 프레임(>28ms)이 셋 중 하나를 넘으면**
    한 번 내려간다. 처음 1.5초는 안 센다(로딩·첫 그림이 늦는 건 렉이 아니다). */
-const FR = { gaps: [], long: 0, t0: 0, checked: false, fps: 0, last: 0, n: 0, acc: 0 };
+const FR = { gaps: [], long: 0, t0: 0, checked: false, fps: 0, last: 0, n: 0, acc: 0,
+  /* ── 여기서부터는 **병수님 기기가 스스로 대답하게** 하는 칸이다. 자 다섯(JS·2D 호출·
+     래스터·Commit·레이아웃)이 모두 이 맥에서 「아니다」라고만 말했다 — 그 다음 한 걸음은
+     기계를 더 재는 게 아니라 **진짜 기기 한 번**이다(ROADMAP A 항목의 「남은 길」). */
+  frames: 0, js: 0, jsWorst: 0,                    // JS 가 태운 시간(프레임 안쪽)
+  longAll: 0, worst: 0, worstAt: null,             // 누계 긴 프레임 · 최악 한 장과 그때의 판
+  byScene: {},                                     // 어느 화면에서 걸렸나 (마을/던전)
+};
+/* 걸린 그 순간의 **판**을 적어 둔다 — 「어느 기기·어느 화면에서 걸리나」가 있어야
+   무엇을 줄일지 정한다(없으면 또 짐작으로 값을 만진다). */
+function scene() {
+  return MODE.at === "dungeon"
+    ? `던전 ${S.floor}층 · 몸${(S.minions || []).length} 적${(S.mobs || []).length} 시체${S.corpses | 0}`
+    : "마을";
+}
 function watchFrame(t) {
   if (!FR.t0) FR.t0 = t;
   if (FR.last) { const g = t - FR.last;
     FR.acc += g; if (++FR.n >= 30) { FR.fps = Math.round(1000 / (FR.acc / FR.n)); FR.acc = 0; FR.n = 0; }
-    if (t - FR.t0 > 1500) { FR.gaps.push(g); if (FR.gaps.length > 90) FR.gaps.shift(); }
+    if (t - FR.t0 > 1500) {
+      FR.warm = true;                              // 여기부터 센다 — JS 몫도 같은 문을 지나야
+      FR.gaps.push(g); if (FR.gaps.length > 90) FR.gaps.shift();
+      FR.frames++;
+      if (g > 28) {
+        FR.longAll++;
+        const k = MODE.at === "dungeon" ? "던전" : "마을";
+        FR.byScene[k] = (FR.byScene[k] || 0) + 1;
+        if (g > FR.worst) { FR.worst = g; FR.worstAt = scene(); }
+      }
+    }
   }
   FR.last = t;
   if (!FR.checked && !perfLow && FR.gaps.length >= 90) {
@@ -2044,17 +2068,62 @@ function watchFrame(t) {
     if (long / FR.gaps.length > 0.33) { setPerfLow(true); FR.checked = true; say(`<b>성능 모드</b> 켜짐 · 화면을 가볍게`); }
     else if (t - FR.t0 > 12000) FR.checked = true;         // 12초 멀쩡했으면 더 안 본다
   }
-  if (fpsEl) fpsEl.textContent = `${FR.fps}fps${perfLow ? " · 저" : ""}`;
+  if (fpsEl) {
+    const pct = FR.frames ? (FR.longAll / FR.frames * 100) : 0;
+    fpsEl.textContent = `${FR.fps}fps · 긴프레임 ${pct.toFixed(1)}% · JS ${(FR.frames ? FR.js / FR.frames : 0).toFixed(1)}ms${perfLow ? " · 저" : ""}`;
+  }
+}
+/* 기기가 스스로 낸 **한 장의 보고서**. 프레임 시간과 그중 JS 몫을 같이 적는 것이 핵심이다 —
+   둘의 차가 크면 남는 것은 그리기·합성 쪽이고, 그건 코드를 줄여서 될 일이 아니다. */
+function perfReport() {
+  const fr = FR.frames || 1;
+  const avgGap = FR.gaps.length ? FR.gaps.reduce((a, b) => a + b, 0) / FR.gaps.length : 0;
+  const sorted = [...FR.gaps].sort((a, b) => a - b);
+  const p95 = sorted.length ? sorted[Math.floor(sorted.length * 0.95)] : 0;
+  const scenes = Object.entries(FR.byScene).map(([k, v]) => `${k} ${v}`).join(" · ") || "없음";
+  return [
+    `[necro 성능] ${new Date().toLocaleString("ko-KR")}`,
+    `기기 ${innerWidth}×${innerHeight}·dpr${(devicePixelRatio || 1).toFixed(2)}·코어${navigator.hardwareConcurrency || "?"}${perfLow ? " · 성능모드ON" : ""}`,
+    `프레임 ${FR.frames}장 · 최근 평균 ${avgGap.toFixed(1)}ms(${FR.fps}fps) · 상위5% ${p95.toFixed(1)}ms`,
+    `긴프레임(>28ms) ${FR.longAll}장 = ${(FR.longAll / fr * 100).toFixed(1)}% · 최악 ${FR.worst.toFixed(0)}ms`,
+    `최악의 자리: ${FR.worstAt || "없음"}`,
+    `걸린 화면: ${scenes}`,
+    `JS 몫 프레임당 ${(FR.js / fr).toFixed(2)}ms (최악 ${FR.jsWorst.toFixed(1)}ms) — 프레임 시간에서 이만큼 빼면 그리기·합성`,
+    `지금 자리: ${scene()}`,
+  ].join("\n");
 }
 /* `?fps=1` — 화면 구석에 프레임을 띄운다. **병수님 기기의 숫자를 알아야** 무엇을 줄일지
-   정할 수 있는데, 여기서는 그 숫자가 안 나온다. */
+   정할 수 있는데, 여기서는 그 숫자가 안 나온다.
+   ★ 눌러서 **보고서를 복사**한다(폰에서 그대로 붙여 보낼 수 있게). 복사가 막힌 브라우저면
+     글을 화면에 띄워 손으로 고를 수 있게 한다 — 못 보내면 잰 보람이 없다. */
 let fpsEl = null;
 if (qs.get("fps") === "1") {
   fpsEl = document.createElement("div");
-  fpsEl.style.cssText = "position:fixed;left:4px;bottom:2px;z-index:99;font:12px monospace;color:#9f8;background:#000a;padding:1px 4px;pointer-events:none";
+  fpsEl.style.cssText = "position:fixed;left:4px;bottom:2px;z-index:99;font:12px monospace;color:#9f8;background:#000a;padding:2px 5px;border:1px solid #9f84;border-radius:3px";
+  fpsEl.title = "눌러서 성능 보고서 복사";
+  fpsEl.addEventListener("click", async () => {
+    const txt = perfReport();
+    try { await navigator.clipboard.writeText(txt); say("<b>성능 보고서</b> 복사됨 — 붙여 넣어 보내 주세요"); }
+    catch {
+      const pre = document.createElement("pre");
+      pre.style.cssText = "position:fixed;inset:8% 5%;z-index:100;overflow:auto;white-space:pre-wrap;font:12px monospace;color:#dcd;background:#000e;border:1px solid #9f8;padding:8px;user-select:text;-webkit-user-select:text";
+      pre.textContent = txt + "\n\n(눌러서 닫기)";
+      pre.addEventListener("click", () => pre.remove());
+      document.body.appendChild(pre);
+    }
+  });
   document.body.appendChild(fpsEl);
 }
+window.__perfReport = perfReport;                  // 자가 볼 수 있게
 function loop(t) {
+  const j0 = performance.now();
+  tick(t);
+  const j = performance.now() - j0;
+  /* 로딩·첫 그림은 안 센다 — 프레임 수와 **같은 문**을 지나야 나눗셈이 맞는다
+     (안 그러면 분자에만 예열이 섞여 JS 몫이 부풀어 보인다). */
+  if (FR.warm) { FR.js += j; if (j > FR.jsWorst) FR.jsWorst = j; }
+}
+function tick(t) {
   watchFrame(t);
   const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
   /* 다 받기 전에는 **시간도 멈춘다.** 덮어 놓고 뒤에서 싸움이 진행되면, 걷어냈을 때
