@@ -768,6 +768,17 @@ body.in-town #hTactic{ display:inline-block; }
              border:1px solid #7a3a2a; border-radius:4px; background:#1c0f0b; }
 .rebornWarn b{ color:#f07a5a; }
 .hBtn:active{ transform:translateY(1px); }
+/* ══ 지갑(위 띠) ══ 단추 둘 옆에 선 **읽는 값**이다. 돌은 같이 쓰되 손잡이가 아니다 —
+   pointer-events 를 안 주고(#top 이 통과시킨다) hover 도 없다. 눌리지 않는 것이
+   눌릴 것처럼 보이면 그것도 거짓말이다.
+   ★ margin-left 로 스킬 단추와의 틈을 5.5px → 12px 로 벌린다. `#top` 의 gap:20px 는
+     `.who` **바깥**에만 걸리고 그 안은 인라인 흐름이라, 여기서는 손으로 벌려야 한다. */
+.coin{ display:inline-flex; align-items:center; gap:5px; vertical-align:middle;
+       margin-left:12px; padding:1px 7px; color:var(--gold);
+       border:1px solid #6b5636; border-radius:2px;
+       background:linear-gradient(#231810, #17100b);
+       box-shadow:inset 0 0 0 1px #0a0705, 0 1px 0 #000; }
+.coin .gw{ color:#9d907a; }
 .lvBtn{cursor:pointer;position:relative}
 #spDot{display:none}
 #spDot.on{display:inline-block;margin-left:4px;padding:0 4px;font-style:normal;

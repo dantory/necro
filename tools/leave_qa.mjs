@@ -98,19 +98,29 @@ say(!!g.제것, `던전에서 손가락이 단추에 닿는다 (닿는 것: ${g.
    ★ 견줄 값은 `b4`(9초 전)가 아니라 **누르기 직전**의 것이다 — 그 사이에도 판은 돌아
    층이 넘어가고 전리품이 는다. b4 로 견줬더니 「끝난 층이 맞다 (12 → 13)」로 울었는데
    정작 정산 부제는 「13층에서 발길을 돌림」이었다(자가 틀린 것이지 게임이 아니다). */
-const now = await ev(`JSON.stringify({ 금: window.META.gold, 전리품: window.S.loot.length, 층: window.S.floor })`);
+/* ★ 강화 횟수도 같이 센다 — 아래 「금」 판정이 이것 없이는 **거짓으로 운다**(주석 참고). */
+const 강화 = `(Object.values(window.META.up||{}).reduce((s,v)=>s+(v|0),0)
+              + Object.values(window.META.plus||{}).reduce((s,v)=>s+(v|0),0))`;
+const now = await ev(`JSON.stringify({ 금: window.META.gold, 전리품: window.S.loot.length, 층: window.S.floor, 강화: ${강화} })`);
 await S("Input.dispatchMouseEvent", { type: "mousePressed",  x: g.cx, y: g.cy, button: "left", clickCount: 1 });
 await S("Input.dispatchMouseEvent", { type: "mouseReleased", x: g.cx, y: g.cy, button: "left", clickCount: 1 });
 await wait(700);
 const af = await ev(`JSON.stringify({ 정산: document.getElementById("winEnd").classList.contains("on"),
-  어디: window.__MODE.at, 죽음판정: window.__LASTRUN.dead, 금: window.META.gold,
+  어디: window.__MODE.at, 죽음판정: window.__LASTRUN.dead, 금: window.META.gold, 강화: ${강화},
   전리품: window.__LASTRUN.loot.length, 층: window.__LASTRUN.floor,
   부제: (document.querySelector("#endSub .eWhere")||{}).textContent||"",
   로그: [...document.querySelectorAll("#log > *")].slice(-6).map(e=>e.textContent).join(" | ") })`);
 say(af.정산, `정산 창이 뜬다`);
 say(af.어디 === "town", `마을로 돌아왔다 (at=${af.어디})`);
 say(af.죽음판정 === false, `「쓰러짐」이 아니라 「물러남」으로 적힌다 (dead=${af.죽음판정})`);
-say(af.금 >= now.금, `금을 잃지 않았다 (${now.금} → ${af.금})`);
+/* ★★ 예전엔 `af.금 >= now.금` 하나였고 **가난한 판에서만 통과했다.** 마을로 돌아오면
+   `auto()` 가 `autoForge()` 를 불러(js/main.js) 제일 싼 강화를 최대 8 개까지 **일부러**
+   사들인다 — 금이 주는 것이 설계다. 그래서 잘 번 판일수록 자가 울었다
+   (14060 → 4820 · 08-16 밤 qa_all). **게임이 아니라 자가 틀렸다**([[probe-must-walk-the-real-path]]).
+   물어야 할 것은 「금이 줄었나」가 아니라 **「빼앗겼나」** 다 — 줄었다면 그만큼
+   강화로 바뀌어 있어야 한다. 둘 다 아니면 그때가 진짜 사고다. */
+say(af.금 >= now.금 || af.강화 > now.강화,
+  `금이 빼앗기지 않았다 (${now.금} → ${af.금}${af.금 < now.금 ? ` · 강화 ${now.강화}→${af.강화} 로 바뀜` : ""})`);
 say(af.전리품 === now.전리품, `전리품을 다 지고 왔다 (${now.전리품} → ${af.전리품})`);
 say(af.층 === now.층, `끝난 층이 맞다 (${now.층} → ${af.층})`);
 say(/발길을 돌림/.test(af.부제), `정산 부제: "${af.부제}"`);
