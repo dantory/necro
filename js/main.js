@@ -1634,7 +1634,7 @@ let statSel = null;                           // 고른 칸 — {src:"eq",k} 또
 /** 한 칸을 상점 좌판과 같은 모양으로 — 그림·등급 숫자(색)·옵션 점. */
 const gearCell = (it, attr, sel, plus = 0) => {
   const n = it.af.length, uq = !!it.uid;
-  return `<div class="cell${sel ? " sel" : ""}${uq ? " uniq" : ""}" ${attr}>
+  return `<div class="cell rar-${clsOf(it)}${sel ? " sel" : ""}${uq ? " uniq" : ""}" ${attr}>
     <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
     ${plus ? `<span class="plusBadge">+${plus}</span>` : ""}
     ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
@@ -1667,8 +1667,35 @@ const statNumbers = () => {
     `<div class="tipStat">${n} <b>${v}</b></div>`).join("")}</div>`;
 };
 
+/** 지금↔다음 견줌 — 가방 것을 고르면 **같은 슬롯의 낀 것 대비 차이**를 함께 보인다
+ *  (오르면 초록 up · 내리면 붉게 down). 주 능력치 하나와 옵션들을 슬롯별로 모아 뺀다.
+ *  뜻·단위는 core.js(GEAR·AFFIX)가 쥐므로 화면은 라벨만 읽는다(같은 식이 두 곳이면 갈라진다). */
+const gearCmpHtml = (bag) => {
+  const cur = equipped(bag.k), g = GEAR[bag.k];
+  const sgn = (d) => d > 0 ? "+" : "−";
+  const primDelta = (d) => bag.k === "wand" ? `${sgn(d)}${Math.round(Math.abs(d) * 100)}%`
+                        : bag.k === "robe" ? `${sgn(d)}${Math.abs(d)}`
+                        : `${sgn(d)}${Math.abs(d).toFixed(1)}/초`;
+  const sum = (arr, id) => (arr || []).filter((a) => a.id === id).reduce((s, a) => s + a.v, 0);
+  const rows = [];
+  const dPrim = g.val[bag.tier] - (cur ? g.val[cur.tier] : 0);
+  if (Math.abs(dPrim) > 1e-9) rows.push([g.d, dPrim, primDelta(dPrim)]);
+  const ids = [...new Set([...(cur?.af || []).map((a) => a.id), ...bag.af.map((a) => a.id)])];
+  for (const id of ids) {
+    const d = sum(bag.af, id) - sum(cur?.af, id);
+    if (Math.abs(d) < 1e-9) continue;
+    const av = id === "mp" ? Math.abs(d).toFixed(1) : Math.abs(d);
+    rows.push([AFFIX[id].n, d, `${sgn(d)}${av}${AFFIX[id].u}`]);
+  }
+  return `<div class="tipCmp"><div class="tipKind">${cur ? "지금 낀 것과 견줌" : "빈 슬롯 — 끼면 새로 걸린다"}</div>` +
+    (rows.length
+      ? rows.map(([n, d, t]) => `<div class="tipStat ${d > 0 ? "up" : "down"}">${n} <b>${t}</b></div>`).join("")
+      : `<div class="tipStat">셈은 그대로다</div>`) +
+    `</div>`;
+};
+
 /** 고른 것의 옵션 — 상점 툴팁과 **같은 모양**(tipName 색=등급 · tipKind · tipStat · tipAf).
- *  가방 것이면 「끼기」 하나. 낀 것을 고르면 단추는 없다. */
+ *  가방 것이면 「지금 낀 것과의 차이」 + 「끼기」. 낀 것을 고르면 그대로 보여 준다. */
 const statTipHtml = () => {
   if (!statSel) return `<div class="tipKind">칸을 고르면 뜯어본다 · 가방 것은 「끼기」로 낀다</div>`;
   const it = statSel.src === "bag" ? META.bag[statSel.i] : equipped(statSel.k);
@@ -1682,6 +1709,7 @@ const statTipHtml = () => {
     <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
     ruleHtml(it) +
     it.af.map((a) => `<div class="tipAf">${afText(a)}</div>`).join("") +
+    (statSel.src === "bag" ? gearCmpHtml(it) : "") +
     (statSel.src === "bag"
       ? `<div class="tipBuy"><button class="btn" data-bagwear="${statSel.i}">끼기</button></div>`
       : "");
@@ -1711,11 +1739,12 @@ function drawStat() {
 /** 가방 — 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. */
 function drawBag() {
   /* 낀 것 셋 — 슬롯마다 하나. 빈 슬롯은 .cell.empty(어느 슬롯인지 그림만 흐리게 남긴다). */
-  const eqCells = GEAR_KEYS.map((k) => {
+  const gearSlot = (k) => {
     const it = equipped(k);
-    if (!it) return `<div class="cell empty"><i class="gear-${k}"></i></div>`;
-    return gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k, META.plus[k] | 0);
-  }).join("");
+    return it
+      ? gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k, META.plus[k] | 0)
+      : `<div class="cell empty"><i class="gear-${k}"></i></div>`;
+  };
 
   /* 가방 — 12칸. 채운 칸은 그 물건, 빈 칸은 .cell.empty. */
   const bagCells = Array.from({ length: BAG_MAX }, (_, i) => {
@@ -1726,7 +1755,13 @@ function drawBag() {
 
   $("bagBody").innerHTML =
     `<div class="sCols">
-      <div class="sSec eq"><h3>낀 것</h3><div class="grid">${eqCells}</div></div>
+      <div class="sSec eq"><h3>낀 것</h3>
+        <div class="pdoll">
+          <div class="pdChar"><img src="assets/char/necro/south.png" alt="네크로맨서"></div>
+          <div class="pdSlot pd-charm">${gearSlot("charm")}</div>
+          <div class="pdSlot pd-wand">${gearSlot("wand")}</div>
+          <div class="pdSlot pd-robe">${gearSlot("robe")}</div>
+        </div></div>
       <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
         <div class="grid">${bagCells}</div></div>

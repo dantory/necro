@@ -1,4 +1,5 @@
-// ③ 상태창 검수기 — 낀 것 셋·가방 12칸·등급 색·끼기·closeAll 을 한 판에 잰다.
+// ③ 가방(페이퍼 돌) 검수기 — 낀 것 셋·가방 12칸·등급 색·끼기·closeAll 을 한 판에 잰다.
+//   (낀 것 셋은 2026-08-13 분리로 능력치창이 아니라 **가방창(winBag)**에 산다.)
 //   node tools/stat_ui.mjs <out.png>
 // boss_probe.mjs 와 **같은 뼈대**(CDP 9333 + 127.0.0.1:8774/index.html). 각 줄을
 // PASS/FAIL 로 찍고, 하나라도 FAIL 이면 exit code 1 로 나가 커밋을 막는다.
@@ -40,7 +41,7 @@ await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4000));
 
 /* ══ 판 안에서 심고·열고·잰다 ══ 등급이 다른 셋을 옵션과 함께 낀 것에 심고, 가방을
-   **정확히 12개**로 채운 뒤 __openWin("stat") 로 연다. 색은 D2 표(style/hud 의 t0~t4)
+   **정확히 12개**로 채운 뒤 __openWin("bag") 로 연다. 색은 D2 표(style/hud 의 t0~t4)
    그대로여야 하므로 **바라는 rgb 를 여기 박아** 화면의 계산색과 대조한다 — 새 색표를
    몰래 끼웠으면 여기서 어긋난다. */
 const R = await ev(`(function(){
@@ -52,12 +53,12 @@ const R = await ev(`(function(){
   const ks = ["wand","robe","charm"];
   for (let i=0;i<12;i++) META.bag.push({ k:ks[i%3], tier:1+(i%4), af: (i%2)?[{id:"dmg",v:5}]:[] });
   window.saveMeta && window.saveMeta();
-  window.__openWin("stat");
+  window.__openWin("bag");
 
   const q = s => [...document.querySelectorAll(s)];
-  const win = document.getElementById("winStat");
-  const eq  = q("#statBody .sSec.eq .cell:not(.empty)");
-  const bag = q("#statBody .sSec.bag .cell:not(.empty)");
+  const win = document.getElementById("winBag");
+  const eq  = q("#bagBody .sSec.eq .cell:not(.empty)");
+  const bag = q("#bagBody .sSec.bag .cell:not(.empty)");
 
   // ① 열렸는가 · 낀 칸 3 · 가방 칸 12
   const opened = win.classList.contains("on");
@@ -77,7 +78,7 @@ const R = await ev(`(function(){
   }
   // 툴팁 이름 색도 등급을 따르는가 — 낀 wand(t1) 를 골라 본다
   document.querySelector('[data-spick="wand"]').click();
-  const tipName = document.querySelector("#statTip .tipName");
+  const tipName = document.querySelector("#bagTip .tipName");
   const tipCls = tipName && tipName.classList.contains("t1");
   const tipColor = tipName && getComputedStyle(tipName).color === WANT.t1;
 
@@ -95,16 +96,18 @@ const W = await ev(`(function(){
   const hadBtn = !!document.querySelector('[data-bagwear]');
   document.querySelector('[data-bagwear]').click();        // 끼운다
   return { hadBtn, worn: META.equip[key] === target, bagLen: META.bag.length,
-           redrawn: [...document.querySelectorAll('#statBody .sSec.bag .cell:not(.empty)')].length };
+           redrawn: [...document.querySelectorAll('#bagBody .sSec.bag .cell:not(.empty)')].length };
 })()`);
 
 /* ④ closeAll 누락 잡기 — 상태창을 연 채 상인을 열면 상태창이 닫혀야 한다. */
 const C = await ev(`(function(){
-  window.__openWin("stat");
-  const before = document.getElementById("winStat").classList.contains("on");
-  window.__openWin("shop");
-  const after = document.getElementById("winStat").classList.contains("on");
-  window.__openWin("stat");   // 스크린샷은 상태창으로 되돌려 찍는다
+  // __openWin 은 **토글**이라 이미 열려 있으면 다시 부르면 닫힌다(main.js 1958). ③까지
+  // 오면 가방창이 열린 채이므로, 닫지 않게 안 열렸을 때만 연다.
+  if (!document.getElementById("winBag").classList.contains("on")) window.__openWin("bag");
+  const before = document.getElementById("winBag").classList.contains("on");
+  window.__openWin("shop");   // closeAll 이 가방창을 닫아야 한다
+  const after = document.getElementById("winBag").classList.contains("on");
+  window.__openWin("bag");    // 스크린샷은 가방(페이퍼 돌)으로 되돌려 찍는다(shop→bag 은 토글이 아니라 교체)
   return { before, closedAfterShop: !after };
 })()`);
 

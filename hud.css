@@ -40,7 +40,11 @@
    판(124) − 아래 여백(9) = 115 ≥ 구슬(112). 눈대중이 아니라 계산으로 맞춘다. */
 :root{ /* ★ 판 높이는 구슬(128) + 아래 여백(9) + **구슬 위 숫자**(약 36) 이다.
    숫자를 위로 뺐으니 그만큼 자리를 잡아 줘야 자가 「넘쳤다」고 하지 않는다. */
-  --hudH:176px; --orb:128px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c; }
+  --hudH:176px; --orb:128px; --gold:#c8aa6e; --gold-d:#6b5730; --iron:#2a241c;
+  /* ★★ 등급색을 **한 약속**으로 모은다 — 흰(일반)·파랑(마법)·노랑(희귀)·금갈(세트/유니크)·초록.
+     예전엔 .t0~.t4 에만 박혀 있어 「칸 테두리」가 등급색을 못 썼다. 이제 이름(.t*)·칸
+     테두리(--ring)·툴팁이 **같은 변수**를 읽는다. 값(hex)은 그대로라 검수기의 rgb 표와 안 어긋난다. */
+  --t0:#d6d0c4; --t1:#6a6aff; --t2:#ffff64; --t3:#bfa06a; --t4:#00c000; }
 
 /* ── 판 ── flex 한 줄. **이것이 전부다.**
    ★★ 병수님: "하단UI 영역을 맵이랑 구분해놔서 어색한듯, 화면에 UI가 떠있는
@@ -299,7 +303,12 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:13px}
 .cell{aspect-ratio:1;position:relative;cursor:pointer;
   background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
-  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #4a3a28}
+  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px var(--ring,#4a3a28)}
+.cell.rar-t0{--ring:var(--t0)}
+.cell.rar-t1{--ring:var(--t1)}
+.cell.rar-t2{--ring:var(--t2)}
+.cell.rar-t3{--ring:var(--t3)}
+.cell.rar-t4{--ring:var(--t4)}
 .cell.empty{cursor:default;background:linear-gradient(#150c08 0 40%,#0e0806 40%);
   box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #2a2016}
 .cell.sel{box-shadow:inset 0 0 8px #000, inset 0 0 0 1px var(--gold), 0 0 8px #c8aa6e44}
@@ -336,6 +345,8 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .tipStat b{color:#c9bda4;font-weight:400}
 .tipStat.up{color:#8ac06a}
 .tipStat.up b{color:#8ac06a}
+.tipStat.down,.tipStat.down b{color:#d0796a}
+.tipCmp{margin-top:10px;padding-top:8px;border-top:1px solid #241d16}
 .tipNext{margin-top:8px;padding-top:7px;border-top:1px solid #241d16}
 .tipNote{margin-top:8px;color:#6b5f4e}
 .tipBuy{margin-top:16px;display:flex;align-items:center;justify-content:flex-end;gap:18px}
@@ -348,11 +359,11 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 /* ★★ **등급 색이 디아블로의 얼굴이다.** 흰(일반) · 파랑(매직) · 노랑(레어) ·
    금갈(유니크) · 초록(세트). 화면 톤에서 파랑을 뺐지만 **여기서는 넣는다** —
    이 색들은 「분위기」가 아니라 **약속**이라, 바꾸면 못 알아본다. */
-.t0{color:#d6d0c4}
-.t1{color:#6a6aff}
-.t2{color:#ffff64}
-.t3{color:#bfa06a}
-.t4{color:#00c000}
+.t0{color:var(--t0)}
+.t1{color:var(--t1)}
+.t2{color:var(--t2)}
+.t3{color:var(--t3)}
+.t4{color:var(--t4)}
 /* ★ 유니크 — 등급 다섯 색과도 겹치지 않는 **주황 하나**. 「이게 나오면 판이 달라진다」가
    목록에서 한눈에 튀어야 하므로 은은한 발광을 준다(등급은 색만, 유니크는 색+빛). */
 .uniq{color:#ff8c1a;text-shadow:0 0 6px rgba(255,120,0,.55)}
@@ -753,10 +764,20 @@ body.in-town #hTactic{ display:inline-block; }
 /* 방치형은 폰이 먼저이므로 **쌓는 것이 기본**이고, 480px 이상에서만 나란히 둔다. */
 .sCols{display:flex;flex-direction:column;gap:14px}
 .sSec h3{margin:0 0 8px;font-size:14px;letter-spacing:2px;color:#a08f6c;font-weight:normal}
-/* 낀 것은 셋이라 3칸, 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
-.sSec.eq  .grid{grid-template-columns:repeat(3,1fr);margin-bottom:0}
+/* 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
 .sSec.bag .grid{grid-template-columns:repeat(6,1fr);margin-bottom:0}
 .sFuse{font-size:11px;line-height:1.4;color:#8a7a5c;margin:0 0 8px}
+/* ── 페이퍼 돌 ── 낀 것 셋을 목록처럼 늘어놓지 않고 가운데 인물 그림 둘레에 D2 결로
+   건다: 무기는 왼쪽(wpn)·갑옷은 오른쪽(arm)·부적은 목(neck, 위 가운데). 슬롯 자리는
+   grid-template-areas 로 잡아 DOM 순서와 무관하다. 인물은 남향 대기 한 장을 픽셀 확대. */
+.pdoll{display:grid;grid-template-columns:46px 1fr 46px;grid-template-rows:auto auto;
+  grid-template-areas:". neck ." "wpn char arm";
+  gap:8px 10px;align-items:center;justify-items:center;max-width:236px;margin:0 auto}
+.pdChar{grid-area:char;align-self:stretch;display:flex;align-items:center;justify-content:center}
+.pdChar img{width:100%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
+.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}.pd-charm{grid-area:neck}
+.pdSlot{width:46px}
+.pdSlot .cell{width:100%}
 /* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
 .sSec.eq .cell.empty i{opacity:.24}
 /* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
