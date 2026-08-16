@@ -416,6 +416,69 @@ function drawOne(base, x, gy, h, fallback, e) {
   if (born < 1) ctx.restore();
 }
 
+/* ══ 네크로멘서의 **표식** ══ 발밑 소환진(웅덩이 + 이중 고리) + 몸 뒤의 보랏빛.
+   ──────────────────────────────────────────────────────────────
+   ★ **마을과 던전이 같은 함수를 쓴다.** 던전에만 이 표식이 있어서 병수님이
+     「네크로멘서 색이 마을과 던전에서 다르다(마을 파랑 · 던전 보라)」고 하셨다.
+     화소를 재 보니 **로브 색은 두 화면이 한 톨도 안 다르다**((59,49,96)·(54,42,93)
+     둘 다 같다) — 다른 것은 옷이 아니라 **그가 딛고 선 빛**이었다. 던전에서는
+     보랏빛 웅덩이 안에 서 있고, 마을에서는 모닥불의 누런 흙 위에 서 있으니
+     같은 보라가 한쪽에서는 남색으로 읽힌 것이다.
+     그래서 **색을 칠하지 않고 표식을 옮긴다** — 마을에도 같은 진을 깔되 세기만 낮춘다
+     (쉬는 중이니 옅고 느리게). 값을 베껴 적으면 한쪽만 고치게 되므로 함수 하나다.
+   opt: gain 세기(마을 0.45) · danger 위태로움(붉게) · cast 시전 진행도 · R 반지름 상한 */
+function necroSigil(ctx, x, gy, hh, t, squash, us, opt = {}) {
+  const gain   = opt.gain ?? 1;
+  const danger = !!opt.danger, cast = opt.cast || 0;
+  const RGB    = danger ? "214,58,44" : "150,96,232";   // 위태로우면 붉게 물든다
+  const spin   = danger ? 5.0 : 1.6;                    // 위태로우면 맥동이 빨라진다
+  const pulse  = 0.5 + 0.5 * Math.sin(t * spin);
+  const hot    = (0.55 + 0.45 * pulse) * gain;
+  const boost  = (cast > 0 ? 0.5 : 0) * gain;           // 시전하는 동안 소환진이 밝아진다
+  const R      = opt.R ?? hh * 0.62;
+
+  ctx.save();
+  ctx.translate(x, gy); ctx.scale(1, squash);   // 바닥면으로 눕혀 회전이 SQUASH 를 안 깬다
+  /* 땅에서 배어 나오는 보라 웅덩이 */
+  const pool = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, R * 1.18);
+  pool.addColorStop(0, `rgba(${RGB},${0.32 * hot + boost * 0.34})`);
+  pool.addColorStop(0.6, `rgba(${RGB},${0.13 * hot})`);
+  pool.addColorStop(1, `rgba(${RGB},0)`);
+  ctx.fillStyle = pool;
+  ctx.beginPath(); ctx.arc(0, 0, R * 1.18, 0, 6.2832); ctx.fill();
+  /* 이중 고리 — 조각난 호로 그려야 회전이 눈에 보인다(민 원은 돌아도 안 보인다).
+     바깥은 느리게 시계방향, 안쪽은 반대로 조금 빠르게 — 조각 수도 달라 둘이 갈린다. */
+  const arcRing = (rad, rot, segs, lw, a) => {
+    ctx.strokeStyle = `rgba(${RGB},${a})`; ctx.lineWidth = lw; ctx.lineCap = "round";
+    const st = 6.2832 / segs;
+    for (let i = 0; i < segs; i++) { const g0 = rot + i * st;
+      ctx.beginPath(); ctx.arc(0, 0, rad, g0, g0 + st * 0.55); ctx.stroke(); }
+  };
+  const lw = Math.max(1.2, us * 1.3);
+  arcRing(R,        t * 0.35, 10, lw,       0.5 * hot + boost * 0.4);
+  arcRing(R * 0.64, -t * 0.52, 7, lw * 0.9, 0.55 * hot + boost * 0.4);
+  /* 시전한 순간이 발밑에 온다 — 고리 하나가 바깥으로 퍼지며 사라진다(pswing 이 사는 동안). */
+  if (cast > 0) {
+    const cp = 1 - cast;                           // 0 → 1
+    ctx.globalAlpha = 0.55 * (1 - cp) * gain;
+    ctx.strokeStyle = `rgba(${RGB},0.9)`;
+    ctx.lineWidth = Math.max(1.5, us * 1.8 * (1 - cp * 0.5));
+    ctx.beginPath(); ctx.arc(0, 0, R * (1 + 1.4 * cp), 0, 6.2832); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  /* 어둠에서 떼어낸다 — 몸 **뒤로** 은은한 보랏빛을 얹어 어두운 바닥과 가른다.
+     덧칠이 아니라 뒷광이라(몸은 이 다음에 그린다) 실루엣을 뭉개지 않는다. */
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const aura = ctx.createRadialGradient(x, gy - hh * 0.35, 2, x, gy - hh * 0.35, hh * 0.72);
+  aura.addColorStop(0, `rgba(${RGB},${0.16 * hot + boost * 0.2})`);
+  aura.addColorStop(1, `rgba(${RGB},0)`);
+  ctx.fillStyle = aura;
+  ctx.beginPath(); ctx.ellipse(x, gy - hh * 0.35, hh * 0.42, hh * 0.72, 0, 0, 6.2832); ctx.fill();
+  ctx.restore();
+}
+
 /* ══ 판을 **위에서 비스듬히** 본다 ══
    사방에서 오는 판이라 옆에서 보면 앞뒤가 겹쳐 아무것도 안 읽힌다. 그렇다고 정확히
    위에서 보면 **옆모습으로 구운 스프라이트**가 누워 버린다(디아블로 2 도 같은 이유로
@@ -563,7 +626,16 @@ function draw(dt) {
        안 옮긴 것**이 잘못이었다(memory/carry-fixes-forward).
        자: `tools/town_alive_probe.mjs` — 갓 켠 마을에 그냥 서서 한 바퀴를 지켜본다. */
     const [gdx, gdy] = townGaze(townT);
-    drawOne("char/necro", cx, cy + 6 * sc * SQUASH, 54 * us, "#2b2b52",
+    /* ★ 던전에만 있던 **소환진을 마을에도** 깐다 — 병수님 「네크로멘서 색이 마을과
+       던전에서 다르다」. 로브 화소는 두 화면이 똑같았고(재 봤다), 다른 것은
+       **발밑의 빛**이었다: 던전은 보랏빛 웅덩이, 마을은 모닥불의 누런 흙.
+       세기는 던전의 6할(gain 0.6)로 — 마을은 싸우는 자리가 아니라 쉬는 자리다.
+       ★ 처음에 0.45 로 놓고 **크게 잘라 본 그림에서만** 확인했더니 통과로 보였는데,
+         화면 전체로 보니 거의 안 보였다 — 안 보이는 표식은 표식이 아니다
+         ([[play-it-before-measuring-it]]). */
+    const tny = cy + 6 * sc * SQUASH, tnh = 54 * us;
+    necroSigil(ctx, cx, tny, tnh, townT, SQUASH, us, { gain: 0.6 });
+    drawOne("char/necro", cx, tny, tnh, COL.necro,
             { id: "necro", dx: gdx, dy: gdy, bob: townBreath(townT) });
     drawTownLabels(ctx);
     return;
@@ -764,8 +836,7 @@ function draw(dt) {
       /* ══ 소환진 ══ **「이 판의 주인이 저기 있다」를 그림만으로.** 네크로는 어두운 색
          (COL.necro)이라 어두운 바닥에 묻히고, 크기(58)로도 소환수와 잘 안 갈렸다.
          발밑에 소환수 룬(footRune, hh*0.30)보다 확실히 큰 **이중 고리**를 깐다 —
-         바깥·안쪽이 서로 반대로 아주 느리게 돌고(등속·경과 시간), 땅에서 배어 나온다.
-         색만 다른 같은 고리면 뜻이 없으므로 **크기와 겹**으로 주인 것임을 드러낸다.
+         그림 자체는 `necroSigil` 하나에 있다(마을도 같은 것을 옅게 쓴다).
          ★ 진의 둘레 RING_HOLD(=105, 화면엔 RING_HOLD*1.2*sc 로 그린다)와 겹치면 안 된다 —
            반경을 RING_HOLD*0.72*sc 로 상한 잡아 확실히 안쪽에 둔다. */
       const ncx = px(0), ncy = py(0), nhh = 70 * us;   // 판의 인간형 중 제일 크게
@@ -773,54 +844,9 @@ function draw(dt) {
       const danger = hpFrac < 0.3;                     // ④의 core 숫자는 맞는 순간만 뜬다 —
       /* ★ 발밑 고리는 **시전(pcast)** 이 켠다 — 팔 자세(pswing)와 갈라 뒀다(battle.js).
          소환하면서 뼈를 던져도 팔은 던지기, 발밑은 소환으로 따로 읽힌다. */
-      const cast   = Math.max(0, Math.min(1, (S.pcast || 0) / SWING_T));    // 「지금 위태롭다」를 상시로
-      const RGB    = danger ? "214,58,44" : "150,96,232";   // 위태로우면 붉게 물든다
-      const spin   = danger ? 5.0 : 1.6;               // 위태로우면 맥동이 빨라진다
-      const pulse  = 0.5 + 0.5 * Math.sin(battleT * spin);
-      const hot    = 0.55 + 0.45 * pulse;
-      const boost  = cast > 0 ? 0.5 : 0;               // 시전하는 동안 소환진이 밝아진다
-      const R      = Math.min(nhh * 0.62, RING_HOLD * 0.72 * sc);
-
-      ctx.save();
-      ctx.translate(ncx, ncy); ctx.scale(1, SQUASH);   // 바닥면으로 눕혀 회전이 SQUASH 를 안 깬다
-      /* 땅에서 배어 나오는 보라 웅덩이 */
-      const pool = ctx.createRadialGradient(0, 0, R * 0.1, 0, 0, R * 1.18);
-      pool.addColorStop(0, `rgba(${RGB},${0.32 * hot + boost * 0.34})`);
-      pool.addColorStop(0.6, `rgba(${RGB},${0.13 * hot})`);
-      pool.addColorStop(1, `rgba(${RGB},0)`);
-      ctx.fillStyle = pool;
-      ctx.beginPath(); ctx.arc(0, 0, R * 1.18, 0, 6.2832); ctx.fill();
-      /* 이중 고리 — 조각난 호로 그려야 회전이 눈에 보인다(민 원은 돌아도 안 보인다).
-         바깥은 느리게 시계방향, 안쪽은 반대로 조금 빠르게 — 조각 수도 달라 둘이 갈린다. */
-      const arcRing = (rad, rot, segs, lw, a) => {
-        ctx.strokeStyle = `rgba(${RGB},${a})`; ctx.lineWidth = lw; ctx.lineCap = "round";
-        const st = 6.2832 / segs;
-        for (let i = 0; i < segs; i++) { const g0 = rot + i * st;
-          ctx.beginPath(); ctx.arc(0, 0, rad, g0, g0 + st * 0.55); ctx.stroke(); }
-      };
-      const lw = Math.max(1.2, us * 1.3);
-      arcRing(R,        battleT * 0.35, 10, lw,       0.5 * hot + boost * 0.4);
-      arcRing(R * 0.64, -battleT * 0.52, 7, lw * 0.9, 0.55 * hot + boost * 0.4);
-      /* 시전한 순간이 발밑에 온다 — 고리 하나가 바깥으로 퍼지며 사라진다(pswing 이 사는 동안). */
-      if (cast > 0) {
-        const cp = 1 - cast;                           // 0 → 1
-        ctx.globalAlpha = 0.55 * (1 - cp);
-        ctx.strokeStyle = `rgba(${RGB},0.9)`;
-        ctx.lineWidth = Math.max(1.5, us * 1.8 * (1 - cp * 0.5));
-        ctx.beginPath(); ctx.arc(0, 0, R * (1 + 1.4 * cp), 0, 6.2832); ctx.stroke();
-        ctx.globalAlpha = 1;
-      }
-      ctx.restore();
-      /* 어둠에서 떼어낸다 — 몸 **뒤로** 은은한 보랏빛을 얹어 어두운 바닥과 가른다.
-         덧칠이 아니라 뒷광이라(몸은 이 다음에 그린다) 실루엣을 뭉개지 않는다. */
-      ctx.save();
-      ctx.globalCompositeOperation = "lighter";
-      const aura = ctx.createRadialGradient(ncx, ncy - nhh * 0.35, 2, ncx, ncy - nhh * 0.35, nhh * 0.72);
-      aura.addColorStop(0, `rgba(${RGB},${0.16 * hot + boost * 0.2})`);
-      aura.addColorStop(1, `rgba(${RGB},0)`);
-      ctx.fillStyle = aura;
-      ctx.beginPath(); ctx.ellipse(ncx, ncy - nhh * 0.35, nhh * 0.42, nhh * 0.72, 0, 0, 6.2832); ctx.fill();
-      ctx.restore();
+      const cast = Math.max(0, Math.min(1, (S.pcast || 0) / SWING_T));
+      necroSigil(ctx, ncx, ncy, nhh, battleT, SQUASH, us,
+                 { danger, cast, R: Math.min(nhh * 0.62, RING_HOLD * 0.72 * sc) });
 
       /* 맞으면 본인도 움찔한다 — 소환수·적은 되는데 본인만 안 되면 「내가 맞았다」가
          숫자로만 온다(그리는 쪽은 flinch 하나로 셋 다 같은 안무를 쓴다). */
