@@ -161,14 +161,27 @@ let seq = 0;
  *  ★ 바깥에서 S.log 를 직접 건드리면(main.js toTown) 이어짐이 끊겨야 하므로
  *    그쪽도 sayReset() 을 부른다. 안 그러면 사이에 낀 줄을 건너뛰고 접힌다. */
 let lastSaid = null, lastN = 0;
+
+/** **이름과 나머지를 가른다** (병수님 2026-08-15: "로그 두 줄이 전장 아래를 큰 글씨로
+ *  덮는다 … 사건 이름과 숫자를 갈라 한 줄로 줄일 것").
+ *  모든 줄이 `<b>이름</b> 딸린 말` 꼴이라 **자리(seam)가 하나뿐이다** — 스무 군데의
+ *  say() 를 하나씩 고치는 대신 여기서 한 번에 가른다([[seam-not-values]]).
+ *  앞의 `<b …>…</b>` 는 그대로 두고, 뒤에 남은 것을 `.d` 로 싸서 **작고 옅게** 만든다.
+ *  글자 수는 그대로인데 뒤가 0.8배로 앉으므로 같은 폭에 한 줄이 다 들어간다.
+ *  ★ 접힘 판정(lastSaid)은 **싸기 전 원문**으로 한다 — 안 그러면 같은 말이 안 겹친다. */
+const fmtSay = (s) => {
+  const m = /^(\s*<b\b[^>]*>.*?<\/b>)([\s\S]+)$/.exec(s);
+  return m ? `${m[1]}<i class="d">${m[2]}</i>` : s;
+};
+
 export const sayReset = () => { lastSaid = null; lastN = 0; };
 export const say = (s) => {
   if (s === lastSaid && S.log.length) {
-    S.log[0] = `${s} <b style="color:#8a7f6a">×${++lastN}</b>`;
+    S.log[0] = `${fmtSay(s)} <b style="color:#8a7f6a">×${++lastN}</b>`;
     return;
   }
   lastSaid = s; lastN = 1;
-  S.log.unshift(s); if (S.log.length > 6) S.log.pop();
+  S.log.unshift(fmtSay(s)); if (S.log.length > 6) S.log.pop();
 };
 /* ⑦ 일지 알림은 **핵심 사건이 이미 흐르는 로그(say)를 그대로 쓴다** — 새 토스트 틀은
    안 만든다. core.js 가 say 를 직접 import 하면 순환이라, 콜백으로 건넨다. */
@@ -812,7 +825,10 @@ export function cast(id) {
     }
     S.fx.push({ t: 0.35, x: bx, y: by, kind: "nova", rad });
     gib(bx, by, gulp);                              // 터진 자리에서 뼛조각이 튄다
-    say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` 시체 ${gulp}구` : ""} · ${hit}마리 · 각 ${Math.round(dmg)} 피해`);
+    /* ★ 이 줄이 제일 길었다 — 「시체 폭발 시체 4구 · 2마리 · 각 1597 피해」.
+       「시체」가 이름에 이미 있고(시체 폭발), 「구/마리/피해」는 숫자만 봐도 읽힌다.
+       ×4 · 2마리 · 1597 로 줄이면 절반이다. */
+    say(`<b style="color:#ff8000">시체 폭발</b>${gulp > 1 ? ` ×${gulp}` : ""} · ${hit}마리 · ${Math.round(dmg)}`);
   }
   if (id === "burn") {
     const gain = gulp * BURN_MP;
