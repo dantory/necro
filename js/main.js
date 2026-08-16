@@ -1358,8 +1358,41 @@ function hud() {
      두 줄로 접어 버린다(129/120423 처럼 길어질수록 심해진다). 숨길 수 있으려면
      따로 있어야 한다(hud.css 의 좁은 화면 규칙). 막대가 이미 진행을 보여 준다. */
   $("xpNum").innerHTML = `Lv.${META.lv} <span class="xpNumFrac">${META.xp | 0}/${need}</span>`;
-  $("log").innerHTML = S.log.slice(0, 3).map(l => `<div>${l}</div>`).join("");
+  /* 서른 줄 넘게 낸다 — 좁은 창에서는 hud.css 가 높이로 세 줄만 남기고 자른다(overflow).
+     넓은 창에서는 왼쪽 패널이 그 열넉 줄을 다 세운다(「일지」). */
+  $("log").innerHTML = S.log.slice(0, 34).map(l => `<div>${l}</div>`).join("");
+  sideRail();
   beltState();
+}
+
+/** ══ 옆 패널 채우기 ══ (PC 전용 2단계)
+ *  넓은 창에서만 보이지만 **좁은 창에서도 그린다** — 창을 넓히는 순간 채워져야 하고,
+ *  안 보이는 동안 안 그리려면 resize 를 듣는 자리가 하나 더 생긴다(어긋날 자리도 하나 더).
+ *  값은 이미 매 틱 도는 이 함수가 들고 있는 것뿐이라 새 계산이 없다. */
+function sideRail() {
+  const rA = $("rArmy"), rG = $("rGear");
+  if (!rA || !rG) return;
+  /* 군세 — 종류별로 센다. **마을에서는 마릿수가 뜻이 없다**(서 있는 하수인이 없다) —
+     같은 자리에 「다음 판에 데려갈 상한」만 적는다(아래 판의 gArmy 와 같은 결). */
+  const town = MODE.at === "town";
+  const cnt = {};
+  if (!town) for (const u of S.minions) if (!u.own) cnt[u.kind] = (cnt[u.kind] | 0) + 1;
+  rA.innerHTML = Object.entries(MINIONS).map(([k, m]) => {
+    const v = cnt[k] | 0;
+    return `<div class="r${town || v ? "" : " zero"}"><span class="i">${m.ico}</span>` +
+           `<span class="n">${m.n}</span><span class="v">${town ? "—" : v}</span></div>`;
+  }).join("") +
+  (town ? `<div class="cap">상한 <b>${armyCap()}</b></div>`
+        : `<div class="cap">군세 <b>${armyN()}/${armyCap()}</b>${thrallN() ? ` · 지배 <b>${thrallN()}</b>` : ""}` +
+          ` · 시체 <b>${S.corpses}</b></div>`);
+  /* 낀 것 — 빈 칸은 안 그린다. 하나도 없으면 그 말을 한 줄로 한다(빈 상자는 고장으로 읽힌다). */
+  const rows = GEAR_KEYS.map(k => {
+    const it = equipped(k); if (!it) return "";
+    return `<div class="r" title="${GEAR[k].n} — ${GEAR[k].d}">` +
+           `<i style="background-image:url(assets/ui/gear/${k}.png)"></i>` +
+           `<span class="n t${it.tier}">${nameOf(it)}</span></div>`;
+  }).join("");
+  rG.innerHTML = rows || `<div class="none">아직 낀 것이 없다</div>`;
 }
 
 /** **자동으로 소환한다.** 방치형이므로 사람이 안 눌러도 군대는 선다 —

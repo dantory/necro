@@ -405,6 +405,126 @@ body.in-town #stage{cursor:pointer}
 
 
 /* ══════════════════════════════════════════════════════════════
+   옆 패널 — PC 전용 2단계 (병수님 2026-08-16 17:32 「pc전용 게임임」)
+   ──────────────────────────────────────────────────────────────
+   1단계에서 무대에 상한(1120×760)을 두고 가운데 세웠다. 그러자 1512 창에서
+   **좌우 196px 이 아무것도 없는 어둠**으로 남았다 — 「가운데 정렬한 폰 화면」이다.
+   D2 가 PC 게임으로 읽히는 까닭은 무대 옆에 **물건과 수치가 상시로 서 있기** 때문이다.
+
+   ★ 폭을 여백에서 **계산해 받는다**(고정값 금지). 여태 좌표로 조립해 아홉 번 어긋난
+     그 자리다 — `(100vw - 무대) / 2 - 틈` 이면 창이 어떤 폭이어도 무대를 안 파고든다.
+   ★ 1500 아래에서는 **통째로 안 뜬다.** 여백이 150px 도 안 되는 창에서 억지로 세우면
+     그건 패널이 아니라 침범이다. 그때는 로그도 나가기도 예전 자리로 돌아간다.
+   ★ 세로는 **무대와 정확히 같은 상자**다(top·height 식이 style.css #stage 와 한 벌).
+     한 톨이라도 어긋나면 셋이 「다른 화면 세 개」로 읽힌다 — 1단계에서 위 띠·아래 판을
+     같은 폭으로 맞춘 것과 같은 이유다.
+   ══════════════════════════════════════════════════════════════ */
+/* ★ 세로 상자는 **#stage 의 최종값을 그대로 베낀다.** 무대의 top 은 style.css 가
+     `--panelH`(124) 로, height 는 이 파일이 `--hudH`(206) 로 정한다 — 둘이 다른 값이라
+     한쪽 식만 쓰면 어긋난다. 실제로 처음엔 `--hudH` 로만 셈해 **패널이 무대보다 8px
+     위**에 섰다(재 보기 전에는 안 보였다). 식 둘을 다 옮겨 적는 게 유일하게 맞는 길이다. */
+:root{ --railW:0px; --railGap:12px }
+.rail{display:none;position:fixed;width:var(--railW);z-index:16;
+  top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2);
+  height:min(calc(100% - var(--hudH)), var(--stageH));
+  flex-direction:column;gap:6px;padding:10px 12px;box-sizing:border-box;
+  overflow:hidden;pointer-events:none;
+  /* ★ 폭이 172px 라 **한글이 낱말 가운데서 꺾인다** — 병수님 사진(18:28)의 「입구」/「로」,
+     그리고 오른쪽 「시체 85」가 「시」/「체 85」로 쪼개졌다. 낱말 경계로만 꺾는다. */
+  word-break:keep-all;overflow-wrap:break-word;
+  /* 무대와 **같은 물건**으로 읽혀야 한다 — 테두리 한 줄·안쪽 그늘까지 #stage 와 같은 결 */
+  background:linear-gradient(#0f0b07e8,#0a0705f2);
+  box-shadow:0 0 0 1px #2a2318, 0 0 30px 10px #000 inset;
+  font-size:13px;color:#8c8271;letter-spacing:.2px}
+.rail .rTitle{color:var(--gold);font-size:12px;letter-spacing:3px;opacity:.85;
+  padding-bottom:3px;margin-top:2px;border-bottom:1px solid #2a2318;flex:0 0 auto}
+.rail .rTitle:first-child{margin-top:0}
+.rail .rSp{flex:1 1 auto;min-height:0}
+
+/* 군세 — 종류별 마릿수. **글리프는 core.js MINIONS.ico 가 들고 온다**(여기에 안 박는다). */
+.rArmy{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:2px 0}
+.rArmy .r{display:flex;align-items:baseline;gap:6px;line-height:1.5}
+.rArmy .r .i{width:14px;text-align:center;color:#c9bda4;font-size:12px}
+.rArmy .r .n{flex:1;color:#8c8271}
+.rArmy .r .v{color:#c9bda4;font-variant-numeric:tabular-nums}
+.rArmy .r.zero{opacity:.35}                    /* 안 선 종류도 **자리는 남긴다** — 사라지면 줄이 튄다 */
+.rArmy .cap{margin-top:3px;color:#79705f;font-size:11.5px}
+.rArmy .cap b{color:#c9bda4;font-weight:400}
+
+/* 낀 것 — 슬롯 아이콘 + 이름. 빈 칸은 안 그린다(열 칸을 다 세우면 「비었다」만 열 줄이다). */
+.rGear{flex:0 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:1px;padding:2px 0}
+.rGear .r{display:flex;align-items:center;gap:6px;line-height:1.45}
+.rGear .r i{width:16px;height:16px;flex:0 0 auto;background:no-repeat center/contain;
+  image-rendering:pixelated;opacity:.9}
+.rGear .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.rGear .none{color:#5d564a;font-size:11.5px}
+
+@media (min-width: 1500px){
+  /* 무대 밖 여백에서 폭을 받아 온다 — 240 은 상한일 뿐이다 */
+  :root{ --railW: min(240px, calc((100vw - var(--stageW)) / 2 - var(--railGap) - 6px)) }
+  .rail{display:flex}
+  #sideL{ right:calc(50vw + var(--stageW) / 2 + var(--railGap)) }
+  #sideR{ left: calc(50vw + var(--stageW) / 2 + var(--railGap)) }
+
+  /* ── 로그를 왼쪽 패널 안으로 ── (ROADMAP 「로그·나가기가 아직 무대 밖에 선다」)
+     여태 로그는 전장 아래에 **가로로 길게** 겹쳐 있었다. 1512 화면에서는 그 띠가
+     무대 밖 어둠까지 삐져나와 「떠다니는 자막」이 됐다(tmp/pc_f1.png 왼쪽 아래).
+     패널 안으로 들이면 자막이 아니라 **일지**가 된다 — 그리고 세 줄이 아니라
+     열넉 줄까지 남는다(좁아진 폭만큼 세로로 길어졌으니 되레 이득이다).
+     ★ 패널이 이미 바탕·테두리를 그리므로 로그 제 것(::before 자락·금테)은 끈다 —
+       상자 안에 또 상자가 생긴다. */
+  /* ★ 줄 수로 키를 잡지 **않는다** — 좁은 창에서는 세 줄이 맞지만 여기서는 패널이
+       694px 이라 열넉 줄(333px)만 차고 **아래 절반이 텅 빈 상자**가 됐다(눈으로 보고 알았다).
+       패널 발치까지 늘리고 넘치는 것은 자른다. 끝이 딱 끊기지 않게 아래로 사라지는 자락만 둔다. */
+  #log{ left:calc(50vw - var(--stageW) / 2 - var(--railGap) - var(--railW));
+        right:auto; width:var(--railW); box-sizing:border-box;
+        top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2 + 34px);
+        bottom:auto; font-size:13px;
+        height:calc(min(calc(100% - var(--hudH)), var(--stageH)) - 44px);
+        padding:2px 12px 0 12px; z-index:17;
+        -webkit-mask:linear-gradient(#000 0, #000 calc(100% - 26px), #0000 100%);
+        mask:linear-gradient(#000 0, #000 calc(100% - 26px), #0000 100%) }
+  /* ★ 폭이 좁다 — 한 줄로 흘리면 뒷말이 다 잘린다. 다만 **낱말 가운데서 꺾으면 안 된다**:
+     병수님 사진(18:28)에서 「마을 · 채비가 끝나면 입구」 / 「로」 로 조사 한 글자가 다음 줄에
+     혼자 떨어져 있었다. 한글은 낱말 경계로만 꺾는다(.jD 에 이미 쓰던 규칙과 같은 것). */
+  #log > *{ white-space:normal; word-break:keep-all; overflow-wrap:break-word }
+  #log::before, #log::after{ display:none }   /* 바탕·금테는 패널이 이미 그린다(상자 속 상자 금지) */
+
+  /* 나가기 — 오른쪽 패널 발치에 앉힌다(하늘에 떠 있던 그 단추다).
+     ★ `body` 를 붙여 **specificity 를 올린다.** 안 그러면 이 규칙(479줄)보다 뒤에 있는
+       `@media(min-width:900px)` 의 `#hLeave{top:56px}`(955줄)이 이긴다 — top 과 bottom 이
+       둘 다 잡혀 단추가 **626px 짜리 기둥**으로 늘어나 있었다(재 보기 전에는 안 보였다). */
+  /* ★★ 네 단추가 다 **화면**에 붙어 있었다(left:8px · right:8px) — 무대가 아니라.
+       패널을 세우자 그 자리가 그대로 패널 자리라, 마을에서 「편성·운용」은 왼쪽 패널
+       **밑에 깔려 사라졌고**(z-index 6 < 16) 「환생」은 오른쪽 패널 「군세」 줄 **위에
+       겹쳤다**. 넷 다 패널 안 제자리로 들인다:
+         · 오른쪽 발치 = 나가기(던전) · 환생(마을) — 둘은 같이 안 뜬다(한 자리로 족하다)
+         · 왼쪽 발치  = 편성 · 운용(마을) — 둘이 나란히
+       ROADMAP 「마을 왼쪽 위 편성·운용 단추가 수레 그림과 겹쳐 떠 있다」도 여기서 풀린다. */
+  body #hLeave, body #hReborn{ position:fixed; right:auto; top:auto;
+           left:calc(50vw + var(--stageW) / 2 + var(--railGap) + 12px);
+           width:calc(var(--railW) - 24px); justify-content:center;
+           font-size:13px; padding:5px 0; color:#c8a882;
+           bottom:calc(var(--hudH) + (100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2 + 14px);
+           z-index:18 }
+  body #hDoctrine, body #hTactic{ position:fixed; right:auto; top:auto;
+           width:calc((var(--railW) - 30px) / 2); justify-content:center;
+           font-size:13px; padding:5px 0;
+           bottom:calc(var(--hudH) + (100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2 + 14px);
+           z-index:18 }
+  body #hDoctrine{ left:calc(50vw - var(--stageW) / 2 - var(--railGap) - var(--railW) + 12px) }
+  body #hTactic  { left:calc(50vw - var(--stageW) / 2 - var(--railGap) - (var(--railW) - 30px) / 2 - 12px) }
+  /* 마을에서는 로그가 두 줄뿐이라 발치가 비지만, 깊은 판을 하고 돌아오면 긴 일지가
+     단추 밑까지 내려온다 — 자락(mask)을 단추 위에서 끊는다. */
+  body.in-town #log{ height:calc(min(calc(100% - var(--hudH)), var(--stageH)) - 82px) }
+  /* 창이 뜨면 로그를 숨기던 규칙(271줄)은 **여기서는 안 맞는다.** 그건 로그가 전장 위에
+     겹쳐 있어서 「전멸」 한 줄이 정산창보다 먼저 눈에 들어왔기 때문이다(2026-08-12).
+     패널로 옮긴 지금 로그는 창과 안 겹친다 — 숨기면 「일지」가 빈 상자로 남는다. */
+  body.winopen #log{ display:block }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
    로딩 — 병수님: "에셋 불러올때 시간이 좀 필요할거 같으니 로딩화면도 구현해주고"
    ──────────────────────────────────────────────────────────────
    **반쯤 그려진 판을 보여 주면 「깨진 것」으로 읽힌다.** 그림이 하나둘 나타나는 것을

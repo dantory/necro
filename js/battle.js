@@ -181,7 +181,10 @@ export const say = (s) => {
     return;
   }
   lastSaid = s; lastN = 1;
-  S.log.unshift(fmtSay(s)); if (S.log.length > 6) S.log.pop();
+  /* 여섯 줄이었다 — 좁은 창의 로그가 세 줄만 보이니 그 두 배면 넉넉했다.
+     PC 전용 2단계에서 **왼쪽 패널이 열넉 줄을 세운다**(hud.css 발치까지) — 여섯만
+     들고 있으면 패널 아래 절반이 늘 비어 「일지」가 아니라 잘린 자막으로 읽힌다. */
+  S.log.unshift(fmtSay(s)); if (S.log.length > 34) S.log.pop();
 };
 /* ⑦ 일지 알림은 **핵심 사건이 이미 흐르는 로그(say)를 그대로 쓴다** — 새 토스트 틀은
    안 만든다. core.js 가 say 를 직접 import 하면 순환이라, 콜백으로 건넨다. */
