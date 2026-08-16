@@ -18,7 +18,7 @@ const S=(m,p)=>raw(m,p,sessionId);const wait=ms=>new Promise(r=>setTimeout(r,ms)
 await S("Page.enable");await S("Runtime.enable");await S("Network.enable");await S("Network.setCacheDisabled",{cacheDisabled:true});
 const seed=`Math.random=(()=>{let s=(${SEED}>>>0)||1;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};})();`;
 await S("Page.addScriptToEvaluateOnNewDocument",{source:seed});
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:860,deviceScaleFactor:1,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:1,mobile:false});
 await S("Page.navigate",{url:PAGE});await wait(1500);
 await S("Runtime.evaluate",{expression:`localStorage.removeItem("necro.meta.v1")`});
 await S("Page.reload",{ignoreCache:true});await wait(4500);
@@ -44,4 +44,16 @@ const r=JSON.parse((await S("Runtime.evaluate",{awaitPromise:true,returnByValue:
     초당경로:+(path/Math.max(1,marched)/0.05).toFixed(1),
     멈춰있던비율:+(still/Math.max(1,marched)*100).toFixed(0), 층:S.floor });})()`})).result.value);
 console.log(JSON.stringify(r), errs.length?("예외 "+errs[0]):"");
-await raw("Target.closeTarget",{targetId});bws.close();process.exit(0);
+/* ★ **판정을 붙인다**(2026-08-16). 여태 이 자는 수만 뱉고 말이 없었다 — 그래서
+   qa_all 이 「아무 말도 안 했다(1줄)」로 **늘 ★죽음**으로 셌다. 죽은 자가 상시로 하나
+   있으면 죽음을 무시하게 되고, 그러면 진짜 고장 난 자도 같이 묻힌다.
+   ★★ 다만 이 바닥선은 **회귀를 막는 선이지 목표가 아니다.** 오늘 실측(82.4 · 24.1)의
+     절반쯤에 두었다 — 「이보다 못하면 병수님이 두 번 말한 그 증상(제자리에서 종종거림)
+     으로 돌아간 것」이라는 뜻이다. 아직 **일부러 망가뜨려 보정하지는 않았다**
+     (그 팔을 만들려면 걸음·목표 고르기를 되돌리는 손잡이가 필요하다 — ROADMAP 에 적어 뒀다). */
+const fails = [];
+if (r.본인에게서평균 < 40) fails.push(`군대가 본인 곁을 못 벗어난다(${r.본인에게서평균} < 40)`);
+if (r.초당경로 < 8)      fails.push(`1초에 옮기는 거리가 ${r.초당경로} — 제자리에서 종종거린다`);
+if (errs.length)         fails.push(`콘솔 예외 ${errs.length}`);
+console.log(fails.length ? `판정: 미달 — ${fails.join(" · ")}` : "판정: 통과 (바닥선 본인에게서≥40 · 초당경로≥8)");
+await raw("Target.closeTarget",{targetId});bws.close();process.exit(fails.length?1:0);

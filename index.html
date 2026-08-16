@@ -66,6 +66,13 @@
        이제 **패널 안에 자리(슬롯)를 만들고 물건을 거기 넣는다**(js/main.js railLayout).
        flex 가 세로를 나눠 가지므로 좌표가 하나도 없다. 좁은 창에서는 원래 자리로 돌려놓는다. -->
   <aside id="sideL" class="rail">
+    <!-- 채비·지난 판 — **마을에서만.** 마을 로그는 두 줄뿐이라 패널 위 100px 만 차고
+         아래가 텅 빈 검은 상자였다(병수님 사진 18:28). 빈 자리를 무늬로 메우면 장식이지
+         UI 가 아니다 — 마을에서 **다음에 할 일**과 **방금 판의 셈**을 그 자리에 세운다. -->
+    <div class="rTitle townOnly">채비</div>
+    <div id="rReady" class="rBody townOnly"></div>
+    <div class="rTitle townOnly">지난 판</div>
+    <div id="rLast" class="rBody townOnly"></div>
     <div class="rTitle">일지</div>
     <div id="logSlot" class="rSlot"></div>
     <div id="footL" class="rFoot"></div>

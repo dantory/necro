@@ -16,7 +16,7 @@ const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 3, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 3, mobile: false });
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4200));
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });

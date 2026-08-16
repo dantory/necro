@@ -35,7 +35,7 @@ const ev = async (expression) => {
   return r.result.value;
 };
 await S("Page.enable"); await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4000));
 
@@ -80,12 +80,21 @@ const O = await ev(`(function(){
   const fates = cells.map(c => (c.querySelector(".eFate")||{}).textContent || "?");
   /* 창 뒤의 로그 — 「전멸 · 20층에서 쓰러짐」이 창 밖에 붉게 남아 시선이 갈렸다.
      ★ 「안 보인다」만 재면 로그가 **원래 비어 있어도** 통과한다(빈 자를 못 믿는다).
-     그래서 **할 말이 있는데도 안 그려졌는지**를 잰다 — 글자는 있고 rect 는 0. */
+     그래서 **할 말이 있는데도** 창을 안 건드리는지를 잰다.
+     ★★ 2026-08-16 — 묻는 말을 바꿨다. 예전엔 「안 그려졌는가」였는데, 옆 패널이 서면서
+       로그가 **전장 위가 아니라 패널 안**에 산다. 거기서는 창과 겹칠 일이 없으니
+       감출 이유도 없다(감추면 「일지」가 빈 상자로 남는다). 진짜 묻고 싶었던 것은
+       처음부터 「**창을 가리는가**」였다 — 안 겹치면 보여도 된다. */
   const lg = document.getElementById("log");
   const logSaid = (lg.textContent || "").trim().length > 0;
   const logDrawn = [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5);
+  const fr = document.querySelector("#winEnd .frame");
+  const hit = (a, b) => !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom);
+  const fb = fr ? fr.getBoundingClientRect() : null;
+  const logOverWin = !!fb && [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5 && hit(r, fb));
   return { on, endOn: on.includes("winEnd"), nCells: cells.length, lootLen, tierOk, tierDetail, fates,
-           logSaid, logDrawn, logText: (lg.textContent || "").trim().slice(0, 40),
+           logSaid, logDrawn, logOverWin, inRail: (lg.parentElement.id === "logSlot"),
+           logText: (lg.textContent || "").trim().slice(0, 40),
            modeTown: window.__MODE ? window.__MODE.at === "town" : null };
 })()`);
 
@@ -267,8 +276,11 @@ const lines = [
   ["③ 등급 클래스 = tier", O.tierOk, O.tierDetail],
   ["④ 갈림 표식(착용·가방·금)", wearBagGold, `[${O.fates.join(",")}]`],
   ["⑤ 닫으면 town", !C.endOn && C.modeTown, `endOn=${C.endOn} town=${C.modeTown}`],
-  ["⑩ 창이 뜨면 뒤 로그가 죽는다", O.logSaid && !O.logDrawn && C.logDrawn,
-    `할말=${O.logSaid}«${O.logText}» 창중그려짐=${O.logDrawn} 닫은뒤=${C.logDrawn}`],
+  /* ⑩ 창이 뜨면 로그가 **창을 가리지 않는다.** 푸는 길이 둘이고 둘 다 옳다 —
+     패널 안이면 그대로 두고(안 겹친다), 전장 위면 감춘다. 어느 쪽이든 닫으면 돌아온다. */
+  ["⑩ 창이 뜨면 로그가 창을 안 가린다",
+    O.logSaid && !O.logOverWin && (O.inRail ? O.logDrawn : !O.logDrawn) && C.logDrawn,
+    `할말=${O.logSaid}«${O.logText}» 패널안=${O.inRail} 창가림=${O.logOverWin} 창중그려짐=${O.logDrawn} 닫은뒤=${C.logDrawn}`],
   ["⑥ 재입장 — 창 닫힘·loot 0", !D.endOn && D.lootLen === 0, `endOn=${D.endOn} loot=${D.lootLen}`],
   ["⑦ 콘솔 오류 0", errors.length === 0, errors.slice(0, 3).join(" | ") || "없음"],
   ["⑧ 부제 토막이 안 꺾인다", wrapBad.length === 0,

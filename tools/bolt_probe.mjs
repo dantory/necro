@@ -15,7 +15,7 @@ const {targetId}=await raw("Target.createTarget",{url:PAGE});
 const {sessionId}=await raw("Target.attachToTarget",{targetId,flatten:true});
 const S=(m,p)=>raw(m,p,sessionId);await S("Page.enable");await S("Runtime.enable");await S("Network.enable");
 await S("Network.setCacheDisabled",{cacheDisabled:true});
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:860,deviceScaleFactor:2,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:2,mobile:false});
 await S("Page.navigate",{url:PAGE});await new Promise(r=>setTimeout(r,1200));
 await S("Runtime.evaluate",{expression:`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:9000,lv:14,deepest:10,runs:3,up:{hp:3,mp:2,dmg:2,army:1},equip:{},bag:[],tree:{bone:2,armor:3}}))`});
 await S("Page.reload",{ignoreCache:true});await new Promise(r=>setTimeout(r,4800));

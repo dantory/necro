@@ -41,7 +41,7 @@ if (TIRE > 0) await S("Page.addScriptToEvaluateOnNewDocument", { source: `global
    TP_ADDCAP=N 으로 켜고 같은 씨앗·같은 길이로 돌려 앞 판(0)과 나란히 읽는다. */
 const ADDCAP = +(process.env.TP_ADDCAP || 0);
 if (ADDCAP > 0) await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__ADD_CAP = ${ADDCAP};` });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 1, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await wait(1500);
 await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });

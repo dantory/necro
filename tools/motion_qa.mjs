@@ -22,7 +22,7 @@ const { targetId } = await raw("Target.createTarget", { url: PAGE });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1200));
 /* 중간쯤 자란 사람으로 본다 — 1층은 적이 하나뿐이라 움직임이 안 보인다. */

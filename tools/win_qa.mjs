@@ -21,7 +21,7 @@ await new Promise(r=>bws.addEventListener("open",r));
 const {targetId}=await raw("Target.createTarget",{url:PAGE});
 const {sessionId}=await raw("Target.attachToTarget",{targetId,flatten:true});
 const S=(m,p)=>raw(m,p,sessionId);await S("Page.enable");await S("Runtime.enable");await S("Network.enable");
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:860,deviceScaleFactor:3,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:3,mobile:false});
 await S("Page.navigate",{url:PAGE});await new Promise(r=>setTimeout(r,1200));
 /* 중간쯤 자란 사람 — 빈 창은 어긋나도 안 보인다. 가방도 채운다. */
 await S("Runtime.evaluate",{expression:`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:24500,lv:14,xp:30,deepest:18,runs:5,up:{hp:4,mp:3,dmg:3,army:2},equip:{},bag:[],tree:{bone:3,armor:3,legion:2,rot:1,harvest:1}}))`});

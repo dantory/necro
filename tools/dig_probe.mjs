@@ -31,7 +31,7 @@ await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1200));
 await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4200));
 

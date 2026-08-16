@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
- diveMax, diveAt, DIVE_STEP, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, startFloor, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1427,6 +1427,32 @@ function sideRail() {
     ["본인", mul(selfDmgMul())], ["소환수", mul(minionDmgMul())],
     ["금", `+${Math.round((goldMulOf() - 1) * 100)}%`],
   ].map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("");
+
+  /* ── 채비 ── **마을에서만.** 「다음에 할 일」을 수로 적는다 — 마을은 들르는 곳이고,
+     들른 사람이 궁금한 건 **뭘 안 하고 내려가려는가**다. 없는 줄은 안 그린다
+     (「스킬 점수 0 남음」 같은 줄은 할 일이 아니라 소음이다). */
+  const rR = $("rReady");
+  if (rR) {
+    const sp = spLeft(), full = META.bag.length >= BAG_MAX, f0 = startFloor();
+    rR.innerHTML = [
+      sp > 0 ? ["스킬 점수", `<b class="hot">${sp}</b>`] : null,
+      ["가방", `${META.bag.length}/${BAG_MAX}${full ? " <b class='hot'>가득</b>" : ""}`],
+      f0 > 1 ? ["시작 층", `${f0}층`] : null,
+      (META.relics | 0) ? ["유해", `${META.relics}구 · ${mul(relicMul())}`] : null,
+      canRebirth() ? ["환생", `<b class="hot">할 수 있다</b>`]
+                   : ["환생까지", `${Math.max(0, REBIRTH_MIN - (META.deepest | 0))}층`],
+    ].filter(Boolean).map(([n, v]) =>
+      `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("");
+  }
+
+  /* ── 지난 판 ── 방금 판의 셈. **판을 한 번도 안 돈 세션에서는 안 그린다**(LASTRUN 은
+     기억에만 있어 새로 켜면 비어 있다) — 0 으로 채운 표는 「아직」이 아니라 「고장」으로 읽힌다. */
+  const rL = $("rLast");
+  if (rL) rL.innerHTML = LASTRUN.has
+    ? [["닿은 곳", `${LASTRUN.floor}층`], ["처치", num(LASTRUN.killed)],
+       ["금", `+${num(LASTRUN.gold)}`], ["얻은 것", `${LASTRUN.loot.length}`]]
+      .map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("")
+    : `<div class="none">아직 내려간 적이 없다</div>`;
 
   /* ── 의뢰 ── **아직 안 깬 것 셋**만. 다 깬 목록을 세워 두면 할 일이 아니라 상장이 된다.
      판정은 core.js(questProg/questDone)가 쥔다 — 같은 식이 두 곳이면 갈라진다. */

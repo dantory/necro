@@ -58,7 +58,7 @@ async function runSeed(seed) {
   const seedSrc = `Math.random = (() => { let s = (${seed} >>> 0) || 1;
      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });   // ① 뜨기 전
-  await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+  await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
   await S("Page.navigate", { url: PAGE });
   await new Promise(r => setTimeout(r, 1500));
   await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });  // ② 처음부터

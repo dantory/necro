@@ -12,7 +12,7 @@ const { targetId } = await raw("Target.createTarget", { url: URL });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 /* 큰 수를 심는다 — 슬롯마다 4등급 장비(옵션 셋)에 재련 +30 안팎, 강화도 크게. */
 const meta = {
   gold: 48213905, lv: 42, xp: 0, deepest: 104, runs: 4,

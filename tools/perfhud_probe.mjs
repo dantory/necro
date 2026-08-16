@@ -29,7 +29,7 @@ const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.setCacheDisabled", { cacheDisabled: true });
 const ev2 = async (e, aw = false) => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: aw })).result?.value;
 /* 폰과 같은 판으로 — 414×860·dpr2 (앞의 자들이 쓴 눈금과 같아야 값을 댈 수 있다) */
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await ev2(`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:9000,lv:24,deepest:${FLOOR + 4},runs:3,up:{hp:3,mp:4,dmg:2,army:5},equip:{},bag:[],tree:{bone:2,armor:3,ghoul:1,legion:3,golem:1,rot:1,harvest:1}}))`);
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4500));

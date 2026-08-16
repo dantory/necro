@@ -31,7 +31,7 @@ await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
    「고쳤는데 그대로」가 나온다 — 실제로 그 함정을 밟았다(고친 hud.css 를 올리고
    해시까지 같은데 자는 실패를 냈다). 파일 해시 대조와 **화면 검수는 다른 층**이다. */
 await S("Network.setCacheDisabled", { cacheDisabled: true });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 5200));
 

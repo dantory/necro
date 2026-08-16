@@ -27,7 +27,7 @@ const ev = async (e) => JSON.parse((await S("Runtime.evaluate", { returnByValue:
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
 await S("Network.setCacheDisabled", { cacheDisabled: true });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await wait(5200);
 

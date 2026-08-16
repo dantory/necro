@@ -9,7 +9,7 @@ const {targetId}=await raw("Target.createTarget",{url:URL});
 const {sessionId}=await raw("Target.attachToTarget",{targetId,flatten:true});
 const S=(m,p)=>raw(m,p,sessionId);
 await S("Page.enable");await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:860,deviceScaleFactor:2,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:2,mobile:false});
 await S("Page.reload",{ignoreCache:true});
 await new Promise(r=>setTimeout(r,3500));
 const ev=async(fn)=>{const r=await S("Runtime.evaluate",{expression:fn,awaitPromise:true,returnByValue:true});return r.result.value;};

@@ -13,7 +13,7 @@ const {targetId}=await raw("Target.createTarget",{url:PAGE});const {sessionId}=a
 const S=(m,p)=>raw(m,p,sessionId);const wait=ms=>new Promise(r=>setTimeout(r,ms));
 const ev=async e=>JSON.parse((await S("Runtime.evaluate",{returnByValue:true,awaitPromise:true,expression:e})).result.value);
 await S("Page.enable");await S("Runtime.enable");await S("Network.enable");await S("Network.setCacheDisabled",{cacheDisabled:true});
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:900,deviceScaleFactor:2,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:2,mobile:false});
 await wait(5200);
 /* 트리를 다 열어 둔다 — 안 열린 노드도 그림은 있어야 한다(잠긴 칸이 빈칸이면 그게 더 나쁘다) */
 await S("Runtime.evaluate",{expression:`(()=>{const M=window.META; M.lv=40;

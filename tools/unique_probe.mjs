@@ -66,7 +66,7 @@ async function runArm(seed, uid) {
   const SS = (m, p) => raw(m, p, sessionId);
   await SS("Page.enable"); await SS("Runtime.enable"); await SS("Network.enable");
   await SS("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) });
-  await SS("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+  await SS("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
   await SS("Page.navigate", { url: PAGE });
   await sleep(1400);
   await SS("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });

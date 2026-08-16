@@ -43,7 +43,7 @@ async function runArm(seed, nosink) {
   const S = (m, p) => raw(m, p, sessionId);
   await S("Page.enable"); await S("Runtime.enable");
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed, nosink) });
-  await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+  await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
   await S("Page.navigate", { url: PAGE });
   await new Promise(r => setTimeout(r, 1500));
   await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });

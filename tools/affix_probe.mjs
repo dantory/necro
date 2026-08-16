@@ -30,7 +30,7 @@ await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
 await S("Runtime.evaluate", { expression:
   `localStorage.setItem("necro.meta.v1", JSON.stringify({gold:5000,lv:9,deepest:12,up:{hp:2,mp:1,dmg:3,army:0},gear:{wand:3,robe:2,charm:1},tree:{}}))` });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 3, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 3, mobile: false });
 await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 4200));
 

@@ -18,7 +18,7 @@ const {targetId}=await raw("Target.createTarget",{url:PAGE});const {sessionId}=a
 const S=(m,p)=>raw(m,p,sessionId);const wait=ms=>new Promise(r=>setTimeout(r,ms));
 await S("Page.enable");await S("Runtime.enable");await S("Network.enable");await S("Network.setCacheDisabled",{cacheDisabled:true});
 await S("Page.addScriptToEvaluateOnNewDocument",{source:`Math.random=(()=>{let s=(${SEED}>>>0)||1;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};})();`});
-await S("Emulation.setDeviceMetricsOverride",{width:414,height:860,deviceScaleFactor:1,mobile:true});
+await S("Emulation.setDeviceMetricsOverride",{width:1512,height:863,deviceScaleFactor:1,mobile:false});
 await S("Page.navigate",{url:PAGE});await wait(1500);
 await S("Runtime.evaluate",{expression:`localStorage.removeItem("necro.meta.v1")`});
 await S("Page.reload",{ignoreCache:true});await wait(4800);

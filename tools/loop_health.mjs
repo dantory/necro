@@ -82,7 +82,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_RVFULL != null ? `globalThis.__REVISIT_FULL = ${+process.env.LH_RVFULL};` : ""}
    ${/* ⑧-e 되짚는 층을 통째로 빨리 감는 배수 — battle.js rvFf */""}
    ${process.env.LH_RVFF != null ? `globalThis.__REVISIT_FF = ${+process.env.LH_RVFF};` : ""}` });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
 /* **처음부터** 시작한다 — 「막 시작한 사람이 몇 분째에 심심해지나」가 알고 싶은 것이다. */

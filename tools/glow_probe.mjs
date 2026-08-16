@@ -16,7 +16,7 @@ const { targetId } = await raw("Target.createTarget", { url: URL });
 const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
 const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable");
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const ev = async (e) => { const r = await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true });
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || "eval failed"); return r.result?.value; };

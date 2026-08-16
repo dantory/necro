@@ -183,7 +183,7 @@ async function runSeed(seed) {
   const S = (m, p) => raw(m, p, sessionId);
   await S("Page.enable"); await S("Runtime.enable");
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) });
-  await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+  await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
   await S("Page.navigate", { url: PAGE });
   await sleep(2000);
   await S("Runtime.evaluate", { awaitPromise: true, expression: waitLoad });

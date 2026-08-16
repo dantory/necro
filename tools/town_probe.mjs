@@ -44,7 +44,7 @@ await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
 /* ★ 캐시를 끄지 않으면 **고치기 전 코드를 다시 잰다** — 값이 안 움직여서 처음엔
    고친 게 안 먹힌 줄 알았다(2026-08-13). 자는 늘 지금 코드를 재야 한다. */
 await S("Network.setCacheDisabled", { cacheDisabled: true });
-await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 2500));
 /* ★ **사람이 지나는 길로 잰다** — 마을은 게임을 켜면 나오는 첫 화면이다.
