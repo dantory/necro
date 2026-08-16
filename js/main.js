@@ -1625,7 +1625,10 @@ const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
-const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen(); };
+/* ★ 열 때 **다시 잰다** — 그리는 것(drawStat/drawBag)이 창을 열기 **전에** 돌아서,
+   그 자리에서는 아직 숨은 칸이라 clientHeight 가 0 이다(넘침 판정이 못 선다). */
+const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
+  if (on) for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); };
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
 const closeAll = () => { for (const w of WINS) win(w, false); };
@@ -1914,11 +1917,27 @@ const questListHtml = () =>
         <span class="jRew t3">유해 +${q.reward}</span></div></div>`;
   }).join("") + `</div>`;
 
+/** 「아래에 더 있다」 — 구르는 칸(.wScroll)이 **멈춰 있을 때** 아무 말도 안 하는 것을 고친다
+ *  (병수님 「일지가 창 아래로 잘리는데 더 있다는 표시가 없다」). 여기서는 **남았는가**만
+ *  판정하고 그늘·▾ 는 CSS(.wScroll.more::after)가 그린다 — 같은 판단이 두 곳에 있으면 갈라진다.
+ *  ★ 창이 닫혀 있으면 clientHeight 가 0 이라 판정이 못 선다. 그래서 **열 때도** 부른다. */
+function markMore(el) {
+  if (!el) return;
+  el.classList.toggle("more", el.scrollHeight - el.scrollTop - el.clientHeight > 2);
+}
+/* 구르는 칸마다 한 번만 매단다(scroll 은 passive — 굴림을 막을 일이 없다). */
+for (const id of ["statBody", "bagBody"]) {
+  const el = $(id);
+  if (el) el.addEventListener("scroll", () => markMore(el), { passive: true });
+}
+addEventListener("resize", () => { markMore($("statBody")); markMore($("bagBody")); });
+
 /** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
  *  합쳐져있는데 추후을 위해 분리필요"). 그 아래에 ⑦ 일지가 붙는다. */
 function drawStat() {
   $("statBody").innerHTML = statNumbers() + questListHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
+  markMore($("statBody"));
 }
 
 /** 가방 — 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. */
@@ -1960,6 +1979,7 @@ function drawBag() {
     </div>`;
   $("bagTip").innerHTML = statTipHtml();
   $("bagGold").textContent = (META.gold | 0).toLocaleString();
+  markMore($("bagBody"));
 }
 
 /* ══ 정산 ══ 판이 끝나면 「이번 판에 얻은 것」을 상점 좌판과 **같은 칸**(.cell·.grid)으로
