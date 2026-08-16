@@ -681,6 +681,27 @@ export const GEAR = {
            cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
 };
 
+/* ══ 같은 등급의 다른 얼굴 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
+   등급 이름이 슬롯마다 다섯뿐이라, 3등급 지팡이는 **언제나** 「흑요석 홀」이었다 —
+   백 번을 주워도 이름이 다섯 가지다. 값(val·cost)은 등급이 정하므로 **이름만** 갈라도
+   주울 때마다 다른 물건으로 읽힌다. 셈은 한 톨도 안 바뀐다(A/B 가 그대로 성립한다).
+   ★ 0등급(맨몸)은 안 가른다 — 「없음」이 세 이름이면 그게 더 이상하다. */
+export const GEAR_ALT = {
+  wand: [[], ["뼈 지팡이","마른 뼈 지팡이","금 간 지팡이"], ["녹슨 홀","이 빠진 홀","검게 탄 홀"],
+             ["흑요석 홀","재의 홀","밤의 홀"], ["심장의 홀","고동치는 홀","산 자의 홀"],
+             ["왕의 홀","무덤왕의 홀","첫 시신의 홀"]],
+  robe: [[], ["누더기","해진 천","수의 자락"], ["가죽 망토","무두질한 망토","까마귀 망토"],
+             ["사슬 망토","녹슨 사슬옷","상여꾼의 갑주"], ["제의","장의사의 제의","봉인된 제의"],
+             ["왕의 제의","무덤왕의 제의","첫 장례의 제의"]],
+  charm:[[], ["뼛조각","이빨 조각","손가락 뼈"], ["은 부적","녹슨 은패","달빛 부적"],
+             ["영혼석","울음 맺힌 돌","혼이 든 돌"], ["군주의 인장","시체군주의 인장","깊은 곳의 인장"]],
+};
+/** 등급 안에서 몇 번째 얼굴인가 — 물건이 만들어질 때 한 번 정해져 저장된다(it.v). */
+export const gearFace = (k, tier, v) => {
+  const alt = (GEAR_ALT[k] || [])[tier];
+  return (alt && alt.length) ? alt[(v | 0) % alt.length] : GEAR[k].tiers[tier];
+};
+
 /* ══ 재련(reforge) ══ 등급은 15층이면 꼭대기 4에 닿고(dropTierCap) 옵션 셋도 곧 차서
    장비 축은 구조적으로 ≈1500 이 천장이었다(ROADMAP ⑧-a). 그 「등급 4 위」에 층에 안 묶인
    무한 축 하나를 얹는다 — 슬롯마다 +N. 금을 무한히 먹어 ⑧-b 의 금 싱크도 같이 닫는다.
@@ -851,6 +872,15 @@ export const AFFIX = {
   gold: { n:"금 획득",     u:"%",   pre:"탐욕스런", w:0.5,  r:[10, 30],  p:0.9 },
   /* 군세 +1 은 판이 눈에 띄게 바뀌므로 **드물게**, 그리고 등급이 올라도 1 그대로(flat). */
   army: { n:"군세 상한",   u:"",    pre:"거느리는", w:38,   r:[1, 1],    p:0.28, flat:true },
+  /* ══ 넷을 더 연다 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
+     여섯이면 3등급 이상에서 **거의 다 나와** 두 물건이 같아 보인다 — 옵션 셋을 뽑는데
+     고를 것이 여섯뿐이면 조합이 20가지고, 그중 좋은 것 몇 개로 수렴한다. 열이면 120가지다.
+     ★ 새 축은 **이미 곱해지는 자리 하나씩**에만 건다 — 흩뿌리면 어디서 세는지 못 찾는다.
+       corpse→처치 시 시체 · nova→시체 폭발 피해 · cd→재사용 · xp→경험치. */
+  corpse: { n:"시체 획득", u:"%",   pre:"거두는",   w:0.6, r:[8, 25],  p:0.8 },
+  nova:   { n:"폭발 피해", u:"%",   pre:"터뜨리는", w:0.5, r:[12, 35], p:0.7 },
+  cd:     { n:"재사용 감소", u:"%", pre:"서두르는", w:1.4, r:[5, 14],  p:0.6 },
+  xp:     { n:"경험치",    u:"%",   pre:"깨우치는", w:0.55, r:[10, 28], p:0.6 },
 };
 const AF_KEYS = Object.keys(AFFIX);
 const afMul = (tier) => 0.6 + 0.35 * tier;            // 1등급 0.95 → 4등급 2.0
@@ -875,7 +905,8 @@ function rollAffix(tier, taken) {
 export function mkItem(k, tier, plain = false) {
   const af = [];
   if (!plain) { const n = afCount(tier); for (let i = 0; i < n; i++) af.push(rollAffix(tier, af.map((x) => x.id))); }
-  return { k, tier, af };
+  /* 얼굴(v) — 같은 등급 안에서 이름만 가른다. 값에는 한 톨도 안 쓰인다. */
+  return { k, tier, af, v: Math.floor(Math.random() * 3) };
 }
 /** 유니크 하나를 만든다 — **등급 4 취급**(GEAR[k] 최고 등급)에 uid 로 규칙을 표식하고,
  *  옵션은 두지 않는다(규칙이 값어치다 · 난수를 안 먹어 결정적이다). */
@@ -893,7 +924,7 @@ export const scoreOf = (it) =>
 export function nameOf(it) {
   if (!it) return "없음";
   if (it.uid) return UNIQ_BY_ID[it.uid]?.n || GEAR[it.k].tiers[it.tier];
-  const base = GEAR[it.k].tiers[it.tier];
+  const base = gearFace(it.k, it.tier, it.v);
   if (!it.af.length) return base;
   const top = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v))[0];
   return `${AFFIX[top.id].pre} ${base}`;
@@ -1445,17 +1476,21 @@ export const raiseDmg = (base, pw) => Math.max(base, (pw | 0) * RAISE_DMG);
 /** 센 시체에서 일어난 놈은 **조금 더 크다** — 숫자를 안 읽어도 눈이 먼저 안다.
  *  최대 +22% 로 막는다(관문 주인 시체가 판을 가리면 안 된다). */
 export const raiseScale = (base, pw) => 1 + Math.min(0.22, Math.max(0, ((pw | 0) * RAISE_HP) / base - 1) * 0.06);
-export const novaDmgMul  = () => 1 + rank("rot") * 0.15;
+export const novaDmgMul  = () => (1 + rank("rot") * 0.15) * (1 + afSum("nova") / 100);
 export const novaRadMul  = () => 1 + rank("chain") * 0.25;
 export const mpCostMul   = () => Math.pow(0.90, rank("cheap"));
 /** 스킬 한 번의 **실제** 마나. 쓸 수 있는지 보는 곳(벨트)과 빼는 곳(cast)이
  *  반드시 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
 export const mpCost = (sk) => Math.round(sk.mp * mpCostMul());
-export const cdMul       = () => Math.pow(0.93, rank("swift"));
+/* 재사용 감소는 **곱으로 깎는다**(빼면 0 아래로 내려가 즉시 시전이 된다). 옵션 상한 14%
+   셋이면 0.64 배까지만 — 트리(swift)와 곱해져도 바닥이 있다. */
+export const cdMul       = () => Math.pow(0.93, rank("swift")) * Math.max(0.35, 1 - afSum("cd") / 100);
 export const wandMul     = () => 1 + rank("wand") * 0.12;
 export const ampSecs     = () => 8 + rank("deep") * 3;
 export const ampPower    = () => 1.4 + rank("deep") * 0.08;   // 저주가 올리는 피해 배수
-export const harvestPct  = () => rank("harvest") * 0.12;
+export const harvestPct  = () => rank("harvest") * 0.12 + afSum("corpse") / 100;
+/** 경험치 배수 — 옵션 xp. 곱해지는 자리는 battle.js 의 xpGain 하나뿐이다. */
+export const xpMul       = () => 1 + afSum("xp") / 100;
 export const spiritMp    = () => rank("spirit") * 2;
 export const feastOn     = () => rank("feast") > 0;
 
