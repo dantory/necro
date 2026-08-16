@@ -58,13 +58,29 @@
        그 여백에 둘을 세운다: 왼쪽 = 일지(로그) · 오른쪽 = 군세 + 낀 것 + 나가기.
        ★ 좁은 창(<1500)에서는 통째로 안 뜬다 — 무대를 파고들면 여백이 아니라 침범이다.
          그때 로그는 예전처럼 전장 아래에 겹치고, 나가기도 제자리로 돌아간다(hud.css). -->
-  <aside id="sideL" class="rail"><div class="rTitle">일지</div></aside>
+  <!-- ★★ 2026-08-16 19:30 — **자리를 좌표로 잡던 것을 그만둔다.**
+       처음엔 로그·단추 넷을 `position:fixed` 로 두고 무대의 top/height 식을 **베껴 적었다**.
+       그러자 (1) 식이 두 파일에 갈라져 패널이 무대보다 8px 위에 섰고 (2) 마을 단추가
+       패널 밑에 깔렸고 (3) 발치 단추가 626px 짜리 기둥으로 늘어났다 — 고칠 자리가 계속
+       늘었다([[seam-not-values]] 같은 자리를 두 번 고치면 방법을 바꾼다).
+       이제 **패널 안에 자리(슬롯)를 만들고 물건을 거기 넣는다**(js/main.js railLayout).
+       flex 가 세로를 나눠 가지므로 좌표가 하나도 없다. 좁은 창에서는 원래 자리로 돌려놓는다. -->
+  <aside id="sideL" class="rail">
+    <div class="rTitle">일지</div>
+    <div id="logSlot" class="rSlot"></div>
+    <div id="footL" class="rFoot"></div>
+  </aside>
   <aside id="sideR" class="rail">
     <div class="rTitle">군세</div>
     <div id="rArmy" class="rArmy"></div>
+    <div class="rTitle">몸</div>
+    <div id="rBody" class="rBody"></div>
     <div class="rTitle">낀 것</div>
     <div id="rGear" class="rGear"></div>
+    <div class="rTitle">의뢰</div>
+    <div id="rQuest" class="rQuest"></div>
     <div class="rSp"></div>
+    <div id="footR" class="rFoot"></div>
   </aside>
 
   <!-- ══════════════════════════════════════════════════════

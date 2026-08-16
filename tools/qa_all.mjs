@@ -51,6 +51,10 @@ const RULERS = [
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
   { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
+  /* ★ 옆 패널 — **눈으로 보고서야 안 것**을 자로 옮긴 것이다(병수님 2026-08-16 「PC UI 개판인데」).
+     숫자가 전장 위에 얹히고 패널이 172px 로 눌린 것을 사진 두 장을 받고서야 봤다.
+     좌표를 재는 자라 빠르다(3 폭 × 0.8초). */
+  { name: "rail_qa",      args: [],                             secs: 120, tier: "fast", expect: /판정/ },
 
   /* ★ 건너뛰기는 **창을 지나는 길**이라 훅으로는 못 잰다 — 입구를 진짜로 누르고 칸을 눌러 본다.
      그런데 **입력을 쓰는 자는 앞에 있어야** 닿는다(Page.bringToFront). 빠른 자 열넷과 섞어

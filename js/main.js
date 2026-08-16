@@ -117,7 +117,31 @@ function fit() {
   cvW = cv.clientWidth; cvH = cv.clientHeight;
   cv.width = cvW * dpr; cv.height = cvH * dpr;
 }
-addEventListener("resize", fit);
+addEventListener("resize", () => { railLayout(); fit(); });
+
+/* ══ 옆 패널에 물건을 «넣는다» ══ (2026-08-16 19:30, 병수님 「PC UI 개판인데」)
+ *  로그와 단추 넷은 여태 `position:fixed` + **무대 식을 베낀 좌표**로 서 있었다. 그래서
+ *  8px 어긋남 · 패널 밑에 깔린 단추 · 626px 짜리 기둥이 차례로 났고, 고칠 때마다 자리가
+ *  하나씩 늘었다. 좌표를 버리고 **패널 안 슬롯으로 옮긴다** — flex 가 세로를 나눠 가지므로
+ *  창이 어떤 크기든 저절로 맞는다.
+ *  ★ 좁은 창에서는 **원래 자리(body 직속)로 돌려놓는다** — 패널이 안 뜨는 폭에서 로그가
+ *    패널 안에 갇히면 화면에서 통째로 사라진다. 옮긴 자리를 기억해 두었다가 되돌린다. */
+const RAIL_MQ = matchMedia("(min-width: 1500px)");
+let railOn = null;
+function railLayout() {
+  const on = RAIL_MQ.matches;
+  if (on === railOn) return;                       // 폭이 바뀔 때마다 DOM 을 만지지 않는다
+  railOn = on;
+  const move = (id, slot) => {
+    const el = $(id); if (!el) return;
+    (on ? $(slot) : document.body).appendChild(el);
+  };
+  move("log", "logSlot");
+  move("hLeave", "footR"); move("hReborn", "footR");
+  move("hDoctrine", "footL"); move("hTactic", "footL");
+  document.body.classList.toggle("rails", on);     // CSS 는 이 표식 하나로 갈린다(폭 조건을 두 번 안 적는다)
+}
+railLayout();
 
 /* ══ 그림 ══ PixelLab 으로 구운 스프라이트(assets/). **아직 안 온 것은 색 덩어리로 낸다** —
    그림 한 장이 없다고 판이 멈추면 에셋 굽는 동안 아무것도 못 본다. 오면 그때부터 그림이 뜬다. */
@@ -1393,6 +1417,27 @@ function sideRail() {
            `<span class="n t${it.tier}">${nameOf(it)}</span></div>`;
   }).join("");
   rG.innerHTML = rows || `<div class="none">아직 낀 것이 없다</div>`;
+
+  /* ── 몸 ── **패널이 위 100px 만 차고 아래가 텅 빈 검은 상자**였다(병수님 사진 18:28).
+     빈 자리를 무늬로 메우면 그건 장식이지 UI 가 아니다 — **늘 뜻이 있는 수**를 넣는다.
+     능력치 창과 **같은 값·같은 자**(num·mul)를 쓴다. 여기와 창이 다른 수를 말하면 둘 다 못 믿는다. */
+  const rB = $("rBody");
+  if (rB) rB.innerHTML = [
+    ["체력", num(hpMaxOf())], ["마나", num(mpMaxOf())],
+    ["본인", mul(selfDmgMul())], ["소환수", mul(minionDmgMul())],
+    ["금", `+${Math.round((goldMulOf() - 1) * 100)}%`],
+  ].map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("");
+
+  /* ── 의뢰 ── **아직 안 깬 것 셋**만. 다 깬 목록을 세워 두면 할 일이 아니라 상장이 된다.
+     판정은 core.js(questProg/questDone)가 쥔다 — 같은 식이 두 곳이면 갈라진다. */
+  const rQ = $("rQuest");
+  if (rQ) {
+    const open = QUESTS.filter((q) => !questDone(q)).slice(0, 3);
+    rQ.innerHTML = open.length
+      ? open.map((q) => `<div class="r" title="${q.d}"><span class="n">${q.n}</span>` +
+          `<span class="v">${questProg(q)}/${q.goal}</span></div>`).join("")
+      : `<div class="none">다 끝냈다</div>`;
+  }
 }
 
 /** **자동으로 소환한다.** 방치형이므로 사람이 안 눌러도 군대는 선다 —
