@@ -402,12 +402,15 @@ function drawDecals(ctx, cx, cy, sc, squash, w, h, mul = 1) {
     for (let gx = gx0; gx <= gx1; gx++) {
       const hsh = hash2(gx * 7 + 13, gy * 11 + 5);
       if ((hsh % 100) >= 42 * mul) continue;            // 칸 열에 넷 정도만(mul 로 조절)
-      const name = set[(hsh >> 7) % set.length];
+      /* ★ 소품과 **똑같은 부호 버그**가 여기에도 있었다(drawScatter 의 `>>>` 주석 참고).
+         얼룩도 절반이 안 그려졌고, 크기(23)는 음수가 되어 0.4~0.8 배로 쪼그라들었다.
+         [[carry-fixes-forward]] — 한 곳을 고치면 같은 꼴을 전부 훑는다. */
+      const name = set[(hsh >>> 7) % set.length];
       const im = decalArt[name]; if (!im) continue;
-      const wx = (gx + 0.5) * DCELL + ((hsh >> 11) % 90) - 45;
-      const wy = (gy + 0.5) * DCELL + ((hsh >> 17) % 90) - 45;
+      const wx = (gx + 0.5) * DCELL + ((hsh >>> 11) % 90) - 45;
+      const wy = (gy + 0.5) * DCELL + ((hsh >>> 17) % 90) - 45;
       const px = Math.round(cx + wx * sc), py = Math.round(cy + wy * sc * squash);
-      const k = ART.s * (0.8 + ((hsh >> 23) % 5) * 0.1);
+      const k = ART.s * (0.8 + ((hsh >>> 23) % 5) * 0.1);
       const dw = Math.round(im.width * k), dh = Math.round(im.height * k * squash);
       ctx.drawImage(im, 0, 0, im.width, im.height,
                     px - (dw >> 1), py - (dh >> 1), dw, dh);
@@ -775,12 +778,21 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
   if (!decorReady) return;
   ctx.imageSmoothingEnabled = false;
   /** 칸 하나에 조각 하나를 놓는다. 자리는 rnd 에서만 나온다 — **매 프레임 같은 자리.** */
+  /* ★★★★★ **`>>` 가 소품의 절반을 먹고 있었다**(2026-08-17). hash2 는 `>>> 0` 으로
+     **부호 없는 32비트**를 준다 — 그런데 그걸 `>>`(부호 있는 시프트)로 밀면 값이
+     2^31 을 넘는 순간 **음수**가 된다(실측 48.8%). 음수 % 는 JS 에서 음수라
+     `from[-3]` → `undefined` → `decor[undefined]` → `if (!im) return` 으로
+     **아무 소리 없이 안 그린다.** 굴림 셋 중 하나 반이 허공으로 샜다.
+     흔들기(11·17)도 같이 음수가 되어 소품이 제 칸 밖 1.5칸까지 밀려나
+     「몰린 데는 몰리고 빈 데는 통째로 비는」 얼룩을 만들었다.
+     → 전부 `>>>` 로 고친다. 값을 올려서 메울 일이 아니었다 —
+     `dens` 를 아무리 올려도 절반은 그대로 샜을 것이다. */
   const put = (rnd, gx, gy, from) => {
-    const name = from[(rnd >> 7) % from.length];
+    const name = from[(rnd >>> 7) % from.length];
     const im = decor[name]; if (!im) return;
     /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
-    const wxw = gx * CELL + ((rnd >> 11) % CELL) - CELL / 2;
-    const wyw = gy * CELL + ((rnd >> 17) % CELL) - CELL / 2;
+    const wxw = gx * CELL + ((rnd >>> 11) % CELL) - CELL / 2;
+    const wyw = gy * CELL + ((rnd >>> 17) % CELL) - CELL / 2;
     if (clear && Math.hypot(wxw, wyw) < clear) return;      // 싸움터는 비운다
     /* ★ 여기도 place() 로 통일한다 — 이미지 바닥을 지면으로 삼으면 그림 아래
        투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
