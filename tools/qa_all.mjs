@@ -53,6 +53,10 @@ const RULERS = [
   /* ★ winscroll_qa 는 「구르는가」를 보고, 이건 「**안 굴러도 다 보이는가**」를 본다 — 가방창의
      페이퍼 돌은 아래 두 칸이 창 밖에 있었는데 winscroll 은 내내 통과했다(구르긴 굴렀으니까). */
   { name: "bagfit_qa",    args: [],                             secs: 150, tier: "fast", expect: /(PASS|FAIL)/ },
+  /* ★ statrow_qa 는 「어느 줄이 서는가」를 보고, 이건 「**그 줄에 손댈 수 있는가**」를 본다
+     (병수님 「능력치 창이 읽기 전용이다」). 단추가 있는지만 재면 아무것도 안 막으므로
+     눌러서 값이 오르는 것 · 그 자리서 다시 그려지는 것 · 대장간 쪽 회귀까지 한 판에 잰다. */
+  { name: "statup_qa",    args: [],                             secs: 150, tier: "fast", expect: /(PASS|FAIL)/ },
   { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
 
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },

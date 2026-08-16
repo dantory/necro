@@ -1829,15 +1829,22 @@ const gearCell = (it, attr, sel, plus = 0) => {
 /** 합쳐진 수치 — **「등급 기본값 + 붙은 옵션」의 합**은 전부 core.js 함수가 읽는다.
  *  화면에서 다시 계산하지 않는다(같은 식이 두 곳이면 갈라진다). */
 const statNumbers = () => {
+  /* ★ 줄의 셋째 칸은 **그 줄을 키우는 강화**(core.js UPS)다 — 병수님 「능력치 창이 읽기
+     전용이다」. 「지금 이 몸이 무엇을 할 수 있는가」를 읽는 자리인데 손댈 데가 없어
+     대장간까지 갔다 와야 했다. 값을 읽는 그 줄에서 바로 키운다.
+     ★ **새 길이 아니다** — 사는 셈은 대장간 단추와 **같은 `data-up` 한 곳**이 쥔다
+       (같은 식이 두 곳이면 갈라진다). 그러니 값·차례·저장이 한 톨도 안 달라진다.
+     ★ 균형도 안 건드린다 — 금은 이미 판 안에서 `autoForge()` 가 저절로 태우고 있다
+       (auto() 안, 던전에서도 돈다). 여기서 느는 것은 **어느 축에 쓸지 고르는 것**뿐이다. */
   const rows = [
     /* ★ 유해(환생 배수)는 **한 구라도 있을 때만** 뜬다 — 0 이면 갓 시작한 사람에게 뜻 없는
        줄이다. 예전엔 「환생을 했을 때만」이었는데, ⑦ 일지가 환생 전에도 유해를 줄 수 있어
        판단을 relics>0 으로 옮겼다(유해는 환생이든 일지든 「되풀이한 자국」이라 그림이 안 어긋난다). */
     ...((META.relics | 0) ? [["유해", `${META.relics}구 · ${mul(relicMul())}`]] : []),
     /* 구슬과 **같은 자**로 적는다 — 구슬은 2.3k 인데 여기만 2280 이면 같은 값이 달라 보인다. */
-    ["체력",      num(hpMaxOf())],
-    ["마나",      num(mpMaxOf())],
-    ["군세",      armyCap()],                    // 군세는 상한이 두 자리라 줄일 것이 없다
+    ["체력",      num(hpMaxOf()), "hp"],
+    ["마나",      num(mpMaxOf()), "mp"],
+    ["군세",      armyCap(), "army"],            // 군세는 상한이 두 자리라 줄일 것이 없다
     /* ★ 피해 배수 안에서 **깊이 몫을 갈라 적는다.** 20층이면 ×3.2 가 이 안에 들어
        있는데, 뭉쳐 놓으면 「장비를 갈아 낀 덕」과 구별이 안 된다 — 제일 크게
        불어나는 것이 어디서 왔는지 보여야 한다. */
@@ -1848,14 +1855,23 @@ const statNumbers = () => {
        아무 뜻 없는 줄이 늘 서 있으면 그 옆의 진짜 값까지 안 읽힌다. */
     ...(mul(depthMul()) !== mul(1) ? [["깊이", mul(depthMul())]] : []),
     ["본인 피해",   mul(selfDmgMul())],
-    ["소환수 피해", mul(minionDmgMul())],
+    ["소환수 피해", mul(minionDmgMul()), "dmg"],
     ["마나 회복",   `${mpRegenOf().toFixed(1)}/초`],
     /* 금 획득도 같다 — 반지(GEAR.ring)나 `gold` 옵션이 붙기 전에는 언제나 +0% 다. */
     ...((() => { const p = Math.round((goldMulOf() - 1) * 100);
       return p ? [["금 획득", `+${p}%`]] : []; })()),
   ];
-  return `<div class="sStat">${rows.map(([n, v]) =>
-    `<div class="tipStat">${n} <b>${v}</b></div>`).join("")}</div>`;
+  /* 강화 없는 줄에도 **같은 폭의 빈 칸**을 둔다 — 안 그러면 단추가 붙은 줄만 값이
+     왼쪽으로 밀려 일곱 줄의 숫자가 층계처럼 어긋난다(읽는 자리인데 눈이 흔들린다). */
+  return `<div class="sStat">${rows.map(([n, v, up]) => {
+    const c = up ? upCost(up) : 0, can = up && META.gold >= c;
+    return `<div class="tipStat"><span class="sN">${n}</span><b>${v}</b>` +
+      (up
+        ? `<button class="upBtn${can ? "" : " no"}" data-up="${up}"${can ? "" : " disabled"}
+             title="${UPS[up].n} 강화 — ${UPS[up].d} · ${c.toLocaleString()} 금">▲ ${num(c)}</button>`
+        : `<span class="upBtn none"></span>`) +
+      `</div>`;
+  }).join("")}</div>`;
 };
 
 /** 지금↔다음 견줌 — 가방 것을 고르면 **같은 슬롯의 낀 것 대비 차이**를 함께 보인다
@@ -2180,7 +2196,11 @@ document.addEventListener("click", (e) => {
     const cost = upCost(up);
     if (META.gold < cost) return;
     META.gold -= cost; META.up[up] = (META.up[up] | 0) + 1; saveMeta();
-    drawForge(); hud();
+    /* 강화 단추는 이제 **두 곳**에 산다(대장간 · 능력치 창) — 셈은 여기 하나가 쥐되
+       다시 그리는 것은 **누른 그 창**이다. 대장간만 그리면 능력치 창에서 누를 때
+       값이 그대로라 「안 눌린다」로 보인다(눌리긴 눌렸다 — 그림만 안 왔다). */
+    if ($("winStat").classList.contains("on")) drawStat(); else drawForge();
+    hud();
   }
 });
 
