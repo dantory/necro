@@ -392,6 +392,11 @@ const tick = (sec) => `(async()=>{
     낀것점수: Math.round(eq.reduce((a,b)=>a+b,0)), 슬롯: eq.map(Math.round),
     가방: (C.META.bag||[]).length, 군세: S.minions.length, 상한: C.armyCap(),
     시체: S.corpses, 체력: Math.round(S.hp), 이번분죽음: deaths,
+    /* ★ 「투자 0」인지 이 자리에서 센다 — 일지(과제)가 깨지면 유해가 붙고 유해는
+       금·시체 획득에 곱해진다(relicMul). base 회귀선이 사실은 «투자를 태운 선»이면
+       A/B 의 밑바닥이 흔들리므로, 분마다 유해 수와 깬 과제를 그대로 들고 나온다. */
+    유해: C.META.relics | 0, 유해배수: C.relicMul ? +C.relicMul().toFixed(3) : 1,
+    과제: Object.keys(C.META.quests || {}),
     죽음기록: R.log.splice(0),
   });})()`;
 
@@ -405,7 +410,19 @@ for (let m = 1; m <= MIN; m++) {
   delete o.죽음기록; rows.push(o);
   console.log(`${String(m).padStart(2)}분  층 ${String(o.층).padStart(2)} (최고 ${o.최고층}) · 판 ${o.판수} · Lv ${o.레벨}` +
               ` · 금 ${String(o.금).padStart(6)} · 장비 ${String(o.낀것점수).padStart(4)} [${o.슬롯}]` +
-              ` · 가방 ${o.가방} · 군세 ${o.군세}/${o.상한} · 죽음 ${o.이번분죽음}`);
+              ` · 가방 ${o.가방} · 군세 ${o.군세}/${o.상한} · 죽음 ${o.이번분죽음}` +
+              (o.유해 ? ` · ★유해 ${o.유해} [${o.과제.join(",")}]` : ""));
+}
+/* **투자 0 이었나** — 유해가 한 톨이라도 붙었으면 이 판은 「base」가 아니다(획득에 배수가 곱해진다). */
+{
+  const last = rows[rows.length - 1];
+  if (last && (last.유해 | 0) > 0) {
+    const 첫분 = rows.find(r => (r.유해 | 0) > 0).분;
+    console.log(`\n★★ 이 판은 «투자 0» 이 아니다 — 유해 ${last.유해}구 · 획득 배수 ×${last.유해배수} · ` +
+                `깬 과제 [${last.과제.join(", ")}] · 첫 획득 ${첫분}분`);
+  } else if (last) {
+    console.log("\n유해 0 — 이 판은 과제를 하나도 안 깼다(회귀선이 «투자 0» 이 맞다).");
+  }
 }
 /* **어디서 멈췄나** — 마지막 5분 동안 안 자란 것을 이름으로 뱉는다. */
 if (rows.length >= 6) {
