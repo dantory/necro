@@ -1,4 +1,4 @@
-import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -1443,12 +1443,12 @@ export function step(dt) {
        31~38%에서 걷고 있었다(22/70 · 15/40). 치려면 일단 서야 한다. */
     const rooted = (u.swing || 0) > 0;
     u.tgtId = tgt ? tgt.id : 0;      // 검수기가 **게임이 고른 표적**을 볼 수 있게(값이 싸다)
-    if (!tgt) { if (!rooted) toward(u, hx, hy, K.spd * MINION_SPD, dt); continue; }
+    if (!tgt) { if (!rooted) toward(u, hx, hy, K.spd * minionSpd(), dt); continue; }
     /* ★ **아군도 겹침 허용치를 쓴다**(병수님 2026-08-15 18:54: "더 겹쳐도 될듯,
        아군/적군 모두"). 여기만 `u.r + tgt.r + 4` 로 굳어 있어서, 적은 파고들게 해 놓고
        **내 군대만 어깨를 맞대고** 섰다 — 앞줄이 자리를 먹으면 뒷줄이 표적에 못 닿는다.
        떼어놓기(shove)와 같은 값을 쓰는 것이 이 손잡이의 뜻이다. */
-    if (dist(u, tgt) > (u.r + tgt.r) * touchK() + 4) { if (!rooted) toward(u, tgt.x, tgt.y, K.spd * MINION_SPD, dt); continue; }
+    if (dist(u, tgt) > (u.r + tgt.r) * touchK() + 4) { if (!rooted) toward(u, tgt.x, tgt.y, K.spd * minionSpd(), dt); continue; }
     /* ★ **붙어서 차례를 기다리는 동안에도 표적을 본다.** 서 있는 그림의 방향은
        `dx,dy`(마지막으로 **걸은** 방향)로 정해지므로, 제자리에 선 뒤 옆에서 적이
        붙으면 걸어온 쪽을 그대로 보고 선다 — 재 보니 붙어 있는 프레임의 **21%**가

@@ -35,6 +35,17 @@ PARTS = {
             "plates and iron studs, back of the hand facing the viewer", 64, 64),
   "ring":  (f"{TONE}, {ONE}, a ring: a dull gold band set with a tiny carved skull, "
             "lying flat facing the viewer", 64, 64),
+  # 08-16 17:30 — 열 칸이 되면서 넷이 더 필요해졌다(방패·허리띠·신발·둘째 반지).
+  # 같은 결(뼈·검은 쇠·바랜 금 · 한 물건 · 정면). 반지 둘은 **서로 달라야** 한 눈에 갈린다 —
+  # 첫 반지가 금+해골이므로 둘째는 검은 쇠+붉은 돌로 간다.
+  "shield":(f"{TONE}, {ONE}, a round shield: dark iron rim over pale bone panels, a skull "
+            "boss at the center, front view", 64, 64),
+  "belt":  (f"{TONE}, {ONE}, a belt: a dark leather strap with a bone buckle and small "
+            "finger bones hanging from it, laid out horizontally", 64, 64),
+  "boots": (f"{TONE}, {ONE}, a pair of boots: worn dark leather greaves with bone shin "
+            "plates and iron buckles, side view", 64, 64),
+  "ring2": (f"{TONE}, {ONE}, a ring: a black iron band set with a small dark red stone, "
+            "lying flat facing the viewer, no skull", 64, 64),
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading",
           "detail": "high detail"}

@@ -1760,6 +1760,10 @@ function drawBag() {
           <div class="pdSlot pd-robe">${gearSlot("robe")}</div>
           <div class="pdSlot pd-glove">${gearSlot("glove")}</div>
           <div class="pdSlot pd-ring">${gearSlot("ring")}</div>
+          <div class="pdSlot pd-shield">${gearSlot("shield")}</div>
+          <div class="pdSlot pd-belt">${gearSlot("belt")}</div>
+          <div class="pdSlot pd-boots">${gearSlot("boots")}</div>
+          <div class="pdSlot pd-ring2">${gearSlot("ring2")}</div>
         </div></div>
       <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>

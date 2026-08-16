@@ -27,6 +27,9 @@ export const $ = (id) => document.getElementById(id);
  *  사람이 걷는 느낌은 1.2~2.0배다. 종마다 따로 만지지 않고 **표의 값에 한 번 곱한다** —
  *  해골은 빠르고 골렘은 느린 결(34/30/19)을 그대로 두고 바닥만 올린다. */
 export const MINION_SPD = 1.6;
+/** 소환수 걸음 배수 — 신발이 올린다. **상한 1.6배**: 빠른 건 좋지만 순간이동은 안 된다
+ *  (걸음이 그림의 박자보다 빨라지면 08-13 에 고친 「떠다닌다」가 되돌아온다). */
+export const minionSpd = () => MINION_SPD * Math.min(1.6, 1 + gearVal("boots"));
 export const MINIONS = {
   skel:  { n:"해골 전사", ico:"☠", cost:1, hp:26,  dmg:12, spd:34, cd:1.5, h:52,
            d:"가장 싸고 빠름 · 머릿수로 미는 병력" },
@@ -701,6 +704,26 @@ export const GEAR = {
   ring:  { n:"반지",   d:"금 획득", u:"pct",
            tiers:["없음","뼈 반지","수의 반지","무덤지기 반지","재의 인장"],
            cost:[0, 80, 280, 950, 3200], val:[0, 0.08, 0.18, 0.32, 0.50] },
+  /* ══ 넷을 더 낸다 ══ (병수님 2026-08-16 17:26 「장비슬롯 더 늘려」)
+     앞의 셋과 같은 규칙이다 — **새 밸런스 축을 만들지 않고** 이미 곱해지는 자리 하나씩에만.
+       · 방패 = 최대 체력(bodyHp, 망토 자리) — 망토의 ~55%
+       · 허리띠 = 시체 획득(harvestPct) — 「시체가 자원」인데 옵션으로만 오르던 축
+       · 신발 = 소환수 걸음(MINION_SPD) — 「군대가 굼뜨다」던 그 축을 물건으로도 만진다
+       · 반지 둘째 = 경험치(xpMul) — D2 도 반지가 둘이다. 첫 반지와 다른 축이라 둘이 안 겹친다
+     ★ 값은 「같은 축을 이미 쥔 슬롯」의 절반 남짓이다 — 열 칸이 다 차도 화력이 두 배가 안 되게.
+     ★ 걸음(신발)만은 **비율**이라 상한을 둔다(아래 minionSpd) — 빠른 건 좋지만 순간이동은 안 된다. */
+  shield:{ n:"방패",   d:"최대 체력", u:"flat",
+           tiers:["없음","나무 방패","뼈 방패","무덤지기 방패","재의 방패"],
+           cost:[0, 70, 250, 850, 2900], val:[0, 22, 60, 145, 310] },
+  belt:  { n:"허리띠", d:"시체 획득", u:"pct",
+           tiers:["없음","가죽 띠","뼈 사슬","장의사 띠","재의 띠"],
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.12, 0.21, 0.32] },
+  boots: { n:"신발",   d:"소환수 걸음", u:"pct",
+           tiers:["맨발","해진 신","무두질 신","도굴꾼 장화","재의 장화"],
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.11, 0.19, 0.28] },
+  ring2: { n:"반지 ②", d:"경험치", u:"pct",
+           tiers:["없음","녹슨 고리","수의 고리","무덤지기 고리","재의 고리"],
+           cost:[0, 80, 280, 950, 3200], val:[0, 0.06, 0.14, 0.25, 0.40] },
 };
 
 /* ══ 같은 등급의 다른 얼굴 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
@@ -1210,7 +1233,7 @@ const SPLIT_OF = () => (typeof globalThis !== "undefined" && globalThis.__SPLIT 
 const splitLv = () => SPLIT_OF() ? Math.max(1, META.deepest | 0) : META.lv;
 /** 키운 것으로 쌓는 체력 — 얕은 층에서는 이쪽이 크다. */
 const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (splitLv() - 1) * 8
-                   + gearVal("robe") + afSum("hp");
+                   + gearVal("robe") + gearVal("shield") + afSum("hp");   // 방패 = 최대 체력(망토와 같은 축)
 export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
@@ -1526,9 +1549,9 @@ export const cdMul       = () => Math.pow(0.93, rank("swift")) * Math.max(0.35, 
 export const wandMul     = () => 1 + rank("wand") * 0.12;
 export const ampSecs     = () => 8 + rank("deep") * 3;
 export const ampPower    = () => 1.4 + rank("deep") * 0.08;   // 저주가 올리는 피해 배수
-export const harvestPct  = () => rank("harvest") * 0.12 + afSum("corpse") / 100;
+export const harvestPct  = () => rank("harvest") * 0.12 + afSum("corpse") / 100 + gearVal("belt");   // 허리띠 = 시체 획득
 /** 경험치 배수 — 옵션 xp. 곱해지는 자리는 battle.js 의 xpGain 하나뿐이다. */
-export const xpMul       = () => 1 + afSum("xp") / 100;
+export const xpMul       = () => 1 + afSum("xp") / 100 + gearVal("ring2");   // 반지 ② = 경험치
 export const spiritMp    = () => rank("spirit") * 2;
 export const feastOn     = () => rank("feast") > 0;
 
