@@ -236,6 +236,24 @@ const revisiting = () => (S.floor | 0) < (META.deepest | 0);
 const rvGap  = () => (globalThis.__REVISIT_GAP  != null ? +globalThis.__REVISIT_GAP  : REVISIT_GAP_DEF);
 const rvFull = () => (globalThis.__REVISIT_FULL != null ? +globalThis.__REVISIT_FULL : REVISIT_FULL_DEF);
 
+/** ⑧-e **셋째 손잡이 — 되짚는 층을 통째로 빨리 감는다.**
+ *  A/B 두 판이 위 둘로는 안 된다고 말했다(2026-08-16):
+ *    GAP 0.5 는 되짚기 22.5 → 21.9% 로 **거의 안 움직이고**(줄은 이미 충분히 나온다),
+ *    FULL 2 는 22.5 → 16.3% 로 듣지만 **금이 +57% · 레벨/층 +6%** 다 — 시간을 아낀 게
+ *    아니라 한 층에서 더 많이 잡아 **살을 찌운 것**이다. 즉 위 둘로는 「시간만」 못 아낀다.
+ *  남는 시간의 정체는 따로 있다 — **다가감이 때림의 두 배**다(438·611·584초 대 314·360·385).
+ *  그건 줄이 나오는 속도도 머릿수도 아니고 **판이 흐르는 속도**다.
+ *  그래서 되짚는 동안만 **같은 dt 로 step 을 n 번 돌린다**(FF). dt 를 늘리지 않는 이유는
+ *  걸음이 커지면 떼어놓기·닿음 판정이 달라져 **다른 게임이 되기** 때문이다 — 같은 틱을
+ *  여러 번 돌리면 판은 글자 그대로 같고 **시계만 빨라진다**. 잡는 수·드랍·경험치는
+ *  층마다 그대로라 살이 안 찐다(그게 위 둘과 다른 점이다).
+ *  1 이면 지금과 한 톨도 안 다르다 — A/B 의 base 팔.
+ *  ★ 전선에 닿는 순간 **그 자리에서 멈춘다**(아래 루프가 매번 `revisiting()` 을 다시 본다).
+ *    안 그러면 처음 보는 층의 첫 몇 틱이 빨리 감긴 채 지나간다. */
+export const REVISIT_FF_DEF = 1;
+const rvFf = () => (globalThis.__REVISIT_FF != null ? +globalThis.__REVISIT_FF : REVISIT_FF_DEF);
+let ffInside = false;   // 빨리 감는 동안의 재귀 방지 — 안쪽 step 은 제 몫만 돈다
+
 /** 「들어섰다」 연출이 사는 시간 — main.js draw 가 이 안에서 비네트를 걷고 명패를 앉힌다.
  *  ★ 그리는 쪽도 이 값으로 진행도를 재므로 export 한다(양쪽에 숫자를 박으면 어긋난다). */
 export const ARRIVE_T = 1.6;
@@ -902,6 +920,17 @@ export function cast(id) {
  *  그림 없이 수천 초를 돌릴 수 있어야 재미를 잴 수 있다(앞 프로토타입의 교훈). */
 export function step(dt) {
   if (S.dead) return;
+  /* ⑧-e 되짚는 층은 **같은 틱을 n 번** 돌려 빨리 지나간다(위 rvFf 주석).
+     매번 `revisiting()` 을 다시 보므로 전선에 닿는 순간 멈춘다. */
+  if (!ffInside) {
+    const n = Math.max(1, Math.round(rvFf()));
+    if (n > 1 && revisiting()) {
+      ffInside = true;
+      try { for (let i = 1; i < n && !S.dead && revisiting(); i++) step(dt); }
+      finally { ffInside = false; }
+      if (S.dead) return;
+    }
+  }
   S.t += dt;
   /* 최대 체력을 **매 틱 맞춘다.** 예전엔 층을 넘을 때만 갱신해서, 판 안에서 레벨이
      오르면 최대치는 그대로인데 몸만 커져 화면에 **「824/816」** 이 떴다(2026-08-13
