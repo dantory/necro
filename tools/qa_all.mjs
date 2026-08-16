@@ -47,11 +47,16 @@ const RULERS = [
   { name: "fx_art",       args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   { name: "icon_qa",      args: [],                             secs: 120, tier: "fast", expect: /검사한 칸/ },
   { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
-  /* ★ 건너뛰기는 **창을 지나는 길**이라 훅으로는 못 잰다 — 입구를 진짜로 누르고 칸을 눌러 본다. */
-  { name: "dive_qa",      args: [],                             secs: 180, tier: "fast", expect: /판정/ },
+
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
   { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
+
+  /* ★ 건너뛰기는 **창을 지나는 길**이라 훅으로는 못 잰다 — 입구를 진짜로 누르고 칸을 눌러 본다.
+     그런데 **입력을 쓰는 자는 앞에 있어야** 닿는다(Page.bringToFront). 빠른 자 열넷과 섞어
+     돌리면 서로 앞자리를 뺏어 그때그때 다르게 진다 — 홀로 돌리면 늘 통과한다.
+     그래서 여기(따로 도는 자리)에 둔다: `node tools/qa_all.mjs --only dive_qa`. */
+  { name: "dive_qa",     args: [],                secs: 240,  tier: "slow", expect: /판정/ },
 
   // ── 느린 자: 판을 실제로 굴려서 재는 것들 (--all)
   { name: "walk_qa",     args: ["25", "3"],       secs: 240,  tier: "slow" },
