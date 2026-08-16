@@ -107,9 +107,15 @@ export function setPerfLow(v) {
   try { localStorage.setItem(PERF_KEY, perfLow ? "1" : "0"); } catch {}
   fit();
 }
+/* ★ 판 크기는 **여기서만** 읽는다(2026-08-16). `clientWidth/Height` 는 **읽는 순간
+   레이아웃을 강제로 다시 계산**시킨다 — `draw()` 첫 줄에서 매 프레임 읽고 있었고,
+   CPU 프로파일에서 그 한 줄이 `draw` 자기시간의 **29.5%** 였다(폰 속도 ×6 에서 1위 줄).
+   크기가 바뀌는 자리는 여기뿐이니(resize · 화질 토글 · 시작) 재 두고 쓴다. */
+let cvW = 0, cvH = 0;
 function fit() {
   dpr = Math.min(perfLow ? 1.35 : 2, devicePixelRatio || 1);
-  cv.width = cv.clientWidth * dpr; cv.height = cv.clientHeight * dpr;
+  cvW = cv.clientWidth; cvH = cv.clientHeight;
+  cv.width = cvW * dpr; cv.height = cvH * dpr;
 }
 addEventListener("resize", fit);
 
@@ -393,7 +399,7 @@ function drawOne(base, x, gy, h, fallback, e) {
    흔히 쓰는 2.5D 다. 그리는 순서는 **y 가 작은 것부터**라야 앞의 것이 뒤를 가린다. */
 
 function draw(dt) {
-  const w = cv.clientWidth, h = cv.clientHeight;
+  const w = cvW, h = cvH;   /* ← fit() 이 재 둔 값. 여기서 읽으면 매 프레임 레이아웃이 강제된다 */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
 
