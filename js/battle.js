@@ -338,6 +338,15 @@ const TIRE_AT_OF = () => (typeof globalThis !== "undefined" && globalThis.__TIRE
         조용했던 두 판이 풀렸다 — 씨앗 7 은 268초→86초(최고층 23→50), 씨앗 1 은 188초→54초.
      ⇒ 그래서 기본을 **4** 로 켠다(값을 켜는 것은 A/B 뒤에만 · ROADMAP D-3 축 ①). */
 export const ADD_CAP_DEF = 4;
+/** 불려 나온 졸개가 무는 힘의 배수. **3.2 — 재서 고른 값이다.**
+ *  「관문에서 맞은 피해의 몫」(tools/gatelord_probe.mjs)으로 네 팔을 견줬다(씨앗 두 벌씩):
+ *      1.0 → add 33%  ·  2.2 → add 38%  ·  2.6 → add 50%  ·  **3.2 → add 73% (두 벌 다)**
+ *  2.6 은 반반이라 판마다 뒤집힌다 — 「제 수법으로 죽는다」가 씨앗 운이 되면 안 된다.
+ *  ★ 값을 올린 만큼 **깊이를 얼마나 내주는지**도 쟀다(loop_health 20분 최고층, 씨앗 셋):
+ *      79→76 · 86→80 · 74→77  (평균 79.7 → 77.7, −2.5%). 씨앗 사이 폭(±6)보다 작다.
+ *    그만큼은 내준다 — 소환사 관문이 「평지와 같은데 이름만 다른 것」이던 것을 고치는 값이다.
+ *  `globalThis.__ADD_DMG` 로 갈아 끼운다(A/B 손잡이는 남겨 둔다). */
+const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
 
@@ -1299,6 +1308,12 @@ export function step(dt) {
         /* 불려 나온 졸개는 **두 배로 질기다**(hp×2) — 예전 값이면 네크로·군대가 솟자마자
            치워 12분에 한 번도 안 물었다(gatelord_probe: 죽음 0). 질겨야 살아남아 문다. */
         a.hp = a.hpMax = floorHp(S.floor) * 2;
+        /* ★ **무는 힘도 올린다**(2026-08-16). 「관문에서 맞은 피해의 몫」을 재 보니
+           소환사 관문만 **melee 66% · add 34%** 였다 — 나머지 셋은 제 수법이 83~98% 다.
+           즉 소환사만 **제가 부른 것보다 평지 졸개 떼가 더 아팠다.** 보스가 부른 것이
+           길에 서 있던 것과 똑같이 물면 「부른 보람」이 없다.
+           손잡이로 둔다(기본은 아래 A/B 로 정한 값) — 값을 바로 박으면 되돌릴 수가 없다. */
+        a.dmg *= ADD_DMG_OF();
         const ang = (i / cnt) * 6.2832 + (Math.random() - 0.5) * 0.6, rad = 75;
         a.x = Math.cos(ang) * rad; a.y = Math.sin(ang) * rad;
       }
