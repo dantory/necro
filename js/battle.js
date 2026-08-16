@@ -639,6 +639,22 @@ export const CORPSE_MAX = PILE_MAX;
 export const NOVA_GULP_DIV = 8;
 /** 한 입의 상한. 없으면 140 을 통째로 먹어 한 방에 판이 끝난다. */
 const NOVA_GULP_CAP = 32;
+/** **군세가 커질수록 한 기를 더 세우는 값이 오른다.** 여태 시체가 남아돈 까닭은
+ *  쓰는 곳이 모자라서가 아니라 **드는 값이 늘 1 구**였기 때문이다 — 유입은 층 깊이를
+ *  따라 늘어나는데 값은 안 늘어나니, 어느 깊이부터는 무슨 짓을 해도 남는다.
+ *  값을 **몸 STEP 기마다 +1 구**로 두면 유입과 같은 축(깊이=군세)에서 값이 따라 오르고,
+ *  「지금 한 기를 더 세울까, 아껴서 터뜨릴까」가 그제야 판단이 된다.
+ *  ★ 시체 **수**에 매달지 않는 것이 중요하다 — 그러면 값이 제 소비에 따라 흔들려
+ *    군세 상한과 겹쳐 읽을 수 없게 된다(위 소환/폭발 갈래의 그 까닭 그대로).
+ *  0 이면 꺼진다(옛 거동과 비트까지 같다). */
+export const SUMMON_COST_STEP = 0;
+/** 이 스킬이 지금 무는 시체 수. **게임과 자가 같은 식을 봐야 한다** — 갈라 두면
+ *  「자는 통과인데 손끝에서는 안 나감」이 난다(tools/loop_health.mjs 도 이걸 부른다). */
+export function corpseNeedOf(sk, over) {
+  const step = SUMMON_COST_STEP;
+  const base = sk.corpse + (step > 0 && isRaise(sk.id) ? Math.floor(armyN() / step) : 0);
+  return base * (over ? 3 : 1);                        // ㉡ 초과 세우기는 세 곱
+}
 /** 이번 폭발이 먹을 시체 수. */
 function novaGulp() {
   if (!NOVA_GULP_DIV) return 1;
@@ -806,7 +822,7 @@ export function cast(id) {
      늘 거짓이고 armyCapEff()==armyCap() 이라, 아래 산수와 검사 차례가 예전과 비트까지 같다. */
   const over = isRaise(id) && armyN() >= armyCap() && armyN() < armyCapEff();
   const mpNeed = mpCost(sk) * (over ? 2 : 1);            // ㉡ 초과분은 마나 2배
-  const corpseNeed = sk.corpse * (over ? 3 : 1);         // ㉡ 초과분은 시체 3배
+  const corpseNeed = corpseNeedOf(sk, over);             // ㉡ 초과분은 시체 3배 (+ 군세만큼 오른 값)
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < corpseNeed) return false;
   let merging = null, mergeMul = 1;
   if (isRaise(id) && armyN() >= armyCapEff()) {          // 실효 상한까지 꽉 참

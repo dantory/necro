@@ -312,7 +312,7 @@ const tick = (sec) => `(async()=>{
              둘 다 꺼지면 capEff==capBase·머지대상 없음 → have>=capBase 와 같아 예전과 비트까지 같다. */
           const sk = C.SKILLS.find(s => s.id === "raise");
           const over = have >= capBase && have < capEff;
-          const corpseNeed = sk.corpse * (over ? 3 : 1);
+          const corpseNeed = B.corpseNeedOf(sk, over);   // ★ 게임과 **같은 식**을 본다(battle.js)
           const mpNeed = C.mpCost(sk) * (over ? 2 : 1);
           const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
           const canMerge = have >= capEff && mgOn &&
