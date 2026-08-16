@@ -2341,8 +2341,17 @@ function tick(t) {
      로딩 화면 뒤에서 계속 흔들렸고, 걷히는 순간 이미 한창 떨고 있었다. */
   if (!loading(dt)) { draw(0); requestAnimationFrame(loop); return; }
   if (MODE.at === "dungeon") {
-    for (let i = 0; i < S.speed; i++) step(dt);
-    if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
+    /* ★ auto() 는 **판의 시간**을 따라야 한다 — 예전엔 이 고리 «밖»에서 벽시계 dt 로만
+       셌다. 그래서 배수를 올리면 판만 빨라지고 **머리는 그대로**였다: ×3 은 군세를 셋에
+       하나만큼 채우고 ×8 은 여덟에 하나다. 같은 24 게임초인데 ×1 은 한 대도 안 맞고
+       ×3 은 죽어서 마을로 갔다(docs/ROADMAP.md J).
+       검수기(corpse_probe · loop_health)는 처음부터 0.35 «게임»초마다 불러 왔으니,
+       어긋나 있던 것은 자가 아니라 **진짜 판** 쪽이다 — 자를 판에 맞춘 게 아니라
+       판을 자에 맞춘다. S.speed 가 1 인 지금 판은 한 톨도 안 달라진다(같은 차례·같은 난수). */
+    for (let i = 0; i < S.speed; i++) {
+      step(dt);
+      if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
+    }
     /* 죽으면 **마을로 돌아온다.** 예전엔 그 자리에 멈춰 서서 아무 데도 못 갔다 —
        방치형은 죽는 것이 끝이 아니라 **한 바퀴의 끝**이라야 다시 들어갈 마음이 든다. */
     if (S.dead) {
