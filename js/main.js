@@ -1249,6 +1249,9 @@ function drawArrive(w, h) {
    정보이기도 하다. */
 const BELT_SLOTS = 6;
 
+/* 벨트 칸을 찾아 둔 자리 — belt() 가 채우고 beltState() 가 매 프레임 읽는다. */
+let beltEls = [];
+
 function belt() {
   const empty = Array.from({ length: Math.max(0, BELT_SLOTS - SKILLS.length) }, (_, j) =>
     `<div class="slot empty"><canvas class="fr"></canvas><span class="k">${SKILLS.length + j + 1}</span></div>`).join("");
@@ -1260,27 +1263,48 @@ function belt() {
        정확히 1px 이라 픽셀아트 옆에서 매끈하게 튄다. */
     `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><canvas class="fr"></canvas><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
       <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("") + empty;
-  /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다. */
+  /* ★ 칸을 **한 번만 찾아 둔다**(아래 beltState 의 ★ 참고). 띠를 다시 그리면
+     옛 노드는 버려지므로 여기서 같이 갈아 끼운다. */
+  beltEls = SKILLS.map((s) => {
+    const el = $("belt").querySelector(`[data-sk="${s.id}"]`);
+    return el && { s, el, cd: el.querySelector("[data-cd]"), h: -1, cw: 0, ch: 0 };
+  }).filter(Boolean);
+  /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다.
+     ★ 그때 잰 크기를 **적어 둔다.** beltState 가 다시 그릴 때마다 `clientWidth` 를
+     읽으면 그 한 줄이 브라우저에게 **판을 다시 재게 시킨다**(강제 리플로우). */
   for (const el of document.querySelectorAll("#belt .slot"))
-    watch(el, (cv, w, h) => drawSlot(cv, w, h, el.classList.contains("on"), el.classList.contains("empty")));
+    watch(el, (cv, w, h) => {
+      const b = beltEls.find((x) => x.el === el);
+      if (b) { b.cw = w; b.ch = h; }
+      drawSlot(cv, w, h, el.classList.contains("on"), el.classList.contains("empty"));
+    });
   $("belt").onclick = (e) => {
     const el = e.target.closest("[data-sk]");
     if (el) cast(el.dataset.sk);
   };
 }
+/* ★ 이 함수는 **매 프레임** 돈다 — 그래서 여기서 하는 일은 프레임 수만큼 곱해진다.
+   예전엔 칸마다 `document.querySelector` 를 **두 번**(칸 하나 · 쿨다운 막대 하나)
+   돌렸다. 여섯 칸이면 한 프레임에 문서 전체 훑기 12번이고, CPU 프로파일에서
+   `beltState` 가 JS 자기시간 **2위(8초에 198ms)** 였다 — draw 보다 컸다.
+   이 맥에서는 안 티 나도 폰에서는 이런 자리부터 무너진다(2026-08-15 「그리고 렉걸림」).
+   → 노드는 belt() 에서 한 번 찾아 두고, 높이는 **바뀐 값일 때만** 쓴다
+     (같은 문자열을 다시 넣어도 브라우저는 스타일을 다시 셈한다). */
 function beltState() {
-  for (const s of SKILLS) {
-    const el = document.querySelector(`[data-sk="${s.id}"]`);
-    if (!el) continue;
+  for (const b of beltEls) {
+    const { s, el } = b;
     const ok = (S.cd[s.id] || 0) <= 0 && S.mp >= mpCost(s) && S.corpses >= corpseNeedOf(s, false);
     if (el.classList.contains("on") !== ok) {          // **바뀔 때만** 다시 그린다
       el.classList.toggle("on", ok);
       el.classList.toggle("off", !ok);
       const cv = el.querySelector("canvas.fr");
-      if (cv) drawSlot(cv, Math.round(el.clientWidth), Math.round(el.clientHeight), ok);
+      const w = b.cw || Math.round(el.clientWidth), h2 = b.ch || Math.round(el.clientHeight);
+      if (cv) drawSlot(cv, w, h2, ok);
     }
-    const cd = el.querySelector("[data-cd]");
-    cd.style.height = Math.max(0, Math.min(1, (S.cd[s.id] || 0) / s.cd)) * 100 + "%";
+    /* 0.1% 아래로는 눈이 못 보니 그 단위로 끊어 견준다 — 안 그러면 부동소수 끝자리가
+       매 프레임 달라져 「바뀐 값일 때만」이 늘 참이 된다. */
+    const h = Math.round(Math.max(0, Math.min(1, (S.cd[s.id] || 0) / s.cd)) * 1000);
+    if (h !== b.h) { b.h = h; b.cd.style.height = h / 10 + "%"; }
   }
 }
 

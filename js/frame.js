@@ -44,12 +44,32 @@ function ring(g, w, h, i, top, bottom, side) {
  *  쓸 수 있는 칸 셋과 같은 무게로 눈에 들어왔다(병수님: "숫자만 덩그러니 있다").
  *  옅게 하는 것과 **잠긴 것**은 다르다 — 잠긴 칸은 홈이 아니라 **메워진 자리**다:
  *  속의 단계를 없애 납작하게 하고, 테두리의 밝은 면을 죽이고, 못을 뺀다. */
+/* ★ 이 그림은 **정해진 것**이다 — 폭·높이·켜짐·잠김 넷만으로 완전히 결정된다.
+   그런데 전투 중에는 마나와 시체가 문턱을 넘나들어 칸이 **매 프레임 켜졌다 꺼진다**.
+   CPU 프로파일에서 `beltState` 자기시간의 **98.7%** 가 이 함수를 부르는 한 줄이었다
+   (여섯 칸 × 매 프레임 × 작은 사각형 스무 개). 그래서 빛(`glowTile`)과 같은 길로 —
+   **한 번 구워 두고 얹는다.** 크기는 두어 가지뿐이라 판이 몇 장 안 쌓인다. */
+const slotTiles = new Map();
+function slotTile(w, h, on, locked) {
+  const k = `${w}|${h}|${on ? 1 : 0}|${locked ? 1 : 0}`;
+  const hit = slotTiles.get(k);
+  if (hit) return hit;
+  const t = document.createElement("canvas");
+  t.width = w; t.height = h;
+  paintSlot(t.getContext("2d"), w, h, on, locked);
+  if (slotTiles.size > 32) slotTiles.clear();   /* 창을 계속 끌면 늘어나는 것만 막는다 */
+  slotTiles.set(k, t);
+  return t;
+}
 export function drawSlot(cv, w, h, on, locked = false) {
   if (w < 8 || h < 8) return;
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const g = cv.getContext("2d");
   g.clearRect(0, 0, w, h);
-
+  g.drawImage(slotTile(w, h, on, locked), 0, 0);
+}
+/** 실제로 칠하는 자리. 판 하나당 **한 번만** 돈다. */
+function paintSlot(g, w, h, on, locked) {
   const inset = 3;
   if (locked) {
     /* 속 — **한 색으로 납작하게.** 단계를 주면 홈으로 읽혀 「쓸 수 있는 칸」이 된다. */
