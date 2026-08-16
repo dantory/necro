@@ -46,6 +46,10 @@ await new Promise(r => setTimeout(r, 4000));
    몰래 끼웠으면 여기서 어긋난다. */
 const R = await ev(`(function(){
   const META = window.META;
+  /* ★ 심기 전에 **다른 슬롯을 비운다** — 08-16 에 칸이 셋에서 열로 늘면서, 불러온
+     세이브에 낀 것이 더 있으면 「낀 3」이 5·7 로 나와 자가 늘 빨갰다. 자는 제가
+     심은 것만 세야 한다(칸 수가 또 늘어도 이 줄은 안 고친다). */
+  for (const k of Object.keys(META.equip)) META.equip[k] = null;
   META.equip.wand  = { k:"wand",  tier:1, af:[{id:"dmg", v:10}] };
   META.equip.robe  = { k:"robe",  tier:3, af:[{id:"hp", v:60},{id:"mp", v:1.2}] };
   META.equip.charm = { k:"charm", tier:4, af:[{id:"mp", v:1.5},{id:"gold", v:20},{id:"army", v:1}] };

@@ -46,6 +46,10 @@ const RULERS = [
      나가고 저주는 아무것도 안 떴다(2026-08-15 병수님 지적). */
   { name: "fx_art",       args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   { name: "icon_qa",      args: [],                             secs: 120, tier: "fast", expect: /검사한 칸/ },
+  /* ★ 능력치 창의 **뜻 없는 줄** — 「깊이 ×1.00」·「금 획득 +0%」은 값이 붙기 전에는 접는다
+     (병수님 지적). 접는 것은 쉬운데 **되돌아오는 것**을 안 재면 영영 사라져도 모른다 —
+     그래서 값을 붙여 놓고 다시 뜨는지까지 한 판에 잰다. */
+  { name: "statrow_qa",   args: [],                             secs: 120, tier: "fast", expect: /(PASS|FAIL)/ },
   { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
 
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },

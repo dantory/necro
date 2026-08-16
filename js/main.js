@@ -1840,11 +1840,16 @@ const statNumbers = () => {
        불어나는 것이 어디서 왔는지 보여야 한다. */
     /* 띠와 **같은 자**(`mul()`)로 줄인다 — 50층에서 본인 피해가 ×1234.56 이면
        여기도 자리를 넘긴다. 한 군데만 고치면 띠는 ×19.5 인데 창은 ×19.50 이 된다. */
-    ["깊이",       mul(depthMul())],
+    /* ★ 「깊이 ×1.00」은 마을·1층에서 **늘** 뜨는데 아무 말도 안 한다(depthMul 은
+       floor 로만 정해진다). 유해와 같은 규칙으로 **값이 붙었을 때만** 적는다 —
+       아무 뜻 없는 줄이 늘 서 있으면 그 옆의 진짜 값까지 안 읽힌다. */
+    ...(mul(depthMul()) !== mul(1) ? [["깊이", mul(depthMul())]] : []),
     ["본인 피해",   mul(selfDmgMul())],
     ["소환수 피해", mul(minionDmgMul())],
     ["마나 회복",   `${mpRegenOf().toFixed(1)}/초`],
-    ["금 획득",    `+${Math.round((goldMulOf() - 1) * 100)}%`],
+    /* 금 획득도 같다 — 반지(GEAR.ring)나 `gold` 옵션이 붙기 전에는 언제나 +0% 다. */
+    ...((() => { const p = Math.round((goldMulOf() - 1) * 100);
+      return p ? [["금 획득", `+${p}%`]] : []; })()),
   ];
   return `<div class="sStat">${rows.map(([n, v]) =>
     `<div class="tipStat">${n} <b>${v}</b></div>`).join("")}</div>`;
