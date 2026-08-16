@@ -447,8 +447,10 @@ body.in-town #stage{cursor:pointer}
   /* 무대와 **같은 물건**으로 읽혀야 한다 — 창(.win .frame)과 같은 두 겹 테(어두운 선 + 금선) */
   background:linear-gradient(#100c08f2,#0a0705f7);
   box-shadow:0 0 0 1px #000, 0 0 0 2px #3a2f1c, 0 0 30px 10px #000 inset}
+/* ★ 제목 넷이 패널에서 124px 을 먹고 있었다(31px × 4). 그 값을 낀 것이 못 받아
+   4칸이 잘려 나갔다 — 여백 3px 씩만 돌려줘도 16px 이 목록으로 간다(2026-08-17). */
 .rail .rTitle{color:var(--gold);font-size:18px;letter-spacing:3px;opacity:.9;
-  padding-bottom:3px;margin-top:6px;border-bottom:1px solid #2a2318;flex:0 0 auto}
+  padding-bottom:2px;margin-top:3px;border-bottom:1px solid #2a2318;flex:0 0 auto}
 .rail .rTitle:first-child{margin-top:0}
 .rail .rSp{flex:1 1 auto;min-height:0}
 
@@ -475,12 +477,21 @@ body.in-town #stage{cursor:pointer}
    일지가 그만큼 짧아진다. */
 body:not(.in-town) .townOnly{display:none}
 
-/* 낀 것 — 슬롯 아이콘 + 이름. 빈 칸은 안 그린다(열 칸을 다 세우면 「비었다」만 열 줄이다). */
-.rGear{flex:0 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:1px;padding:2px 0}
-.rGear .r{display:flex;align-items:center;gap:6px;line-height:1.35}
-.rGear .r i{width:18px;height:18px;flex:0 0 auto;background:no-repeat center/contain;
+/* 낀 것 — 슬롯 아이콘 + 이름. 빈 칸은 안 그린다(열 칸을 다 세우면 「비었다」만 열 줄이다).
+   ★★ 2026-08-17 — **슬롯이 열 칸이 되자(25c3eb2) 이 목록이 조용히 잘렸다.** 잰 값:
+   일곱 줄이 180px 을 원하는데 자리는 88px, 즉 **넷이 안 보이고 넷째 줄은 글자 가운데서
+   끊겼다**(병수님 화면 1512). `overflow:hidden` 이 아무 말 없이 먹은 것이다
+   ([[knob-that-does-nothing]] 과 같은 결 — 안 보이는데 아무도 안 알려 준다).
+   고침은 둘: ① 줄을 좁혀(1.35→1.15 · 아이콘 16px) 한 줄에 21px 만 쓰고
+   ② 그래도 넘치면 js 가 **온전한 줄만 세우고 마지막에 「…외 N」**을 놓는다.
+   글자 가운데서 끊기는 일은 이제 없다 — 넘친다는 사실이 줄로 서 있다. */
+.rGear{flex:0 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;gap:0;padding:2px 0}
+.rGear .r{display:flex;align-items:center;gap:6px;line-height:1.15}
+.rGear .r i{width:16px;height:16px;flex:0 0 auto;background:no-repeat center/contain;
   image-rendering:pixelated;opacity:.9}
 .rGear .r .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 넘친 줄의 셈 — 등급색 다섯을 안 늘리려고 **바탕색 계열 한 톤**으로만 적는다. */
+.rGear .r.more{color:#79705f;letter-spacing:1px;padding-left:22px}
 .rGear .none{color:#5d564a}
 
 @media (min-width: 1500px){

@@ -1435,14 +1435,39 @@ function sideRail() {
   (town ? `<div class="cap">상한 <b>${armyCap()}</b></div>`
         : `<div class="cap">군세 <b>${armyN()}/${armyCap()}</b>${thrallN() ? ` · 지배 <b>${thrallN()}</b>` : ""}` +
           ` · 시체 <b>${S.corpses}</b></div>`);
-  /* 낀 것 — 빈 칸은 안 그린다. 하나도 없으면 그 말을 한 줄로 한다(빈 상자는 고장으로 읽힌다). */
-  const rows = GEAR_KEYS.map(k => {
-    const it = equipped(k); if (!it) return "";
-    return `<div class="r" title="${GEAR[k].n} — ${GEAR[k].d}">` +
-           `<i style="background-image:url(assets/ui/gear/${k}.png)"></i>` +
-           `<span class="n t${it.tier}">${nameOf(it)}</span></div>`;
-  }).join("");
-  rG.innerHTML = rows || `<div class="none">아직 낀 것이 없다</div>`;
+  /* 낀 것 — 빈 칸은 안 그린다. 하나도 없으면 그 말을 한 줄로 한다(빈 상자는 고장으로 읽힌다).
+     ★ 슬롯이 열 칸이 된 뒤로 이 목록이 **자리보다 길다**(잰 값 180px 대 88px). 예전엔
+       `overflow:hidden` 이 넷을 조용히 먹고 넷째 줄을 글자 가운데서 끊었다. 이제
+       **들어가는 만큼만 온전히 세우고 마지막 줄에 「…외 N」**을 놓는다.
+     ★ 재는 것은 **줄이 바뀔 때와 창이 바뀔 때만** 한다 — 이 함수는 매 틱 도는데
+       clientHeight 를 매번 읽으면 그때마다 레이아웃을 강제로 되돌린다(렉 항목과 한 벌). */
+  const gearRow = (k, it) =>
+    `<div class="r" title="${GEAR[k].n} — ${GEAR[k].d}">` +
+    `<i style="background-image:url(assets/ui/gear/${k}.png)"></i>` +
+    `<span class="n t${it.tier}">${nameOf(it)}</span></div>`;
+  const worn = GEAR_KEYS.map(k => [k, equipped(k)]).filter(([, it]) => it);
+  /* 자리를 정하는 것은 낀 것만이 아니다 — 위아래 칸(군세·의뢰)의 줄 수가 바뀌면
+     남는 높이도 바뀐다. 그래서 그 수까지 표에 넣는다. */
+  const sig = worn.map(([k, it]) => k + it.tier + nameOf(it)).join("|") +
+              `#${rA.children.length}/${($("rQuest") || { children: [] }).children.length}` +
+              `@${innerWidth}x${innerHeight}`;
+  if (rG.__sig !== sig) {
+    rG.__sig = sig;
+    rG.innerHTML = worn.map(([k, it]) => gearRow(k, it)).join("") ||
+                   `<div class="none">아직 낀 것이 없다</div>`;
+    /* 다 그린 뒤에 잰다 — 이때의 clientHeight 가 **이 칸이 받은 자리**다
+       (flex:0 1 auto 라 넘치면 딱 그만큼으로 눌려 있다). */
+    const first = rG.firstElementChild;
+    if (worn.length && first) {
+      const rowH = first.getBoundingClientRect().height || 1;
+      const fit = Math.floor(rG.clientHeight / rowH);
+      if (fit >= 1 && worn.length > fit) {
+        const show = Math.max(1, fit - 1);            // 마지막 한 줄은 「…외 N」이 쓴다
+        rG.innerHTML = worn.slice(0, show).map(([k, it]) => gearRow(k, it)).join("") +
+                       `<div class="r more">…외 ${worn.length - show}</div>`;
+      }
+    }
+  }
 
   /* ── 몸 ── **패널이 위 100px 만 차고 아래가 텅 빈 검은 상자**였다(병수님 사진 18:28).
      빈 자리를 무늬로 메우면 그건 장식이지 UI 가 아니다 — **늘 뜻이 있는 수**를 넣는다.
