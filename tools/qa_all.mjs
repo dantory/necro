@@ -64,7 +64,7 @@ const RULERS = [
 
   // ── 느린 자: 판을 실제로 굴려서 재는 것들 (--all)
   { name: "walk_qa",     args: ["25", "3"],       secs: 240,  tier: "slow" },
-  { name: "march_qa",    args: ["40", "3"],       secs: 300,  tier: "slow" },
+  { name: "march_qa",    args: ["40", "3"],       secs: 300,  tier: "slow", expect: /판정/ },
   { name: "boss_qa",     args: ["5", "30", "3"],  secs: 300,  tier: "slow" },
   { name: "gatelord_probe", args: ["12", "1,7,13"], secs: 900, tier: "slow", expect: /판정/ },
   { name: "unique_probe", args: [],                secs: 900, tier: "slow", expect: /판정/ },
