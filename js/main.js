@@ -1,5 +1,5 @@
 import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
- UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1437,7 +1437,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine", "winTactic"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine", "winTactic", "winDive"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -1783,6 +1783,20 @@ function drawEnd() {
 
 /* ══ 환생 확인 창 ══ **되돌릴 수 없으므로 먼저 보여 주고 확인을 받는다.** 자동으로
    강제하지 않는다 — 사람이 「환생」을 눌러야 실행된다. 상인·정산과 같은 돌(winFoot·tip). */
+/* ══ 건너뛰기 창 ══ 5층 눈금으로 고른다. **고른 값은 저장**하고, 다음에 열면 그 자리가
+   켜져 있다. 고를 수 있는 위 끝(diveMax)은 최고 깊이보다 두 관문 아래다 — 끝까지
+   건너뛰면 판이 통째로 사라진다. */
+function drawDive() {
+  const max = diveMax(), cur = diveAt();
+  const opts = [0];
+  for (let f = DIVE_STEP; f <= max; f += DIVE_STEP) opts.push(f);
+  $("diveBody").innerHTML =
+    `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 고를 수 있는 데까지 <b>${max}층</b></div>` +
+    `<div class="diveGrid">` + opts.map((f) =>
+      `<button class="btn diveOpt${f === cur ? " on" : ""}" data-dive="${f}">${f ? f + "층" : "처음부터"}</button>`
+    ).join("") + `</div>` +
+    `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.</div>`;
+}
 function drawReborn() {
   const p = rebirthPreview();
   const from = mul(relicMul()), to = mul(p.mul);
@@ -1837,6 +1851,10 @@ document.addEventListener("click", (e) => {
   const t = e.target;
   if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
   /* ══ 환생 실행 ══ 확인 창의 「환생」 하나만이 여기로 온다 — 되돌릴 수 없다. */
+  if (t.hasAttribute && t.hasAttribute("data-dive")) {
+    META.dive = +t.getAttribute("data-dive") | 0; saveMeta(); drawDive(); return;
+  }
+  if (t.hasAttribute && t.hasAttribute("data-dive-go")) { closeAll(); toDungeon(); return; }
   if (t.hasAttribute && t.hasAttribute("data-reborn")) {
     if (rebirth()) { closeAll(); syncReborn(); belt(); hud(); markSp(); }
     return;
@@ -1926,7 +1944,9 @@ $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
   const r = $("stage").getBoundingClientRect();
   const id = townHitAt(e.clientX - r.left, e.clientY - r.top);
-  if (id === "gate")  { closeAll(); toDungeon(); }
+  /* ★ 건너뛸 수 있게 된 뒤에는 **묻고 나서** 내려간다. 아직 못 고르면 예전 그대로 —
+     조건이 안 됐는데 창부터 뜨면 초반이 한 번 더 눌러야 하는 판이 된다. */
+  if (id === "gate")  { closeAll(); if (diveMax() > 0) { drawDive(); win("winDive", true); } else toDungeon(); }
   if (id === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (id === "forge") { closeAll(); drawForge(); win("winForge", true); }
 });

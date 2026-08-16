@@ -253,9 +253,25 @@ export const gatelordIdx = (lord) => GATELORDS.indexOf(lord);
      한다 — 벌이 사라져 판이 헐거워진다. 되짚기가 내놓은 시간은 전부 **뒷정리**(59→83%)
      가 먹었다. 켜려면 최고층이 아니라 **손맛** 쪽 근거가 있어야 한다. */
 export const CHECKPOINT = 0;
+/* ══ 건너뛰기 ══ (병수님 2026-08-16 「어느정도 성장한 다음부터 스테이지 스킵」)
+   ★ **저절로 깊은 데서 시작하는 길은 이미 한 번 껐다**(CHECKPOINT) — 벽은 그대로인데
+     죽음이 11→30 으로 늘었다. 늘 벽에서 시작하니 튕기기만 한 것이다. 그러니 **사람이 고른다.**
+   ★ 끝까지 건너뛰게 두면 판이 통째로 사라지므로, **최고 깊이보다 두 관문(10층) 아래**까지만.
+   ★ 열리는 조건은 깊이 15층(관문 셋) — 「어느 정도 성장한 다음」의 값. */
+export const DIVE_MIN_DEEPEST = 15;   // 이만큼 내려가 본 뒤에 열린다
+export const DIVE_STEP = 5;           // 관문 간격과 같은 눈금
+export const DIVE_BACK = 10;          // 최고 깊이에서 이만큼은 남긴다(관문 둘)
+/** 지금 고를 수 있는 제일 깊은 시작 층. 못 고르면 0. */
+export const diveMax = () => {
+  const d = META.deepest | 0;
+  if (d < DIVE_MIN_DEEPEST) return 0;
+  return Math.max(0, Math.floor((d - DIVE_BACK) / DIVE_STEP) * DIVE_STEP);
+};
+/** 사람이 고른 시작 층(고른 값은 저장된다). 조건이 바뀌면 저절로 줄어든다. */
+export const diveAt = () => Math.min(META.dive | 0, diveMax());
 /** 죽은 뒤 다시 서는 층. 여태 닿아 본 깊이 아래의 마지막 관문(5의 배수). */
 export const startFloor = () =>
-  CHECKPOINT ? Math.max(1, Math.floor((META.deepest | 0) / 5) * 5) : 1;
+  Math.max(1, diveAt() || (CHECKPOINT ? Math.floor((META.deepest | 0) / 5) * 5 : 1));
 
 /** 한 번의 내려감(run) 동안만 사는 값. **금·레벨은 여기 없다** — META 에 있다. */
 export const S = {
@@ -316,6 +332,8 @@ function load() {
                     전부 primitive 라 아래 Object.assign(base, raw) 가 저절로 올려 준다 —
                     옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
                  relics: 0, rebirths: 0, best: 1,
+                 /* 사람이 고른 시작 층(0 = 1층부터). diveAt() 이 최고 깊이에 맞춰 깎는다. */
+                 dive: 0,
                  doctrine: DOCTRINE_DEF,
                  tactic: TACTIC_DEF,
                  up: { hp:0, mp:0, dmg:0, army:0 },

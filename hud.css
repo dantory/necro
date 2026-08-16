@@ -908,3 +908,12 @@ body.in-town #hTactic{ display:inline-block; }
 #winStat .winFoot .purse, #winBag .winFoot .purse{ display:none }
 #winStat .winFoot, #winBag .winFoot{ justify-content:flex-end }
 .winFoot .btn{ flex:0 0 auto; white-space:nowrap }
+
+/* ══ 건너뛰기 창 ══ 칸이 여럿이라 격자로 — 목록으로 세우면 설정 화면이 된다
+   (docs/checklist.md 「디아블로는 목록이 아니라 격자와 툴팁이다」). */
+.diveGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.diveGrid .diveOpt { padding: 7px 2px; font-size: 13px; }
+@media (min-width: 900px) { .diveGrid { grid-template-columns: repeat(5, 1fr); }
+  .diveGrid .diveOpt { padding: 9px 4px; font-size: 15px; } }
+/* 고른 칸 — 등급색처럼 **약속**이라 눈에 띄어야 한다(테두리 + 옅은 바탕). */
+.diveGrid .diveOpt.on { border-color: #c8a24a; color: #f0dfa8; background: #3a2f18; }

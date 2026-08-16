@@ -47,6 +47,8 @@ const RULERS = [
   { name: "fx_art",       args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   { name: "icon_qa",      args: [],                             secs: 120, tier: "fast", expect: /검사한 칸/ },
   { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
+  /* ★ 건너뛰기는 **창을 지나는 길**이라 훅으로는 못 잰다 — 입구를 진짜로 누르고 칸을 눌러 본다. */
+  { name: "dive_qa",      args: [],                             secs: 180, tier: "fast", expect: /판정/ },
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
   { name: "motion_qa",    args: ["8", "/tmp/necro_qa_motion.png"], secs: 150, tier: "fast", expect: /프레임/ },
   { name: "quest_qa",     args: ["1,3,9"],                      secs: 200, tier: "fast", expect: /판정/ },
