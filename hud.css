@@ -317,6 +317,9 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .cell i.gear-wand { background-image:url("assets/ui/gear/wand.png") }
 .cell i.gear-robe { background-image:url("assets/ui/gear/robe.png") }
 .cell i.gear-charm{ background-image:url("assets/ui/gear/charm.png") }
+.cell i.gear-helm { background-image:url("assets/ui/gear/helm.png") }
+.cell i.gear-glove{ background-image:url("assets/ui/gear/glove.png") }
+.cell i.gear-ring { background-image:url("assets/ui/gear/ring.png") }
 /* 칸 구석의 작은 숫자 = 등급. D2 도 수량·소켓을 구석에 적는다 */
 .cell .q{position:absolute;right:2px;bottom:0}
 /* 재련 단계 — 등급 숫자(오른쪽 아래)·옵션 점(왼쪽 아래)과 안 겹치게 왼쪽 위 */
@@ -767,15 +770,16 @@ body.in-town #hTactic{ display:inline-block; }
 /* 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
 .sSec.bag .grid{grid-template-columns:repeat(6,1fr);margin-bottom:0}
 .sFuse{font-size:11px;line-height:1.4;color:#8a7a5c;margin:0 0 8px}
-/* ── 페이퍼 돌 ── 낀 것 셋을 목록처럼 늘어놓지 않고 가운데 인물 그림 둘레에 D2 결로
-   건다: 무기는 왼쪽(wpn)·갑옷은 오른쪽(arm)·부적은 목(neck, 위 가운데). 슬롯 자리는
-   grid-template-areas 로 잡아 DOM 순서와 무관하다. 인물은 남향 대기 한 장을 픽셀 확대. */
-.pdoll{display:grid;grid-template-columns:46px 1fr 46px;grid-template-rows:auto auto;
-  grid-template-areas:". neck ." "wpn char arm";
+/* ── 페이퍼 돌 ── 낀 것 여섯을 목록처럼 늘어놓지 않고 가운데 인물 그림 둘레에 D2 결로
+   건다: 투구는 머리 위(helm)·부적은 목(neck)·무기는 왼쪽(wpn)·갑옷은 오른쪽(arm)·
+   장갑은 왼쪽 아래(glv)·반지는 오른쪽 아래(rng). 인물은 가운데 두 줄을 채운다(char 가
+   3·4행을 잇는다). 슬롯 자리는 grid-template-areas 로 잡아 DOM 순서와 무관하다. */
+.pdoll{display:grid;grid-template-columns:46px 1fr 46px;grid-template-rows:auto auto 1fr 1fr;
+  grid-template-areas:". helm ." ". neck ." "wpn char arm" "glv char rng";
   gap:8px 10px;align-items:center;justify-items:center;max-width:236px;margin:0 auto}
 .pdChar{grid-area:char;align-self:stretch;display:flex;align-items:center;justify-content:center}
 .pdChar img{width:100%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
-.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}.pd-charm{grid-area:neck}
+.pd-helm{grid-area:helm}.pd-charm{grid-area:neck}.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}.pd-glove{grid-area:glv}.pd-ring{grid-area:rng}
 .pdSlot{width:46px}
 .pdSlot .cell{width:100%}
 /* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */

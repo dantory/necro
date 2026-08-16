@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1518,7 +1518,7 @@ function drawShop() {
       <span class="digIco">⚰</span>
       <span class="q ${TIER_CLS[dropTierCap(META.deepest)]}">${dropTierCap(META.deepest)}</span>
     </div>` +
-    '<div class="cell empty"></div>'.repeat(4);
+    '<div class="cell empty"></div>'.repeat((4 - (GEAR_KEYS.length + 1) % 4) % 4);
   $("shopGold").textContent = (META.gold | 0).toLocaleString();
 
   /* ② 무덤 파기는 장비와 **다른 툴팁** — 값이 깊이를 따르고, 직전에 뽑은 결과를 남긴다 */
@@ -1527,8 +1527,7 @@ function drawShop() {
   /* ③ 장비 툴팁 — 고른 것의 이름과 능력치. **이름 색이 등급**이다 */
   const k = shopPick, g = GEAR[k];
   const it = equipped(k), t = gearTier(k), nx = gearNext(k), max = g.tiers.length - 1;
-  const fmt = (v) => k === "wand" ? `+${Math.round(v * 100)}%`
-            : k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
+  const fmt = (v) => gearShow(k, v);
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
     `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
@@ -1575,7 +1574,7 @@ function drawForge() {
      <div class="tipStat">${u.d}</div>
      <div class="tipStat up">지금 · 체력 <b>${hpMaxOf()}</b> · 마나 <b>${mpMaxOf()}</b>
        · 군세 <b>${armyCap()}</b></div>
-     <div class="tipStat">재련 · 지팡이 <b>+${pl.wand | 0}</b> · 망토 <b>+${pl.robe | 0}</b> · 부적 <b>+${pl.charm | 0}</b></div>
+     <div class="tipStat">재련 · ${GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`).join(" · ")}</div>
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
@@ -1673,9 +1672,7 @@ const statNumbers = () => {
 const gearCmpHtml = (bag) => {
   const cur = equipped(bag.k), g = GEAR[bag.k];
   const sgn = (d) => d > 0 ? "+" : "−";
-  const primDelta = (d) => bag.k === "wand" ? `${sgn(d)}${Math.round(Math.abs(d) * 100)}%`
-                        : bag.k === "robe" ? `${sgn(d)}${Math.abs(d)}`
-                        : `${sgn(d)}${Math.abs(d).toFixed(1)}/초`;
+  const primDelta = (d) => gearDelta(bag.k, d);
   const sum = (arr, id) => (arr || []).filter((a) => a.id === id).reduce((s, a) => s + a.v, 0);
   const rows = [];
   const dPrim = g.val[bag.tier] - (cur ? g.val[cur.tier] : 0);
@@ -1701,8 +1698,7 @@ const statTipHtml = () => {
   const it = statSel.src === "bag" ? META.bag[statSel.i] : equipped(statSel.k);
   if (!it) return `<div class="tipKind">빈 칸</div>`;
   const g = GEAR[it.k];
-  const fmt = (v) => it.k === "wand" ? `+${Math.round(v * 100)}%`
-            : it.k === "robe" ? `+${v}` : `+${v.toFixed(1)}/초`;
+  const fmt = (v) => gearShow(it.k, v);
   const pl = statSel.src === "eq" ? (META.plus[it.k] | 0) : 0;
   return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""}</div>
     <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${statSel.src === "eq" ? " · 낀 것" : ""}</div>
@@ -1758,9 +1754,12 @@ function drawBag() {
       <div class="sSec eq"><h3>낀 것</h3>
         <div class="pdoll">
           <div class="pdChar"><img src="assets/char/necro/south.png" alt="네크로맨서"></div>
+          <div class="pdSlot pd-helm">${gearSlot("helm")}</div>
           <div class="pdSlot pd-charm">${gearSlot("charm")}</div>
           <div class="pdSlot pd-wand">${gearSlot("wand")}</div>
           <div class="pdSlot pd-robe">${gearSlot("robe")}</div>
+          <div class="pdSlot pd-glove">${gearSlot("glove")}</div>
+          <div class="pdSlot pd-ring">${gearSlot("ring")}</div>
         </div></div>
       <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>

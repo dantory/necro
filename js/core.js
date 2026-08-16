@@ -369,11 +369,11 @@ function load() {
                  /* 재련(reforge) — **슬롯별 강화 수치.** 물건이 아니라 슬롯에 붙여, 더 좋은
                     드랍으로 갈아 껴도 태운 금이 안 날아간다(ROADMAP ⑧-a). object 라 아래
                     merge 가 올려 주고, 옛 저장엔 없으니 0 이 남는다(손대기 전과 안 다르다). */
-                 plus: { wand:0, robe:0, charm:0 },
+                 plus: { wand:0, robe:0, charm:0, helm:0, glove:0, ring:0 },
                  /* 낀 것 셋. **등급 숫자가 아니라 개체다** — {k, tier, af:[{id,v}]}.
                     옵션이 랜덤이면 같은 4등급이라도 물건마다 달라야 하므로, 슬롯에
                     숫자를 적어 두는 것으로는 표현할 수가 없다. */
-                 equip: { wand:null, robe:null, charm:null },
+                 equip: { wand:null, robe:null, charm:null, helm:null, glove:null, ring:null },
                  bag: [],
                  /* 찍은 것 — { 노드id: 랭크 }. **남은 점수는 저장하지 않는다**(아래
                     spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
@@ -493,8 +493,8 @@ export function rebirth() {
   META.best     = Math.max(META.best | 0, META.deepest | 0);
   META.gold = 0; META.lv = 1; META.xp = 0; META.deepest = 1; META.corpses = 0;
   META.up    = { hp: 0, mp: 0, dmg: 0, army: 0 };
-  META.plus  = { wand: 0, robe: 0, charm: 0 };
-  META.equip = { wand: null, robe: null, charm: null };
+  META.plus  = {}; for (const k of GEAR_KEYS) META.plus[k]  = 0;      // 슬롯 목록은 GEAR 하나 — 늘어도 여기가 따라온다
+  META.equip = {}; for (const k of GEAR_KEYS) META.equip[k] = null;
   META.bag   = [];
   META.tree  = {};
   syncSkills();                                // 트리가 비었으니 벨트도 해골 하나로 되돌아간다
@@ -669,16 +669,38 @@ export const upCost = (k) => Math.round(UPS[k].base * Math.pow(1.55, META.up[k] 
    바꾼다. 장비는 **등급을 사는 것**이라 한 번 사면 끝이고(반복 구매가 아니다), 그래서
    상점에 갈 이유가 「다음 등급이 열렸다」로 분명해진다.
    등급마다 값이 뛰므로 **한 번의 구매가 사건**이 된다 — 조금씩 오르는 강화와 다른 맛. */
+/* ★ `u` 는 **보여 주는 단위**다(pct=%·flat=수·rate=/초). 값의 뜻이 슬롯마다 달라
+   화면 셋(상점·견줌·상태창)이 저마다 `k==="wand"?…` 로 갈랐었다 — 슬롯을 늘리니
+   그 셋을 다 고쳐야 했다. 진실을 여기 하나에 두고 gearShow/gearDelta 가 읽는다. */
 export const GEAR = {
-  wand:  { n:"지팡이", d:"본인 기본 공격력",
+  wand:  { n:"지팡이", d:"본인 기본 공격력", u:"pct",
            tiers:["뼈 지팡이","녹슨 홀","흑요석 홀","심장의 홀","왕의 홀"],
            cost:[0, 90, 320, 1100, 3800], val:[0, 0.25, 0.6, 1.1, 1.9] },
-  robe:  { n:"망토",   d:"최대 체력",
+  robe:  { n:"망토",   d:"최대 체력", u:"flat",
            tiers:["누더기","가죽 망토","사슬 망토","제의","왕의 제의"],
            cost:[0, 80, 300, 1000, 3500], val:[0, 40, 110, 260, 560] },
-  charm: { n:"부적",   d:"마나 회복",
+  charm: { n:"부적",   d:"마나 회복", u:"rate",
            tiers:["없음","뼛조각","은 부적","영혼석","군주의 인장"],
            cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
+  /* ══ 슬롯 셋을 더 낸다 ══ (병수님 2026-08-16 「투구·장갑·반지」 · ROADMAP 757)
+     페이퍼 돌에 여섯 칸을 앉히려 셋을 연다 — **새 밸런스 축을 만들지 않고** 이미 곱해지는
+     자리 하나씩에만 건다: 투구=최대 마나(mpMaxOf) · 장갑=소환수 피해(dmgMulOf, UPS.dmg
+     자리) · 반지=금 획득(goldMulOf, 늘 +0% 이던 「금 획득」 줄을 살린다).
+     ★ **값은 기존 슬롯 하나의 6~7할**이다 — 셋이 붙어도 전체 화력이 두 배가 안 되게.
+       · 투구 120 = 마나 풀(밑 40)에 매달아 robe(체력, 밑 100)의 결을 ~0.4배로 줄인 꼴.
+       · 장갑 0.35 = dmgMulOf 안이라 작아야 한다(그 인수는 이미 1+여럿 — +0.35 면 후반
+         총화력 ~15%·초반 ~30%, tier4 는 20층부터 나오므로 초반엔 안 뜬다).
+       · 반지 0.5 = 화력이 아니라 벌이라 금 싱크(재련 1.55^n)가 되받는다.
+     cost 도 같은 결(등급마다 뛰고 3~4가 사건)로 기존 셋의 ~65% 에 둔다. */
+  helm:  { n:"투구",   d:"최대 마나", u:"flat",
+           tiers:["맨머리","해골 투구","수의 두건","무덤지기 투구","재의 왕관"],
+           cost:[0, 60, 210, 720, 2500], val:[0, 12, 32, 68, 120] },
+  glove: { n:"장갑",   d:"소환수 피해", u:"pct",
+           tiers:["맨손","뼈 장갑","수의 장갑","도굴꾼 장갑","재의 장갑"],
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.06, 0.14, 0.24, 0.35] },
+  ring:  { n:"반지",   d:"금 획득", u:"pct",
+           tiers:["없음","뼈 반지","수의 반지","무덤지기 반지","재의 인장"],
+           cost:[0, 80, 280, 950, 3200], val:[0, 0.08, 0.18, 0.32, 0.50] },
 };
 
 /* ══ 같은 등급의 다른 얼굴 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
@@ -808,8 +830,13 @@ export const GEAR_KEYS = Object.keys(GEAR);
 const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null
                           && (!it.uid || UNIQ_BY_ID[it.uid]));
 META.bag = (META.bag || []).filter(gearOk);
-for (const k of Object.keys(META.equip || {}))
-  if (META.equip[k] && !gearOk(META.equip[k])) META.equip[k] = null;
+/* ★ 낀 것도 여기서 거른다 — **모르는 슬롯은 버리고, 없는 슬롯은 0등급(null)으로 채운다.**
+   슬롯을 늘려도 옛 세이브(셋만 든 것)가 그대로 열리게: 새 슬롯은 null 로 서고(0등급),
+   지워진 슬롯은 사라진다. 진실은 GEAR_KEYS 하나라 이름을 고치면 여기가 따라온다. */
+if (!META.equip || typeof META.equip !== "object") META.equip = {};
+for (const k of Object.keys(META.equip)) if (!GEAR[k]) delete META.equip[k];
+for (const k of GEAR_KEYS)
+  META.equip[k] = (META.equip[k] && gearOk(META.equip[k])) ? META.equip[k] : null;
 /* ★ 재련 단계도 같은 자리에서 거른다(ROADMAP ⑧-a·382 「저장을 믿지 않는 자리를 한 곳 더」).
  *  문자열·음수·소수·모르는 슬롯이 들어오면 reforgeCost 의 pow 나 gearVal 이 NaN 을 뱉는다. */
 if (!META.plus || typeof META.plus !== "object") META.plus = {};
@@ -1102,6 +1129,17 @@ export const gearNext = (k) => {
   return t < GEAR[k].tiers.length ? t : null;
 };
 export const gearVal = (k) => GEAR[k].val[gearTier(k)] + (META.plus[k] | 0) * reforgeStep(k);
+/** 값을 **보여 주는 꼴** — 단위(GEAR[k].u)에 맞춰 %·수·/초 로. 화면 셋(상점·상태창·견줌)이
+ *  같은 자를 쓰게 한 곳에 둔다(예전엔 저마다 `k` 로 갈라, 슬롯을 늘릴 때마다 셋을 다 고쳤다). */
+export const gearShow = (k, v) => {
+  const u = GEAR[k].u;
+  return u === "pct" ? `+${Math.round(v * 100)}%` : u === "rate" ? `+${v.toFixed(1)}/초` : `+${v}`;
+};
+/** 견줌용 — 부호를 앞에(오르면 + · 내리면 −) 두고 절댓값을 같은 단위로. */
+export const gearDelta = (k, d) => {
+  const s = d > 0 ? "+" : "−", a = Math.abs(d), u = GEAR[k].u;
+  return u === "pct" ? `${s}${Math.round(a * 100)}%` : u === "rate" ? `${s}${a.toFixed(1)}/초` : `${s}${a}`;
+};
 
 /* ══ 금은 저절로 쓰인다 ══ 방치형인데 **마을에 들러 손으로 눌러야만** 금이 줄었다.
    60분 곡선(ROADMAP ⑧)에서 금만 혼자 지수로 뛰어 1.4~5.2억이 쌓였고 군세 상한은
@@ -1174,7 +1212,7 @@ const splitLv = () => SPLIT_OF() ? Math.max(1, META.deepest | 0) : META.lv;
 const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (splitLv() - 1) * 8
                    + gearVal("robe") + afSum("hp");
 export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
-export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3;
+export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
    죽은 층 중앙값을 5 에서 **한 톨도 못 옮겼다**(2026-08-14 13:38 · 네 팔 전부).
@@ -1210,7 +1248,7 @@ export const mpRegenOf = () => {
 export const DEPTH_MUL = 1.0625;
 export const depthMul = () => Math.pow(DEPTH_MUL, Math.max(0, (S.floor | 0) - 1));
 export const dmgMulOf = () => depthMul()
-                            * (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03)
+                            * (1 + (META.up.dmg | 0) * 0.08 + (META.lv - 1) * 0.03 + gearVal("glove"))   // 장갑 = 소환수 피해(UPS.dmg 자리)
                             * (1 + rank("bone") * 0.10)
                             * gateFactor();
 /* dmgMulOf 는 **둘 다에게 걸리는 바탕**이다(레벨·강화·뼈 트리). 옵션은 그 위에서
@@ -1218,7 +1256,7 @@ export const dmgMulOf = () => depthMul()
 export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 /** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
 export const minionMulOf = () => 1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0);
-export const goldMulOf   = () => 1 + afSum("gold") / 100;
+export const goldMulOf   = () => 1 + afSum("gold") / 100 + gearVal("ring");   // 반지 = 금 획득
 /** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
  *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
  *  쓰지 않게 여기 한 곳에 모은다 — 같은 식이 두 곳에 있으면 언젠가 갈라진다. */
