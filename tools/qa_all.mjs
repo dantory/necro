@@ -1,6 +1,8 @@
-/* necro 자 열여섯 개를 한 줄로 — 「어느 자가 죽었는지」를 그 자리에서 말한다.
+/* necro 의 자를 한 줄로 — 「어느 자가 죽었는지」를 그 자리에서 말한다.
+ * (몇 개인지는 `--list` 가 센다. 여기에 숫자를 적어 두면 자를 늘릴 때마다 낡는다 —
+ *  실제로 「열여섯」이라 적힌 채 서른을 넘겼다.)
  *
- *   node tools/qa_all.mjs            빠른 자만 (기본 · 2분 안쪽)
+ *   node tools/qa_all.mjs            빠른 자만 (기본 · 5분 안쪽)
  *   node tools/qa_all.mjs --all      느린 자까지 전부 (수십 분 — detached 로 돌릴 것)
  *   node tools/qa_all.mjs --only tap_qa,log_qa
  *   node tools/qa_all.mjs --list
@@ -71,6 +73,11 @@ const RULERS = [
      이것이 무너지면 나머지 열넷이 낸 숫자가 전부 남의 판 것이 된다. ×1 을 24 «게임»초
      기다리므로 빠른 자 중에선 느린 편(≈70초)이다. */
   { name: "speed_probe",  args: ["24", "1,3,8"],                secs: 200, tier: "fast", expect: /PASS|틀림/ },
+  /* ★ **켜서 보는 자.** 여기 열여섯이 다 통과해도 화면이 틀린 날이 있었다 —
+     08-17 아침 항목 넷 중 셋을 자가 아니라 **사진과 눈**이 잡았다. 사진은 예쁜지를
+     판정 못 하지만 「**어느 화면을 찍었는가**」는 잰다(이 자는 그것조차 안 재서
+     45초 굴린 «깊은 층» 이 내내 마을 사진이었다). 사람이 볼 그림 넷도 같이 남긴다. */
+  { name: "look_shots",   args: [],                             secs: 180, tier: "fast", expect: /판정/ },
 
   /* ★ 건너뛰기는 **창을 지나는 길**이라 훅으로는 못 잰다 — 입구를 진짜로 누르고 칸을 눌러 본다.
      그런데 **입력을 쓰는 자는 앞에 있어야** 닿는다(Page.bringToFront). 빠른 자 열넷과 섞어
@@ -88,6 +95,11 @@ const RULERS = [
   { name: "rebirth_qa",  args: ["10", "1,7"],     secs: 1500, tier: "slow", expect: /판정/ },
   { name: "loop_health", args: [],                secs: 1500, tier: "slow" },
   { name: "corpse_probe", args: ["30", "1,13"],   secs: 1500, tier: "slow", expect: /판정/ },
+  /* ★ **군대가 한 종으로 무너지는 것**은 다른 자가 아무도 안 본다 — 편성표가 셋을 섞는다고
+     적혀 있어도 판에 서는 것은 해골뿐일 수 있고, 그때도 최고층·처치는 멀쩡하다.
+     `fresh` 로 갓 만든 세이브를 쓴다(쌓인 프로필로 재면 「처음 켠 사람」의 답이 아니다).
+     720초를 주는 까닭: 골렘 첫 등장이 ≈360초라 짧게 돌리면 미달이 정상이다. */
+  { name: "kind_probe",  args: ["720", "fresh"], secs: 900,  tier: "slow", expect: /판정/ },
 ];
 
 /* ── 인자 ── */

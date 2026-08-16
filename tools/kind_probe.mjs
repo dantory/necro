@@ -76,10 +76,16 @@ const out = await ev2(`(()=>({층:S.floor, 상한:(window.armyCap?armyCap():null
 /* 마을에 오래 서 있었으면 종 비율은 **판의 성질이 아니라 자의 흠**이다 — 그때는
    통과/미달을 말하지 않고 그렇게 적는다(조용한 미달이 제일 비쌌다). */
 const 마을비율 = SEC ? townT / SEC * 100 : 0;
+/* ★ 2026-08-17 — 판정을 **한 자리에서** 짓는다. 아래 exit 코드가 이 값을 그대로 쓴다:
+   여태 이 자는 무슨 답이 나오든 `exit 0` 이라, qa_all 에 넣으면 「미달」이 PASS 칸에
+   앉을 판이었다(조용한 통과가 이 리포에서 제일 비쌌다). 두 곳에 같은 식을 적으면
+   언젠가 갈라지므로 문장 하나만 둔다. */
+const 판정 = 마을비율 > 10 ? `자가 마을에 ${townT}초 서 있었다 — 이 표는 못 쓴다`
+           : (["skel","ghoul","golem"].every(k => tally[k]) && 최대 <= 85) ? "통과" : "미달";
 console.log(JSON.stringify({ ...out, 표본: samples, 누계: tally, 비율, 최대종비율: 최대,
   본적: Object.fromEntries(Object.entries(seenAt).map(([k, v]) => [k, v + "초"])),
-  죽음: revives, 마을초: townT, 마을비율: +마을비율.toFixed(1),
-  판정: 마을비율 > 10 ? `자가 마을에 ${townT}초 서 있었다 — 이 표는 못 쓴다`
-      : (["skel","ghoul","golem"].every(k => tally[k]) && 최대 <= 85) ? "통과" : "미달" }, null, 1));
+  죽음: revives, 마을초: townT, 마을비율: +마을비율.toFixed(1), 판정 }, null, 1));
 await fetch(`${CDP}/json/close/${targetId}`);
-process.exit(0);
+/* 짧게 돌리면 골렘이 아직 안 서서 미달이 정상이다(첫 등장 ≈360초) —
+   그래서 qa_all 에는 **충분히 긴 인자**(720초)로 slow 자리에 둔다. */
+process.exit(판정 === "통과" ? 0 : 1);
