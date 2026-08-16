@@ -144,6 +144,24 @@ const tick = (sec) => `(async()=>{
        같은 씨앗도 다른 판이 된다(2026-08-12 에 그 함정을 밟았다). 그래서 예전에 잰
        base 숫자와 그대로 견줄 수 있다. */
   const T = R.time || (R.time = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 층바뀜: 0, byF: {} });
+  /* ── ★ 「자리가 비었을 때 **무엇이** 막고 있었나」를 한 자리에서 정한다 ──────────
+     아래 두 통(뒷정리 A.막힘 · 판 전체 G)이 **같은 식**을 봐야 한다 — 갈라 두면
+     하나만 고치고 만다([[carry-fixes-forward]]). 읽기만 하므로 난수 소비가 안 달라진다. */
+  const 막힌통 = () => {
+    const capBase = C.armyCap(), capEff = C.armyCapEff(), have = C.armyN();
+    const sk = C.SKILLS.find(s => s.id === "raise");
+    const over = have >= capBase && have < capEff;
+    const corpseNeed = B.corpseNeedOf(sk, over);   // ★ 게임과 **같은 식**을 본다(battle.js)
+    const mpNeed = C.mpCost(sk) * (over ? 2 : 1);
+    const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
+    const canMerge = have >= capEff && mgOn &&
+      S.minions.some(u => !u.own && u.kind === "skel" && (u.mg | 0) < C.MERGE_MAX);
+    if (have >= capEff && !canMerge) return "상한참";
+    return S.corpses < corpseNeed ? "시체없음"
+         : S.mp < mpNeed          ? "마나부족"
+         : (S.cd.raise || 0) > 0  ? "재사용"
+         : "셀차례";
+  };
   for (let i = 0; i < n; i++) {
     try {
       /* 이 0.05 초를 어느 통에 부을지 — **step 전의 판**이 그 동안의 상태다. */
@@ -151,6 +169,28 @@ const tick = (sec) => `(async()=>{
         const f = S.floor, q = (S.spawnQ && S.spawnQ.length) | 0, mb = S.mobs.length;
         const k = f < ((C.META.deepest | 0)) ? "되짚기" : (q > 0 ? (mb === 0 ? "기다림" : "싸움") : "뒷정리");
         T[k] += 0.05;
+        /* ── ★ **막힘을 판 전체에서도 잰다** (08-17 07:3x) ──────────────────────
+           아래 A.막힘 은 **뒷정리에서만** 센다 — 그런데 뒷정리는 줄이 막 비워진
+           직후라 **못이 가장 그득한 구간**이다. 그래서 ab_corpse4·5 의 세 팔이
+           「시체없음」을 초 단위로 **똑같이**(6·3·1초) 냈다: 쌓인 시체가 52 → 30 으로
+           43% 줄었는데도 한 톨도 안 움직였다. 자가 안 움직인 게 아니라 **사람이 지나는
+           길을 안 걸었다**([[probe-must-walk-the-real-path]]).
+           기다림·싸움·되짚기까지 넣은 통을 하나 더 둔다 — 옛 통은 그대로 두므로
+           예전에 잰 숫자와 그대로 견줄 수 있다. */
+        const G = T.막힘전 || (T.막힘전 = { 초: 0, 상한참: 0, 시체없음: 0, 마나부족: 0, 재사용: 0, 셀차례: 0,
+                                            빈첫: -1, 빈끝: -1, 빈늦: 0 });
+        G.초 += 0.05;
+        const 통전 = 막힌통(); G[통전] += 0.05;
+        /* ★ **언제** 못이 말랐나 — 세 팔이 「시체없음」을 초 단위로 똑같이 냈다면
+           그 초는 팔과 무관한 자리, 곧 **판이 열리자마자**(아직 아무도 안 죽어 못이
+           비어 있는 몇 초)일 것이다. 첫·마지막 시각과 **첫 1분을 뺀 초**를 같이 적어
+           그것이 사실인지 본다 — 그러면 「시체없음 6초」가 자원이 모자란 증거가
+           아니라 **판이 시작한 흔적**임이 드러난다. */
+        if (통전 === "시체없음") {
+          if (G.빈첫 < 0) G.빈첫 = R.t;
+          G.빈끝 = R.t;
+          if (R.t >= 60) G.빈늦 += 0.05;
+        }
         const b = T.byF[f] || (T.byF[f] = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 든횟수: 0 });
         b[k] += 0.05;
         if (R.lastF !== f) { R.lastF = f; T.층바뀜++; b.든횟수++; }
@@ -309,22 +349,10 @@ const tick = (sec) => `(async()=>{
              막힌 시간을 잰다(안 그러면 over 구간·머지 도는 시간을 상한참으로 잘못 문다).
              ㉡ over(capBase~capEff): 세울 수 있으니 비용(시체 3배·마나 2배)으로 막힘을 가른다.
              ㉢ merge: 꽉 차도 키울 대상이 있으면 자원이 도는 것이라 상한참이 아니다.
-             둘 다 꺼지면 capEff==capBase·머지대상 없음 → have>=capBase 와 같아 예전과 비트까지 같다. */
-          const sk = C.SKILLS.find(s => s.id === "raise");
-          const over = have >= capBase && have < capEff;
-          const corpseNeed = B.corpseNeedOf(sk, over);   // ★ 게임과 **같은 식**을 본다(battle.js)
-          const mpNeed = C.mpCost(sk) * (over ? 2 : 1);
-          const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
-          const canMerge = have >= capEff && mgOn &&
-            S.minions.some(u => !u.own && u.kind === "skel" && (u.mg | 0) < C.MERGE_MAX);
-          if (have >= capEff && !canMerge) A.막힘.상한참 += 0.05;
-          else {
-            const 통 = S.corpses < corpseNeed ? "시체없음"
-                     : S.mp < mpNeed          ? "마나부족"
-                     : (S.cd.raise || 0) > 0  ? "재사용"
-                     : "셀차례";              /* 세우거나(over 구간) 머지할 수 있는데 auto 의 0.35 초 박자를 기다림 */
-            A.막힘[통] += 0.05;
-          }
+             둘 다 꺼지면 capEff==capBase·머지대상 없음 → have>=capBase 와 같아 예전과 비트까지 같다.
+             ★ 식은 위 막힌통() 하나뿐이다 — 판 전체 통(T.막힘전)과 **같은 자**를 본다.
+             (이 안은 템플릿 문자열이라 역따옴표를 못 쓴다.) */
+          A.막힘[막힌통()] += 0.05;
         }
       }
       /* ── 누가 본인을 때렸나 ── 팔이 뻗는 칸(pending.core)을 **step 전에** 봐 둔다.
@@ -528,6 +556,22 @@ if (시간) {
     console.log(빈 / A.초 < 0.15
       ? `→ 뒷정리 내내 군대는 **거의 꽉 차 있었다** — 머릿수는 뿌리가 아니다`
       : `→ 뒷정리의 ${Math.round(빈 / A.초 * 100)}% 가 **자리가 빈 시간**이고 제일 큰 이유는 **${큰[0]}** 이다`);
+  }
+  /* ── ★ **판 전체의 막힘** ── 위 줄은 뒷정리에서만 센다(못이 가장 그득한 구간이다).
+     ROADMAP G 의 끝 조건(「시체없음」 15%)은 **이 줄로** 판정한다. */
+  const G = 시간.막힘전;
+  if (G && G.초 > 0) {
+    const g초 = (v) => `${v.toFixed(0)}초(${Math.round(v / G.초 * 100)}%)`;
+    console.log(`판 전체 막힘 — 시체없음 ${g초(G.시체없음)} · 마나부족 ${g초(G.마나부족)} · ` +
+                `재사용대기 ${g초(G.재사용)} · 셀차례기다림 ${g초(G.셀차례)} · [꽉참 ${g초(G.상한참)}]`);
+    console.log(`  못이 마른 자리: 첫 ${G.빈첫 < 0 ? "없음" : G.빈첫.toFixed(0) + "초"} · ` +
+                `마지막 ${G.빈끝 < 0 ? "없음" : G.빈끝.toFixed(0) + "초"} · ` +
+                `**첫 1분을 뺀 것 ${G.빈늦.toFixed(0)}초**`);
+    console.log(`→ ROADMAP G 끝조건: 시체없음 **${Math.round(G.시체없음 / G.초 * 100)}%** ` +
+                `(15% 이상이면 자원이 자원이 된 것) — ${G.시체없음 / G.초 >= 0.15 ? "닿았다" : "아직"}` +
+                (G.빈늦 < 1 && G.시체없음 > 0
+                  ? ` ★ 게다가 그 초는 **판이 열린 첫 1분 안**뿐이다 — 자원이 모자란 것이 아니라 판이 시작한 흔적이다`
+                  : ""));
   }
   /* ── ★ 「아슬아슬」 ── A-2 의 끝 조건이 여기서 읽힌다(30분에 절반아래 다섯 번 이상).
      그리고 **띠**가 A-1 에 답한다 — 깊은 층에서 닿는 피해가 0 에 가까우면 소환수
