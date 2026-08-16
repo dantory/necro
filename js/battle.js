@@ -220,6 +220,22 @@ const gapMul = () => (globalThis.__SPAWN_GAP != null ? +globalThis.__SPAWN_GAP :
 const SPAWN_FULL = 6;      // 이만큼 서 있으면 「판이 찼다」 — 예전 간격 그대로
 const SPAWN_RUSH = 0.15;   // 텅 빈 판에서의 하한 배수(0.55~0.95 → 0.08~0.14 초)
 
+/** ⑧-d **되짚은 층은 빨리 지나가게 한다.** 죽고 나서 이미 닿아 본 층
+ *  (`S.floor < META.deepest`)을 다시 내려오는 시간이 12분의 **17.6%** 였다(씨앗 1·9 는
+ *  236·118초). 그 층들은 **이미 이긴 층**이라 볼거리가 아니고 새로 배울 것도 없다 —
+ *  그런데 줄은 처음 왔을 때와 똑같은 속도로 나온다.
+ *  손잡이는 위 ⑧-c 와 같은 자리에 걸되 **되짚는 동안만** 쓴다:
+ *    ① 간격 배수(GAP)  — 줄이 나오는 속도. 0.5 면 두 배로 빨리 나온다.
+ *    ② 판 참(FULL) 배수 — 「판이 찼다」로 치는 머릿수. 2 면 열둘까지 서고서야 느려져
+ *      군대가 **여럿을 한꺼번에** 상대한다(되짚기는 화력이 남아도는 구간이다).
+ *  둘 다 1 이면 지금과 한 톨도 안 다르다 — A/B 의 base 팔이 그것이다.
+ *  ★ **처음 닿는 층(전선)은 절대 안 건드린다** — 거기가 판의 난이도를 정하는 자리라
+ *    건드리면 최고층·죽음이 통째로 흔들려 무엇이 이득인지 못 가른다. */
+export const REVISIT_GAP_DEF = 1, REVISIT_FULL_DEF = 1;
+const revisiting = () => (S.floor | 0) < (META.deepest | 0);
+const rvGap  = () => (globalThis.__REVISIT_GAP  != null ? +globalThis.__REVISIT_GAP  : REVISIT_GAP_DEF);
+const rvFull = () => (globalThis.__REVISIT_FULL != null ? +globalThis.__REVISIT_FULL : REVISIT_FULL_DEF);
+
 /** 「들어섰다」 연출이 사는 시간 — main.js draw 가 이 안에서 비네트를 걷고 명패를 앉힌다.
  *  ★ 그리는 쪽도 이 값으로 진행도를 재므로 export 한다(양쪽에 숫자를 박으면 어긋난다). */
 export const ARRIVE_T = 1.6;
@@ -457,10 +473,14 @@ function popSpawn() {
   /* ⑧-c 판이 비어 있는 만큼 빨리 낸다(위 SPAWN_FULL 주석). S.mobs 는 방금 세운 놈까지
      세므로 최소 1 — 즉 텅 빈 판의 배수는 1/6 이지 0 이 아니다. 배어 나오는 중(born)인
      놈도 판에 선 것으로 친다: 안 세면 0.4 초 동안 하한이 걸려 네댓이 한꺼번에 쏟아진다. */
-  const mul = SPAWN_FULL > 0
-    ? Math.max(SPAWN_RUSH, Math.min(1, S.mobs.length / SPAWN_FULL))
+  /* ⑧-d 되짚는 층에서만 판을 더 채우고(full) 더 빨리 낸다(gap). 전선에서는 둘 다 1 이라
+     아래 식이 예전과 **글자 그대로 같다** — 난수 소비도 안 바뀐다(씨앗 재현이 산다). */
+  const rv   = revisiting();
+  const full = SPAWN_FULL * (rv ? rvFull() : 1);
+  const mul = full > 0
+    ? Math.max(SPAWN_RUSH, Math.min(1, S.mobs.length / full))
     : 1;
-  S.spawnT = (lo + Math.random() * (hi - lo)) * mul * gapMul();
+  S.spawnT = (lo + Math.random() * (hi - lo)) * mul * gapMul() * (rv ? rvGap() : 1);
 }
 
 /* 적의 **얼굴은 깊이가 정한다.** 위층은 작은 것들, 아래로 갈수록 험한 것이 섞인다 —

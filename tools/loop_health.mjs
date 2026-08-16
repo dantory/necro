@@ -76,7 +76,10 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_FOOTR != null ? `globalThis.__FOOT_R = ${+process.env.LH_FOOTR};` : ""}
    ${process.env.LH_DIVE != null ? `globalThis.__AUTO_DIVE = ${+process.env.LH_DIVE};` : ""}
    ${process.env.LH_DIVEMIN != null ? `globalThis.__DIVE_MIN = ${+process.env.LH_DIVEMIN};` : ""}
-   ${process.env.LH_DIVEBACK != null ? `globalThis.__DIVE_BACK = ${+process.env.LH_DIVEBACK};` : ""}` });
+   ${process.env.LH_DIVEBACK != null ? `globalThis.__DIVE_BACK = ${+process.env.LH_DIVEBACK};` : ""}
+   ${/* ⑧-d 되짚는 층에서만 쓰는 두 손잡이(전선은 안 건드린다) — battle.js rvGap/rvFull */""}
+   ${process.env.LH_RVGAP != null ? `globalThis.__REVISIT_GAP = ${+process.env.LH_RVGAP};` : ""}
+   ${process.env.LH_RVFULL != null ? `globalThis.__REVISIT_FULL = ${+process.env.LH_RVFULL};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 414, height: 860, deviceScaleFactor: 2, mobile: true });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));
