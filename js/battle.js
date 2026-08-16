@@ -1,4 +1,4 @@
-import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { armyCap, MINION_SPD, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -429,7 +429,7 @@ function popSpawn() {
     /* ★ **서면서 약속한다**(위 GATE_VOW 주석) — 제가 낸 수법마다 하나씩 갚고, 갚지 못한
        채 치워지면 죽는 자리에서 남은 약속을 예정대로 걸어 둔다. */
     m.vow = GATE_VOW_OF();
-    m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * FOOT_R;
+    m.dmg = floorDmg(q.f) * lord.dmgMul; m.h = bossH(q.f); m.r = m.h * footR();
     /* ★ **큰 몸은 같은 속도로 걸으면 굼떠 보인다.** 병수님 2026-08-13: "특히 보스
        움직임이 부자연스럽고 굼뜬느낌이 강하네". 절대 속도로는 보스도 졸개도 22~32 로
        **똑같아서** 여태 어느 자에도 안 걸렸다 — 사람 눈은 「제 몸 폭의 몇 배/초」로 본다.
@@ -438,7 +438,7 @@ function popSpawn() {
        끊김이 아니라 순전히 크기 탓이다).
        보폭을 몸 크기의 **제곱근**만큼 늘린다 — 그대로 비례시키면 졸개와 똑같이 보여
        「크고 무거운 것」이라는 느낌이 사라지고, 안 늘리면 지금처럼 굼뜬다. */
-    m.spd *= Math.pow(m.r / (48 * FOOT_R), 0.35);
+    m.spd *= Math.pow(m.r / (48 * footR()), 0.35);
     /* 관문 보스는 **더 길게** 배어 나온다(0.8 — 졸개의 두 배). 서기 직전 그 자리
        바닥에 붉은 고리가 퍼졌다 조여들고(fx), 서는 순간 판이 아주 짧게 흔들린다 —
        관문이 졸개 층과 똑같이 생긴 것을 「여기 주인이 선다」로 가른다. */
@@ -505,7 +505,7 @@ function spawnMob(f, i, n) {
               x: Math.cos(a) * rad, y: Math.sin(a) * rad,
               hp: floorHp(f), hpMax: floorHp(f),
               dmg: floorDmg(f), spd: 22 + Math.random() * 10,
-              r: h * FOOT_R, atk: 0, boss: false };
+              r: h * footR(), atk: 0, boss: false };
   S.mobs.push(m);
   return m;
 }
@@ -720,7 +720,7 @@ export function summon(kind, at) {
   const sy = at ? at.y : Math.sin(best) * rad * 0.4;
   S.minions.push({ id: ++seq, kind, home: best, rad, h: K.h * usc,
                    x: sx, y: sy, rise: RISE_T, dmg: dmg0,
-                   hp: hp0, hpMax: hp0, atk: 0, r: K.h * usc * FOOT_R });
+                   hp: hp0, hpMax: hp0, atk: 0, r: K.h * usc * footR() });
   S.summoned = (S.summoned | 0) + 1;   // 판이 끝나면 정산이 읽는다(빈손일 때 가운데를 채운다)
   if (S.floor >= 20 && armyN() >= 10) questNote("army10", 1);   // ⑦ 대군이 층 도중 채워질 때도 잡는다(enterFloor 는 입장 순간만 봄)
   return true;
