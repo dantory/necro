@@ -84,7 +84,7 @@ function fitNum(el, cur, max) {
 }
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor } from "./ground.js";
-import { drawTown, drawTownLabels, loadTown, townBreath, townGaze, townHitAt, townHits } from "./town.js";
+import { drawTown, drawTownLabels, loadTown, setTownHover, townBreath, townGaze, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
    매 프레임 옮기다 렉을 만들었고, 반대로 장식이 많은 UI 를 캔버스로 그리면 손이 열 배 든다.
@@ -2118,6 +2118,17 @@ $("stage").addEventListener("click", (e) => {
   if (id === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (id === "forge") { closeAll(); drawForge(); win("winForge", true); }
 });
+/* 가리킨 곳을 이름표에 알려 준다 — **누를 수 있다는 말**을 손 모양으로도 한다.
+   판정은 누를 때와 **같은 자리**(townHitAt)에서 나온다: 밝아지는 곳과 눌리는 곳이
+   어긋나면 이름표가 거짓말을 하는 셈이다. */
+$("stage").addEventListener("mousemove", (e) => {
+  if (MODE.at !== "town") { setTownHover(null); return; }
+  const r = $("stage").getBoundingClientRect();
+  const id = townHitAt(e.clientX - r.left, e.clientY - r.top);
+  setTownHover(id);
+  $("stage").style.cursor = id ? "pointer" : "";
+});
+$("stage").addEventListener("mouseleave", () => { setTownHover(null); $("stage").style.cursor = ""; });
 
 export function toTown(why) {
   MODE.at = "town";

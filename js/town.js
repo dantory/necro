@@ -183,31 +183,41 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
   }
 }
 
-/** 장소 이름표. **조명 뒤에** 그려야 어둠에 안 잠긴다 — 글자는 읽으라고 있는 것이다. */
+/** 지금 손가락(마우스)이 얹힌 장소. 없으면 null. 이름표를 밝히는 데만 쓴다. */
+let hover = null;
+export function setTownHover(id) { hover = id; }
+
+/** 장소 이름표. **조명 뒤에** 그려야 어둠에 안 잠긴다 — 글자는 읽으라고 있는 것이다.
+ *  ★ 병수님: 「건물 이름표가 검은 상자라 개발용 라벨처럼 보인다」(08-16).
+ *  맞다 — 디아블로는 이름을 **판에 안 붙인다.** 판을 깔면 그 판이 장면 위에 얹힌
+ *  UI 가 되어, 마을이 그림이 아니라 편집 화면처럼 보인다.
+ *  그렇다고 판만 걷어내면 [[sprite-brings-its-own-ground]] 의 반대편으로 넘어진다 —
+ *  지붕·우물 위에서 획이 먹힌다(바로 어제 「금 182k」가 그랬다).
+ *  → **판 하나 대신 획마다 제 바닥을 단다**: 검은 테두리 + 옅은 그림자.
+ *    글자 모양대로만 어두워지므로 장면을 안 가리고, 어떤 배경에서도 읽힌다.
+ *  → 가리킨 곳만 밝힌다(D2 의 「이름이 떠오르는」 결). 안 가리킨 것은 옅게 —
+ *    아주 지우지는 않는다. 누를 곳이 셋뿐인데 안 보이면 처음 온 사람이 헤맨다. */
 export function drawTownLabels(ctx) {
   ctx.save();
   ctx.font = '18px "Galmuri9", monospace';
   ctx.textAlign = "center";
-  /* ★ 병수님: "텍스트와 주변 테두리? 배경?의 간격이 없어서 딱 붙은 느낌".
-     맞다 — 세로 여백을 **글꼴 크기에서 어림잡아** 21px 로 박아 뒀는데, 한글은 글자
-     상자를 거의 꽉 채워서 위아래로 1~2px 밖에 안 남았다. 어림잡지 말고 **실제로
-     찍히는 잉크의 범위**를 재서(actualBoundingBox) 사방에 같은 여백을 준다.
-     그러면 글자가 바뀌어도, 글꼴이 바뀌어도 여백은 그대로다. */
-  const PADX = 10, PADY = 7;
+  ctx.lineJoin = "round";   // 획이 만나는 자리에 뿔이 서지 않게
+  ctx.miterLimit = 2;
   for (const p of hits) {
     const y = p.ly + 24;
-    const m = ctx.measureText(p.name);
-    /* ★ 없을 때만 대신 쓴다 — `|| 4` 로 적었더니 **한글의 descent 가 0** 이라
-       매번 4 가 들어가 아래쪽만 4px 더 벌어졌다(위 7 · 아래 11). 0 은 없는 값이
-       아니라 **잰 값**이다. */
-    const num = (v, d) => (typeof v === "number" ? v : d);
-    const asc = num(m.actualBoundingBoxAscent, 14), des = num(m.actualBoundingBoxDescent, 4);
-    const l = num(m.actualBoundingBoxLeft, m.width / 2);
-    const r = num(m.actualBoundingBoxRight, m.width / 2);
-    ctx.fillStyle = "#000000cc";
-    ctx.fillRect(Math.round(p.lx - l) - PADX, Math.round(y - asc) - PADY,
-                 Math.round(l + r) + PADX * 2, Math.round(asc + des) + PADY * 2);
-    ctx.fillStyle = "#c8aa6e";
+    const on = p.id === hover;
+    ctx.globalAlpha = on ? 1 : 0.78;
+    /* 테두리는 **글자 아래로 깔린다** — 굵기의 절반만 밖으로 나오므로 4px 이면
+       사방 2px. 그림자는 그 테두리에만 걸어 두고 채우기 전에 끈다(글자가 흐려진다). */
+    ctx.shadowColor = "#000000d0";
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetY = 1;
+    ctx.strokeStyle = "#000000";
+    ctx.lineWidth = 4;
+    ctx.strokeText(p.name, p.lx, y);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = on ? "#ffe9b0" : "#c8aa6e";
     ctx.fillText(p.name, p.lx, y);
   }
   ctx.restore();
