@@ -53,7 +53,9 @@
    디아블로는 그렇지 않다: **세상은 화면 끝까지 이어지고**, UI 는 그 위에 얹힌
    물건들이다(구슬 둘 + 가운데 판). 그래서 여기서는 **바탕을 지운다** —
    판은 자리만 잡고, 실제로 보이는 것은 구슬과 가운데 판뿐이다. */
-#panel{position:fixed;left:0;right:0;bottom:0;height:var(--hudH);z-index:30;
+/* ★ PC 전용(2026-08-16) — 판도 **무대 폭**에 맞춰 가운데 선다. 창 전체로 퍼지면
+   무대는 가운데 있는데 구슬만 화면 끝에 붙어 둘이 다른 화면처럼 읽힌다. */
+#panel{position:fixed;left:50%;transform:translateX(-50%);width:min(100vw, var(--stageW));bottom:0;height:var(--hudH);z-index:30;
   pointer-events:none;
   display:flex;align-items:flex-end;justify-content:center;gap:16px;
   /* ★ 아래 여백은 **받침 고리가 통째로 들어올 만큼**만. 고리를 얇게 바꿨으니
@@ -271,7 +273,10 @@ body.winopen #log{display:none}
 /* 전장은 판만큼 비켜 선다 */
 /* ★ 맵은 **화면 끝까지** 간다 — UI 는 그 위에 떠 있는 물건이다. 잘라 놓으면
    화면이 「맵 칸 + UI 칸」으로 읽힌다(병수님 지적). */
-#stage{height:100%}
+/* ★ 여기서 `height:100%` 로 되돌리고 있었다 — style.css 의 무대 상한(--stageH)을
+   뒤에서 덮어써서 세로만 창 끝까지 늘어났다(폭은 줄었는데 높이는 그대로였다).
+   PC 전용으로 가면서 무대는 **가운데 고정**이므로 이 줄은 상한을 따라야 한다. */
+#stage{height:min(calc(100% - var(--hudH)), var(--stageH))}
 .win{inset:38px 0 var(--hudH) 0}
 
 

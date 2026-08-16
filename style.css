@@ -51,11 +51,30 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
    **캔버스는 대체 요소(replaced element)라 `inset` 으로 안 늘어난다.** top·bottom 을 둘 다
    줘도 `height:auto` 가 내재 높이(150px)로 굳어 버려서, 전장이 화면 맨 위 150px 에
    눌려 있었다(판만 멀쩡하고 위가 텅 빈 화면). 높이를 직접 셈해서 준다. */
-#stage{position:fixed;top:0;left:0;width:100%;height:calc(100% - var(--panelH));
-  background:#0a0806;display:block}
+/* ══ PC 전용으로 간다 ══ (병수님 2026-08-16 17:32 「모바일 ui는 버리자 pc전용 게임임」)
+   ★★ **전장을 창 전체로 늘리지 않는다.** 여태 `width:100%`라 레티나 1500×863 창에서
+   캔버스가 **3000×1726 = 520만 px** 였다 — 바닥을 구워 한 장으로 얹어도 그 한 장이
+   매 프레임 520만 픽셀이다. 폰 화면(414×860·dpr2 = 143만)의 **3.6배**를 칠하고 있었다.
+   그리고 창을 꽉 채우면 큰 화면에서 **세로로 긴 폰 모양**이 그대로 늘어나 PC 게임으로
+   안 읽힌다 — D2 는 무대가 가운데 있고 둘레가 어둡다.
+   → 무대에 **상한**을 두고 가운데 세운다. 남는 자리는 어두운 바탕(둘레)이다.
+     1500×863 창에서 1120×720 이면 칠할 픽셀이 520만 → **323만(-38%)**.
+   ★ 상한은 `min()` 으로 — 창이 작으면 예전처럼 창에 맞춘다(작은 노트북에서 잘리면 안 된다). */
+:root{ --stageW: 1120px; --stageH: 760px; }
+#stage{position:fixed;
+  width:min(100vw, var(--stageW));
+  height:min(calc(100% - var(--panelH)), var(--stageH));
+  top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2);
+  left:calc((100vw - min(100vw, var(--stageW))) / 2);
+  background:#0a0806;display:block;
+  /* 무대 밖과 갈리는 테두리 — 「여기까지가 판」이 읽혀야 여백이 빈 곳으로 안 보인다 */
+  box-shadow:0 0 0 1px #2a2318, 0 0 40px 12px #000 inset}
+/* 무대 둘레 — 어두운 돌바닥 결. 판이 가운데 서고 둘레가 가라앉는다(D2 의 앉음새). */
+body{background:#050403 radial-gradient(ellipse at 50% 40%, #14100b 0%, #050403 70%)}
 
 /* ── 위쪽 얇은 띠: 층·이름 ── */
-#top{position:fixed;top:0;left:0;right:0;height:40px;display:flex;align-items:center;gap:20px;
+/* 위 띠도 무대 폭(PC 전용 · 아래 판과 같은 규칙) */
+#top{position:fixed;top:0;left:50%;transform:translateX(-50%);width:min(100vw, var(--stageW));height:40px;display:flex;align-items:center;gap:20px;
   padding:0 24px;z-index:20;pointer-events:none;
   background:linear-gradient(#000000d8,#00000000)}
 #top .floor{color:var(--gold);letter-spacing:4px;font-size:18px;text-shadow:0 0 8px #c8aa6e40}
