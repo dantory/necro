@@ -276,11 +276,19 @@ export const CHECKPOINT = 0;
 export const DIVE_MIN_DEEPEST = 15;   // 이만큼 내려가 본 뒤에 열린다
 export const DIVE_STEP = 5;           // 관문 간격과 같은 눈금
 export const DIVE_BACK = 10;          // 최고 깊이에서 이만큼은 남긴다(관문 둘)
+/* ★ **문이 열리는 자리를 A/B 로 옮겨 볼 수 있게 한다**(2026-08-16). 15·10 으로 처음
+     잰 A/B 는 두 팔이 **바이트까지 같았다** — 12분 판의 죽음은 전부 3~10층에서 나는데
+     그때 최고 깊이는 10 이하라 `diveMax()` 가 늘 0 이었다. 즉 건너뛰기는 **되짚기가
+     생기는 그 자리에서 아예 안 열린다.** 게임 기본값은 그대로 두고 검수기만 문을 옮긴다. */
+const DIVE_MIN = () => (typeof globalThis !== "undefined" && globalThis.__DIVE_MIN != null
+  ? +globalThis.__DIVE_MIN : DIVE_MIN_DEEPEST);
+const DIVE_BK = () => (typeof globalThis !== "undefined" && globalThis.__DIVE_BACK != null
+  ? +globalThis.__DIVE_BACK : DIVE_BACK);
 /** 지금 고를 수 있는 제일 깊은 시작 층. 못 고르면 0. */
 export const diveMax = () => {
   const d = META.deepest | 0;
-  if (d < DIVE_MIN_DEEPEST) return 0;
-  return Math.max(0, Math.floor((d - DIVE_BACK) / DIVE_STEP) * DIVE_STEP);
+  if (d < DIVE_MIN()) return 0;
+  return Math.max(0, Math.floor((d - DIVE_BK()) / DIVE_STEP) * DIVE_STEP);
 };
 /** 사람이 고른 시작 층(고른 값은 저장된다). 조건이 바뀌면 저절로 줄어든다.
     ★ 자동 진행에는 **고르는 창이 없다** — 검수기는 `globalThis.__AUTO_DIVE` 로
