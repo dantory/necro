@@ -27,6 +27,14 @@ PARTS = {
             "at the collar, front view", 64, 64),
   "charm": (f"{TONE}, {ONE}, an amulet: a small carved bone talisman hanging from a "
             "dark cord, faint amber glow in its center, front view", 64, 64),
+  # 08-16 — 페이퍼 돌이 여섯 칸이 되면서 셋이 더 필요해졌다(투구·장갑·반지).
+  # 같은 결로 굽는다: 뼈·검은 쇠·바랜 금, 한 물건, 정면.
+  "helm":  (f"{TONE}, {ONE}, a skull-shaped helmet: a horned bone helm with empty eye "
+            "sockets and dark iron rim, front view", 64, 64),
+  "glove": (f"{TONE}, {ONE}, a single gauntlet: a dark leather glove with bone knuckle "
+            "plates and iron studs, back of the hand facing the viewer", 64, 64),
+  "ring":  (f"{TONE}, {ONE}, a ring: a dull gold band set with a tiny carved skull, "
+            "lying flat facing the viewer", 64, 64),
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading",
           "detail": "high detail"}
