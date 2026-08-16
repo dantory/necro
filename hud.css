@@ -841,15 +841,24 @@ body.in-town #hTactic{ display:inline-block; }
 /* ★ 열 칸(2026-08-16 「장비슬롯 더 늘려」) — 왼쪽 줄은 **드는 것**(무기·방패·장갑),
    오른쪽 줄은 **입는 것**(갑옷·허리띠·신발), 반지 둘은 맨 아래에서 인물을 사이에 둔다.
    D2 와 같은 결: 머리 위 투구 · 목에 부적 · 몸통 양옆. 인물은 가운데 세 줄을 잇는다. */
-.pdoll{display:grid;grid-template-columns:46px 1fr 46px;grid-template-rows:auto auto 1fr 1fr 1fr auto;
+/* ★ 칸 크기(--pdS)와 줄 사이(--pdG)는 **못박지 않는다** — 46px 로 박아 두었더니 여섯 줄이
+   316px 가 되어 아래 두 줄(신발·반지)이 창 밖으로 나갔다(08-17, 넘침 94px @1512×863).
+   자리(여섯 줄)는 그대로 두고 크기만 남는 높이에서 되짚는다(main.js `fitDoll`).
+   여기 적힌 46px 는 **자를 못 대는 곳에서의 기본값**이다(창이 닫혀 있을 때 등). */
+.pdoll{display:grid;grid-template-columns:var(--pdS,46px) 1fr var(--pdS,46px);
+  grid-template-rows:auto auto 1fr 1fr 1fr auto;
   grid-template-areas:". helm ." ". neck ." "wpn char arm" "shd char blt" "glv char boo" "rg1 . rg2";
-  gap:8px 10px;align-items:center;justify-items:center;max-width:236px;margin:0 auto}
+  gap:var(--pdG,8px) 10px;align-items:center;justify-items:center;
+  max-width:calc(var(--pdS,46px) * 2 + 144px);margin:0 auto}
 .pdChar{grid-area:char;align-self:stretch;display:flex;align-items:center;justify-content:center}
-.pdChar img{width:100%;height:auto;image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
+/* 인물도 제 칸 안에 **갇힌다** — 줄이 줄면 그림이 먼저 넘쳐 슬롯을 밀어낸다.
+   contain 이라 좁아져도 비율은 안 무너진다(늘어난 네크로맨서보다 작은 쪽이 낫다). */
+.pdChar img{width:100%;height:auto;max-height:100%;object-fit:contain;
+  image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
 .pd-helm{grid-area:helm}.pd-charm{grid-area:neck}.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}
 .pd-glove{grid-area:glv}.pd-ring{grid-area:rg1}.pd-shield{grid-area:shd}.pd-belt{grid-area:blt}
 .pd-boots{grid-area:boo}.pd-ring2{grid-area:rg2}
-.pdSlot{width:46px}
+.pdSlot{width:var(--pdS,46px)}
 .pdSlot .cell{width:100%}
 /* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
 .sSec.eq .cell.empty i{opacity:.24}
@@ -955,10 +964,21 @@ body.in-town #hTactic{ display:inline-block; }
 .win .frame{ max-width:820px }
 /* 능력치 창은 **키를 채운다** — 아래에 자리가 남는데 목록만 스크롤바가 생겨
    「금 획득」이 반쯤 잘려 있었다(트리는 이미 이렇게 돼 있다). */
-#winStat .frame{ height:calc(100% - 12px) }
+#winStat .frame{ height:100% }
 .frame.wide{ max-width:900px }
 .win{ inset:52px 0 var(--hudH) 0 }
+/* ★ 위아래 여백 24px 는 **띠 사이에서 또 물러선 것**이다 — 창은 이미 위 띠(52px)와
+   아래 판(--hudH) 사이에만 서므로 화면 끝에 닿을 일이 없다. 그 48px 를 돌려주면
+   페이퍼 돌의 칸이 32 → 41px 로 돌아온다(좌우는 그대로 — 폭은 820 에서 남는다). */
+.win{ padding:6px 24px }
 .win .frame{ padding:20px 22px }
+/* ★ 화면이 낮으면 **머리부터 줄인다** — 1280×800 에서는 제목과 여백이 그대로라 페이퍼 돌만
+   콩알(30px)이 됐다. 남는 높이가 없을 때 깎아야 하는 것은 **읽을 것(칸)**이 아니라 장식이다. */
+@media (max-height: 820px){
+  .win .frame{ padding:12px 22px }
+  .win h2{ font-size:26px; line-height:36px; margin-bottom:4px }
+  .win .wSub{ font-size:15px }
+}
 .win h2{ font-size:32px; letter-spacing:6px }
 .win .wSub{ font-size:16px }
 .tip{ padding:14px 18px; font-size:16px }
@@ -994,7 +1014,7 @@ body.in-town #hTactic{ display:inline-block; }
    트리는 #treeWrap 으로 이미 그렇게 돼 있었는데 능력치·가방은 아니었다 —
    창 높이가 내용에 따라 늘었다 줄었다 하고, 길면 발까지 밀려 내려갔다.
    ★ 창에 **키를 준다**(height). 안 주면 flex 의 남는 자리가 없어 .wScroll 이 안 구른다. */
-#winStat .frame, #winBag .frame{ height:calc(100% - 12px); max-height:calc(100% - 12px) }
+#winStat .frame, #winBag .frame{ height:100%; max-height:100% }
 .wScroll{ flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain }
 .wScroll::-webkit-scrollbar{ width:6px }
 .wScroll::-webkit-scrollbar-thumb{ background:#4a4030 }

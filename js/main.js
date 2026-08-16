@@ -1628,7 +1628,7 @@ const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "
 /* ★ 열 때 **다시 잰다** — 그리는 것(drawStat/drawBag)이 창을 열기 **전에** 돌아서,
    그 자리에서는 아직 숨은 칸이라 clientHeight 가 0 이다(넘침 판정이 못 선다). */
 const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
-  if (on) for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); };
+  if (on) { fitDoll(); for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); } };
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
 const closeAll = () => { for (const w of WINS) win(w, false); };
@@ -1930,7 +1930,29 @@ for (const id of ["statBody", "bagBody"]) {
   const el = $(id);
   if (el) el.addEventListener("scroll", () => markMore(el), { passive: true });
 }
-addEventListener("resize", () => { markMore($("statBody")); markMore($("bagBody")); });
+addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore($("bagBody")); });
+
+/** 페이퍼 돌을 **창 높이에 맞춘다** — 칸을 46px 로 못박아 두었더니 여섯 줄이 316px 가 되어
+ *  아래 두 줄(신발·반지)이 창 밖으로 나갔다(08-17, 넘침 94px @1512×863).
+ *  ★ 「아래에 더 있다」 표시로 덮을 일이 아니다 — **인물 하나가 다 보여야** 페이퍼 돌이다.
+ *  자리(여섯 줄)는 그대로 두고 **칸 크기만** 남는 높이에서 되짚는다. 창이 커지면 46px 로
+ *  돌아온다 — 한 번 줄고 마는 값이 아니라 늘 다시 잰다(그래서 46 부터 내려온다).
+ *  ★ 남는 높이를 **셈으로 맞히지 않는다** — 「여섯 줄 + 제목」으로 어림잡았더니 6px 이
+ *    남아 그대로 잘렸다(제목 여백·판 사이가 셈에 안 들어온다). 한 칸 줄일 때마다
+ *    **실제로 넘치는지 다시 읽는다**(scrollHeight). 보통 첫 판에 끝난다. */
+function fitDoll() {
+  const body = $("bagBody"), doll = body && body.querySelector(".pdoll");
+  if (!doll || !body.clientHeight) return;      // 창이 닫혀 있으면 잴 것이 없다
+  const eq = doll.parentElement, bag = eq.nextElementSibling;
+  for (let s = 46; ; s--) {
+    doll.style.setProperty("--pdS", s + "px");
+    doll.style.setProperty("--pdG", (s >= 44 ? 8 : 6) + "px");
+    if (s <= 30) break;                                     // 여기보다 작으면 칸이 안 읽힌다
+    if (body.scrollHeight <= body.clientHeight) break;      // 다 들어갔다
+    /* 넘치는 것이 **가방 쪽**이면 돌을 줄여도 소용없다 — 애먼 것을 깎지 않는다. */
+    if (bag && eq.offsetHeight <= bag.offsetHeight) break;
+  }
+}
 
 /** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
  *  합쳐져있는데 추후을 위해 분리필요"). 그 아래에 ⑦ 일지가 붙는다. */
@@ -1979,6 +2001,7 @@ function drawBag() {
     </div>`;
   $("bagTip").innerHTML = statTipHtml();
   $("bagGold").textContent = (META.gold | 0).toLocaleString();
+  fitDoll();                     /* ★ 넘침을 재기 **전에** 맞춘다 — 순서가 바뀌면 한 판 늦는다 */
   markMore($("bagBody"));
 }
 

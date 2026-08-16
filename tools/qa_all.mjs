@@ -50,6 +50,9 @@ const RULERS = [
      (병수님 지적). 접는 것은 쉬운데 **되돌아오는 것**을 안 재면 영영 사라져도 모른다 —
      그래서 값을 붙여 놓고 다시 뜨는지까지 한 판에 잰다. */
   { name: "statrow_qa",   args: [],                             secs: 120, tier: "fast", expect: /(PASS|FAIL)/ },
+  /* ★ winscroll_qa 는 「구르는가」를 보고, 이건 「**안 굴러도 다 보이는가**」를 본다 — 가방창의
+     페이퍼 돌은 아래 두 칸이 창 밖에 있었는데 winscroll 은 내내 통과했다(구르긴 굴렀으니까). */
+  { name: "bagfit_qa",    args: [],                             secs: 150, tier: "fast", expect: /(PASS|FAIL)/ },
   { name: "necro_alive_probe", args: ["16"],                    secs: 120, tier: "fast", expect: /판정/ },
 
   { name: "win_qa",       args: [],                             secs: 150, tier: "fast" },
