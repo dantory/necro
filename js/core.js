@@ -282,8 +282,14 @@ export const diveMax = () => {
   if (d < DIVE_MIN_DEEPEST) return 0;
   return Math.max(0, Math.floor((d - DIVE_BACK) / DIVE_STEP) * DIVE_STEP);
 };
-/** 사람이 고른 시작 층(고른 값은 저장된다). 조건이 바뀌면 저절로 줄어든다. */
-export const diveAt = () => Math.min(META.dive | 0, diveMax());
+/** 사람이 고른 시작 층(고른 값은 저장된다). 조건이 바뀌면 저절로 줄어든다.
+    ★ 자동 진행에는 **고르는 창이 없다** — 검수기는 `globalThis.__AUTO_DIVE` 로
+      「늘 제일 깊이 고르는 사람」을 흉내 낸다(A/B 로 되짚기가 정말 줄어드는지 재는 문).
+      게임 쪽 기본값은 그대로 0 이라 사람이 보는 판은 안 달라진다. */
+export const diveAt = () => (
+  (typeof globalThis !== "undefined" && globalThis.__AUTO_DIVE)
+    ? diveMax()
+    : Math.min(META.dive | 0, diveMax()));
 /** 죽은 뒤 다시 서는 층. 여태 닿아 본 깊이 아래의 마지막 관문(5의 배수). */
 export const startFloor = () =>
   Math.max(1, diveAt() || (CHECKPOINT ? Math.floor((META.deepest | 0) / 5) * 5 : 1));
