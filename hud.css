@@ -1125,3 +1125,88 @@ body.in-town #hTactic{ display:inline-block; }
 .cell i.gear-belt  { background-image:url("assets/ui/gear/belt.png") }
 .cell i.gear-boots { background-image:url("assets/ui/gear/boots.png") }
 .cell i.gear-ring2 { background-image:url("assets/ui/gear/ring2.png") }
+
+/* ══════════════════════════════════════════════════════════════
+   ══ 능력치·가방을 «도킹된 두 패널» 로 ══
+   (병수님 2026-08-17 20:32 「능력치랑 인벤 디아2 스타일로 만들라니까,, 여전히 이상해」
+    — 08-16 에 이어 **두 번째** 지적. 그때는 칸을 늘리고 페이퍼 돌을 넣었는데
+    여전히 이상하다면 고친 자리가 틀린 것이다.)
+   ──────────────────────────────────────────────────────────────
+   사진을 D2 옆에 놓고 세어 보니 **모양 자체가 달랐다.** 제일 큰 것 하나:
+   D2 의 능력치는 **화면 왼쪽 절반**, 인벤토리는 **오른쪽 절반**에 붙는 패널이고
+   **둘이 동시에 열린다.** 우리는 820px 짜리 상자가 한가운데 뜨고 「◀ 능력치 / 나가기」로
+   **오갔다** — 그건 게임 패널이 아니라 **설정창**이다. 칸을 아무리 예쁘게 깎아도
+   그 모양인 한 D2 로 안 읽힌다.
+
+   그래서 창 자체를 안 새로 만들고 **자리를 바꾼다**(마크업·js 는 그대로):
+     · `body.charOpen` 이면 능력치는 무대 **왼쪽 절반**, 가방은 **오른쪽 절반**에 붙는다
+     · 가운데 정렬·바깥 여백을 걷어 **화면 반쪽을 통째로** 쓴다
+     · 제목(h2)·부제(wSub)·서로 오가는 단추를 **감춘다** — D2 패널엔 그런 게 없고,
+       그 130px 에 물건이 서야 한다
+   ★ 좁은 창에서는 **예전 그대로**(가운데 상자 하나) — 반쪽이 400px 도 안 되는 폭에서
+     둘을 붙이면 그건 도킹이 아니라 짓뭉갬이다.
+   ══════════════════════════════════════════════════════════ */
+@media (min-width: 1200px) {
+  /* 둘 다 떠 있을 때만 반씩 나눈다 — 하나만 열려 있으면 예전 자리를 지킨다 */
+  body.charOpen #winStat, body.charOpen #winBag{
+    display:flex; align-items:stretch; justify-content:flex-start;
+    padding:0; pointer-events:none;                 /* 바깥은 통과 — 두 패널이 화면을 다 덮으므로 */
+    /* ★★ **위 띠 아래에서 시작한다.** 무대 꼭대기부터 깔았더니 패널이 위 띠를 덮어
+       「스킬」 단추가 안 눌렸다(tap_qa: 손가락이 닿는 것이 `frame` — 실패 2건).
+       예전 `.win{inset:52px …}` 이 52px 를 비워 두던 것이 바로 이 까닭이었다 —
+       자리를 새로 짜면서 그 «왜»를 안 옮겨 적으면 같은 구덩이에 다시 빠진다. */
+    top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2 + 56px);
+    height:calc(min(calc(100% - var(--panelH)), var(--stageH)) - 64px);
+    bottom:auto; }
+  /* 왼쪽 = 능력치 · 오른쪽 = 가방. 무대 안쪽에 붙되 옆 패널(rail)은 안 덮는다. */
+  body.charOpen #winStat{ left:calc(50vw - var(--stageW) / 2 + 8px); right:50vw; }
+  body.charOpen #winBag { left:50vw; right:calc(50vw - var(--stageW) / 2 + 8px); }
+  body.charOpen #winStat .frame,
+  body.charOpen #winBag  .frame{
+    pointer-events:auto; margin:0; width:auto; max-width:none;
+    height:100%; max-height:none; padding:12px 14px; }
+  /* 제목·부제·서로 오가는 단추는 **없앤다** — D2 패널에 없는 것들이고, 그 자리를 먹는다 */
+  body.charOpen #winStat > .frame > h2, body.charOpen #winBag > .frame > h2,
+  body.charOpen #winStat > .frame > .wSub, body.charOpen #winBag > .frame > .wSub,
+  body.charOpen .winFoot .btn.ghost[data-go="bag"],
+  body.charOpen .winFoot .btn.ghost[data-go="stat"]{ display:none }
+  /* 가방창의 「낀 것」은 **왼쪽 패널이 이미 인물로 보여 준다** — 같은 것을 두 번 말하지 않는다.
+     그 폭이 통째로 격자로 간다(⑦ · ④ 의 자리). */
+  body.charOpen #winBag .sSec.eq{ display:none }
+  body.charOpen #winBag .sCols{ gap:0 }
+  body.charOpen #winBag .sSec.bag{ flex:1 1 auto }
+  /* 금은 두 패널 **발치에 모두** 둔다 — D2 도 인벤토리 아래에 금이 있다(가방창은 감춰 뒀었다). */
+  body.charOpen #winBag .winFoot .purse{ display:inline }
+}
+
+/* ── 페이퍼 돌 — **인물이 놓인 것으로 읽혀야** 한다 ──
+   D2 는 인물 뒤에 어두운 석판이 깔린다. 우리는 그게 없어서 마을 풀밭 위에 인물이
+   **떠 있었다**(병수님 사진 20:32). 판을 깔고 테를 두른다. */
+.pdoll{ position:relative }
+.pdoll::before{ content:""; position:absolute; left:50%; top:2%; width:44%; height:96%;
+  transform:translateX(-50%); z-index:0; border-radius:2px;
+  background:linear-gradient(#0e0a07,#070505);
+  box-shadow:inset 0 0 0 1px #2a2318, inset 0 0 26px 6px #000; }
+.pdoll .pdChar, .pdoll .pdSlot{ position:relative; z-index:1 }
+
+/* ── 빈 슬롯은 **그 부위를 말한다** ──
+   D2 는 안 낀 자리에도 실루엣이 흐리게 찍혀 있어 「무엇을 낄 자리인지」 알 수 있다.
+   우리는 그림은 있는데 너무 흐려 검은 네모로 보였다(0.22 → 0.5). */
+.cell.empty i[class^="gear-"]{ opacity:.5 }
+.cell.empty{ box-shadow:inset 0 0 0 1px #221c14, inset 0 0 12px 3px #000 }
+
+/* 도킹된 왼쪽 패널 안의 인물 — 수치 위에 선다. 세로를 너무 먹으면 일지가 밀리므로
+   폭으로만 자란다(높이는 슬롯 세 줄이 정한다 · 08-17 13:41 의 그 규칙 그대로). */
+body.charOpen #statBody > .pdoll{ margin:0 auto 8px; max-width:250px }
+/* ★ 금을 능력치 쪽에서 **감췄다가 되돌렸다.** 「두 발치에 같은 수가 둘」이 눈에 걸려
+   지웠는데, `statup_qa` 가 바로 울었다 — 그 패널에는 **금을 쓰는 단추(강화)** 가 있고,
+   「값을 적었으면 가진 금도 적는다」는 규칙이 이미 서 있었다. 쓰는 자리에 잔고가 없으면
+   눌러 보고서야 못 산 걸 안다. 겹쳐 보이는 것보다 그게 나쁘다 — 둘 다 둔다. */
+
+/* ★ 도킹하면 수치는 **한 줄에 하나**다. 넓은 창에서는 두 칸(1fr 1fr)이 맞지만, 반쪽으로
+   좁아지면 한 칸이 210px 이라 「유해 12구 · ×1.96」처럼 값이 긴 줄에서 **이름과 값이
+   서로 밟는다**(찍어 보니 「유해」 위에 「12구」가 겹쳐 있었다 — 이름이 flex 의 익명
+   아이템이라 min-content 아래로 못 줄고, 값은 flex:0 0 auto 라 안 비킨다).
+   D2 의 능력치도 한 줄에 하나씩이다 — 폭을 다시 짜는 대신 칸 수를 줄인다. */
+body.charOpen #statBody .sStat:not(.jList){ grid-template-columns:1fr; column-gap:0 }
+body.charOpen #statBody .jList{ grid-template-columns:1fr }

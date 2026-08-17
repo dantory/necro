@@ -46,17 +46,35 @@ for (const [W, H] of SIZES) {
   await ev(`window.__openWin("bag")`);
   await wait(600);
   const r = JSON.parse(await ev(`(()=>{
-    const b=document.getElementById("bagBody"), doll=b&&b.querySelector(".pdoll");
-    if(!b||!doll) return JSON.stringify({없음:!b?"bagBody":"pdoll"});
+    /* ★ 인물은 **가방창 안에만 있는 것이 아니다**(2026-08-17 20:5x). D2 처럼 도킹하면
+       페이퍼 돌이 **왼쪽 능력치 패널**로 간다 — bagBody 안에서만 찾던 이 자는 그때
+       「슬롯 열이 다 잘렸다(44px)」로 울었다. 자리를 묻지 말고 **떠 있는 인물**을 찾는다.
+       ★ 이 주석은 **바깥 템플릿 문자열 안**이다 — 백틱을 쓰면 거기서 문자열이 끊겨
+         파일 전체가 SyntaxError 가 된다(방금 그렇게 자를 한 번 죽였다). */
+    const vis=el=>{ if(!el) return false; const g=el.getBoundingClientRect(); return g.width>1&&g.height>1; };
+    const doll=[...document.querySelectorAll(".win.on .pdoll")].find(vis);
+    if(!doll) return JSON.stringify({없음:"pdoll"});
+    /* 인물이 «구르는 칸» 안에 있으면 그 칸이 보이는 자리이고, 아니면 패널이 그 자리다. */
+    const b=doll.closest(".wScroll")||doll.closest(".frame");
     const bb=b.getBoundingClientRect();
+    /* ★ 가방 칸은 **인물과 다른 창**에 있을 수 있다(도킹). 칸 크기는 인물 쪽 --pdS 가
+       아니라 **실제로 선 가방 칸**을 잰다 — 예전엔 --pdS 를 읽어 도킹 뒤 0 이 나왔다. */
+    const cell=[...document.querySelectorAll(".win.on #bagBody .grid .cell")].find(vis);
+    const cw=cell?Math.round(cell.getBoundingClientRect().width):0;
     /* 「보이는 자리」는 구르는 칸의 **눈에 보이는 네모** — 그 밖으로 1px 이라도 나가면 잘린 것이다. */
     const slots=[...doll.querySelectorAll(".pdSlot")].map(e=>{
       const g=e.getBoundingClientRect();
       return {n:e.className.replace("pdSlot ",""), out:+Math.max(0, g.bottom-bb.bottom, bb.top-g.top).toFixed(1)};
     });
     return JSON.stringify({
-      넘침:+(b.scrollHeight-b.clientHeight).toFixed(1),
-      칸:parseFloat(getComputedStyle(doll).getPropertyValue("--pdS"))||0,
+      /* ★ 「넘침」은 **가방 격자가 제 패널을 넘치는지**다. 예전엔 인물이 든 칸의
+         scrollHeight 를 봤는데, 도킹 뒤 그 칸은 능력치·일지까지 든 **일부러 구르는 칸**이라
+         569px 이 늘 남는다 — 그건 고장이 아니라 설계다. 묻는 자리를 옮긴다. */
+      넘침:(()=>{ const g=document.querySelector(".win.on #bagBody .grid");
+        if(!g) return 0; const p=g.closest(".wScroll")||g.closest(".frame");
+        const gr=g.getBoundingClientRect(), pr=p.getBoundingClientRect();
+        return +Math.max(0, gr.bottom-pr.bottom, pr.top-gr.top).toFixed(1); })(),
+      칸:cw,
       잘린것:slots.filter(s=>s.out>1),
       슬롯수:slots.length,
     });})()`));

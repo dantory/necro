@@ -1676,7 +1676,9 @@ const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
   if (on) { fitDoll(); for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); } };
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
-const closeAll = () => { for (const w of WINS) win(w, false); };
+/* ★ `charOpen`(능력치+가방 한 벌)도 여기서 걷는다 — 창만 닫고 표식을 남기면 다음에
+   다른 창을 열 때 그 창이 반쪽에 붙어 버린다(표식은 창보다 오래 산다). */
+const closeAll = () => { for (const w of WINS) win(w, false); document.body.classList.remove("charOpen"); };
 /* 환생 단추는 **마을에서, 임계 층을 넘겼을 때만** 뜬다(나가기가 던전에서만 뜨는 것과 짝).
    자동으로 강제하지 않으므로 단추가 곧 「열렸다」의 유일한 신호다. */
 const syncReborn = () =>
@@ -2018,12 +2020,42 @@ function fitDoll() {
 /** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
  *  합쳐져있는데 추후을 위해 분리필요"). 그 아래에 ⑦ 일지가 붙는다. */
 function drawStat() {
-  $("statBody").innerHTML = statNumbers() + questListHtml();
+  /* ★ **도킹하면 인물이 이쪽으로 온다**(병수님 2026-08-17 「여전히 이상해」).
+     D2 의 왼쪽 패널은 **인물 + 수치**고, 오른쪽이 인벤토리다. 처음 도킹했을 때
+     가방창의 「낀 것」만 감췄더니 **인물이 통째로 사라졌다** — 페이퍼 돌은 거기에만
+     있었기 때문이다(찍어 보고 알았다). 감추기 전에 **어디로 가는지**를 먼저 정해야 한다. */
+  const docked = document.body.classList.contains("charOpen");
+  $("statBody").innerHTML = (docked ? dollHtml() : "") + statNumbers() + questListHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
   markMore($("statBody"));
 }
 
 /** 가방 — 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. */
+/** ══ 페이퍼 돌 ══ **인물 하나에 열 칸.** 여기 하나에서만 만든다 —
+ *  D2 처럼 도킹하면 이것이 **왼쪽(능력치) 패널**로 가고, 좁은 창에서는 예전처럼
+ *  가방창 안에 선다. 같은 것을 두 곳에서 만들면 한쪽만 고치게 된다. */
+function dollHtml() {
+  const gearSlot = (k) => {
+    const it = equipped(k);
+    return it
+      ? gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k, META.plus[k] | 0)
+      : `<div class="cell empty"><i class="gear-${k}"></i></div>`;
+  };
+  return `<div class="pdoll">
+          <div class="pdChar"><img src="assets/ui/doll_necro.png" alt="네크로맨서"></div>
+          <div class="pdSlot pd-helm">${gearSlot("helm")}</div>
+          <div class="pdSlot pd-charm">${gearSlot("charm")}</div>
+          <div class="pdSlot pd-wand">${gearSlot("wand")}</div>
+          <div class="pdSlot pd-robe">${gearSlot("robe")}</div>
+          <div class="pdSlot pd-glove">${gearSlot("glove")}</div>
+          <div class="pdSlot pd-ring">${gearSlot("ring")}</div>
+          <div class="pdSlot pd-shield">${gearSlot("shield")}</div>
+          <div class="pdSlot pd-belt">${gearSlot("belt")}</div>
+          <div class="pdSlot pd-boots">${gearSlot("boots")}</div>
+          <div class="pdSlot pd-ring2">${gearSlot("ring2")}</div>
+        </div>`;
+}
+
 function drawBag() {
   /* 낀 것 셋 — 슬롯마다 하나. 빈 슬롯은 .cell.empty(어느 슬롯인지 그림만 흐리게 남긴다). */
   const gearSlot = (k) => {
@@ -2278,6 +2310,11 @@ document.addEventListener("click", (e) => {
 /* 마을에서 **화면 안의 것을 눌러** 움직인다. 큰 단추를 따로 두는 것보다
    「거기 있는 곳」으로 읽힌다. */
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
+/* 검수용 — 자가 창을 닫을 길. `bagfit_qa` 가 폭마다 `window.__closeAll()` 을 부르고
+   있었는데 **그런 것이 없었다**(조용히 아무 일도 안 났다). 그래서 다음 폭에서 이미 열린
+   창을 다시 열어 **토글로 닫히고**, 자는 「인물이 없다」로 울었다 — 1440 에서만 났다.
+   여는 길이 하나로 모여 있듯 **닫는 길도 하나** 있어야 밖에서 검수할 수 있다. */
+window.__closeAll = () => closeAll();
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
   const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine", tactic:"winTactic", wipe:"winWipe" }[which];
@@ -2287,8 +2324,23 @@ window.__openWin = (which) => {
      더해도, 여는 길이 closeAll 을 안 거치면 소용없다). 여는 길을 하나로 모은다. */
   if (which === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (which === "forge") { closeAll(); drawForge(); win("winForge", true); }
-  if (which === "stat")  { closeAll(); drawStat();  win("winStat", true); }
-  if (which === "bag")   { closeAll(); drawBag();   win("winBag",  true); }
+  /* ★ **능력치와 가방은 한 벌이다**(병수님 2026-08-17 「여전히 이상해」). D2 는 왼쪽에
+     능력치, 오른쪽에 인벤토리가 **동시에** 선다 — 오가는 단추로 갈아 끼우는 것이 아니다.
+     넓은 창에서는 둘을 같이 열고 `body.charOpen` 을 붙여 반씩 도킹한다(hud.css).
+     좁은 창(<1200)에서는 붙일 자리가 없으므로 **예전처럼 하나만** 연다. */
+  if (which === "stat" || which === "bag") {
+    closeAll();
+    /* ★★ **표식을 «그리기 전에» 붙인다.** `drawStat` 이 `charOpen` 을 보고 인물을 넣을지
+       정하는데, 그리고 나서 붙였더니 **첫 번째로 여는 판에는 인물이 아예 없었다**
+       (가방 쪽 인물은 CSS 가 감추고, 능력치 쪽은 아직 안 그렸으니 어느 창에도 없다).
+       두 번째부터는 지난번 표식이 남아 있어 멀쩡해 보였다 — 자가 1440 에서만 울어
+       잡혔다(1512 는 앞 차례의 표식을 물려받았다). 순서가 곧 버그였다. */
+    const both = matchMedia("(min-width: 1200px)").matches;
+    document.body.classList.toggle("charOpen", both);
+    drawStat(); drawBag();
+    if (both) { win("winStat", true); win("winBag", true); }
+    else win(which === "stat" ? "winStat" : "winBag", true);
+  }
   /* ★ 트리가 여기 없었다 — 검수기가 `__openWin("tree")` 를 부르고 **아무 일도 안 난
      채** 마을 화면을 찍어 「이상 없음」을 냈다. 여는 길은 전부 여기 모여 있어야
      밖에서 검수할 수 있다. */
