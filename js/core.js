@@ -1788,19 +1788,43 @@ const AUTO_FILL = ["bone", "armor", "rot", "harvest", "marrow", "pyre", "fury", 
 
    함수는 남긴다 — **자(檢)가 「본보기 빌드」로 굴러야** 지난 측정과 이어진다.
    자만 `globalThis.__AUTO_TREE = 1` 을 박고 들어온다(loop_health 등). 사람에겐 0. */
+/* ══ **갈래의 반대쪽을 재는 팔** ══ (ROADMAP B · 2026-08-18)
+   위 목록은 갈래에서 어느 쪽을 고를지 못박아 두었다(군단·광포·탐식·착취). 그래서
+   「소수 정예」 빌드는 **자로 잴 길이 아예 없었다** — 사람이 손으로 찍어야만 보이는
+   빌드다. 목록을 갈아 끼우면 지난 측정과 이어지지 않으므로, `__AUTO_TREE` 와 같은
+   방식으로 **팔을 따로** 낸다: `__AUTO_FORK="elite"` 를 박고 들어오면 그 자리에서
+   **이름만 바꿔** 집는다(`legion` → `elite`). 사람 쪽 길은 안 건드린다.
+   여럿을 한꺼번에 바꿀 수도 있으나(`"elite,stone"`), **한 번에 하나만** 바꾸는 것이
+   원칙이다 — 넷을 같이 바꾸면 무엇이 들었는지 못 본다. */
+function forkSwap() {
+  const raw = globalThis.__AUTO_FORK;
+  if (!raw) return null;
+  const want = new Set(String(raw).split(/[,\s]+/).filter(Boolean));
+  const m = {};
+  for (const g of TREE) for (const nd of g.nodes) {
+    if (!nd.excl || !want.has(nd.id)) continue;
+    /* 같은 패의 **나머지 전부**가 이 칸으로 온다(패에 셋이 서는 날을 위해). */
+    for (const o of g.nodes) if (o.excl === nd.excl && o.id !== nd.id) m[o.id] = nd.id;
+  }
+  return Object.keys(m).length ? m : null;
+}
+
 export function autoSpend() {
   if (globalThis.__AUTO_TREE !== 1) return 0;
   let used = 0;
-  const want = {}, n = Math.min(AUTO_PLAN.length, spTotal());
-  for (let i = 0; i < n; i++) want[AUTO_PLAN[i]] = (want[AUTO_PLAN[i]] | 0) + 1;
+  const M = forkSwap(), sw = M ? (id => M[id] || id) : (id => id);
+  const PLAN = M ? AUTO_PLAN.map(sw) : AUTO_PLAN;
+  const FILL = M ? AUTO_FILL.map(sw) : AUTO_FILL;
+  const want = {}, n = Math.min(PLAN.length, spTotal());
+  for (let i = 0; i < n; i++) want[PLAN[i]] = (want[PLAN[i]] | 0) + 1;
   /* 차례는 목록 그대로 — 선행이 먼저 서야 뒤가 열린다(`bone`→`armor`→`ghoul`). */
-  for (const id of AUTO_PLAN) while (rank(id) < (want[id] | 0) && spLeft() > 0 && take(id)) used++;
-  if (spTotal() <= AUTO_PLAN.length) return used;
+  for (const id of PLAN) while (rank(id) < (want[id] | 0) && spLeft() > 0 && take(id)) used++;
+  if (spTotal() <= PLAN.length) return used;
   /* 목록이 끝났으면 **더 못 쓸 때까지** 채운다 — 한 바퀴에 하나도 못 쓰면 멈춘다
      (레벨이 모자라 잠긴 것뿐이면 무한히 돌 자리다). */
   while (spLeft() > 0) {
     let any = false;
-    for (const id of AUTO_FILL) if (spLeft() > 0 && take(id)) { any = true; used++; }
+    for (const id of FILL) if (spLeft() > 0 && take(id)) { any = true; used++; }
     if (!any) break;
   }
   return used;

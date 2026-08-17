@@ -52,6 +52,9 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
         「AUTO_PLAN 대로 찍은 사람」이고, 그것은 take() 로 가는 **같은 길**이다.
         손으로 안 찍은 판을 보고 싶으면 `LH_AUTOTREE=0`. */""}
    globalThis.__AUTO_TREE = ${process.env.LH_AUTOTREE != null ? (+process.env.LH_AUTOTREE ? 1 : 0) : 1};
+   ${/* ★ 갈래의 **반대쪽**을 재는 팔(ROADMAP B). `LH_FORK=elite` 면 본보기 빌드가
+        `legion` 자리에 `elite` 를 찍는다 — 목록은 그대로 두고 이름만 바뀐다. */""}
+   ${process.env.LH_FORK ? `globalThis.__AUTO_FORK = ${JSON.stringify(process.env.LH_FORK)};` : ""}
    ${process.env.LH_OPEN != null ? `globalThis.__OPEN_MUL = ${+process.env.LH_OPEN};` : ""}
    ${/* ★ 이름 하나를 **손잡이 둘**이 나눠 쓰고 있었다(2026-08-15). `LH_GATE` 는 원래
         관문 주인의 최소 생존 초(__GATE_SEC)였는데, 08-15 에 나무 관문 배율(__GATE_S)이
