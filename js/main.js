@@ -82,6 +82,20 @@ function fitNum(el, cur, max) {
   if (el._a !== a) { el._a = a; el.children[0].textContent = a; }
   if (el._b !== b) { el._b = b; el.children[1].textContent = b; }
 }
+
+/** ══ 매 틱 도는 판은 «바뀐 것만» 쓴다 ══ (2026-08-17 · 렉 항목)
+ *  `hud`/`sideRail` 은 틱마다 도는데, 같은 글자를 다시 넣어도 브라우저는 그때마다
+ *  글자판을 새로 세우고(innerHTML 이면 파서까지 돈다) 레이아웃을 더럽힌다.
+ *  `beltState` 를 고칠 때와 같은 길 — **값이 그대로면 손대지 않는다.** 넣는 글자가
+ *  같으니 나오는 그림도 같다(그래서 되돌려 볼 것도 픽셀로 댈 수 있다).
+ *  이 결은 이미 이 파일에 셋 있다(`setLeft`·`setDepth`·`fitNum`) — 나머지를 여기에 맞춘다.
+ *  ★ id 도 **한 번만 찾아 둔다.** `$` 는 getElementById 라 싸지만 한 프레임에 스무 번이면
+ *    싼 것도 쌓인다. 아직 없는 칸은 적어 두지 않는다(null 이면 다음 틱에 다시 찾는다) —
+ *    그래야 나중에 생기는 칸을 영영 놓치지 않는다. */
+const _nodes = Object.create(null);
+const $$ = (id) => _nodes[id] || (_nodes[id] = $(id));
+const setTxt  = (el, v) => { if (el && el.__t !== v) { el.__t = v; el.textContent = v; } };
+const setHTML = (el, v) => { if (el && el.__h !== v) { el.__h = v; el.innerHTML  = v; } };
 import { drawSlot, drawBar, watch } from "./frame.js";
 import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, setTownHover, townBreath, townGaze, townHitAt, townHits } from "./town.js";
@@ -1362,7 +1376,7 @@ function hud() {
   /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
-    $("hFloor").textContent = "마을";
+    setTxt($$("hFloor"), "마을");
     /* 좁은 화면에서 「가장 깊이…」로 잘려 **정작 층수가 먹혔다**(2026-08-13, 나가기
        단추를 넣고 눈으로 보다 발견). 아래 「남은 적」과 같은 규칙을 쓴다 —
        .lw 로 감싼 말은 좁으면 사라지고 **수는 남는다**(「깊이 15층」). */
@@ -1370,7 +1384,7 @@ function hud() {
     /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
     setDepth("");
   } else {
-  $("hFloor").textContent = S.floor + "층";
+  setTxt($$("hFloor"), S.floor + "층");
   setDepth(mul(depthMul()), depthMul());
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
@@ -1380,7 +1394,7 @@ function hud() {
   /* ★ 예전엔 `$("hLv").firstChild.nodeValue` 였다. 단추로 바꾸면서 앞에 그림을 넣자
      firstChild 가 글자가 아니라 <i> 가 되어 **레벨이 Lv.1 에서 굳었다**(조용히).
      자리를 이름으로 잡는다 — 안쪽 차림이 바뀌어도 안 깨진다. */
-  $("hLvT").textContent = "Lv." + META.lv;
+  setTxt($$("hLvT"), "Lv." + META.lv);
   markSp();
   /* ★ 위 띠의 금은 **줄인 표기**(num)로 적는다 — `toLocaleString()` 은 자릿수가 자랄수록
      넓어지는데(1,234,567 은 아홉 글자), 이 줄에서 줄어들 수 있는 칸은 `overflow:hidden` 이
@@ -1389,8 +1403,9 @@ function hud() {
      (tools/topbar_stress.mjs 로 360px·금 9,528 부터 8px 씩 밀리는 것을 잼).
      낱수는 상인·대장간·능력치 창이 그대로 보여 준다(거기는 자리가 넉넉하다) —
      위 띠는 **어림수**면 족하고, title 에 낱수를 남겨 둔다. */
-  { const g = META.gold | 0, el = $("hGold");
-    el.textContent = num(g); el.title = g.toLocaleString() + " 금"; }
+  /* 금은 **낱수가 바뀔 때만** 손댄다 — 줄인 표기(num)가 같아도 title 의 낱수는 다르다. */
+  { const g = META.gold | 0, el = $$("hGold");
+    if (el.__g !== g) { el.__g = g; el.textContent = num(g); el.title = g.toLocaleString() + " 금"; } }
   /* 채움을 **세로(height)와 가로(--pct) 양쪽으로** 알려 준다. 구슬은 세로로 차오르고
      띠는 가로로 차오르는데, 어느 쪽을 쓸지는 판의 결(테마)이 정한다 — 여기서는 둘 다 준다. */
   /* 구슬은 **캔버스에 픽셀로** 그린다(js/orb.js) — CSS 원은 가장자리가 매끄러워
@@ -1423,23 +1438,31 @@ function hud() {
      가방은 상점·무덤·대장간이 채우는 칸이고, 군세는 **다음 판에 데려갈 상한**이다
      (마릿수 N/M 이 아니라 상한 하나 — 마을에는 서 있는 하수인이 없다). */
   if (MODE.at === "town") {
-    $("gCorpse").textContent = `가방 ${META.bag.length}/${BAG_MAX}`;
-    $("gArmy").textContent   = `군세 ${armyCap()}`;   // 「최대」는 뺀다 — 좁은 줄에서 수를 밀어낸다(실측 22px)
+    setTxt($$("gCorpse"), `가방 ${META.bag.length}/${BAG_MAX}`);
+    setTxt($$("gArmy"), `군세 ${armyCap()}`);   // 「최대」는 뺀다 — 좁은 줄에서 수를 밀어낸다(실측 22px)
   } else {
-  $("gCorpse").textContent = `시체 ${S.corpses}/${CORPSE_MAX}`;
-  $("gCorpse").classList.toggle("full", S.corpses >= CORPSE_MAX);   // 상한에 붙으면 색이 달라진다 — 쌓기만 하면 손해다
+  setTxt($$("gCorpse"), `시체 ${S.corpses}/${CORPSE_MAX}`);
+  /* 상한에 붙으면 색이 달라진다 — 쌓기만 하면 손해다. 전투 중에는 시체가 문턱을
+     넘나들어 이 켜짐이 자주 뒤집히므로 **바뀔 때만** 손댄다(`beltState` 와 같은 병). */
+  { const full = S.corpses >= CORPSE_MAX, el = $$("gCorpse");
+    if (el.__full !== full) { el.__full = full; el.classList.toggle("full", full); } }
   /* 지배한 놈은 상한 밖이라 **따로 적는다** — 한 칸에 섞으면 「6/6 인데 왜 더 서 있지」가 된다 */
-  $("gArmy").textContent   = `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : "");
+  setTxt($$("gArmy"), `군세 ${armyN()}/${armyCap()}` + (thrallN() ? ` +${thrallN()}` : ""));
   }
   const need = xpNeed(META.lv);
-  $("xpFill").style.width = Math.min(100, (META.xp / need) * 100) + "%";
+  /* 막대는 **0.1% 눈금으로 바뀐 때만** 쓴다 — 매 프레임 같은 문자열을 style 에 넣으면
+     그때마다 스타일을 다시 셈한다(눈에 보이는 폭은 0.1% 아래로 안 갈린다). */
+  { const w = Math.min(100, (META.xp / need) * 100), el = $$("xpFill"), k = Math.round(w * 10);
+    if (el.__w !== k) { el.__w = k; el.style.width = w + "%"; } }
   /* ★ 경험치 **분수**는 따로 감싼다 — 폰에서는 이 한 줄이 「시체·레벨·군세」를
      두 줄로 접어 버린다(129/120423 처럼 길어질수록 심해진다). 숨길 수 있으려면
      따로 있어야 한다(hud.css 의 좁은 화면 규칙). 막대가 이미 진행을 보여 준다. */
-  $("xpNum").innerHTML = `Lv.${META.lv} <span class="xpNumFrac">${META.xp | 0}/${need}</span>`;
+  setHTML($$("xpNum"), `Lv.${META.lv} <span class="xpNumFrac">${META.xp | 0}/${need}</span>`);
   /* 서른 줄 넘게 낸다 — 좁은 창에서는 hud.css 가 높이로 세 줄만 남기고 자른다(overflow).
      넓은 창에서는 왼쪽 패널이 그 열넉 줄을 다 세운다(「일지」). */
-  $("log").innerHTML = S.log.slice(0, 34).map(l => `<div>${l}</div>`).join("");
+  /* ★ 이 한 줄이 `hud` 에서 제일 비쌌다 — 서른네 줄을 **매 프레임** 파서에 다시 물렸다.
+     로그는 사건이 있을 때만 바뀌므로 글자가 같으면 통째로 건너뛴다. */
+  setHTML($$("log"), S.log.slice(0, 34).map(l => `<div>${l}</div>`).join(""));
   sideRail();
   beltState();
 }
@@ -1449,21 +1472,21 @@ function hud() {
  *  안 보이는 동안 안 그리려면 resize 를 듣는 자리가 하나 더 생긴다(어긋날 자리도 하나 더).
  *  값은 이미 매 틱 도는 이 함수가 들고 있는 것뿐이라 새 계산이 없다. */
 function sideRail() {
-  const rA = $("rArmy"), rG = $("rGear");
+  const rA = $$("rArmy"), rG = $$("rGear");
   if (!rA || !rG) return;
   /* 군세 — 종류별로 센다. **마을에서는 마릿수가 뜻이 없다**(서 있는 하수인이 없다) —
      같은 자리에 「다음 판에 데려갈 상한」만 적는다(아래 판의 gArmy 와 같은 결). */
   const town = MODE.at === "town";
   const cnt = {};
   if (!town) for (const u of S.minions) if (!u.own) cnt[u.kind] = (cnt[u.kind] | 0) + 1;
-  rA.innerHTML = Object.entries(MINIONS).map(([k, m]) => {
+  setHTML(rA, Object.entries(MINIONS).map(([k, m]) => {
     const v = cnt[k] | 0;
     return `<div class="r${town || v ? "" : " zero"}"><span class="i">${m.ico}</span>` +
            `<span class="n">${m.n}</span><span class="v">${town ? "—" : v}</span></div>`;
   }).join("") +
   (town ? `<div class="cap">상한 <b>${armyCap()}</b></div>`
         : `<div class="cap">군세 <b>${armyN()}/${armyCap()}</b>${thrallN() ? ` · 지배 <b>${thrallN()}</b>` : ""}` +
-          ` · 시체 <b>${S.corpses}</b></div>`);
+          ` · 시체 <b>${S.corpses}</b></div>`));
   /* 낀 것 — 빈 칸은 안 그린다. 하나도 없으면 그 말을 한 줄로 한다(빈 상자는 고장으로 읽힌다).
      ★ 슬롯이 열 칸이 된 뒤로 이 목록이 **자리보다 길다**(잰 값 180px 대 88px). 예전엔
        `overflow:hidden` 이 넷을 조용히 먹고 넷째 줄을 글자 가운데서 끊었다. 이제
@@ -1501,20 +1524,20 @@ function sideRail() {
   /* ── 몸 ── **패널이 위 100px 만 차고 아래가 텅 빈 검은 상자**였다(병수님 사진 18:28).
      빈 자리를 무늬로 메우면 그건 장식이지 UI 가 아니다 — **늘 뜻이 있는 수**를 넣는다.
      능력치 창과 **같은 값·같은 자**(num·mul)를 쓴다. 여기와 창이 다른 수를 말하면 둘 다 못 믿는다. */
-  const rB = $("rBody");
-  if (rB) rB.innerHTML = [
+  const rB = $$("rBody");
+  if (rB) setHTML(rB, [
     ["체력", num(hpMaxOf())], ["마나", num(mpMaxOf())],
     ["본인", mul(selfDmgMul())], ["소환수", mul(minionDmgMul())],
     ["금", `+${Math.round((goldMulOf() - 1) * 100)}%`],
-  ].map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("");
+  ].map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join(""));
 
   /* ── 채비 ── **마을에서만.** 「다음에 할 일」을 수로 적는다 — 마을은 들르는 곳이고,
      들른 사람이 궁금한 건 **뭘 안 하고 내려가려는가**다. 없는 줄은 안 그린다
      (「스킬 점수 0 남음」 같은 줄은 할 일이 아니라 소음이다). */
-  const rR = $("rReady");
+  const rR = $$("rReady");
   if (rR) {
     const sp = spLeft(), full = META.bag.length >= BAG_MAX, f0 = startFloor();
-    rR.innerHTML = [
+    setHTML(rR, [
       sp > 0 ? ["스킬 점수", `<b class="hot">${sp}</b>`] : null,
       ["가방", `${META.bag.length}/${BAG_MAX}${full ? " <b class='hot'>가득</b>" : ""}`],
       f0 > 1 ? ["시작 층", `${f0}층`] : null,
@@ -1522,27 +1545,27 @@ function sideRail() {
       canRebirth() ? ["환생", `<b class="hot">할 수 있다</b>`]
                    : ["환생까지", `${Math.max(0, REBIRTH_MIN - (META.deepest | 0))}층`],
     ].filter(Boolean).map(([n, v]) =>
-      `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("");
+      `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join(""));
   }
 
   /* ── 지난 판 ── 방금 판의 셈. **판을 한 번도 안 돈 세션에서는 안 그린다**(LASTRUN 은
      기억에만 있어 새로 켜면 비어 있다) — 0 으로 채운 표는 「아직」이 아니라 「고장」으로 읽힌다. */
-  const rL = $("rLast");
-  if (rL) rL.innerHTML = LASTRUN.has
+  const rL = $$("rLast");
+  if (rL) setHTML(rL, LASTRUN.has
     ? [["닿은 곳", `${LASTRUN.floor}층`], ["처치", num(LASTRUN.killed)],
        ["금", `+${num(LASTRUN.gold)}`], ["얻은 것", `${LASTRUN.loot.length}`]]
       .map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("")
-    : `<div class="none">아직 내려간 적이 없다</div>`;
+    : `<div class="none">아직 내려간 적이 없다</div>`);
 
   /* ── 의뢰 ── **아직 안 깬 것 셋**만. 다 깬 목록을 세워 두면 할 일이 아니라 상장이 된다.
      판정은 core.js(questProg/questDone)가 쥔다 — 같은 식이 두 곳이면 갈라진다. */
-  const rQ = $("rQuest");
+  const rQ = $$("rQuest");
   if (rQ) {
     const open = QUESTS.filter((q) => !questDone(q)).slice(0, 3);
-    rQ.innerHTML = open.length
+    setHTML(rQ, open.length
       ? open.map((q) => `<div class="r" title="${q.d}"><span class="n">${q.n}</span>` +
           `<span class="v">${questProg(q)}/${q.goal}</span></div>`).join("")
-      : `<div class="none">다 끝냈다</div>`;
+      : `<div class="none">다 끝냈다</div>`);
   }
 }
 

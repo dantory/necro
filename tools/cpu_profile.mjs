@@ -35,7 +35,15 @@ const S = (m, p) => raw(m, p, sessionId);
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.setCacheDisabled", { cacheDisabled: true });
 await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
-const ev = async (e, aw = false) => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: aw })).result?.value;
+/* ★ 페이지 안에서 터진 것을 **삼키지 않는다**(2026-08-17). 예전엔 `.result?.value` 만
+   집어 와서, 식이 터지면 조용히 `undefined` 가 됐다 — 그래서 새로 붙인 「머문곳」이
+   한동안 **없는 채로 통과**했다(자가 안 재는 것을 잰다고 말하는 그 병). */
+const ev = async (e, aw = false) => {
+  const r = await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: aw });
+  if (r.exceptionDetails) throw new Error("페이지 안에서 터졌다: " +
+    (r.exceptionDetails.exception?.description || r.exceptionDetails.text || "?").slice(0, 300));
+  return r.result?.value;
+};
 
 /* 사람이 지나는 길로 — 마을에서 시작해 던전으로 내려간다 */
 await ev(`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:90000,lv:40,deepest:${FLOOR + 4},runs:6,up:{hp:6,mp:6,dmg:5,army:8},equip:{},bag:[],tree:{bone:3,armor:3,ghoul:3,legion:3,golem:3,rot:2,harvest:2}}))`);
@@ -64,6 +72,20 @@ const 판 = await ev(`({몸:(S.minions||[]).length, 적:(S.mobs||[]).length, 시
 
 await S("Profiler.enable");
 await S("Profiler.setSamplingInterval", { interval: 200 });   /* 200µs — 짧은 함수도 잡힌다 */
+/* ★★ **머문 곳을 재는 내내 지켜본다** (2026-08-17 에 이 자에 물린 이빨).
+   여태 `판` 은 **재기 전에 한 번** 읽은 것이었다. 그런데 30층은 본인이 죽는 층이라
+   재는 8초 사이에 **마을로 끌려가는 판이 섞인다** — 그러면 자는 던전 판(몸17·시체140)을
+   적어 놓고 실제로는 **마을 화면**을 잰다. 마을은 step 이 안 도니 숫자가 통째로 좋아져
+   (실측 JS초당 125 → 38) 고치지도 않은 것을 「×3 빨라졌다」로 읽게 된다.
+   그래서 100ms 마다 지금 화면을 적어 두고, 던전 밖이 섞이면 **그 판을 버린다.**
+   ([[probe-must-walk-the-real-path]] 의 뒤집힌 짝 — 길로 들어가는 것만이 아니라
+    **잰 내내 그 길에 있었는지**까지 봐야 한다.) */
+await ev(`(() => { const seen = Object.create(null);
+  const 훑기 = () => { const at = (window.__MODE || {}).at || "?";
+    seen[at] = (seen[at] | 0) + 1; };
+  훑기(); window.__where = { seen, 시작층: S.floor | 0, get 끝층() { return S.floor | 0; },
+    타이머: setInterval(훑기, 100), stop() { clearInterval(this.타이머); return this; } };
+  return 1; })()`);
 /* 느리게 거는 것은 **판을 다 세운 뒤**다 — 마을→던전 내려가는 동안 걸면 그 대기가
    늘어져 판이 덜 선 채로 재게 된다. */
 if (SLOW > 1) { await S("Emulation.setCPUThrottlingRate", { rate: SLOW }); await wait(800); }
@@ -71,6 +93,10 @@ await S("Profiler.start");
 await wait(SEC * 1000);
 const { profile } = await S("Profiler.stop");
 if (SLOW > 1) await S("Emulation.setCPUThrottlingRate", { rate: 1 });
+const 머문곳 = await ev(`(() => { const w = window.__where; if (!w) return null; w.stop();
+  const 합 = Object.values(w.seen).reduce((a, b) => a + b, 0) || 1;
+  const 던전몫 = +(((w.seen.dungeon | 0) / 합) * 100).toFixed(1);
+  return { 화면: w.seen, "던전%": 던전몫, 시작층: w.시작층, 끝층: w.끝층 }; })()`);
 
 /* 자기시간을 노드마다 모은다. samples 는 노드 id 열, timeDeltas 는 µs 간격이다. */
 const byId = new Map(profile.nodes.map(n => [n.id, n]));
@@ -110,7 +136,7 @@ const 뜨거운줄 = (키) => {
    몫(%)은 이 맥이 빠를수록 작아지지만, 이 값은 판이 실제로 시킨 일의 양이다. */
 const 잰초 = total / 1e6 || 1;
 const JS초당ms = +(js.reduce((a, r) => a + r.ms, 0) / 잰초).toFixed(1);
-const out = { 층: FLOOR, 초: SEC, 느리게: SLOW, 판, 네이티브퍼센트: 네이티브, JS초당ms,
+const out = { 층: FLOOR, 초: SEC, 느리게: SLOW, 판, 머문곳, 네이티브퍼센트: 네이티브, JS초당ms,
   "프레임여유%": +(100 - JS초당ms / 10).toFixed(1), JS상위: js.slice(0, 12),
   "1위줄": js[0] ? { 함수: js[0].이름, 줄: 뜨거운줄(js[0].이름) } : null, 콘솔오류: errs };
 console.log(JSON.stringify(out, null, 1));
@@ -121,8 +147,11 @@ console.log(JSON.stringify(out, null, 1));
       그리기·합성까지 못 한다 — 느리게 걸고 재는 판(SLOW>1)은 이쪽이 진짜 문이다. */
 const 우두머리 = js[0];
 const 넘침 = JS초당ms > 400;
-const bad = errs.length || !profile.samples.length || (우두머리 && 우두머리.비율 > 5) || 넘침;
-console.log(bad ? `FAIL${넘침 ? ` — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})` : ""}${우두머리 && 우두머리.비율 > 5 ? ` — 1위 ${우두머리.이름} ${우두머리.비율}%` : ""}`
-  : `PASS — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})`);
+/* ③ **잰 내내 던전에 있었나.** 95% 아래면 마을 화면이 섞인 판이라 숫자를 믿을 수 없다 —
+      좋게 나오든 나쁘게 나오든 **버린다**(좋게 나오는 쪽이 더 위험하다). */
+const 샜다 = 머문곳 && 머문곳["던전%"] < 95;
+const bad = errs.length || !profile.samples.length || (우두머리 && 우두머리.비율 > 5) || 넘침 || 샜다;
+console.log(bad ? `FAIL${넘침 ? ` — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})` : ""}${우두머리 && 우두머리.비율 > 5 ? ` — 1위 ${우두머리.이름} ${우두머리.비율}%` : ""}${샜다 ? ` — 던전에 ${머문곳["던전%"]}% 만 머물렀다(${JSON.stringify(머문곳.화면)}) · 이 판은 버린다` : ""}`
+  : `PASS — JS초당 ${JS초당ms}ms (느리게 ×${SLOW}) · 던전 ${머문곳 ? 머문곳["던전%"] : "?"}%`);
 await raw("Target.closeTarget", { targetId });
 bws.close(); process.exit(bad ? 1 : 0);
