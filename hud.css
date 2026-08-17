@@ -680,7 +680,9 @@ body.in-town #stage{cursor:pointer}
    먹어 **숫자가 그림 위에 겹쳤다**(원본을 잘라 보고서야 봤다 — 「4」가 뼈를 밟고 있었다).
    그림도 수도 각자 온전해야 한다: 칸 밖으로 완전히 빼고, 세로는 가운데에 건다.
    ★ 「없다」고 적었다가 **원본을 보고 정정한** 자리다 — 줄인 그림으로 판정하지 않는다. */
-.tRank{position:absolute;left:100%;top:50%;transform:translate(2px,-50%);
+/* ★ 2px → 4px. 찍은 칸에 **두르는 테**(2~3px 바깥)가 생기면서 수가 그 테를 스쳤다
+   (2026-08-18 ④). 그림도 수도 각자 온전해야 한다는 이 자리의 규칙 그대로. */
+.tRank{position:absolute;left:100%;top:50%;transform:translate(4px,-50%);
   font-weight:400;font-size:14px;min-width:16px;padding:0 3px;line-height:17px;
   text-align:center;color:#8ab4ff;background:#0b0d16;
   box-shadow:inset 0 0 0 1px #2f3f66;pointer-events:none}
@@ -691,17 +693,53 @@ body.in-town #stage{cursor:pointer}
 
 .tNode .tn{display:block;font-size:12px;line-height:1.25;color:#6b5f4e;word-break:keep-all}
 
-/* 상태 셋 — **밝기로 갈린다**(저쪽도 못 쓰는 스킬은 어둡게 눌러 둔다) */
-.tNode.open  .tIco{opacity:.95;filter:none}
-.tNode.some  .tIco,.tNode.full .tIco{opacity:1;filter:none}
-.tNode.open  .tn{color:#c3ae86}
-.tNode.open  .tTile{box-shadow:0 0 9px #c8aa6e33}
-.tNode.some  .tn{color:#c8aa6e}
-.tNode.full  .tn{color:#ffe6a8}
-.tNode.full  .tTile{box-shadow:0 0 10px #e0c07a44}
+/* ══ 상태 넷 ══ 병수님 2026-08-17: "④ 찍은 칸과 안 찍은 칸의 대비가 약하다 —
+   D2 는 찍은 것이 환하게 밝다."
+   ★ **자로 재 보고서야 얼마나 약한지 알았다**(`tools/tree_contrast.mjs`): 지금 찍을 수 있는
+     칸을 **찍어도 칸이 1.06 배**밖에 안 밝아지고, **테두리는 1.00 — 눈금이 아예 없었다.**
+     달라지는 것이 옆의 작은 랭크 수와 이름 색뿐이었으니 「약하다」가 아니라 거의 「없다」다.
+   그래서 갈리는 자리를 **셋으로 늘린다** — 그림 밝기 · 벽감 속 **불빛** · 칸을 두르는 **테**.
+     · 잠김 = 흑백으로 눌린다(사라지진 않는다 — 앞날이 보여야 계획을 세운다)
+     · 찍을 수 있음 = 색은 살아나되 **아직 불이 안 들어온다**(찍을 자리가 남았다는 뜻)
+     · 찍음 = 벽감에 **줄기 빛깔로 불이 들어오고** 테가 그 색으로 둘러진다
+     · 최대 = 그 불이 금빛으로 가장 환하다(더 넣을 데가 없다는 것도 이 색으로 읽힌다)
+   ★ 왜 배경이 아니라 `::before` 인가 — 칸의 테는 `border-image ... fill` 이라 **그림이
+     배경을 덮는다.** background 를 밝게 해도 한 픽셀도 안 보인다(그렇게 한 번 헛손질했다).
+     `::before` 는 테 그림 **위**, 아이콘 **아래**에 깔린다(첫 자식이므로). */
+.tIco{opacity:.28;filter:grayscale(1) brightness(.72)}          /* 잠김 — 기본값 */
+.tNode.open .tIco{opacity:.8;filter:grayscale(.35) brightness(.92)}
+.tNode.some .tIco,.tNode.full .tIco{opacity:1;filter:brightness(1.08)}
+.tNode.open .tn{color:#c3ae86}
+.tNode.some .tn{color:#c8aa6e}
+.tNode.full .tn{color:#ffe6a8}
+/* 찍을 수 있는 칸은 **불이 없다.** 「찍을 수 있다」는 그림의 색으로 이미 말하고 있다
+   (잠긴 칸은 흑백이다). 여기에 옅은 금테를 하나 두르고 있었는데, 그러면 찍은 칸의 테와
+   **같은 자리에서 겨루게 되어** 정작 찍었을 때 테가 1.05 배밖에 안 밝아졌다 —
+   D2 도 안 찍은 스킬에는 아무 빛이 없다. 테는 **찍음의 표시로만** 쓴다. */
+.tNode.open .tTile{box-shadow:0 0 0 1px #2a2115}
+/* 찍은 칸 — 벽감에 불이 들어온다. 줄기 빛깔이라 **어느 줄기를 팠는지**도 같이 읽힌다 */
+.tNode.some .tTile::before,.tNode.full .tTile::before{content:"";position:absolute;
+  inset:4px;pointer-events:none;
+  background:radial-gradient(circle at 50% 46%,
+    color-mix(in srgb, var(--br, #c8aa6e) 62%, transparent),
+    color-mix(in srgb, var(--br, #c8aa6e) 14%, transparent) 66%, transparent 82%);
+  /* 벽감 **안쪽에도** 한 줄 — 밖의 테와 짝을 이뤄 「불이 들어온 칸」으로 읽힌다 */
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--br, #c8aa6e) 40%, transparent)}
+.tNode.some .tTile{box-shadow:0 0 0 2px color-mix(in srgb, var(--br, #c8aa6e) 78%, #2a2010),
+  0 0 12px 1px color-mix(in srgb, var(--br, #c8aa6e) 46%, transparent)}
+/* 최대 — 가장 환하다. 금빛 테를 겹쳐 「이 칸은 끝났다」를 색으로 말한다 */
+.tNode.full .tTile::before{inset:3px;
+  background:radial-gradient(circle at 50% 46%,
+    color-mix(in srgb, var(--br, #c8aa6e) 74%, #ffe6a8 22%),
+    color-mix(in srgb, var(--br, #c8aa6e) 22%, transparent) 68%, transparent 84%);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, #ffe6a8 55%, transparent)}
+.tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8cc,
+  0 0 0 3px color-mix(in srgb, var(--br, #c8aa6e) 60%, #2a2010),
+  0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
 .tNode.big .tTile{width:60px;height:60px}
 .tNode.big .tIco{width:40px;height:40px}
-.tNode.sel .tTile{outline:2px solid #e0c07a;outline-offset:1px}
+/* 고른 칸 — 찍음 테와 겹치지 않게 **한 칸 밖에서** 두른다(둘이 붙으면 둘 다 안 읽힌다) */
+.tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:3px}
 
 /* ══ 줄기마다 제 빛깔 ══ 세 칸이 다 금색이면 **어느 줄기를 파고 있는지**가 색으로는
    안 읽히고 위치로만 읽힌다. 굴리면 그 위치마저 사라진다.
@@ -723,13 +761,12 @@ body.in-town #stage{cursor:pointer}
    ★ 한 번 붙였다 뺀 자리다. 그때 문제는 **그림이 아니라 자리**였다 — 넷에만 붙이니
      그 칸만 키가 커져 줄이 어긋났고, 바탕에 깔았더니 글자 뒤 얼룩이 됐다.
      이제 열다섯 칸이 **전부** 제 그림을 가진다(tools/pixellab/tree_icons.py).
-   잠긴 칸은 흑백으로 눌러 둔다 — 색이 곧 「쓸 수 있음」이 된다. */
-.tIco{display:block;margin:0 auto 4px;width:34px;height:34px;
-  image-rendering:pixelated;pointer-events:none;
-  opacity:.32;filter:grayscale(1) brightness(.8)}
-.tNode.open .tIco{opacity:.92;filter:none}
-.tNode.some .tIco,.tNode.full .tIco{opacity:1;filter:none}
-.tNode.big  .tIco{width:40px;height:40px}
+   잠긴 칸은 흑백으로 눌러 둔다 — 색이 곧 「쓸 수 있음」이 된다.
+   ★★ **여기 같은 규칙이 한 벌 더 있었다**(2026-08-18, ④ 를 고치며 지웠다). 위쪽 「상태 넷」과
+     겹치는데 **여기가 뒤라서 이겼고**, 그래서 위에서 무엇을 고쳐도 밝기가 안 변했다 —
+     [[knob-that-does-nothing]] 그 자체다. 덤으로 `margin:0 auto 4px` 가 위쪽의
+     `inset:0;margin:auto` 를 눌러 그림이 **벽감 가운데가 아니라 위로 붙어** 서 있었다
+     (칸이 세로로 과잉지정되면 `bottom` 이 무시된다). 규칙은 위 한 곳에만 둔다. */
 
 /* ══ 설명 ══ 세 줄이 **서로 다른 일**을 한다: 무엇인가 · 조건 · 효과.
    전에는 셋이 같은 크기라 눈이 어디부터 볼지 몰랐다. */
