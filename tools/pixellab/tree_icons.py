@@ -35,6 +35,10 @@ ICONS = {
   "armor":   f"{ARMY}, a ribcage worn as a chestplate, curved rib bones forming armor plates",
   "ghoul":   f"{ARMY}, a clawed rotting hand with four long fingers bursting upward out of the ground",
   "legion":  f"{ARMY}, three small skeleton warriors standing side by side in a row, seen from the front",
+  # ★ `legion` 과 **한 줄에 나란히 서는 칸**이라(갈래) 저것과 한눈에 갈려야 한다 —
+  #   저쪽이 「셋이 늘어선 작은 것들」이니 이쪽은 **크고 하나**로 말한다.
+  "elite":   f"{ARMY}, one single large armored skeleton champion standing alone, seen from the "
+             "front, heavy bone pauldrons and a tall crested helm, towering and broad-shouldered",
   "golem":   f"{ARMY}, a huge clenched stone fist seen from the side, four thick fingers and a thumb "
              "clearly visible, cracked clay with glowing orange fissures",
   # ── 시체 ──

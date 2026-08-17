@@ -385,6 +385,10 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .tipCmp{margin-top:10px;padding-top:8px;border-top:1px solid #241d16}
 .tipNext{margin-top:8px;padding-top:7px;border-top:1px solid #241d16}
 .tipNote{margin-top:8px;color:#6b5f4e}
+/* 갈래 알림 — 「찍으면 저쪽이 잠긴다」는 **되돌릴 수 없는 말**이라 설명문 색으로는 약하다.
+   경고 빛깔로 한 칸 띄워 둔다(닫힌 뒤에는 붉게 — 이미 벌어진 일이므로). */
+.tipFork{margin-top:6px;padding:3px 6px;border-left:2px solid #c8aa6e;color:#c8aa6e}
+.tipFork.shut{border-left-color:#8a3b3b;color:#a06a6a}
 .tipBuy{margin-top:16px;display:flex;align-items:center;justify-content:flex-end;gap:18px}
 .tipBuy .cost{color:var(--gold)}
 .tipBuy .cost.no{color:#7a4a4a}
@@ -750,6 +754,19 @@ body.in-town #stage{cursor:pointer}
 .tNode.big .tIco{width:40px;height:40px}
 /* 고른 칸 — 찍음 테와 겹치지 않게 **한 칸 밖에서** 두른다(둘이 붙으면 둘 다 안 읽힌다) */
 .tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:3px}
+
+/* ══ 갈래 ══ 한 줄에 칸이 둘. 「기다리면 열리는 것」과 **다르게 보여야** 한다.
+   D2 의 시너지처럼 나란히 놓고, 둘 사이에 갈렸음을 뜻하는 **가는 금**을 하나 긋는다. */
+.tFork{display:flex;justify-content:center;align-items:flex-start;gap:10px;position:relative}
+.tFork::before{content:"";position:absolute;top:26px;left:50%;transform:translateX(-50%);
+  width:1px;height:20px;background:#4a4030}
+/* 갈래에서 **닫힌** 칸 — 잠김(회색)보다 더 눌러 두고, 되돌릴 수 없음을 빗금으로 말한다.
+   ★ 그림을 지우지는 않는다. 무엇을 포기했는지가 보여야 다음 판의 계획이 선다. */
+.tNode.xlock{cursor:default}
+.tNode.xlock .tIco{opacity:.16;filter:grayscale(1) brightness(.55)}
+.tNode.xlock .tn{color:#4f4638;text-decoration:line-through}
+.tNode.xlock .tTile::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(135deg,transparent 46%,#6b2b2bcc 48%,#6b2b2bcc 52%,transparent 54%)}
 
 /* ══ 줄기마다 제 빛깔 ══ 세 칸이 다 금색이면 **어느 줄기를 파고 있는지**가 색으로는
    안 읽히고 위치로만 읽힌다. 굴리면 그 위치마저 사라진다.

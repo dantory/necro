@@ -1374,7 +1374,8 @@ export const dmgMulOf = () => depthMul()
    갈라진다 — 안 그러면 「본인 피해」가 소환수까지 올려서 이름이 거짓말이 된다. */
 export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 /** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
-export const minionMulOf = () => 1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0);
+export const minionMulOf = () => 1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0)
+                                + rank("elite") * ELITE_POW;
 export const goldMulOf   = () => 1 + afSum("gold") / 100 + gearVal("ring");   // 반지 = 금 획득
 /** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
  *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
@@ -1405,9 +1406,26 @@ export const armyBase = () => {
   const w  = ARMY_WALL_OF();
   return w ? Math.max(lv, Math.min(6, Math.round(floorN(S.floor) * w))) : lv;
 };
+/* ══ 「소수 정예」의 값 ══ (ROADMAP B · 2026-08-18)
+   끝 조건이 수로 적혀 있었다 — **20분 판에서 군세 40 대신 12~16.**
+   그래서 상한을 **빼기가 아니라 곱하기**로 깎는다: 빼기는 초반(상한 3~6)에서 군세를
+   0 으로 만들고 후반(40)에서는 아무 일도 안 한다.
+   ★ **곱을 자로 골랐다**(tmp 검수 · 40 을 넣고 되짚어서): 0.8³=0.512 → 20 · 0.75³=0.42 → **17**
+     (둘 다 12~16 밖) · 0.70³ = **0.343** → **14** — 한가운데다. 그래서 0.70.
+   ★ 세기 쪽은 **머릿수가 준 만큼**을 되갚되 조금 모자라게 둔다: 0.343 × (1+0.55×3) = **0.91**.
+     한 대의 총합은 살짝 밑이고, 대신 개체가 1.9 배 두꺼워 **오래 서 있는다** — 「소수의
+     하수인이지만 하수인 자체가 강해지는」(병수님)이 뜻하는 결이 이쪽이다.
+   ★ 그래도 이 수는 **20분 판으로 다시 재야 한다**(ROADMAP B 끝 조건). 여기 것은 «계산상
+     자리»고, 실제 상한은 `armyBase` 의 바닥(층 적 수)과 강화·옵션이 같이 정한다. */
+export const ELITE_CUT = 0.70;   // 단계마다 군세 상한 ×0.70 (3단계 = 0.343)
+export const ELITE_POW = 0.55;   // 단계마다 소환수 피해 +55%
+export const ELITE_HP  = 0.30;   // 단계마다 소환수 체력 +30%
 export const armyCap  = () => {
   const c = armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
-  return hasUnique("lonely") ? Math.max(1, Math.ceil(c / 2)) : c;   // 소수정예 — 군세는 반(대신 minionMulOf 가 갑절)
+  /* 상한을 깎는 것이 **둘(정예·고독한 왕관)** 이라 곱해서 겹친다 — 어느 쪽도 상대를
+     지우지 않는다. 바닥은 1 — 0 이 되면 판에 아무도 안 서서 게임이 멈춘다. */
+  const cut = Math.pow(ELITE_CUT, rank("elite")) * (hasUnique("lonely") ? 0.5 : 1);
+  return cut === 1 ? c : Math.max(1, Math.ceil(c * cut));
 };
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
@@ -1569,7 +1587,15 @@ export const TREE = [
        머릿수를 늘리는 `legion` 을 그 뒤로 보냈다. 줄기의 뜻도 이쪽이 곧다 —
        「군세를 파면 **먼저 종이 열리고**, 그 다음에 머릿수가 는다」. */
     { id:"golem",  n:"흙 골렘",    max:1, lv:10, req:"ghoul",  d:"흙 골렘 소환 해금 · 느린 대신 두꺼운 벽", big:1 },
-    { id:"legion", n:"군단",      max:3, lv:12, req:"golem",  d:"소환수 상한 +1" },
+    /* ══ 여기서 **길이 갈린다** ══ (ROADMAP A-ⓑ · B · 2026-08-18)
+       병수님: 「소수의 하수인이지만 하수인 자체가 강해지는 형태로」.
+       그 축은 이미 유니크 `lonely` 안에 있었는데, 유니크는 **주울 때까지 없는 것**이라
+       빌드가 못 된다. 트리의 한 줄로 세워 **고르는 자리**로 만든다.
+       둘은 `excl:"army"` 로 **서로 잠근다** — 하나를 찍는 순간 다른 하나가 닫힌다.
+       이것이 배타 선택의 첫 사례다(점이 남아돌아도 «둘 다»는 못 가진다). */
+    { id:"legion", n:"군단",      max:3, lv:12, req:"golem",  excl:"army", d:"소환수 상한 +1" },
+    { id:"elite",  n:"소수 정예",  max:3, lv:12, req:"golem",  excl:"army", alt:1,
+      d:"소환수 상한 -30% · 소환수 피해 +55% · 소환수 체력 +30%" },
   ]},
   { k:"corpse", n:"시 체", nodes:[
     { id:"rot",     n:"부패",      max:5, lv:1,  d:"시체 폭발 피해 +15%" },
@@ -1628,10 +1654,24 @@ export const spTotal = () => Math.max(0, META.lv - 1);
 export const spUsed  = () => Object.values(META.tree).reduce((a, b) => a + (b | 0), 0);
 export const spLeft  = () => spTotal() - spUsed();
 
+/** ★ **배타 선택** — 같은 `excl` 패에서 **이미 찍은 다른 칸**을 돌려준다(없으면 null).
+ *  「점이 모자라서 못 찍는다」와 「골랐으므로 닫혔다」는 **다른 일**이라 자리를 나눈다:
+ *  앞엣것은 기다리면 풀리지만 뒤엣것은 **초기화 전에는 안 풀린다.** 화면도 그렇게
+ *  갈라 그려야(tree.js `xlock`) 사람이 「왜 안 눌리지」로 헤매지 않는다. */
+export const exclLockedBy = (id) => {
+  const nd = NODE[id]; if (!nd || !nd.excl) return null;
+  for (const o of Object.values(NODE))
+    if (o.excl === nd.excl && o.id !== id && rank(o.id) > 0) return o;
+  return null;
+};
 /** 찍을 수 있나. 못 찍으면 **왜 못 찍는지**를 돌려준다 — 회색으로만 두면 답답하다. */
 export function takeWhy(id) {
   const nd = NODE[id]; if (!nd) return "없는 것";
   if (rank(id) >= nd.max) return "최대 단계";
+  /* 레벨·선행보다 **먼저** 본다 — 이미 길이 갈린 뒤에 「레벨 12 필요」라고 하면
+     기다리면 열리는 줄 안다. 닫힌 까닭 중 **제일 무거운 것**을 말해야 한다. */
+  const by = exclLockedBy(id);
+  if (by) return `갈래가 갈렸다 · 「${by.n}」`;
   if (META.lv < nd.lv) return `레벨 ${nd.lv} 이상 필요`;
   if (nd.req && rank(nd.req) === 0) return `선행 필요 · ${NODE[nd.req].n}`;
   if (spLeft() <= 0) return "남은 점수 없음";
@@ -1709,7 +1749,7 @@ export function autoSpend() {
 
 /* ── 트리가 판에 미치는 값들 ── **한 곳에 모아 둔다.** 흩어 놓으면 노드를 더할 때마다
    어디를 고쳐야 하는지 찾아다니게 된다. */
-export const minionHpMul = () => 1 + rank("armor") * 0.12;
+export const minionHpMul = () => 1 + rank("armor") * 0.12 + rank("elite") * ELITE_HP;
 
 /* ══ 소환수는 **제가 일어난 시체만큼 세다** ══
    여기가 이 게임에서 제일 크게 어긋나 있던 자리다. 해골 체력이 26(트리를 다 찍어도

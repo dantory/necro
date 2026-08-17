@@ -51,7 +51,11 @@ const 판 = async (tree, lv = 60) => {
   const cells = JSON.parse((await S("Runtime.evaluate", { returnByValue: true, expression: `(()=>{
     const out=[...document.querySelectorAll("#treeCols .tNode")].map(n=>{
       const t=n.querySelector(".tTile"), b=t.getBoundingClientRect();
-      const st=["full","some","open","lock"].find(c=>n.classList.contains(c))||"?";
+      /* ★ xlock(갈래에서 닫힌 칸)을 목록에 넣는다. 없던 동안 이 자는 그 칸을 **"?"** 로
+         적고도 평균에는 **그대로 넣었다** — 갈래 칸은 찍어도 안 밝아지는 것이 맞는데
+         (닫힌 것이니) 그 1.0 이 대비 평균을 끌어내려, 멀쩡한 판을 「미달」로 몰거나
+         진짜 어두운 칸을 가릴 수 있었다([[threshold-and-ruler-must-match]]). */
+      const st=["full","some","open","lock","xlock"].find(c=>n.classList.contains(c))||"?";
       return {id:n.getAttribute("data-tn"), 상태:st, sel:n.classList.contains("sel"),
         l:b.left, t:b.top, w:b.width, h:b.height};
     }).filter(c=>c.w>0 && c.t>0 && c.t<innerHeight-10);
@@ -100,7 +104,12 @@ fs.writeFileSync(OUT, Buffer.from(만.shot, "base64"));
 
 const 짝 = (a, b) => {                          // **같은 칸끼리** 견준다
   const B = Object.fromEntries(b.lum.map(c => [c.id, c]));
-  const rows = a.lum.filter(c => B[c.id] && !c.sel && !B[c.id].sel).map(c => {
+  /* 갈래에서 **닫힌** 칸은 대비를 안 잰다 — 「점을 부어도 안 밝아진다」가 이 칸의
+     올바른 모습이라, 여기 섞으면 자가 저 자신을 속인다. 대신 몇 칸인지는 적어 둔다. */
+  const 닫힘 = a.lum.filter(c => B[c.id] && (c.상태 === "xlock" || B[c.id].상태 === "xlock"))
+                    .map(c => c.id);
+  const rows = a.lum.filter(c => B[c.id] && !c.sel && !B[c.id].sel
+                             && c.상태 !== "xlock" && B[c.id].상태 !== "xlock").map(c => {
     const y = B[c.id];
     const r = (k) => +((y[k] + 0.05) / (c[k] + 0.05)).toFixed(3);
     return { id: c.id, 전: c.상태, 후: y.상태, 칸비: r("칸"), 그림비: r("그림"), 테비: r("테") };
@@ -108,7 +117,7 @@ const 짝 = (a, b) => {                          // **같은 칸끼리** 견준�
   const m = (k) => +(rows.reduce((s, x) => s + x[k], 0) / rows.length).toFixed(3);
   const lo = (k) => +Math.min(...rows.map(x => x[k])).toFixed(3);
   return { 칸수: rows.length, 칸비: m("칸비"), 그림비: m("그림비"), 테비: m("테비"),
-    최저칸비: lo("칸비"), 최저테비: lo("테비"), 낱칸: rows };
+    최저칸비: lo("칸비"), 최저테비: lo("테비"), 갈래닫힘: 닫힘, 낱칸: rows };
 };
 
 const 한점 = 짝(영, 일), 최대 = 짝(영, 만);

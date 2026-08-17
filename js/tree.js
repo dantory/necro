@@ -11,7 +11,7 @@
    그래서 목록이 아니라 **판**으로 그린다. 상인·대장간과 같은 결(칸 + 툴팁)이되,
    칸이 격자가 아니라 **줄기**로 서 있는 것만 다르다.
    ══════════════════════════════════════════════════════════ */
-import { $, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, spUsed, syncSkills, take, takeWhy } from "./core.js";
+import { $, exclLockedBy, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, spUsed, syncSkills, take, takeWhy } from "./core.js";
 
 let pick = "bone";                 // 고른 칸
 
@@ -24,21 +24,28 @@ window.__TREE_IDS = Object.fromEntries(TREE.flatMap((c) => c.nodes.map((n) => [n
 /** 판을 다시 그린다. **상태에서 통째로 뽑는다** — 부분 갱신은 어긋날 자리를 만든다. */
 export function drawTree() {
   $("treeCols").innerHTML = TREE.map((col) => {
-    const cells = col.nodes.map((nd, i) => {
-      const r = rank(nd.id), why = takeWhy(nd.id);
-      /* 상태는 셋뿐이다: **찍음 / 찍을 수 있음 / 아직**. 색으로 갈라야 한눈에 읽힌다. */
-      const cls = r >= nd.max ? "full" : r > 0 ? "some" : why ? "lock" : "open";
-      /* 잇는 선은 **선행을 찍었을 때 불이 들어온다** — 어디까지 길이 뚫렸는지가
-         글자를 읽지 않아도 보인다. */
-      const lit = i && rank(col.nodes[i - 1].id) > 0 ? " lit" : "";
-      /* ══ 디아블로 2 의 그 칸 ══ 병수님: "디2 스타일로".
-         저쪽 트리는 **네모난 아이콘 단추**가 전부다. 이름은 칸에 없고(뜰 때만 나온다),
-         칸에는 그림과 **모서리의 랭크 숫자**만 있다. 그리고 칸과 칸은 **화살표**로 잇는다.
-         우리는 한글 이름을 아예 빼면 처음 여는 사람이 못 읽으니 작게 밑에 붙인다. */
-      const rankBadge = r > 0 ? `<b class="tRank">${r}</b>` : "";
-      const gate = META.lv < nd.lv ? `<i class="tGate">Lv.${nd.lv}</i>` : "";
-      return `${i ? `<div class="tLink${lit}"></div>` : ""}
-        <div class="tNode ${cls}${nd.id === pick ? " sel" : ""}${nd.big ? " big" : ""}"
+    /* ★ 줄기는 **줄(row) 단위**로 그린다 — 한 줄에 칸이 둘이면 그것이 «갈래»다
+       (`alt:1` 이 앞 칸 옆에 선다). 목록 자체는 여전히 납작해서 core.js 의 훑기
+       (NODE·관문 배율·저장 거르기)는 한 줄도 안 바뀐다 — 갈라지는 것은 **그림뿐**이다. */
+    const rows = [];
+    for (const nd of col.nodes) {
+      if (nd.alt && rows.length) rows[rows.length - 1].push(nd);
+      else rows.push([nd]);
+    }
+    const cells = rows.map((row, i) => {
+      const tiles = row.map((nd) => {
+        const r = rank(nd.id), why = takeWhy(nd.id), shut = exclLockedBy(nd.id);
+        /* 상태는 넷이다: **찍음 / 찍을 수 있음 / 아직 / 갈래에서 닫힘**.
+           마지막 것을 `lock` 과 같은 색으로 두면 「레벨이 모자란가」로 읽혀서,
+           초기화 전에는 안 열리는 칸을 사람이 계속 기다리게 된다. */
+        const cls = r >= nd.max ? "full" : r > 0 ? "some" : shut ? "xlock" : why ? "lock" : "open";
+        /* ══ 디아블로 2 의 그 칸 ══ 병수님: "디2 스타일로".
+           저쪽 트리는 **네모난 아이콘 단추**가 전부다. 이름은 칸에 없고(뜰 때만 나온다),
+           칸에는 그림과 **모서리의 랭크 숫자**만 있다. 그리고 칸과 칸은 **화살표**로 잇는다.
+           우리는 한글 이름을 아예 빼면 처음 여는 사람이 못 읽으니 작게 밑에 붙인다. */
+        const rankBadge = r > 0 ? `<b class="tRank">${r}</b>` : "";
+        const gate = META.lv < nd.lv ? `<i class="tGate">Lv.${nd.lv}</i>` : "";
+        return `<div class="tNode ${cls}${nd.id === pick ? " sel" : ""}${nd.big ? " big" : ""}"
              data-tn="${nd.id}">
           <span class="tTile">
             <img class="tIco" src="assets/ui/tree/${nd.id}.png" alt=""
@@ -47,6 +54,12 @@ export function drawTree() {
           </span>
           <span class="tn">${nd.n}</span>
         </div>`;
+      }).join("");
+      /* 잇는 선은 **선행을 찍었을 때 불이 들어온다** — 어디까지 길이 뚫렸는지가
+         글자를 읽지 않아도 보인다. 갈래 줄에서는 **윗줄 아무 칸이나** 찍혔으면 켠다. */
+      const lit = i && rows[i - 1].some((p) => rank(p.id) > 0) ? " lit" : "";
+      const link = i ? `<div class="tLink${lit}"></div>` : "";
+      return row.length > 1 ? `${link}<div class="tFork">${tiles}</div>` : `${link}${tiles}`;
     }).join("");
     return `<div class="tCol" data-k="${col.k}"><h3>${col.n}</h3>${cells}</div>`;
   }).join("");
@@ -55,11 +68,19 @@ export function drawTree() {
      「+10%」만 적으면 지금 몇 %인지를 사람이 암산해야 한다. */
   const nd = nodeOf(pick), r = rank(pick), why = takeWhy(pick);
   const maxed = r >= nd.max;
+  /* ★ 갈래는 **찍기 전에** 말해야 한다. 찍고 나서 옆 칸이 잠긴 것을 발견하면 그건
+     선택이 아니라 사고다 — 되돌리려면 트리를 통째로 초기화해야 하기 때문이다.
+     그래서 아직 안 갈렸으면 「무엇을 포기하는지」를, 갈렸으면 「무엇을 골랐는지」를 적는다. */
+  const twin = nd.excl && TREE.flatMap((c) => c.nodes).find((o) => o.excl === nd.excl && o.id !== nd.id);
+  const forkNote = !twin ? ""
+    : exclLockedBy(pick) ? `<div class="tipFork shut">갈래가 갈렸다 — 「${twin.n}」을 고른 판이다</div>`
+    : rank(pick) > 0     ? `<div class="tipFork">이 갈래를 골랐다 — 「${twin.n}」은 잠겼다</div>`
+    :                      `<div class="tipFork">갈래 · 찍으면 「${twin.n}」이 잠긴다</div>`;
   $("treeTip").innerHTML =
     `<div class="tipName ${maxed ? "t4" : r ? "t2" : "t0"}">${nd.n}
        <span class="lv">${r}/${nd.max}</span></div>
      <div class="tipKind">요구 레벨 ${nd.lv}${nd.req ? ` · 선행 ${nodeOf(nd.req).n}` : ""}</div>
-     <div class="tipStat">${nd.d}</div>` +
+     <div class="tipStat">${nd.d}</div>${forkNote}` +
     (maxed
       ? `<div class="tipNote">최대 단계 · 더 올릴 수 없음</div>`
       : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${why || "점수 1 소모"}</span>
