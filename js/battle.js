@@ -3,7 +3,7 @@ import { armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         armyCapEff, CAP_MERGE_OF, MERGE_MAX, RAISE_BATCH_OF,
+         armyCapEff, CAP_MERGE_OF, MERGE_MAX, RAISE_BATCH_OF, raiseHasteMul,
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -869,7 +869,8 @@ function castOnce(id) {
   }
   if (id === "offer" && (!isGate(S.floor) || !S.mobs.some(m => m.boss))) return false;
 
-  S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul();
+  /* ⑨ 소환만 **빈 자리만큼 손이 빨라진다**(raiseHasteMul · 0 이면 곱이 정확히 1). */
+  S.mp -= mpNeed; S.cd[id] = sk.cd * cdMul() * (isRaise(id) ? raiseHasteMul() : 1);
   /* 시체를 쓰면 **판 위의 그것이 없어진다.** 어디 것을 썼는지가 보여야 자원이 된다.
      시체 폭발은 본인 둘레를 쓸므로 가운데에서, 소환은 세울 자리에서 가까운 것을 쓴다. */
   /* 폭발만 **여러 구를 한 입에** 먹는다(환전). 소환은 한 구 그대로 — 소환수 값이

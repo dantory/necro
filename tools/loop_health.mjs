@@ -61,6 +61,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_RAISEBATCH != null ? `globalThis.__RAISE_BATCH = ${+process.env.LH_RAISEBATCH};` : ""}
    ${process.env.LH_BURNMANA != null ? `globalThis.__BURN_MANA = ${+process.env.LH_BURNMANA};` : ""}
    ${process.env.LH_SPILL != null ? `globalThis.__RAISE_SPILL = ${+process.env.LH_SPILL};` : ""}
+   ${process.env.LH_HASTE != null ? `globalThis.__RAISE_HASTE = ${+process.env.LH_HASTE};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
    ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
    ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}

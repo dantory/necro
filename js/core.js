@@ -1385,6 +1385,35 @@ export const RAISE_SPILL_DEF = 0;
 export const RAISE_SPILL_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_SPILL != null)
   ? +globalThis.__RAISE_SPILL : RAISE_SPILL_DEF;
 
+/* ══ 자리가 빈 만큼 손이 빨라진다 ══ (⑨ __RAISE_HASTE) ⑧ 이 「벽은 화력이 아니라 **층당
+   초**」로 닫히면서 제일 비싼 띠가 **1~10층**(판의 41% · 층당 14.8초)으로 나왔다. 그 띠를
+   3분 자로 다시 보니(08-17 13:0x · 씨앗3 · merge 켠 지금 판) 왜 비싼지가 한 줄이었다 —
+   **뒷정리 79%** 인데 그 안은 때림 **71%**(다가감 24%)다. 곧 「걸어가느라」가 아니라
+   **「때리는데 안 죽어서」**이고, 그 까닭은 그 시간 동안 **군세가 2.6기 / 상한 6.0**,
+   자리가 빈 채로 있는 시간의 **61% 가 재사용**이기 때문이다(그 판의 「다른 손 있었음」은
+   **0%** — 얕은 층에서는 구울·골렘이 아직 안 열려 ㉥ 의 길이 없다).
+   ★ ⑧-d 의 진 팔(재사용을 **값으로** 깎기)과 다른 점은 **어디서 듣느냐**다. 그 팔은
+     꽉 찬 판에서도 똑같이 깎아 깊은 층의 화력을 같이 올렸다. 이 팔은 **빈 자리에만**
+     듣는다 — 꽉 차면 곱이 정확히 1 이라 깊은 층은 한 톨도 안 바뀌고, 죽어서 1층부터
+     다시 세우는 그 구간(⑧-i 의 41%)에서만 손이 빨라진다.
+   ★ 새 축을 안 만든다 — 이미 곱해지는 자리(`cdMul`) 옆에 곱 하나를 더할 뿐이고,
+     소환 계열에만 붙는다(폭발·저주의 재사용은 그대로).
+   **0 이면 손 안 댐** — 곱이 정확히 1 이라 예전과 비트까지 같다.
+   battle.js castOnce() 가 쓴다 — 검수기가 globalThis.__RAISE_HASTE 로 켠다. */
+export const RAISE_HASTE_DEF = 0;
+export const RAISE_HASTE_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_HASTE != null)
+  ? +globalThis.__RAISE_HASTE : RAISE_HASTE_DEF;
+/** 소환 재사용에 곱하는 값. 꽉 차면 **1**(손 안 댐) · 텅 비면 `1-H`. 상한 아래로만 잰다
+ *  (㉢ merge 로 실효 상한이 위로 열려 있어도 여기서는 armyCap() 을 쓴다 — 「빈 자리」의
+ *  뜻은 여전히 정원이지 초과분이 아니다). 바닥 0.05 는 0 으로 나눠 «즉시 재소환»이
+ *  되는 것을 막는 안전선이다. */
+export const raiseHasteMul = () => {
+  const h = RAISE_HASTE_OF();
+  if (!(h > 0)) return 1;
+  const empty = Math.max(0, Math.min(1, 1 - armyN() / Math.max(1, armyCap())));
+  return Math.max(0.05, 1 - h * empty);
+};
+
 /* ══ 마른 마나에 문을 연다 ══ (㉤ __BURN_MANA) 「시체 태우기」(시체 4 → 마나)는 이 게임이
    이미 가진 **마나 쪽 구조 출구**인데, 자동 진행에서 열리는 조건이 **「시체가 넘칠 때」**
    뿐이었다(`S.corpses >= CORPSE_MAX*0.85` = 140 중 119구). 그래서 ㉣ 이 만든 판
