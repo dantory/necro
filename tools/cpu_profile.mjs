@@ -21,6 +21,12 @@
 const CDP = `http://127.0.0.1:${process.env.NECRO_CDP_PORT || "9333"}`, PAGE = "http://127.0.0.1:8774/index.html";
 const SEC = +(process.argv[2] || 6), FLOOR = +(process.argv[3] || 30), BODIES = +(process.argv[4] || 0);
 const SLOW = +(process.argv[5] || 1);   /* CPU 를 N 배 느리게 — 1 이면 안 건다 */
+/* ★★ **가장 깊은 층**은 이제 손잡이다(2026-08-17). 여태 이 자는 `deepest = 층+4` 로만
+   판을 세웠는데, 그러면 `revisiting()` 이 **잰 내내 참**이라 판이 `step` 을 한 프레임에
+   **세 번** 돌린다(REVISIT_FF_DEF=3). 되짚기는 사람이 노는 12분 중 **6.9%** 뿐인데
+   자는 그 6.9% 안에서만 재고 있었다 — 「무거운 자리」를 세 배로 부풀린 종이다.
+   `NECRO_DEEPEST=<층>` 으로 되짚지 않는 판(=보통 걸음)을 잴 수 있다. */
+const DEEPEST = process.env.NECRO_DEEPEST != null ? +process.env.NECRO_DEEPEST : FLOOR + 4;
 const ver = await (await fetch(CDP + "/json/version")).json();
 const bws = new WebSocket(ver.webSocketDebuggerUrl);
 let id = 0; const pend = new Map(); const errs = [];
@@ -46,7 +52,7 @@ const ev = async (e, aw = false) => {
 };
 
 /* 사람이 지나는 길로 — 마을에서 시작해 던전으로 내려간다 */
-await ev(`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:90000,lv:40,deepest:${FLOOR + 4},runs:6,up:{hp:6,mp:6,dmg:5,army:8},equip:{},bag:[],tree:{bone:3,armor:3,ghoul:3,legion:3,golem:3,rot:2,harvest:2}}))`);
+await ev(`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:90000,lv:40,deepest:${DEEPEST},runs:6,up:{hp:6,mp:6,dmg:5,army:8},equip:{},bag:[],tree:{bone:3,armor:3,ghoul:3,legion:3,golem:3,rot:2,harvest:2}}))`);
 await S("Page.reload", { ignoreCache: true }); await wait(4500);
 
 /* 한 번 내려가 판을 세운다 — 끝에 **지금 어디인가**를 같이 물어 온다.
@@ -110,10 +116,17 @@ await S("Profiler.setSamplingInterval", { interval: 200 });   /* 200µs — 짧�
    그래서 100ms 마다 지금 화면을 적어 두고, 던전 밖이 섞이면 **그 판을 버린다.**
    ([[probe-must-walk-the-real-path]] 의 뒤집힌 짝 — 길로 들어가는 것만이 아니라
     **잰 내내 그 길에 있었는지**까지 봐야 한다.) */
-await ev(`(() => { const seen = Object.create(null);
+/* ★★ **어느 화면인지만이 아니라 「어느 속도인지」도 적는다**(2026-08-17). 되짚는 층
+   (`S.floor < META.deepest`)에서는 판이 같은 틱을 **세 번** 돌린다 — 화면은 던전 100%
+   라 위 자를 멀쩡히 통과하는데, 재고 있는 것은 **세 배로 도는 판**이다. 그러면
+   「step 이 1위 · 그 안 44.9% 가 빨리감기 한 줄」 같은 말이 나오는데 그건 고칠 자리가
+   아니라 **자가 서 있는 자리**다. 되짚기 몫을 같이 내서 종이에 적히게 한다. */
+await ev(`(() => { const seen = Object.create(null); let ff = 0, n = 0;
   const 훑기 = () => { const at = (window.__MODE || {}).at || "?";
-    seen[at] = (seen[at] | 0) + 1; };
+    seen[at] = (seen[at] | 0) + 1;
+    n++; if ((S.floor | 0) < ((window.META || {}).deepest | 0)) ff++; };
   훑기(); window.__where = { seen, 시작층: S.floor | 0, get 끝층() { return S.floor | 0; },
+    get 되짚기몫() { return n ? ff / n : 0; },
     타이머: setInterval(훑기, 100), stop() { clearInterval(this.타이머); return this; } };
   return 1; })()`);
 /* 느리게 거는 것은 **판을 다 세운 뒤**다 — 마을→던전 내려가는 동안 걸면 그 대기가
@@ -126,7 +139,8 @@ if (SLOW > 1) await S("Emulation.setCPUThrottlingRate", { rate: 1 });
 const 머문곳 = await ev(`(() => { const w = window.__where; if (!w) return null; w.stop();
   const 합 = Object.values(w.seen).reduce((a, b) => a + b, 0) || 1;
   const 던전몫 = +(((w.seen.dungeon | 0) / 합) * 100).toFixed(1);
-  return { 화면: w.seen, "던전%": 던전몫, 시작층: w.시작층, 끝층: w.끝층 }; })()`);
+  return { 화면: w.seen, "던전%": 던전몫, "되짚기%": +(w.되짚기몫 * 100).toFixed(1),
+    시작층: w.시작층, 끝층: w.끝층 }; })()`);
 
 /* 자기시간을 노드마다 모은다. samples 는 노드 id 열, timeDeltas 는 µs 간격이다. */
 const byId = new Map(profile.nodes.map(n => [n.id, n]));
@@ -182,6 +196,6 @@ const 넘침 = JS초당ms > 400;
 const 샜다 = 머문곳 && 머문곳["던전%"] < 95;
 const bad = errs.length || !profile.samples.length || (우두머리 && 우두머리.비율 > 5) || 넘침 || 샜다;
 console.log(bad ? `FAIL${넘침 ? ` — JS초당 ${JS초당ms}ms (느리게 ×${SLOW})` : ""}${우두머리 && 우두머리.비율 > 5 ? ` — 1위 ${우두머리.이름} ${우두머리.비율}%` : ""}${샜다 ? ` — 던전에 ${머문곳["던전%"]}% 만 머물렀다(${JSON.stringify(머문곳.화면)}) · 이 판은 버린다` : ""}`
-  : `PASS — JS초당 ${JS초당ms}ms (느리게 ×${SLOW}) · 던전 ${머문곳 ? 머문곳["던전%"] : "?"}%`);
+  : `PASS — JS초당 ${JS초당ms}ms (느리게 ×${SLOW}) · 던전 ${머문곳 ? 머문곳["던전%"] : "?"}% · 되짚기 ${머문곳 ? 머문곳["되짚기%"] : "?"}%`);
 await raw("Target.closeTarget", { targetId });
 bws.close(); process.exit(bad ? 1 : 0);
