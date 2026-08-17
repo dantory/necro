@@ -150,22 +150,27 @@ const tick = (sec) => `(async()=>{
   const T = R.time || (R.time = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 층바뀜: 0, byF: {} });
   /* ── ★ 「자리가 비었을 때 **무엇이** 막고 있었나」를 한 자리에서 정한다 ──────────
      아래 두 통(뒷정리 A.막힘 · 판 전체 G)이 **같은 식**을 봐야 한다 — 갈라 두면
-     하나만 고치고 만다([[carry-fixes-forward]]). 읽기만 하므로 난수 소비가 안 달라진다. */
-  const 막힌통 = () => {
+     하나만 고치고 만다([[carry-fixes-forward]]). 읽기만 하므로 난수 소비가 안 달라진다.
+     ★ **손 하나가 아니라 손마다** 묻는다(08-17 18:1x). 여태 이 통은 raise 하나만 봤고,
+       그래서 「골렘이 왜 안 서나」를 물을 자리가 아예 없었다. 식은 그대로 두고 스킬 id 를
+       받게만 넓힌다 — 한 자리에서 고치면 세 통이 같이 고쳐진다([[carry-fixes-forward]]). */
+  const 막힘이유 = (id) => {
+    const sk = C.SKILLS.find(s => s.id === id);
+    if (!sk) return "미해금";                      // 나무가 안 열렸으면 애초에 없는 손이다
     const capBase = C.armyCap(), capEff = C.armyCapEff(), have = C.armyN();
-    const sk = C.SKILLS.find(s => s.id === "raise");
     const over = have >= capBase && have < capEff;
     const corpseNeed = B.corpseNeedOf(sk, over);   // ★ 게임과 **같은 식**을 본다(battle.js)
     const mpNeed = C.mpCost(sk) * (over ? 2 : 1);
     const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
     const canMerge = have >= capEff && mgOn &&
-      S.minions.some(u => !u.own && u.kind === "skel" && (u.mg | 0) < C.MERGE_MAX);
+      S.minions.some(u => !u.own && u.kind === C.MINION_OF[id] && (u.mg | 0) < C.MERGE_MAX);
     if (have >= capEff && !canMerge) return "상한참";
     return S.corpses < corpseNeed ? "시체없음"
          : S.mp < mpNeed          ? "마나부족"
-         : (S.cd.raise || 0) > 0  ? "재사용"
+         : (S.cd[id] || 0) > 0    ? "재사용"
          : "셀차례";
   };
+  const 막힌통 = () => 막힘이유("raise");
   /* ── ★ **「재사용」은 손이 노는 것인가, 채널이 막힌 것인가** (08-17 11:0x) ────────
      위 통은 S.cd.raise **하나만** 본다. 그런데 S.cd 는 **스킬마다 따로**고
      (이 안은 템플릿 문자열이라 역따옴표를 못 쓴다)
@@ -176,20 +181,10 @@ const tick = (sec) => `(async()=>{
        · 그 초의 대부분에 구울·골렘이 **쓸 수 있었다** → 벽이 아니라 **안 쓴 손**이다
        · 대부분 그것들도 쿨/자원에 막혀 있었다 → 채널 전체가 막힌 **진짜 벽**이다
      40분짜리 팔을 걸기 **전에** 손잡이가 움직일 자리가 있는지부터 본다
-     ([[knob-that-does-nothing]]). 읽기만 하므로 난수 소비는 그대로다. */
-  const 쓸수있나 = (id) => {
-    const sk = C.SKILLS.find(s => s.id === id);
-    if (!sk) return false;                          // 트리가 안 열렸으면 애초에 없는 손이다
-    const capBase = C.armyCap(), capEff = C.armyCapEff(), have = C.armyN();
-    const over = have >= capBase && have < capEff;
-    if (have >= capEff) {                           // 꽉 참 — 그 종으로 머지가 되는가
-      const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
-      if (!(mgOn && S.minions.some(u => !u.own && u.kind === C.MINION_OF[id] && (u.mg | 0) < C.MERGE_MAX))) return false;
-    }
-    return (S.cd[id] || 0) <= 0
-        && S.mp >= C.mpCost(sk) * (over ? 2 : 1)
-        && S.corpses >= B.corpseNeedOf(sk, over);
-  };
+     ([[knob-that-does-nothing]]). 읽기만 하므로 난수 소비는 그대로다.
+     ★ 08-17 18:1x — 여기 있던 제 식을 지우고 위 막힘이유 를 부른다. 둘은 같은 산수였고
+       (막힘 없음 == 셀차례), 갈라 두면 한쪽만 고치게 된다([[carry-fixes-forward]]). */
+  const 쓸수있나 = (id) => 막힘이유(id) === "셀차례";
   for (let i = 0; i < n; i++) {
     try {
       /* 이 0.05 초를 어느 통에 부을지 — **step 전의 판**이 그 동안의 상태다. */
@@ -240,6 +235,31 @@ const tick = (sec) => `(async()=>{
           if (G.빈첫 < 0) G.빈첫 = R.t;
           G.빈끝 = R.t;
           if (R.t >= 60) G.빈늦 += 0.05;
+        }
+        /* ── ★ **골렘이 왜 안 서나** (08-17 18:1x) ────────────────────────────
+           ROADMAP E 「편성 넷이 실제로 갈리는지」가 남긴 마지막 물음이다. 종 비율은
+           확실히 갈리는데(해골 52.7~82.1%) **골렘만 어느 편성에서도 2.9~6.6%** 다 —
+           「골렘 벽」이라고 이름 붙인 편성에서조차 6% 다. 위 통들은 전부 raise 기준이라
+           이 물음을 물을 자리가 없었다.
+           **편성이 골렘을 더 원하는 초**(선 골렘 < wantGolem)만 골라 무엇이 막았는지 센다 —
+           auto() 가 골렘을 부르는 조건이 정확히 그것이기 때문이다(main.js: nGolem < wantGolem
+           && cast("golem")). 원하지도 않는 초를 섞으면 「안 막혔다」가 대부분이 되어
+           자가 스스로 답을 지운다([[floor-far-from-threshold]]).
+           ★ 읽기만 한다 — 난수 소비는 그대로다. */
+        const GO = T.골렘 || (T.골렘 = { 초: 0, 원하는초: 0, 해금: -1, 첫등장: -1,
+                                         미해금: 0, 상한참: 0, 시체없음: 0, 마나부족: 0, 재사용: 0, 셀차례: 0,
+                                         원함합: 0, 있음합: 0, 최대: 0, 죽음: 0 });
+        {
+          const nGo = S.minions.reduce((a, m) => a + (!m.own && m.kind === "golem" ? 1 : 0), 0);
+          const want = C.doctrineWants(C.armyCap()).golem | 0;
+          GO.초 += 0.05; GO.원함합 += want; GO.있음합 += nGo;
+          if (nGo > GO.최대) GO.최대 = nGo;
+          if (GO.해금 < 0 && C.SKILLS.some(s => s.id === "golem")) GO.해금 = R.t;
+          if (GO.첫등장 < 0 && nGo > 0) GO.첫등장 = R.t;
+          /* 골렘은 죽어야 사라진다 — 줄어든 만큼이 죽은 수다(소환은 늘리기만 한다). */
+          if (R.goPrev != null && nGo < R.goPrev) GO.죽음 += R.goPrev - nGo;
+          R.goPrev = nGo;
+          if (nGo < want) { GO.원하는초 += 0.05; GO[막힘이유("golem")] += 0.05; }
         }
         const b = T.byF[f] || (T.byF[f] = { 기다림: 0, 싸움: 0, 뒷정리: 0, 되짚기: 0, 든횟수: 0 });
         b[k] += 0.05;
@@ -637,6 +657,24 @@ if (시간) {
                   `**바닥 ${G.못바닥 >= 1e9 ? "?" : G.못바닥}구**`);
       console.log(`  얕은 쪽 사다리: ${사다리}`);
     }
+  }
+  /* ── ★ **골렘이 왜 안 서나** ── ROADMAP E 가 남긴 물음. 「편성이 더 원한 초」를 분모로
+     쓴다 — 원하지도 않은 초를 섞으면 어떤 팔이든 「안 막혔다」가 대부분이 된다. */
+  const GO = 시간.골렘;
+  if (GO && GO.초 > 0) {
+    const 분모 = GO.원하는초 || 1, p = (v) => `${v.toFixed(0)}초(${Math.round(v / 분모 * 100)}%)`;
+    console.log(`\n골렘 — 원한 ${(GO.원함합 / (GO.초 / 0.05)).toFixed(1)}기 / 선 ${(GO.있음합 / (GO.초 / 0.05)).toFixed(1)}기 ` +
+                `(최대 ${GO.최대} · 죽음 ${GO.죽음}) · 해금 ${GO.해금 < 0 ? "안 됨" : GO.해금.toFixed(0) + "초"} · ` +
+                `첫등장 ${GO.첫등장 < 0 ? "없음" : GO.첫등장.toFixed(0) + "초"}`);
+    console.log(`  더 원한 ${GO.원하는초.toFixed(0)}초(판의 ${Math.round(GO.원하는초 / GO.초 * 100)}%) 를 막은 것: ` +
+                `미해금 ${p(GO.미해금)} · 꽉참 ${p(GO.상한참)} · 재사용 ${p(GO.재사용)} · ` +
+                `마나부족 ${p(GO.마나부족)} · 시체없음 ${p(GO.시체없음)} · [셀차례 ${p(GO.셀차례)}]`);
+    const 큰 = Object.entries({ 미해금: GO.미해금, 꽉참: GO.상한참, 재사용: GO.재사용,
+                                마나부족: GO.마나부족, 시체없음: GO.시체없음 }).sort((a, b) => b[1] - a[1])[0];
+    console.log(`→ 골렘을 막는 제일 큰 것은 **${큰[0]}** (${Math.round(큰[1] / 분모 * 100)}%)` +
+                (GO.셀차례 / 분모 > 0.2
+                  ? ` ★ 그런데 ${Math.round(GO.셀차례 / 분모 * 100)}% 는 **아무것도 안 막았다** — auto() 가 부를 차례를 못 얻은 것이다`
+                  : ""));
   }
   /* ── ★ 「아슬아슬」 ── A-2 의 끝 조건이 여기서 읽힌다(30분에 절반아래 다섯 번 이상).
      그리고 **띠**가 A-1 에 답한다 — 깊은 층에서 닿는 피해가 0 에 가까우면 소환수
