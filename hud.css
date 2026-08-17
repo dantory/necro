@@ -1224,25 +1224,40 @@ body.charOpen #statBody .jList{ grid-template-columns:1fr }
    벨트 바로 밑, 구슬 사이. D2 의 아래 판이 캐릭터·인벤토리·스킬을 여는 자리다.
    ★ 벨트 칸과 **같은 돌**을 쓴다(.hBtn 이 이미 그 결이다) — 한 판에 두 가지 단추가
      있으면 어느 것이 이 게임의 단추인지 눈이 한 번 더 고른다. */
-.hudMenu{display:flex;gap:8px;justify-content:center;margin-top:7px}
-.hudMenu .hBtn{position:static;inset:auto;display:inline-flex;align-items:center;gap:5px;
-  font-size:16px;padding:4px 14px}
-/* 스킬 점수가 남으면 붙는 점(#spDot)은 그대로 따라온다 — 자리를 옮겨도 신호는 산다. */
-
-/* ★ 메뉴가 **줄지어 서야** 메뉴로 읽힌다(병수님 21:05 「디아블로는 하단에 메뉴가 있다고」
-   — 아래로 내린 뒤에도 다시 지적받았다). 글자 단추 둘이 가운데 떠 있으면 그건 라벨이지
-   메뉴가 아니다. 다섯을 **벨트와 같은 폭**에 고르게 펴고, 칸도 벨트 칸과 같은 결로. */
-.hudMenu{gap:5px;justify-content:space-between}
+/* ══ 메뉴 띠 — 아래 판 «위»에 얹힌 제 영역 ══ (병수님 2026-08-17 21:23
+   「기존 하단 UI위에 별도 영역으로 위쪽에」 + 「아이콘 형태로」)
+   ★ 처음엔 아래 판 **안**(벨트 밑)에 넣었다가 물렸다. 「하단에」를 「판 안」으로 읽은 것이
+     내 잘못이다 — 병수님이 말한 것은 **판 위에 얹는 별도 띠**다.
+   판과 **같은 폭·같은 가운데**로 서고 판 바로 위에 붙는다(둘이 한 묶음으로 읽히게). */
+.hudMenu{position:fixed;left:50%;transform:translateX(-50%);
+  width:min(100vw, var(--stageW));bottom:var(--hudH);z-index:29;
+  display:flex;gap:6px;justify-content:center;align-items:flex-end;
+  padding:0 16px 5px;pointer-events:none}
+.hudMenu > *{pointer-events:auto}
 /* ★★ **id 로 적어야 이긴다** — `.hudMenu .hBtn`(0,2,1)은 `#hDoctrine{position:absolute}`
-   (1,0,0)에게 진다. 그대로 뒀더니 편성·운용이 **벨트 위로 떠올랐다**(찍어 보고 알았다).
-   오늘 아침 옆 패널 발치에서 **똑같은 덫**에 걸려 주석까지 적어 놓고 또 걸렸다 —
-   「자리를 옮길 땐 옛 position 부터 걷는다」가 규칙이어야 한다. */
+   (1,0,0)에게 진다. 그대로 뒀더니 편성·운용이 벨트 위로 떠올랐다(찍어 보고 알았다).
+   「자리를 옮길 땐 옛 position 부터 걷는다.」
+   ★ **아이콘 타일** — 벨트 칸과 같은 돌·같은 크기. 글자 단추가 아니라 **네모 칸**이라야
+     벨트와 한 결로 읽힌다. 이름은 툴팁이 말한다.
+   ★ 그림이 아직 없으면 글자가 **대신 선다**(빈 네모는 안 세운다 · 벨트와 같은 규칙). */
 .hudMenu .hBtn,
 #hudMenu #hName, #hudMenu #hBag, #hudMenu #hLv,
 #hudMenu #hDoctrine, #hudMenu #hTactic{
-  position:static; inset:auto; top:auto; left:auto; right:auto; bottom:auto;
-  flex:1 1 0; min-width:0; justify-content:center; padding:5px 4px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-/* 마을에서만 쓰는 둘(편성·운용)은 던전에서 **자리째** 빠진다 — 눌리지도 않는 칸이
-   서 있으면 메뉴가 거짓말을 한다(옛 규칙은 inline-block 이라 자리를 남겼다). */
-body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{ display:flex }
+  position:relative;inset:auto;top:auto;left:auto;right:auto;bottom:auto;
+  flex:0 0 auto;width:46px;height:46px;padding:0;border-radius:2px;
+  display:flex;align-items:center;justify-content:center;overflow:hidden;
+  font-size:12px;letter-spacing:-.5px;line-height:1.1;text-align:center;
+  background:linear-gradient(#1c150e,#0d0906);border:1px solid #4e4029;color:#c8a882}
+#hudMenu .hBtn:hover{border-color:var(--gold);color:#f0dfa8}
+#hudMenu .mIco{width:34px;height:34px;image-rendering:pixelated;display:block}
+/* 그림이 붙으면 글자는 물러난다(툴팁이 이름을 말한다). 아직이면 글자가 칸을 지킨다.
+   ★★ **id 로 적어야 이긴다 — 오늘만 세 번째다.** 처음엔 `.hBtn.hasArt`(1,2,1)로 썼는데
+     위의 `#hudMenu #hName`(2,0,0)에게 져서 **그림과 글자가 겹쳐** 떴다(찍어 보고 알았다).
+     이 파일에서 무게 다툼에 진 것이 오늘 세 번(발치 단추 · 메뉴 자리 · 여기)이다 —
+     **id 로 잡아 둔 것을 클래스로 덮으려 하지 말 것.** */
+#hudMenu #hName.hasArt, #hudMenu #hBag.hasArt, #hudMenu #hLv.hasArt,
+#hudMenu #hDoctrine.hasArt, #hudMenu #hTactic.hasArt{font-size:0}
+/* 스킬 칸의 「Lv.37」은 **값**이라 그림이 못 대신한다 — 모서리에 작게 남긴다. */
+#hudMenu #hLv.hasArt #hLvT{font-size:11px;position:absolute;bottom:0;right:2px;color:#c8aa6e}
+/* 마을에서만 쓰는 둘은 던전에서 **자리째** 빠진다 — 눌리지도 않는 칸이 서 있으면 거짓말이다. */
+body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{display:flex}

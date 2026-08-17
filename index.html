@@ -108,6 +108,12 @@
        가운데가 남는 폭을 먹고, 구슬은 제 크기만 차지한다. 좌표 계산이 없으니
        어느 폭에서도 저절로 맞는다. (id 는 그대로 두어 js 를 안 건드린다.)
        ══════════════════════════════════════════════════════ -->
+  <!-- ══ 메뉴 띠 ══ (병수님 2026-08-17 21:23 「기존 하단 UI위에 별도 영역으로 위쪽에」)
+       ★ 처음엔 아래 판 **안**(벨트 밑)에 넣었다가 물렸다 — 「하단에」를 「판 안」으로 읽은 것이
+         내 잘못이다. 병수님이 말한 것은 **판 위에 얹는 제 띠**다.
+       ★ 글자가 아니라 **아이콘 타일**(벨트 칸과 같은 돌). 이름은 툴팁이 말한다. -->
+  <div id="hudMenu" class="hudMenu"></div>
+
   <div id="panel">
     <!-- 구슬·띠·칸을 **하나의 실루엣으로 잇는** 판(js/hudplate.js).
          네모난 배경이 아니라 뼈대다 — 그래야 한 묶음으로 보인다. -->
@@ -124,12 +130,6 @@
       <div class="res"><span id="gCorpse">시체 0</span><span class="xpTxt" id="xpNum">Lv.1</span><span id="gArmy">군세 0/6</span></div>
       <div class="xp" id="xpWrap"><div class="xpFill" id="xpFill"></div><canvas class="fr"></canvas></div>
       <div id="belt"></div>
-      <!-- ══ 아래 판의 메뉴 ══ (병수님 2026-08-17 20:33 「하단에 메뉴로 빼줘」)
-           D2 는 창을 여는 단추가 **아래 판**에 있다. 위 띠는 층·깊이·금 같은 **읽는 값**만
-           이고, **누르는 것**은 여기로 내려온다 — 그래야 손이 한 군데에 모인다.
-           ★ 단추는 위 띠에 있던 **그것 그대로** 옮긴다(js/main.js menuLayout) — 새로
-             만들면 제목·툴팁·여는 길이 두 벌이 되어 한쪽만 고치게 된다. -->
-      <div id="hudMenu" class="hudMenu"></div>
     </div>
 
     <div class="orb mp"><canvas id="mpOrb" width="64" height="64"></canvas><div class="num" id="mpNum"><b>40</b><i>/40</i></div></div>

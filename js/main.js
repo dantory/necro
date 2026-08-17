@@ -170,8 +170,22 @@ function menuLayout() {
      **「메뉴처럼 서 있다」**여야 한다. 그래서 창을 여는 것을 **전부** 여기로 모은다.
      ★ 나가기·환생은 안 옮긴다 — 그건 **메뉴가 아니라 행동**이고, 옆 패널 발치가 제자리다
        (`rail_qa` 가 그 자리를 지킨다). */
+  /* ★ **아이콘 타일로 갈아입힌다**(병수님 21:23 「아이콘 형태로」). 단추 자체는 그대로
+     옮기고(여는 길·툴팁이 하나로 남는다), 안에 그림을 하나 얹는다.
+     ★ 그림이 아직 안 구워졌을 수 있다 — 그때는 `onerror` 로 그림만 숨고 **글자가 대신
+       선다**(빈 네모를 세우지 않는다 · 벨트 칸과 같은 규칙). */
+  const ART = { hName: "stat", hBag: "bag", hLv: "tree", hDoctrine: "doctrine", hTactic: "tactic" };
   for (const id of ["hName", "hBag", "hLv", "hDoctrine", "hTactic"]) {
-    const el = $(id); if (el) slot.appendChild(el);
+    const el = $(id); if (!el) continue;
+    if (!el.querySelector(".mIco")) {
+      const img = document.createElement("img");
+      img.className = "mIco"; img.alt = "";
+      img.src = `assets/ui/menu/${ART[id]}.png`;
+      img.onerror = () => { img.remove(); el.classList.add("noArt"); };
+      img.onload = () => el.classList.add("hasArt");
+      el.prepend(img);
+    }
+    slot.appendChild(el);
   }
 }
 menuLayout();
