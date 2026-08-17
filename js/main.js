@@ -2015,14 +2015,6 @@ function dollHtml() {
 }
 
 function drawBag() {
-  /* 낀 것 셋 — 슬롯마다 하나. 빈 슬롯은 .cell.empty(어느 슬롯인지 그림만 흐리게 남긴다). */
-  const gearSlot = (k) => {
-    const it = equipped(k);
-    return it
-      ? gearCell(it, `data-spick="${k}"`, statSel && statSel.src === "eq" && statSel.k === k, META.plus[k] | 0)
-      : `<div class="cell empty"><i class="gear-${k}"></i></div>`;
-  };
-
   /* 가방 — 12칸. 채운 칸은 그 물건, 빈 칸은 .cell.empty. */
   const bagCells = Array.from({ length: BAG_MAX }, (_, i) => {
     const it = META.bag[i];
@@ -2033,19 +2025,10 @@ function drawBag() {
   $("bagBody").innerHTML =
     `<div class="sCols">
       <div class="sSec eq"><h3>낀 것</h3>
-        <div class="pdoll">
-          <div class="pdChar"><img src="assets/ui/doll_necro.png" alt="네크로맨서"></div>
-          <div class="pdSlot pd-helm">${gearSlot("helm")}</div>
-          <div class="pdSlot pd-charm">${gearSlot("charm")}</div>
-          <div class="pdSlot pd-wand">${gearSlot("wand")}</div>
-          <div class="pdSlot pd-robe">${gearSlot("robe")}</div>
-          <div class="pdSlot pd-glove">${gearSlot("glove")}</div>
-          <div class="pdSlot pd-ring">${gearSlot("ring")}</div>
-          <div class="pdSlot pd-shield">${gearSlot("shield")}</div>
-          <div class="pdSlot pd-belt">${gearSlot("belt")}</div>
-          <div class="pdSlot pd-boots">${gearSlot("boots")}</div>
-          <div class="pdSlot pd-ring2">${gearSlot("ring2")}</div>
-        </div></div>
+        ${/* ★ **여기서 다시 짜지 않는다** — 인물은 dollHtml() 하나에서만 만든다.
+             베껴 둔 한 벌이 여기 있어서, 슬롯 모양을 고쳐도 가방창 쪽은 안 바뀔 뻔했다
+             (2026-08-18 · 바로 위 dollHtml 의 주석이 경고하던 그 일이 이미 일어나 있었다). */
+          dollHtml()}</div>
       <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
         <div class="grid">${bagCells}</div></div>

@@ -895,7 +895,7 @@ body.in-town #hTactic{ display:inline-block; }
    자리(여섯 줄)는 그대로 두고 크기만 남는 높이에서 되짚는다(main.js `fitDoll`).
    여기 적힌 46px 는 **자를 못 대는 곳에서의 기본값**이다(창이 닫혀 있을 때 등). */
 .pdoll{display:grid;grid-template-columns:var(--pdS,46px) 1fr var(--pdS,46px);
-  grid-template-rows:auto auto 1fr 1fr 1fr auto;
+  grid-template-rows:auto auto auto auto auto auto;
   grid-template-areas:". helm ." ". neck ." "wpn char arm" "shd char blt" "glv char boo" "rg1 . rg2";
   gap:var(--pdG,8px) 10px;align-items:center;justify-items:center;
   max-width:calc(var(--pdS,46px) * 2 + 144px);margin:0 auto}
@@ -912,8 +912,34 @@ body.in-town #hTactic{ display:inline-block; }
 .pd-helm{grid-area:helm}.pd-charm{grid-area:neck}.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}
 .pd-glove{grid-area:glv}.pd-ring{grid-area:rg1}.pd-shield{grid-area:shd}.pd-belt{grid-area:blt}
 .pd-boots{grid-area:boo}.pd-ring2{grid-area:rg2}
-.pdSlot{width:var(--pdS,46px)}
-.pdSlot .cell{width:100%}
+/* ══ 슬롯은 «물건 모양» ══ (D2 참고 사진 ⑤ · 2026-08-17 21:09)
+   D2 에서는 **물건 모양이 곧 슬롯 모양**이다 — 무기·방패는 2×4 세로로 길고, 갑옷은 2×3,
+   허리띠는 2×1 로 납작하고, 반지·부적은 1×1 로 작다. 열 칸이 다 같은 정사각이면 인물
+   둘레에 흩어진 **단추**로 읽힌다(그것이 병수님이 「여전히 이상해」라고 한 자리다).
+   ★ 셈은 **D2 의 칸 수 그대로**다 — 세로배(h/w)는 4/2=2 · 3/2=1.5 · 1/2=0.5 · 1×1 은
+     너비도 절반. 눈대중으로 「좀 길게」 하지 않는다(자가 이 수를 그대로 읽는다:
+     `tools/doll_shape.mjs`).
+   ★ `.cell` 은 `aspect-ratio:1` 이라 **여기서 풀어 줘야** 세로가 먹힌다 — 안 풀면
+     칸은 정사각인 채 슬롯만 커져 [[knob-that-does-nothing]] 이 된다.
+   ★ 높이가 늘어난 만큼(6줄 → 7줄분) 창을 키우지 않는다 — `fitDoll` 이 --pdS 를 줄여
+     맞춘다. 그래서 여기 적는 것은 **비율**이지 픽셀이 아니다. */
+.pdSlot{width:var(--pdS,46px);height:var(--pdS,46px)}
+.pdSlot .cell{width:100%;height:100%;aspect-ratio:auto}
+.pd-wand, .pd-shield{height:calc(var(--pdS,46px) * 2)}      /* 2×4 — 무기·방패 */
+.pd-robe{height:calc(var(--pdS,46px) * 1.5)}                /* 2×3 — 갑옷 */
+.pd-belt{height:calc(var(--pdS,46px) * .5)}                 /* 2×1 — 허리띠 */
+.pd-charm, .pd-ring, .pd-ring2{                             /* 1×1 — 부적·반지 */
+  width:calc(var(--pdS,46px) * .6);height:calc(var(--pdS,46px) * .6)}
+/* 작은 칸에서는 6px 여백이 그림을 반이나 먹는다 — 칸에 맞춰 좁힌다. */
+.pd-charm .cell i, .pd-ring .cell i, .pd-ring2 .cell i{inset:3px}
+/* 납작한 허리띠도 마찬가지 — 위아래 6px 이면 그림이 남지 않는다. */
+.pd-belt .cell i{inset:2px 6px}
+/* ★ **구석의 수가 작은 칸을 통째로 덮는다** — 찍어 보고 알았다(반지 칸 28px 에 등급
+   숫자가 16px 이라 반지보다 수가 컸다). 칸을 줄였으면 **칸 안의 것도 같이 줄인다.** */
+.pd-charm .cell .q, .pd-ring .cell .q, .pd-ring2 .cell .q, .pd-belt .cell .q{
+  font-size:10px;line-height:1;right:1px;bottom:0}
+.pd-charm .cell .afd, .pd-ring .cell .afd, .pd-ring2 .cell .afd, .pd-belt .cell .afd{
+  font-size:8px;left:2px;bottom:1px}
 /* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
 .sSec.eq .cell.empty i{opacity:.24}
 /* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
