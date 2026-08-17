@@ -41,6 +41,15 @@ ICONS = {
              "front, heavy bone pauldrons and a tall crested helm, towering and broad-shouldered",
   "golem":   f"{ARMY}, a huge clenched stone fist seen from the side, four thick fingers and a thumb "
              "clearly visible, cracked clay with glowing orange fissures",
+  # ★ 2026-08-18 · 트리를 넓히며 아홉 칸이 늘었다(ROADMAP A-ⓐ). 새 칸은 **이웃과
+  #   한눈에 갈려야** 한다 — 특히 갈래로 나란히 서는 둘(광포↔석화 · 탐식↔불꽃 ·
+  #   착취↔신속)은 서로 반대의 형태로 말한다(뾰족↔둥글 · 모으기↔터뜨리기 · 세로↔가로).
+  "marrow":  f"{ARMY}, one single thick bone split open lengthwise, hot golden marrow glowing "
+             "inside the split, seen from the side, only one bone",
+  "fury":    f"{ARMY}, a screaming skull with jaws wide open, sharp jagged spikes of red energy "
+             "bursting outward from it in all directions, cracked and violent",
+  "stone":   f"{ARMY}, one smooth heavy rounded boulder used as a shield, thick and solid, "
+             "no spikes, no cracks of light, calm and blunt",
   # ── 시체 ──
   "rot":     f"{CORPSE}, a skull half dissolved by green rot, dripping ooze, flies around it",
   "harvest": f"{CORPSE}, a curved scythe blade over a small pile of bones",
@@ -50,6 +59,12 @@ ICONS = {
   "chain":   f"{CORPSE}, a wide expanding shockwave ring seen from above, green fire along the "
              "ring edge, bone shards blasting outward from the center",
   "feast":   f"{CORPSE}, an open fanged maw devouring a corpse, swelling with fed flesh",
+  "pyre":    f"{CORPSE}, a tall heap of stacked skulls and bones burning, big green flames rising "
+             "straight up from the pile, one pile only",
+  "glut":    f"{CORPSE}, two bony hands scooping a heap of small skulls together into a pile, "
+             "more skulls tumbling in from above, gathering not burning",
+  "pyro":    f"{CORPSE}, a wide column of green funeral fire erupting upward off a flat stone slab, "
+             "sparks thrown far out to both sides, no ring",
   # ── 주술 ──
   "wand":    f"{HEX_}, a bone wand held upright, a sharpened femur with a small skull on top",
   "swift":   f"{HEX_}, a skeletal hand with motion streaks trailing behind it, fingers spread, "
@@ -62,6 +77,12 @@ ICONS = {
              "into a swirling funnel below it, motion streaks trailing behind it",
   "dark":    f"{HEX_}, a crown of thorned bone floating above a bowed skull, "
              "chains of violet light running down from it",
+  "veil":    f"{HEX_}, a heavy hanging curtain of dark shadow cloth pulled aside at the middle, "
+             "cold blue mist spilling out from behind it, one curtain only",
+  "drain":   f"{HEX_}, an upright cracked hourglass, glowing blue soul liquid running down through "
+             "it into a small skull below, tall and vertical",
+  "haste":   f"{HEX_}, one small bone with two swept-back feathered wings on its sides, tipped "
+             "forward, sharp speed streaks trailing behind it, wide and horizontal",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

@@ -626,7 +626,7 @@ body.in-town #stage{cursor:pointer}
   #winTree .wSub{display:none}
   #winTree .tip{padding:6px 16px}
   #winTree .tCol h3{padding:2px 0 6px}
-  #winTree .tNode .tn{font-size:13px;line-height:1.15}
+  #winTree .tNode .tn{font-size:12px;line-height:1.1}
 }
 
 #treeWrap{position:relative;flex:1 1 auto;min-height:0;margin-bottom:6px}
@@ -640,7 +640,7 @@ body.in-town #stage{cursor:pointer}
    답했다 — 안 잘린 게 아니라 **안 갇힌** 것이었다). 절대 배치로 자리를 못박는다. */
 #treeCols{position:absolute;inset:0;
   display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
-  overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:4px;
+  overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:1px;
   scrollbar-width:thin;scrollbar-color:#4a4030 transparent}
 #treeCols::-webkit-scrollbar{width:6px}
 #treeCols::-webkit-scrollbar-thumb{background:#4a4030}
@@ -653,8 +653,8 @@ body.in-town #stage{cursor:pointer}
 /* ★ 배경을 아래로 흐리게 뒀더니 **굴릴 때 아이콘이 글자 뒤로 비쳤다** — 붙어 있는
    머리글은 제 자리를 완전히 가려야 한다. 불투명하게 두고 아래에 실선을 깐다. */
 /* 아래 여백까지 **불투명 상자 안에** 넣는다 — margin 으로 두면 그 틈으로 아이콘 끝이 비친다 */
-.tCol h3{position:sticky;top:0;z-index:3;margin:0;padding:3px 0 9px;
-  text-align:center;font-size:14px;letter-spacing:3px;color:#a08f6c;font-weight:normal;
+.tCol h3{position:sticky;top:0;z-index:3;margin:0;padding:2px 0 4px;
+  text-align:center;font-size:13px;letter-spacing:3px;color:#a08f6c;font-weight:normal;
   background:#100b07;box-shadow:0 1px 0 #2c2419, 0 6px 8px -6px #000}
 
 /* 줄기를 잇는 선 — **무엇이 무엇을 여는지**가 이 선 하나로 읽힌다.
@@ -665,7 +665,7 @@ body.in-town #stage{cursor:pointer}
    선행을 찍으면 불이 들어온다. */
 /* ★ 길이는 14 → 9. 화살촉이 6px 이라 여기가 바닥이다 — 더 줄이면 선이 사라지고
    촉만 남아 「잇는 선」이 아니라 점으로 읽힌다. */
-.tLink{position:relative;height:9px;margin:0 auto;width:3px;background:#4a4030}
+.tLink{position:relative;height:8px;margin:0 auto;width:3px;background:#4a4030}
 .tLink::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
   border-left:5px solid transparent;border-right:5px solid transparent;
   border-top:6px solid #4a4030}
@@ -679,13 +679,13 @@ body.in-town #stage{cursor:pointer}
 .tNode{scroll-margin-top:38px;scroll-margin-bottom:6px;
   position:relative;padding:0 2px 2px;cursor:pointer;text-align:center;
   background:none;box-shadow:none}
-.tTile{position:relative;display:block;width:52px;height:52px;margin:0 auto 3px;
+.tTile{position:relative;display:block;width:38px;height:38px;margin:0 auto 2px;
   box-sizing:border-box;
   background:linear-gradient(#1c150e,#0d0906);
   border-style:solid;border-width:9px;border-color:transparent;
   border-image:url("assets/ui/slot.png") 34 fill / 9px / 0 stretch;
   image-rendering:pixelated}
-.tIco{position:absolute;inset:0;margin:auto;width:34px;height:34px;
+.tIco{position:absolute;inset:0;margin:auto;width:26px;height:26px;
   image-rendering:pixelated;pointer-events:none;
   opacity:.34;filter:grayscale(1) brightness(.75)}
 /* 랭크는 **모서리의 숫자**다(디아블로 2 그대로). 점 열다섯 줄보다 조용하고 정확하다. */
@@ -696,8 +696,8 @@ body.in-town #stage{cursor:pointer}
    ★ 「없다」고 적었다가 **원본을 보고 정정한** 자리다 — 줄인 그림으로 판정하지 않는다. */
 /* ★ 2px → 4px. 찍은 칸에 **두르는 테**(2~3px 바깥)가 생기면서 수가 그 테를 스쳤다
    (2026-08-18 ④). 그림도 수도 각자 온전해야 한다는 이 자리의 규칙 그대로. */
-.tRank{position:absolute;left:100%;top:50%;transform:translate(4px,-50%);
-  font-weight:400;font-size:14px;min-width:16px;padding:0 3px;line-height:17px;
+.tRank{position:absolute;left:100%;top:50%;transform:translate(3px,-50%);
+  font-weight:400;font-size:12px;min-width:14px;padding:0 2px;line-height:15px;
   text-align:center;color:#8ab4ff;background:#0b0d16;
   box-shadow:inset 0 0 0 1px #2f3f66;pointer-events:none}
 /* 레벨이 모자란 칸은 그 자리에 필요한 레벨을 건다 */
@@ -705,7 +705,7 @@ body.in-town #stage{cursor:pointer}
   font-style:normal;font-size:10px;line-height:13px;padding:0 3px;white-space:nowrap;
   color:#9a7c3c;background:#160f08;box-shadow:inset 0 0 0 1px #3d3116}
 
-.tNode .tn{display:block;font-size:12px;line-height:1.25;color:#6b5f4e;word-break:keep-all}
+.tNode .tn{display:block;font-size:11px;line-height:1.15;color:#6b5f4e;word-break:keep-all}
 
 /* ══ 상태 넷 ══ 병수님 2026-08-17: "④ 찍은 칸과 안 찍은 칸의 대비가 약하다 —
    D2 는 찍은 것이 환하게 밝다."
@@ -750,8 +750,8 @@ body.in-town #stage{cursor:pointer}
 .tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8cc,
   0 0 0 3px color-mix(in srgb, var(--br, #c8aa6e) 60%, #2a2010),
   0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
-.tNode.big .tTile{width:60px;height:60px}
-.tNode.big .tIco{width:40px;height:40px}
+.tNode.big .tTile{width:44px;height:44px}
+.tNode.big .tIco{width:30px;height:30px}
 /* 고른 칸 — 찍음 테와 겹치지 않게 **한 칸 밖에서** 두른다(둘이 붙으면 둘 다 안 읽힌다) */
 .tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:3px}
 
@@ -1111,10 +1111,14 @@ body.in-town #hTactic{ display:inline-block; }
 .winFoot{ font-size:17px }
 .btn{ font-size:17px; padding:7px 18px }
 
-/* 스킬 트리 — 그림과 이름이 커져야 「고르는 화면」으로 읽힌다. */
-.tIco{ width:46px; height:46px }
-.tNode .tn{ font-size:14px }
-.tCol h3{ font-size:17px; letter-spacing:4px }
+/* 스킬 트리 — 그림과 이름이 커져야 「고르는 화면」으로 읽힌다.
+   ★ **여기가 진짜 값이다.** 위(.tIco 688줄)에 적은 크기는 이 줄이 덮어쓴다 — 칸을
+     줄이면서 위만 고쳤더니 38px 칸에 46px 그림이 들어가 **테 밖으로 뼈다귀가
+     삐져나왔다**(2026-08-18 · 눈으로 잡았다). 칸을 만질 때는 이 네 줄을 같이 만질 것. */
+.tIco{ width:32px; height:32px }
+.tNode.big .tIco{ width:38px; height:38px }
+.tNode .tn{ font-size:12px }
+.tCol h3{ font-size:15px; letter-spacing:4px }
 
 /* 인벤토리·상점 칸 — 물건 그림이 주인공이라 칸부터 키운다. */
 .grid{ gap:9px }
@@ -1346,4 +1350,20 @@ body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{display:flex}
    ★ 겹치는 것을 z-index 로 밀어 올리지 않는다 — 그러면 글자가 패널 «위에» 떠서
      둘 다 안 읽힌다. **자리를 비키는 것**이 맞다. */
 @media (min-width: 1200px) {
+}
+
+/* ══ 낮은 화면에서는 트리를 한 치수 줄인다 ══ (2026-08-18 · A-ⓐ 로 칸이 25개가 된 뒤)
+   1512×863 에는 딱 들어가는데 1280×800 에서 **네 칸이 창 밖**으로 나갔다. 남는 높이가
+   없을 때 깎을 것은 「읽을 것」이 아니라 여백이지만, 여백은 이미 다 깎았다 — 그러면
+   칸 자체를 한 치수 줄인다(그래도 굴리는 것보다는 다 보이는 편이 낫다).
+   ★ 이 자리는 **파일 맨 끝**이어야 한다 — 위쪽 `@media (max-height:820px)` 안에 두면
+     그 뒤에 오는 전역 `.tIco{width:32px}` 가 도로 덮어쓴다(같은 함정에 오늘 한 번 빠졌다). */
+@media (max-height: 820px){
+  .tTile{width:34px;height:34px}
+  .tNode.big .tTile{width:40px;height:40px}
+  .tIco{width:28px;height:28px}
+  .tNode.big .tIco{width:33px;height:33px}
+  .tNode .tn{font-size:11px;line-height:1.1}
+  .tLink{height:6px}
+  .tCol h3{font-size:14px;padding:2px 0 3px}
 }

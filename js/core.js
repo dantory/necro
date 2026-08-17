@@ -1374,8 +1374,14 @@ export const dmgMulOf = () => depthMul()
    갈라진다 — 안 그러면 「본인 피해」가 소환수까지 올려서 이름이 거짓말이 된다. */
 export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 /** 소환수 피해는 본인과 **다른 옵션**이 올린다 — 빌드가 갈리는 자리다. */
-export const minionMulOf = () => 1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0)
-                                + rank("elite") * ELITE_POW;
+/* ★ 새 칸(골수·광포·석화)도 **여기로 들어온다** — 소환수 피해를 올리는 자리는
+   이 한 줄뿐이라야 한다. 석화는 「체력을 주고 피해를 뺏는」 갈래라 **음수**로 들어간다.
+   바닥을 0.2 로 막는다: 석화만 다섯 단계면 -0.20 이라 아직 양수지만, 뒷날 값이
+   바뀌어도 0 이나 음수로 뒤집혀 소환수가 **적을 치료하는** 일은 없어야 한다. */
+export const minionMulOf = () => Math.max(0.2,
+                                  1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0)
+                                + rank("elite") * ELITE_POW
+                                + rank("marrow") * 0.08 + rank("fury") * 0.12 - rank("stone") * 0.04);
 export const goldMulOf   = () => 1 + afSum("gold") / 100 + gearVal("ring");   // 반지 = 금 획득
 /** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
  *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
@@ -1574,10 +1580,32 @@ export const BURN_KEEP = 12;
    요구 레벨과 선행이 걸려 있어 **아래로 파려면 위를 찍어야** 한다 — 그래서 셋 다
    반쯤 찍는 것보다 하나를 깊게 파는 쪽이 세다. 그게 선택이 되는 조건이다.
    ══════════════════════════════════════════════════════════ */
+/* ══ **점이 남아돌면 무엇을 찍어도 같다** ══ (ROADMAP A-ⓐ · 2026-08-18)
+   자로 재고 고쳤다(`node tools/tree_points.mjs`) — 고치기 전:
+
+     레벨 |  점 | 쓸자리 | 남는점
+       52 |  51 |     51 |      0     ← 여기서 트리가 **다 찬다**
+       98 |  97 |     51 |     46     ← 20분 판의 절반이 갈 곳 없는 점
+
+   Lv.52 에 나무가 만렙이니 20분 판의 뒤쪽 절반은 **성장이 아예 없다.** 그러니
+   ③「스킬이 단순하다」는 낱말 수의 문제가 아니라 **고를 자리가 0** 이라는 뜻이었다.
+
+   두 가지를 같이 한다 — 한쪽만 하면 병수님 말씀 중 하나를 어긴다:
+     · **자리를 늘린다**(칸·단계) — 안 그러면 점이 계속 남는다
+     · **갈래를 늘린다**(`excl`) — 「수가 아니라 질」(B). 단계만 올리면 그냥 숫자놀음이다
+   갈래가 넷이 됐다: 군세(군단↔정예) · 군세 심화(광포↔석화) · 시체(탐식↔불꽃) ·
+   주술(착취↔신속). **넷을 고르는 순서와 조합이 곧 빌드다.**
+
+   ★ 새 칸은 **하나도 빠짐없이 이미 있는 식에 꽂았다**([[knob-that-does-nothing]]) —
+     아래 「트리가 판에 미치는 값들」 한 곳에서 다 읽힌다. 새 손잡이를 만들고 아무도
+     안 읽는 일이 이 리포에서 이미 두 번 났다.
+   ★ 키가 자란다 — 칸이 늘면 창 밖으로 밀린다. `tools/tree_fit.mjs` 로 재고 CSS 를
+     같이 줄였다(줄 간격·칸 크기). 재지 않고 늘리면 「연쇄 폭발 아래가 안 보인다」가
+     그대로 재발한다. */
 export const TREE = [
   { k:"army", n:"군 세", nodes:[
-    { id:"bone",   n:"뼈의 힘",    max:5, lv:1,  d:"소환수 피해 +10%" },
-    { id:"armor",  n:"뼈 갑주",    max:5, lv:3,  req:"bone",   d:"소환수 체력 +12%" },
+    { id:"bone",   n:"뼈의 힘",    max:8, lv:1,  d:"소환수 피해 +10%" },
+    { id:"armor",  n:"뼈 갑주",    max:8, lv:3,  req:"bone",   d:"소환수 체력 +12%" },
     { id:"ghoul",  n:"구울 되살리기", max:1, lv:6,  req:"armor",  d:"구울 소환 해금 · 물어뜯을 때마다 체력 회복", big:1 },
     /* ★ **골렘과 군단의 차례를 바꿨다**(2026-08-17 · ROADMAP 「골렘 해금이 판의 절반을
        잡아먹는다」). 골렘은 `legion` 세 단계 뒤 Lv.16 에 있었고, 자동 진행에서 **396초에야**
@@ -1596,20 +1624,44 @@ export const TREE = [
     { id:"legion", n:"군단",      max:3, lv:12, req:"golem",  excl:"army", d:"소환수 상한 +1" },
     { id:"elite",  n:"소수 정예",  max:3, lv:12, req:"golem",  excl:"army", alt:1,
       d:"소환수 상한 -30% · 소환수 피해 +55% · 소환수 체력 +30%" },
+    /* 갈래 뒤의 **공통 줄기** — 어느 쪽을 골랐든 여기로 내려온다. 갈래 바로 밑을
+       양쪽 전용으로만 채우면 잘못 고른 판이 길이 아예 막힌 것처럼 보인다. */
+    { id:"marrow", n:"골수 단련",  max:6, lv:16, req:"golem",  d:"소환수 피해 +8%" },
+    /* ══ **두 번째 갈래** ══ 같은 「군세」 안에서도 결이 갈린다: 세게 때리다 빨리
+       죽느냐, 오래 서서 벽이 되느냐. 둘 다 **주는 만큼 뺏는다** — 안 그러면 고르는
+       게 아니라 「더 좋은 쪽」이 하나 있는 것뿐이다. */
+    { id:"fury",   n:"광포",      max:5, lv:22, req:"marrow", excl:"army2",
+      d:"소환수 피해 +12% · 소환수 체력 -6%" },
+    { id:"stone",  n:"석화",      max:5, lv:22, req:"marrow", excl:"army2", alt:1,
+      d:"소환수 체력 +16% · 소환수 피해 -4%" },
   ]},
   { k:"corpse", n:"시 체", nodes:[
-    { id:"rot",     n:"부패",      max:5, lv:1,  d:"시체 폭발 피해 +15%" },
-    { id:"harvest", n:"시체 수확",  max:5, lv:4,  req:"rot",     d:"적 처치 시 12% 확률로 시체 1 추가" },
-    { id:"cheap",   n:"값싼 죽음",  max:4, lv:8,  req:"harvest", d:"모든 스킬 마나 소모 -10%" },
-    { id:"chain",   n:"연쇄 폭발",  max:3, lv:12, req:"cheap",   d:"시체 폭발 범위 +25%" },
-    { id:"feast",   n:"시체 잔치",  max:1, lv:18, req:"chain",   d:"시체 폭발이 소환수 체력 회복 · 먹을수록 <b>몸집 성장</b>(최대 +40%)", big:1 },
+    { id:"rot",     n:"부패",      max:8, lv:1,  d:"시체 폭발 피해 +15%" },
+    { id:"harvest", n:"시체 수확",  max:8, lv:4,  req:"rot",     d:"적 처치 시 12% 확률로 시체 1 추가" },
+    { id:"cheap",   n:"값싼 죽음",  max:6, lv:8,  req:"harvest", d:"모든 스킬 마나 소모 -10%" },
+    { id:"chain",   n:"연쇄 폭발",  max:5, lv:12, req:"cheap",   d:"시체 폭발 범위 +25%" },
+    { id:"pyre",    n:"화장 더미",  max:6, lv:14, req:"chain",   d:"시체 폭발 피해 +14%" },
+    /* 시체 줄기의 갈래 — 「더 많이 줍기」와 「더 넓게 터뜨리기」. 시체가 자원인
+       게임이라 이 둘은 서로 다른 놀이가 된다(모아서 크게 vs 계속 터뜨리며). */
+    { id:"glut",    n:"탐식",      max:5, lv:20, req:"pyre",    excl:"corpse",
+      d:"적 처치 시 시체 획득 +9%" },
+    { id:"pyro",    n:"불꽃 장례",  max:5, lv:20, req:"pyre",    excl:"corpse", alt:1,
+      d:"시체 폭발 범위 +20%" },
+    { id:"feast",   n:"시체 잔치",  max:1, lv:24, req:"pyre",    d:"시체 폭발이 소환수 체력 회복 · 먹을수록 <b>몸집 성장</b>(최대 +40%)", big:1 },
   ]},
   { k:"hex", n:"주 술", nodes:[
-    { id:"wand",   n:"뼈 다루기",  max:5, lv:1,  d:"본인 기본 공격력 +12%" },
-    { id:"swift",  n:"빠른 손",    max:4, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
-    { id:"deep",   n:"깊은 저주",  max:4, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
-    { id:"spirit", n:"영혼 흡수",  max:4, lv:13, req:"deep",   d:"적 처치 시 마나 +2" },
-    { id:"dark",   n:"어둠의 지배", max:1, lv:20, req:"spirit", d:"적 처치 시 30% 확률로 <b>아군화</b> · 상한 밖 최대 4기", big:1 },
+    { id:"wand",   n:"뼈 다루기",  max:8, lv:1,  d:"본인 기본 공격력 +12%" },
+    { id:"swift",  n:"빠른 손",    max:7, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
+    { id:"deep",   n:"깊은 저주",  max:6, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
+    { id:"veil",   n:"어둠의 장막", max:6, lv:15, req:"deep",   d:"저주 증폭 +7%" },
+    { id:"spirit", n:"영혼 흡수",  max:5, lv:18, req:"veil",   d:"적 처치 시 마나 +2" },
+    /* 주술의 갈래 — 마나로 버티느냐, 손을 더 빨리 놀리느냐. 저주가 축인 빌드라
+       둘 다 「더 자주 쓴다」로 가지만 길이 다르다(연료 vs 시계). */
+    { id:"drain",  n:"영혼 착취",  max:5, lv:22, req:"spirit", excl:"hex",
+      d:"적 처치 시 마나 +2" },
+    { id:"haste",  n:"신속",      max:5, lv:22, req:"spirit", excl:"hex", alt:1,
+      d:"모든 스킬 재사용 -5%" },
+    { id:"dark",   n:"어둠의 지배", max:1, lv:26, req:"spirit", d:"적 처치 시 30% 확률로 <b>아군화</b> · 상한 밖 최대 4기", big:1 },
   ]},
 ];
 /* ★ **관문은 벌이와 한 벌로 움직인다**(2026-08-15 · ROADMAP 4막). 벌이에서 깊이를
@@ -1702,16 +1754,23 @@ export function take(id) {
      쓸 수 있는 판의 절반이 지난 뒤다. 목록에 담긴 **낱말은 하나도 안 바뀌었고**(단계 수
      그대로) **차례만 바뀌었다** — `legion` 셋이 9·12·16 에서 11·15·16 으로 밀린 것이
      그 값이다. 값을 만지지 않은 것은, 손잡이 다섯이 이미 다 졌기 때문이다(ROADMAP ⑧-d). */
+/* ★ **갈래가 넷이 된 뒤로는 이 목록이 「한 빌드」다**(2026-08-18 · A-ⓐ). 자가 고르는
+   길은 군단(물량) → 광포(공격) → 탐식(시체) 쪽이다. 지난 측정과 이어지려면 이 길이
+   흔들리면 안 되므로, 갈래에서 **어느 쪽을 고르는지 여기에 못박아 둔다** — 반대쪽
+   빌드를 재려면 목록을 갈아 끼우지 말고 `__AUTO_TREE` 처럼 팔을 따로 만들 것. */
 export const AUTO_PLAN = [
   "bone", "armor", "bone", "rot", "ghoul",          // Lv.6 — 구울이 열린다
   "armor", "bone", "rot", "golem", "armor",         // Lv.10 — 골렘이 열린다
   "legion", "bone", "harvest", "armor", "legion",
-  "legion", "rot", "harvest", "cheap", "rot",
-  "harvest", "cheap", "chain", "harvest", "wand",
-  "chain", "cheap", "swift", "chain", "feast",
+  "legion", "rot", "harvest", "marrow", "rot",      // Lv.20 — 골수(Lv.16)가 열려 있다
+  "harvest", "marrow", "cheap", "marrow", "chain",
+  "pyre", "marrow", "pyre", "fury", "fury",         // Lv.31 — 화장 더미(14)·광포(22)
 ];
-/** 목록을 다 쓴 뒤에도 레벨은 오른다 — 남는 점은 이 차례로 계속 붓는다. */
-const AUTO_FILL = ["bone", "armor", "rot", "harvest", "cheap", "wand", "swift", "deep", "spirit", "dark"];
+/** 목록을 다 쓴 뒤에도 레벨은 오른다 — 남는 점은 이 차례로 계속 붓는다.
+ *  ★ 갈래의 **반대쪽**(정예·석화·불꽃·신속)은 여기 넣지 않는다 — take() 가 막으므로
+ *    넣어도 해는 없지만, 목록을 읽는 사람이 「둘 다 찍히나?」로 헷갈린다. */
+const AUTO_FILL = ["bone", "armor", "rot", "harvest", "marrow", "pyre", "fury", "cheap", "chain",
+                   "glut", "wand", "swift", "deep", "veil", "spirit", "drain", "feast", "dark"];
 
 /** 남은 점을 계획대로 쓴다. **쓴 개수**를 돌려준다(0 이면 화면을 안 건드려도 된다).
  *  ★ 목록을 **앞에서부터 집어 쓰지 않는다** — 그렇게 짜면 Lv.6 에 남은 한 점이
@@ -1749,7 +1808,11 @@ export function autoSpend() {
 
 /* ── 트리가 판에 미치는 값들 ── **한 곳에 모아 둔다.** 흩어 놓으면 노드를 더할 때마다
    어디를 고쳐야 하는지 찾아다니게 된다. */
-export const minionHpMul = () => 1 + rank("armor") * 0.12 + rank("elite") * ELITE_HP;
+/* ★ 석화는 여기로, 광포는 **음수로** 들어온다(위 minionMulOf 와 짝). 바닥 0.2 도 같은
+   까닭 — 체력 배수가 0 이 되면 소환수가 서자마자 죽어 판이 멈춘다. */
+export const minionHpMul = () => Math.max(0.2,
+                                  1 + rank("armor") * 0.12 + rank("elite") * ELITE_HP
+                                + rank("stone") * 0.16 - rank("fury") * 0.06);
 
 /* ══ 소환수는 **제가 일어난 시체만큼 세다** ══
    여기가 이 게임에서 제일 크게 어긋나 있던 자리다. 해골 체력이 26(트리를 다 찍어도
@@ -1791,22 +1854,25 @@ export const raiseDmg = (base, pw) => Math.max(base, (pw | 0) * RAISE_DMG);
 /** 센 시체에서 일어난 놈은 **조금 더 크다** — 숫자를 안 읽어도 눈이 먼저 안다.
  *  최대 +22% 로 막는다(관문 주인 시체가 판을 가리면 안 된다). */
 export const raiseScale = (base, pw) => 1 + Math.min(0.22, Math.max(0, ((pw | 0) * RAISE_HP) / base - 1) * 0.06);
-export const novaDmgMul  = () => (1 + rank("rot") * 0.15) * (1 + afSum("nova") / 100);
-export const novaRadMul  = () => 1 + rank("chain") * 0.25;
+export const novaDmgMul  = () => (1 + rank("rot") * 0.15 + rank("pyre") * 0.14) * (1 + afSum("nova") / 100);
+export const novaRadMul  = () => 1 + rank("chain") * 0.25 + rank("pyro") * 0.20;
 export const mpCostMul   = () => Math.pow(0.90, rank("cheap"));
 /** 스킬 한 번의 **실제** 마나. 쓸 수 있는지 보는 곳(벨트)과 빼는 곳(cast)이
  *  반드시 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
 export const mpCost = (sk) => Math.round(sk.mp * mpCostMul());
 /* 재사용 감소는 **곱으로 깎는다**(빼면 0 아래로 내려가 즉시 시전이 된다). 옵션 상한 14%
    셋이면 0.64 배까지만 — 트리(swift)와 곱해져도 바닥이 있다. */
-export const cdMul       = () => Math.pow(0.93, rank("swift")) * Math.max(0.35, 1 - afSum("cd") / 100);
+/* ★ 「신속」도 **곱으로** 얹는다 — 빠른 손과 더해서 빼면 둘을 다 파는 판에서 0 아래로
+   내려간다. 곱이면 몇을 곱해도 0 에 닿지 않는다(0.93^7 × 0.95^5 = 0.46). */
+export const cdMul       = () => Math.pow(0.93, rank("swift")) * Math.pow(0.95, rank("haste"))
+                               * Math.max(0.35, 1 - afSum("cd") / 100);
 export const wandMul     = () => 1 + rank("wand") * 0.12;
 export const ampSecs     = () => 8 + rank("deep") * 3;
-export const ampPower    = () => 1.4 + rank("deep") * 0.08;   // 저주가 올리는 피해 배수
-export const harvestPct  = () => rank("harvest") * 0.12 + afSum("corpse") / 100 + gearVal("belt");   // 허리띠 = 시체 획득
+export const ampPower    = () => 1.4 + rank("deep") * 0.08 + rank("veil") * 0.07;   // 저주가 올리는 피해 배수
+export const harvestPct  = () => rank("harvest") * 0.12 + rank("glut") * 0.09 + afSum("corpse") / 100 + gearVal("belt");   // 허리띠 = 시체 획득
 /** 경험치 배수 — 옵션 xp. 곱해지는 자리는 battle.js 의 xpGain 하나뿐이다. */
 export const xpMul       = () => 1 + afSum("xp") / 100 + gearVal("ring2");   // 반지 ② = 경험치
-export const spiritMp    = () => rank("spirit") * 2;
+export const spiritMp    = () => (rank("spirit") + rank("drain")) * 2;
 export const feastOn     = () => rank("feast") > 0;
 
 /* ══ 두 줄기의 끝을 «숫자»에서 «생김새»로 옮긴다 ══
