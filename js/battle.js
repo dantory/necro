@@ -1,4 +1,4 @@
-import { armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -169,7 +169,22 @@ let lastSaid = null, lastN = 0;
  *  앞의 `<b …>…</b>` 는 그대로 두고, 뒤에 남은 것을 `.d` 로 싸서 **작고 옅게** 만든다.
  *  글자 수는 그대로인데 뒤가 0.8배로 앉으므로 같은 폭에 한 줄이 다 들어간다.
  *  ★ 접힘 판정(lastSaid)은 **싸기 전 원문**으로 한다 — 안 그러면 같은 말이 안 겹친다. */
+/** **큰 수를 구슬과 같은 자로 줄인다**(08-17). `log_shot` 에서 「시체 폭발 ×16 · 8마리 ·
+ *  **4939139**」처럼 일곱 자리가 날것으로 서서 한 줄을 두 줄로 밀어냈다 — 머리말·구슬은
+ *  이미 `num()` 으로 4.9M 꼴이라 **한 화면에 자가 둘**이었다.
+ *  여기도 seam 이 하나다([[seam-not-values]]) — 스무 군데의 say() 를 고치는 대신
+ *  줄이 로그로 들어가는 길목에서 한 번에 줄인다.
+ *  ★ **태그 안은 건드리지 않는다** — `style="color:#8a7f6a"`·`class="t3"` 의 숫자까지
+ *    바꾸면 색과 등급이 깨진다. `<…>` 덩이는 통째로 그냥 흘려보낸다.
+ *  ★ **1000 미만은 손대지 않는다** — 층·마리·×배수·초는 전부 세 자리 밑이라 그대로 선다
+ *    (`num()` 은 0.5 를 1 로 반올림하므로 함부로 물리면 「0.5초」가 「1초」가 된다). */
+const shortNums = (s) => s.replace(/<[^>]*>|\d[\d,]*(?:\.\d+)?/g, (m) => {
+  if (m[0] === "<") return m;
+  const v = parseFloat(m.replace(/,/g, ""));
+  return v >= 1000 ? num(v) : m;
+});
 const fmtSay = (s) => {
+  s = shortNums(s);
   const m = /^(\s*<b\b[^>]*>.*?<\/b>)([\s\S]+)$/.exec(s);
   return m ? `${m[1]}<i class="d">${m[2]}</i>` : s;
 };
