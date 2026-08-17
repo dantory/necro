@@ -107,6 +107,12 @@ let dpr = 1;
 const PERF_KEY = "necro.perf.v1";
 const qs = new URLSearchParams(location.search);
 let perfLow = qs.has("perf") ? qs.get("perf") === "1" : localStorage.getItem(PERF_KEY) === "1";
+/* ★ **손으로 고른 것은 판이 뒤엎지 않는다**(2026-08-17). 위 주석은 `?perf=0` 을
+   「강제 원해상도」라고 적어 놨는데 실제로는 **강제가 아니었다** — 자동 판정(아래
+   watchFrame)이 느린 기기에서 곧바로 setPerfLow(true) 를 불러 되돌려 놨다.
+   자로 두 팔(성능모드 켬/끔)을 견주려 해도 **끈 팔이 재는 도중에 켜져** 둘이 같아졌다
+   (실측 ×6 에서 perf=0 팔도 dpr 1.35 로 끝났다). 명시로 고른 판은 고른 대로 둔다. */
+const PERF_PINNED = qs.has("perf");
 export function setPerfLow(v) {
   if (perfLow === !!v) return;
   perfLow = !!v;
@@ -2397,7 +2403,8 @@ function watchFrame(t) {
     }
   }
   FR.last = t;
-  if (!FR.checked && !perfLow && FR.gaps.length >= 90) {
+  /* PERF_PINNED = `?perf=` 로 사람이(또는 자가) 못을 박은 판 — 여기서 안 뒤엎는다. */
+  if (!FR.checked && !perfLow && !PERF_PINNED && FR.gaps.length >= 90) {
     const long = FR.gaps.filter(g => g > 28).length;
     if (long / FR.gaps.length > 0.33) { setPerfLow(true); FR.checked = true; say(`<b>성능 모드</b> 켜짐 · 화면을 가볍게`); }
     else if (t - FR.t0 > 12000) FR.checked = true;         // 12초 멀쩡했으면 더 안 본다
