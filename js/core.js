@@ -1348,7 +1348,12 @@ export const armyCapEff = () => armyCap() + CAP_OVER_OF();
    개체당 최대 MERGE_MAX 단계). 자원(시체·마나)·재사용은 평소 소환과 똑같이 쓴다 — 자리가
    없어도 자원이 계속 돈다(「상한참」을 통째로 없애는 팔). **0(또는 1 이하)이면 손 안 댐.**
    battle.js cast() 가 쓴다 — 검수기가 globalThis.__CAP_MERGE 로 켠다. */
-export const CAP_MERGE_DEF = 0;
+/* (08-17 11:3x) **켰다 — 0 → 1.25.** 세 팔(㉢ merge · ㉤ burn · ㉥ spill)을 끝까지 돌려 본
+   뒤의 판정이다. 이 항목의 끝 조건(상한참 30% 아래 · 최고층 합 씨앗 폭 ±6 안 · qa_all)을
+   merge 는 **17% · −6 · 통과**로 넘는다. 못 켜게 막고 있던 ④(재사용이 대신 커진다)는
+   ㉥ 이 그 손을 실제로 써 보고 **깊이가 오히려 −11** 인 것으로 「재사용도 벽이 아니다」가
+   되어 없어졌다. 되돌리려면 이 한 줄을 0 으로. */
+export const CAP_MERGE_DEF = 1.25;
 export const CAP_MERGE_OF = () => (typeof globalThis !== "undefined" && globalThis.__CAP_MERGE != null)
   ? +globalThis.__CAP_MERGE : CAP_MERGE_DEF;
 export const MERGE_MAX = 4;
