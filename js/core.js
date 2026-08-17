@@ -1353,6 +1353,16 @@ export const CAP_MERGE_OF = () => (typeof globalThis !== "undefined" && globalTh
   ? +globalThis.__CAP_MERGE : CAP_MERGE_DEF;
 export const MERGE_MAX = 4;
 
+/* ══ 기다림 대신 자원으로 ══ (㉣ __RAISE_BATCH) 「재사용」이 막는 시간을 **값으로 깎지 않고**
+   한 손짓에 여럿을 세워 없앤다 — 재사용 초는 한 톨도 안 건드리고, 이어 세우는 몸마다
+   시체·마나를 **평소대로 그대로** 낸다. 그래서 벽이 「기다림」에서 **「자원」**으로 옮겨
+   간다(이 게임의 뜻: 시체가 자원). ⑧-d 에서 재사용을 **값으로** 깎는 팔은 이미 졌으므로
+   여기서는 값을 안 쓴다. **1 이하이면 손 안 댐**(예전과 비트까지 같다).
+   battle.js cast() 가 쓴다 — 검수기가 globalThis.__RAISE_BATCH 로 켠다. */
+export const RAISE_BATCH_DEF = 1;
+export const RAISE_BATCH_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_BATCH != null)
+  ? +globalThis.__RAISE_BATCH : RAISE_BATCH_DEF;
+
 
 /* ══════════════════════════════════════════════════════════════
    ══ 스킬 트리 ══ 병수님: "레벨이 오르면서 더 좋은 소환수를 뽑을 수 있게

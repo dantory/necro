@@ -3,7 +3,7 @@ import { armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         armyCapEff, CAP_MERGE_OF, MERGE_MAX,
+         armyCapEff, CAP_MERGE_OF, MERGE_MAX, RAISE_BATCH_OF,
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -829,9 +829,28 @@ function weakestMergeable(kind) {
   return best;
 }
 
+/** ㉣ 한 손짓에 여럿 — **기다림을 자원으로 바꾼다**(__RAISE_BATCH · 기본 1 = 꺼짐).
+ *  재사용 초는 한 톨도 안 건드리고, 소환이 한 번 나가면 그 자리에서 최대 n 기까지
+ *  이어 세운다. 이어 세우는 몸도 **시체·마나를 평소대로 낸다** — 그래서 자원이 없으면
+ *  거기서 멈춘다(벽이 사라지는 게 아니라 「기다림」에서 「자원」으로 옮겨 앉는다).
+ *  ★ 꺼져 있으면(n≤1) castOnce 한 번을 그대로 돌려주므로 예전과 비트까지 같다.
+ *  ★ 되풀이 중에는 다시 들어오지 않는다(`batchInside`) — step 의 `ffInside` 와 같은 결. */
+let batchInside = false;
+export function cast(id) {
+  const ok = castOnce(id);
+  const n = RAISE_BATCH_OF();
+  if (!ok || batchInside || !(n > 1) || !isRaise(id)) return ok;
+  const cdKeep = S.cd[id];                       // 이어 세우기가 실패해도 재사용은 제자리로
+  batchInside = true;
+  try {
+    for (let i = 1; i < n; i++) { S.cd[id] = 0; if (!castOnce(id)) { S.cd[id] = cdKeep; break; } }
+  } finally { batchInside = false; }
+  return ok;
+}
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
-export function cast(id) {
+function castOnce(id) {
   const sk = SKILLS.find(s => s.id === id);
   /* ★ 값과 재사용은 **트리가 깎는다**(값싼 죽음 · 빠른 손). 쓸 수 있는지 보는 곳과
      실제로 빼는 곳이 같은 식을 봐야 한다 — 어긋나면 「눌리는데 안 나감」이 된다. */
