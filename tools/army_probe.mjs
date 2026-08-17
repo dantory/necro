@@ -55,8 +55,11 @@ async function runSeed(seed) {
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
   const S = (m, p) => raw(m, p, sessionId);
   await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
+  /* ★ `__AUTO_TREE` — 자는 **본보기 빌드**로 굴린다(loop_health 에 까닭을 적었다).
+     2026-08-18 에 사람 쪽 자동 배분을 없앴으므로 안 켜면 스킬 0 짜리 군세를 잰다. */
   const seedSrc = `Math.random = (() => { let s = (${seed} >>> 0) || 1;
-     return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
+     return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
+     globalThis.__AUTO_TREE = 1;`;
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });   // ① 뜨기 전
   await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
   await S("Page.navigate", { url: PAGE });

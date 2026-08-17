@@ -54,7 +54,7 @@ await S("Runtime.evaluate",{awaitPromise:true,expression:`(async()=>{const B=awa
   줄.push('<b style="color:#ffff64">레벨 12</b> 달성 · 체력·마나 회복');
   줄.push('<b style="color:#ffcf5a">일지</b> 「첫 관문」 달성 · 유해 <b class="t3">+40</b>');
   줄.push('<b style="color:#d0a06a">뼈무덤의 군주</b>이(가) <b>지친다</b> — 받는 피해가 점점 는다');
-  줄.push('스킬 점수 <b>3</b> 자동 배분 · 트리에서 바꿀 수 있다');
+  줄.push('레벨 <b>7</b> 달성 · 체력·마나 회복 · 스킬 점수 <b>3</b> — <b>T</b> 「어둠의 길」에서 찍는다');
   for(const s of 줄) B.say(s);
   return JSON.stringify("ok")})()`});
 await wait(500);

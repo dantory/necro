@@ -396,10 +396,6 @@ function load() {
                     spLeft 참조): 레벨에서 나오는 총량에서 쓴 것을 빼면 되므로,
                     옛 저장에도 저절로 맞고 어긋날 여지가 없다. */
                  tree: {},
-                 /* 점을 **저절로 쓸까**(아래 autoSpend). 기본이 켬인 이유는 방치형이라서다 —
-                    창을 한 번도 안 여는 사람에게 구울(Lv.6)·골렘(Lv.16)이 영영 안 열리면
-                    그 갈래는 **없는 것과 같다**. 끄면 그 자리에서 점이 쌓여 손으로 찍는다. */
-                 autoTree: true,
                  /* ⑦ 일지(도전 과제) — **깬 것만** { id: 1 } 로 남긴다(1회성이라 boolean 이면 족하다).
                     object 라 아래 merge 가 올려 준다 — 옛 저장엔 없으니 {} 가 남아 「한 과제도 안 깬
                     사람」의 게임은 손대기 전과 한 톨도 안 다르다(relics 는 그대로, 배수 1.0 경로 유지). */
@@ -449,7 +445,7 @@ function load() {
     for (const k of ["lv", "deepest", "best"]) m[k] = Math.max(1, Math.floor(m[k]));
     for (const k of ["relics", "rebirths", "runs", "corpses"]) m[k] = Math.floor(m[k]);
     if (!m.quests || typeof m.quests !== "object") m.quests = {};
-    if (typeof m.autoTree !== "boolean") m.autoTree = true;   // 저장을 안 믿는 그 자리 — 문자열 "false" 도 참이 된다
+    delete m.autoTree;   // 자동 배분은 없앴다(아래 autoSpend) — 옛 저장에 남은 값은 여기서 버린다
     if (!DOCTRINE[m.doctrine]) m.doctrine = DOCTRINE_DEF;   // 모르는 편성(옛 저장·오타)은 기본값으로 — 저장을 안 믿는 그 자리
     if (!TACTIC[m.tactic]) m.tactic = TACTIC_DEF;           // 운용도 같은 자리에서 거른다(같은 이유)
     return m;
@@ -1632,8 +1628,20 @@ const AUTO_FILL = ["bone", "armor", "rot", "harvest", "cheap", "wand", "swift", 
  *  ★ 목록을 **앞에서부터 집어 쓰지 않는다** — 그렇게 짜면 Lv.6 에 남은 한 점이
  *    목록 첫 칸(`bone`)으로 새어 구울이 한 레벨씩 밀린다(관문마다 어긋난다).
  *    총 점수만큼의 **앞 토막이 곧 목표 랭크**이고, 여기서는 그 목표까지만 채운다. */
+/* ══ 이제 **사람은 이 길로 안 온다** ══ (ROADMAP ③ · 2026-08-18)
+   병수님이 D2 사진을 놓고 말씀하셨다 — 저쪽 트리에는 「자동 배분」이 없다. 그리고
+   그것이 「고를 자리가 0」의 뿌리였다: 레벨이 오르는 그 자리에서 점이 저절로 쓰여
+   창을 열면 **남은 점수가 늘 0** 이었다. 이 게임의 첫 줄이 "내가 직접 스킬트리를
+   찍어서 나만의 빌드를 구성하는거지" 인데 그 문장을 코드가 스스로 지우고 있었다.
+
+   그래서 **손잡이를 끄는 것이 아니라 길을 없앤다** — 단추도, 저장의 플래그도 뺐다.
+   방치형 걱정(창을 안 열면 구울·골렘이 안 열린다)은 **점 배지**(spDot)와 단축키 `T` 로
+   갚는다. 열 것이 있으면 레벨 옆에 수가 뜨고, 한 글쇠면 창이 열린다.
+
+   함수는 남긴다 — **자(檢)가 「본보기 빌드」로 굴러야** 지난 측정과 이어진다.
+   자만 `globalThis.__AUTO_TREE = 1` 을 박고 들어온다(loop_health 등). 사람에겐 0. */
 export function autoSpend() {
-  if (META.autoTree === false) return 0;
+  if (globalThis.__AUTO_TREE !== 1) return 0;
   let used = 0;
   const want = {}, n = Math.min(AUTO_PLAN.length, spTotal());
   for (let i = 0; i < n; i++) want[AUTO_PLAN[i]] = (want[AUTO_PLAN[i]] | 0) + 1;

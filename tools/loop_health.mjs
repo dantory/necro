@@ -45,6 +45,13 @@ const SEED = +(process.env.LH_SEED || 1);
 await S("Page.addScriptToEvaluateOnNewDocument", { source:
   `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
+   ${/* ★ **자는 「본보기 빌드」로 굴러야 지난 측정과 이어진다.** 2026-08-18 에 자동
+        배분을 없앴다(사람은 손으로 찍는다 · core.js autoSpend 머리말). 이 자가 그냥
+        따라 내려가면 **스킬 0 짜리 판**을 재게 되어, 여태 쌓은 곡선과 축이 갈린다
+        ([[threshold-and-ruler-must-match]]). 그래서 여기서만 켠다 — 자가 재는 것은
+        「AUTO_PLAN 대로 찍은 사람」이고, 그것은 take() 로 가는 **같은 길**이다.
+        손으로 안 찍은 판을 보고 싶으면 `LH_AUTOTREE=0`. */""}
+   globalThis.__AUTO_TREE = ${process.env.LH_AUTOTREE != null ? (+process.env.LH_AUTOTREE ? 1 : 0) : 1};
    ${process.env.LH_OPEN != null ? `globalThis.__OPEN_MUL = ${+process.env.LH_OPEN};` : ""}
    ${/* ★ 이름 하나를 **손잡이 둘**이 나눠 쓰고 있었다(2026-08-15). `LH_GATE` 는 원래
         관문 주인의 최소 생존 초(__GATE_SEC)였는데, 08-15 에 나무 관문 배율(__GATE_S)이

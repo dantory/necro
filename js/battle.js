@@ -7,7 +7,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
-         questNote, registerQuestToast, autoSpend } from "./core.js";
+         questNote, registerQuestToast, autoSpend, spLeft } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -1797,17 +1797,17 @@ export function step(dt) {
     META.xp += xpGain; runXp += xpGain;              // runXp 는 정산이 읽는 누계(레벨업이 xp 를 빼가도 안 줄어든다)
     while (META.xp >= xpNeed(META.lv)) { META.xp -= xpNeed(META.lv); META.lv++;
       S.hpMax = hpMaxOf(); S.hp = S.hpMax; S.mp = mpMaxOf();   // 상한도 같이 — 안 그러면 한 틱 동안 넘쳐 보인다
-      say(`<b style="color:#ffff64">레벨 ${META.lv}</b> 달성 · 체력·마나 회복`);
-      /* ★ 새 점을 **그 자리에서 쓴다**(core.js autoSpend). 여기가 아니면 Lv.6·Lv.16 에
-         열려야 할 구울·골렘이 「창을 열 때까지」 안 열린다 — 방치형에서 그건 영영이다.
-         꺼 둔 사람에겐 autoSpend 가 0 을 돌려주므로 아래 알림도 안 뜬다. */
+      /* ★ 점은 **저절로 안 쓰인다**(core.js autoSpend 머리말) — 자만 본보기 빌드로
+         굴러 들어오고 사람에겐 0 이 온다. 사람에게는 대신 **몇 점이 기다리는지**를
+         그 줄에 붙인다: 레벨업이 「회복」만 알리고 끝나면 찍을 것이 생긴 줄을 모른다. */
       const spent = autoSpend();
-      if (spent) {
-        /* 벨트(쓸 수 있는 스킬)가 여기서 바뀐다 — 구울·골렘이 열리는 순간이 그 자리다.
-           tree.js 의 손으로 찍는 길과 **같은 신호**를 쓴다(두 개의 진실을 안 만든다). */
-        document.dispatchEvent(new Event("treeChanged"));
-        say(`스킬 점수 <b>${spent}</b> 자동 배분 · 트리에서 바꿀 수 있다`);
-      } }
+      const left = spent ? 0 : spLeft();
+      say(`<b style="color:#ffff64">레벨 ${META.lv}</b> 달성 · 체력·마나 회복`
+        + (spent ? ` · 스킬 점수 <b>${spent}</b> 배분`
+          : left ? ` · 스킬 점수 <b>${left}</b> — <b>T</b> 「어둠의 길」에서 찍는다` : ""));
+      /* 벨트(쓸 수 있는 스킬)가 여기서 바뀐다 — 구울·골렘이 열리는 순간이 그 자리다.
+         tree.js 의 손으로 찍는 길과 **같은 신호**를 쓴다(두 개의 진실을 안 만든다). */
+      if (spent) document.dispatchEvent(new Event("treeChanged")); }
   }
   for (let i = S.minions.length - 1; i >= 0; i--) {
     if (S.minions[i].hp > 0) continue;

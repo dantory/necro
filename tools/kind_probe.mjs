@@ -19,6 +19,8 @@ const ev2 = async (e) => (await S("Runtime.evaluate", { expression: e, returnByV
    못 쟀다. 이름은 loop_health 와 **같은 것**을 쓴다 — 한 팔을 두 자에 태울 때
    `env LH_XPD=… LH_GATE=…` 를 그대로 앞에 붙이면 되도록. */
 await S("Page.addScriptToEvaluateOnNewDocument", { source: `
+   ${/* ★ 자는 **본보기 빌드**로 굴린다 — 까닭은 loop_health 의 같은 줄에 적었다. */""}
+   globalThis.__AUTO_TREE = ${process.env.LH_AUTOTREE != null ? (+process.env.LH_AUTOTREE ? 1 : 0) : 1};
    ${process.env.LH_XPK  != null ? `globalThis.__XP_K = ${+process.env.LH_XPK};` : ""}
    ${process.env.LH_XPP  != null ? `globalThis.__XP_P = ${+process.env.LH_XPP};` : ""}
    ${process.env.LH_XPD  != null ? `globalThis.__XP_DEPTH = ${+process.env.LH_XPD};` : ""}
@@ -72,7 +74,7 @@ const sum = Object.values(tally).reduce((a, b) => a + b, 0) || 1;
 const 비율 = Object.fromEntries(Object.entries(tally).map(([k, v]) => [k, +(v / sum * 100).toFixed(1)]));
 const 최대 = Math.max(0, ...Object.values(비율));
 const out = await ev2(`(()=>({층:S.floor, 상한:(window.armyCap?armyCap():null), 레벨:META.lv,
-  트리:JSON.stringify(META.tree), 자동:META.autoTree}))()`);
+  트리:JSON.stringify(META.tree), 자동:globalThis.__AUTO_TREE === 1}))()`);
 /* 마을에 오래 서 있었으면 종 비율은 **판의 성질이 아니라 자의 흠**이다 — 그때는
    통과/미달을 말하지 않고 그렇게 적는다(조용한 미달이 제일 비쌌다). */
 const 마을비율 = SEC ? townT / SEC * 100 : 0;

@@ -2644,8 +2644,8 @@ $("hDoctrine").addEventListener("click", () => window.__openWin("doctrine"));
 $("hTactic").addEventListener("click", () => window.__openWin("tactic"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */
 document.addEventListener("treeChanged", () => { belt(); hud(); });
-/* ★ 켤 때 한 번 **밀린 점을 쓴다** — 레벨업 자리(battle.js)만으로는 이미 올려 둔
-   판이 영영 안 열린다(옛 저장은 점만 쌓여 있다). 끈 사람에겐 0 이라 아무 일도 없다. */
+/* ★ 자가 **본보기 빌드**로 굴러 들어올 때만 밀린 점을 쓴다(`__AUTO_TREE=1`) —
+   사람에겐 0 이라 아무 일도 없다(core.js autoSpend 머리말). */
 if (autoSpend()) { belt(); }
 toTown();                       // **마을에서 시작한다** — 들어갈지는 사람이 정한다
 /* ② 오프라인 진행 — 껐다 켠 사이 쌓인 금·시체를 정산해 마을에서 맞는다. 1분 미만이거나

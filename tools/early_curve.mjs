@@ -39,8 +39,11 @@ for (const SEED of SEEDS) {
   const wait = (ms) => new Promise(r => setTimeout(r, ms));
   await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
   await S("Network.setCacheDisabled", { cacheDisabled: true });
+  /* ★ `__AUTO_TREE` — 자는 **본보기 빌드**로 굴린다(loop_health 에 까닭을 적었다).
+     2026-08-18 에 사람 쪽 자동 배분을 없앴으므로 안 켜면 스킬 0 짜리 곡선을 잰다. */
   const seedSrc = `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
-     return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
+     return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
+     globalThis.__AUTO_TREE = 1;`;
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });
   await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: PAGE });
