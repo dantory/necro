@@ -435,7 +435,9 @@ body.in-town #stage{cursor:pointer}
 .rail{display:none;position:fixed;width:var(--railW);z-index:16;
   top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2);
   height:min(calc(100% - var(--panelH)), var(--stageH));
-  flex-direction:column;gap:4px;padding:12px 14px;box-sizing:border-box;
+  /* 옆 여백 14 → 10 (2026-08-17) — 아래 `--railW:240` 의 주석이 까닭이다.
+     넓힌 20px 에 여백에서 돌려받은 8px 을 더해 안쪽이 192 → 220px 이 된다. */
+  flex-direction:column;gap:4px;padding:12px 10px;box-sizing:border-box;
   overflow:hidden;pointer-events:auto;
   /* 폭이 넉넉해도 **낱말 가운데서는 안 꺾는다** — 한글은 낱말 경계로만(병수님 사진 18:28). */
   word-break:keep-all;overflow-wrap:break-word;
@@ -501,7 +503,21 @@ body:not(.in-town) .townOnly{display:none}
      덮었지만 뿌리는 **폭이 모자란 것**이다([[seam-not-values]]).
      이제 패널이 **제 폭(220)을 먼저 가지고**, 무대가 남는 것을 쓴다(style.css #stage).
      무대는 어차피 상한(1120)에 걸려 있어 1500 창에서 1036 이 되어도 눈에 안 준다. */
-  :root{ --railW:220px }
+  /* ★★ 2026-08-17 — 220 → 240. **잰 값이 시켰다**(`tools/logfit_probe.mjs`).
+     일지 줄이 원하는 폭의 **중앙값이 202px** 인데 칸은 **192px**(220 − 여백 28) 이었다.
+     곧 폭이 중앙값 **10px 아래**에 서 있어서 절반이 넘는 줄(58.6%)이 «딱 한 뼘» 모자라
+     두 줄로 접혔다 — 벼랑 바로 밑에 손잡이를 놓아 둔 꼴이다([[floor-far-from-threshold]]).
+     · 벼랑이 **칼같다**: 192→58.6% · 206→48% · 212→20.7% · 232→12.6%.
+       206 에 세워 보고 48% 를 맞았다 — 「중앙값만 넘기면 된다」가 아니라 그 언저리에
+       줄이 빽빽해서, **넘기려면 넉넉히** 넘겨야 한다.
+     · 글자는 손잡이가 아니다 — 본문 글꼴이 Galmuri9(9px 격자)라 18(=9×2)을 벗어나면
+       흐려진다(위 442행). 16px 은 14%까지 떨구지만 **글자가 뭉갠다.**
+     · 일지만 여백을 뚫고 나가게 해 봤다(margin 음수). 폭은 벌었지만 **일지 글줄만
+       왼쪽으로 삐져나와** 다른 줄들과 어긋났다 — 찍어 보고 물렸다.
+     그래서 **패널을 20px 넓히고 여백을 14→10 으로 좁혀** 안쪽을 192 → 220px 으로 만든다.
+     모든 줄이 같은 자리에서 시작하고, 낀 것 목록(오늘 잘렸던 그것)도 28px 을 더 받는다.
+     값: 무대가 1048 → 1008px (−3.8%). 무대는 어차피 상한 1120 에 못 닿는 폭이다. */
+  :root{ --railW:240px }
   .rail{display:flex}
   #sideL{ right:calc(50vw + var(--stageW) / 2 + var(--railGap)) }
   #sideR{ left: calc(50vw + var(--stageW) / 2 + var(--railGap)) }
@@ -511,6 +527,11 @@ body:not(.in-town) .townOnly{display:none}
      8px 어긋남 · 패널 밑에 깔린 마을 단추 · 626px 짜리 기둥을 차례로 냈다.
      이제 좌표가 **하나도 없다** — flex 가 세로를 나눠 가진다. */
   .rSlot{flex:1 1 auto;min-height:0;display:flex}
+  /* 폭은 이제 **패널이 준다**(위 `--railW:240` 주석) — 안쪽 220px.
+     여기서 일지에 따로 음수 margin 을 물리지 않는다. 한 번 그렇게 해 봤는데
+     폭은 벌었지만 **일지 글줄만 왼쪽으로 삐져나와** 다른 줄들과 어긋났다
+     (자로는 21.5% 로 좋아 보였고 사진에서 틀렸다 — [[play-it-before-measuring-it]]).
+     실측 64.1% → 16.7% (`node tools/log_shot.mjs tmp/log_wrap_w220.png 60`). */
   body.rails #log{ position:static; inset:auto; width:auto; flex:1 1 auto; min-height:0;
         height:auto; overflow:hidden; font-size:18px; line-height:1.45;
         padding:2px 0 0; background:none; z-index:auto;
