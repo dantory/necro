@@ -852,8 +852,13 @@ body.in-town #hTactic{ display:inline-block; }
   max-width:calc(var(--pdS,46px) * 2 + 144px);margin:0 auto}
 .pdChar{grid-area:char;align-self:stretch;display:flex;align-items:center;justify-content:center}
 /* 인물도 제 칸 안에 **갇힌다** — 줄이 줄면 그림이 먼저 넘쳐 슬롯을 밀어낸다.
-   contain 이라 좁아져도 비율은 안 무너진다(늘어난 네크로맨서보다 작은 쪽이 낫다). */
-.pdChar img{width:100%;height:auto;max-height:100%;object-fit:contain;
+   contain 이라 좁아져도 비율은 안 무너진다(늘어난 네크로맨서보다 작은 쪽이 낫다).
+   ★ **세로를 기준으로 채운다**(2026-08-17) — `width:100%` 였을 때 그림은 제 본디 크기
+     92px 로 섰는데, 그 상자는 8방향 격자에 맞춘 것이라 **인물이 34×63 뿐**이었다
+     (나머지 75%가 투명 여백). 그래서 칸(40px)보다 작은 인물이 서 있었다.
+     여백을 잘라 굽고(`tools/doll_crop.py` → assets/ui/doll_necro.png) 높이로 채우면
+     세 줄(132px)을 꽉 채운다 — 세로는 **슬롯이 정하므로** 창은 한 톨도 안 커진다. */
+.pdChar img{height:100%;width:auto;max-width:100%;object-fit:contain;
   image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
 .pd-helm{grid-area:helm}.pd-charm{grid-area:neck}.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}
 .pd-glove{grid-area:glv}.pd-ring{grid-area:rg1}.pd-shield{grid-area:shd}.pd-belt{grid-area:blt}

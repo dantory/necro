@@ -2040,7 +2040,7 @@ function drawBag() {
     `<div class="sCols">
       <div class="sSec eq"><h3>낀 것</h3>
         <div class="pdoll">
-          <div class="pdChar"><img src="assets/char/necro/south.png" alt="네크로맨서"></div>
+          <div class="pdChar"><img src="assets/ui/doll_necro.png" alt="네크로맨서"></div>
           <div class="pdSlot pd-helm">${gearSlot("helm")}</div>
           <div class="pdSlot pd-charm">${gearSlot("charm")}</div>
           <div class="pdSlot pd-wand">${gearSlot("wand")}</div>
