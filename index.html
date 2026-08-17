@@ -58,43 +58,15 @@
 
   <div id="log"></div>
 
-  <!-- ══ 옆 패널 — PC 전용 2단계 (병수님 2026-08-16 17:32) ══
-       무대에 상한(1120)을 두자 넓은 화면에서 **좌우 196px 이 빈 어둠**으로 남았다.
-       D2 는 무대 옆에 물건·수치가 **상시로** 서 있다 — 창을 열어야 보이는 게 아니다.
-       그 여백에 둘을 세운다: 왼쪽 = 일지(로그) · 오른쪽 = 군세 + 낀 것 + 나가기.
-       ★ 좁은 창(<1500)에서는 통째로 안 뜬다 — 무대를 파고들면 여백이 아니라 침범이다.
-         그때 로그는 예전처럼 전장 아래에 겹치고, 나가기도 제자리로 돌아간다(hud.css). -->
-  <!-- ★★ 2026-08-16 19:30 — **자리를 좌표로 잡던 것을 그만둔다.**
-       처음엔 로그·단추 넷을 `position:fixed` 로 두고 무대의 top/height 식을 **베껴 적었다**.
-       그러자 (1) 식이 두 파일에 갈라져 패널이 무대보다 8px 위에 섰고 (2) 마을 단추가
-       패널 밑에 깔렸고 (3) 발치 단추가 626px 짜리 기둥으로 늘어났다 — 고칠 자리가 계속
-       늘었다([[seam-not-values]] 같은 자리를 두 번 고치면 방법을 바꾼다).
-       이제 **패널 안에 자리(슬롯)를 만들고 물건을 거기 넣는다**(js/main.js railLayout).
-       flex 가 세로를 나눠 가지므로 좌표가 하나도 없다. 좁은 창에서는 원래 자리로 돌려놓는다. -->
-  <aside id="sideL" class="rail">
-    <!-- 채비·지난 판 — **마을에서만.** 마을 로그는 두 줄뿐이라 패널 위 100px 만 차고
-         아래가 텅 빈 검은 상자였다(병수님 사진 18:28). 빈 자리를 무늬로 메우면 장식이지
-         UI 가 아니다 — 마을에서 **다음에 할 일**과 **방금 판의 셈**을 그 자리에 세운다. -->
-    <div class="rTitle townOnly">채비</div>
-    <div id="rReady" class="rBody townOnly"></div>
-    <div class="rTitle townOnly">지난 판</div>
-    <div id="rLast" class="rBody townOnly"></div>
-    <div class="rTitle">일지</div>
-    <div id="logSlot" class="rSlot"></div>
-    <div id="footL" class="rFoot"></div>
-  </aside>
-  <aside id="sideR" class="rail">
-    <div class="rTitle">군세</div>
-    <div id="rArmy" class="rArmy"></div>
-    <div class="rTitle">몸</div>
-    <div id="rBody" class="rBody"></div>
-    <div class="rTitle">낀 것</div>
-    <div id="rGear" class="rGear"></div>
-    <div class="rTitle">의뢰</div>
-    <div id="rQuest" class="rQuest"></div>
-    <div class="rSp"></div>
-    <div id="footR" class="rFoot"></div>
-  </aside>
+  <!-- ══ 옆 패널은 «없앤다» ══ (병수님 2026-08-17 23:16 「좌우 메뉴 없애라니까,, 필요없음」)
+       ★ 21:26 에 이미 「좌우 UI는 없애」라고 하셨다. 그때 뒤에 붙은 「아니면 플로팅으로…」를
+         내가 골랐는데, 그건 내 아쉬움(정보를 잃기 싫었다)이지 병수님 뜻이 아니었다.
+         **「A. 아니면 B」에서 A 를 두 번 말하면 A 다.**
+       ★ 없애기 전에 **갈 곳부터** 정했다(오늘 낮에 그걸 안 해서 인물이 통째로 사라졌다):
+         · 일지(로그)·나가기·환생 → **패널이 생기기 전 자리로** 돌아간다(js/main.js railLayout
+           이 이제 늘 «되돌리는 쪽»만 한다).
+         · 군세·몸·낀 것·의뢰·채비·지난 판 → **버린다.** 군세·시체·레벨은 아래 판이 말하고,
+           낀 것·수치·의뢰는 창이 말한다. 「필요없음」이라 하신 그대로다. -->
 
   <!-- ══════════════════════════════════════════════════════
        아래 판 — **처음부터 다시.**

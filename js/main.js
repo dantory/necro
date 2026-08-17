@@ -76,7 +76,7 @@ function fitNum(el, cur, max) {
 }
 
 /** ══ 매 틱 도는 판은 «바뀐 것만» 쓴다 ══ (2026-08-17 · 렉 항목)
- *  `hud`/`sideRail` 은 틱마다 도는데, 같은 글자를 다시 넣어도 브라우저는 그때마다
+ *  `hud` 는 틱마다 도는데(옆 패널을 채우던 `sideRail` 도 그랬다 — 2026-08-17 에 없앴다), 같은 글자를 다시 넣어도 브라우저는 그때마다
  *  글자판을 새로 세우고(innerHTML 이면 파서까지 돈다) 레이아웃을 더럽힌다.
  *  `beltState` 를 고칠 때와 같은 길 — **값이 그대로면 손대지 않는다.** 넣는 글자가
  *  같으니 나오는 그림도 같다(그래서 되돌려 볼 것도 픽셀로 댈 수 있다).
@@ -138,23 +138,21 @@ addEventListener("resize", () => { railLayout(); fit(); });
  *  창이 어떤 크기든 저절로 맞는다.
  *  ★ 좁은 창에서는 **원래 자리(body 직속)로 돌려놓는다** — 패널이 안 뜨는 폭에서 로그가
  *    패널 안에 갇히면 화면에서 통째로 사라진다. 옮긴 자리를 기억해 두었다가 되돌린다. */
-const RAIL_MQ = matchMedia("(min-width: 1500px)");
-let railOn = null;
+/* ══ 옆 패널을 없앴다 ══ (병수님 2026-08-17 23:16 「좌우 메뉴 없애라니까,, 필요없음」)
+   ★ 21:26 에 이미 「좌우 UI는 없애」라고 하셨는데, 뒤에 붙은 「아니면 플로팅으로…」를
+     내가 골랐다. 그건 **내 아쉬움**(정보를 잃기 싫었다)이지 병수님 뜻이 아니었다.
+     「A. 아니면 B」에서 **A 를 두 번 말하면 A** 다.
+   ★ 이 함수는 남는다 — 로그·나가기·환생을 **패널이 생기기 전 자리**(body 직속)에 두는
+     일을 계속 한다. 옮길 곳이 없어졌으니 늘 되돌리기만 하면 된다. 함수를 지우고
+     호출만 없애면 「어디로 갔는지」가 코드에서 사라진다. */
 function railLayout() {
-  const on = RAIL_MQ.matches;
-  if (on === railOn) return;                       // 폭이 바뀔 때마다 DOM 을 만지지 않는다
-  railOn = on;
-  const move = (id, slot) => {
-    const el = $(id); if (!el) return;
-    (on ? $(slot) : document.body).appendChild(el);
-  };
-  move("log", "logSlot");
-  move("hLeave", "footR"); move("hReborn", "footR");
-  /* ★ 편성·운용은 **더 이상 여기서 옮기지 않는다** — 2026-08-17 21:1x 에 아래 판 메뉴로
-     갔다(`menuLayout`). 목록에 남겨 뒀더니 창 크기가 바뀔 때마다 **도로 패널 발치로
-     끌어갔고**, 그러면 메뉴에서 둘이 사라진다. 물건은 **한 곳에서만** 옮겨야 한다 —
-     두 손이 같은 것을 잡으면 나중에 잡은 손이 이긴다(rail_qa 가 이걸 잡았다). */
-  document.body.classList.toggle("rails", on);     // CSS 는 이 표식 하나로 갈린다(폭 조건을 두 번 안 적는다)
+  document.body.classList.remove("rails");
+  for (const id of ["log", "hLeave", "hReborn", "hDoctrine", "hTactic"]) {
+    const el = $(id);
+    /* 편성·운용은 아래 판 메뉴가 가져간다(menuLayout) — 여기서는 안 만진다. */
+    if (el && id !== "hDoctrine" && id !== "hTactic" && el.parentElement !== document.body)
+      document.body.appendChild(el);
+  }
 }
 railLayout();
 
@@ -1496,111 +1494,16 @@ function hud() {
   /* ★ 이 한 줄이 `hud` 에서 제일 비쌌다 — 서른네 줄을 **매 프레임** 파서에 다시 물렸다.
      로그는 사건이 있을 때만 바뀌므로 글자가 같으면 통째로 건너뛴다. */
   setHTML($$("log"), S.log.slice(0, 34).map(l => `<div>${l}</div>`).join(""));
-  sideRail();
   beltState();
 }
 
-/** ══ 옆 패널 채우기 ══ (PC 전용 2단계)
- *  넓은 창에서만 보이지만 **좁은 창에서도 그린다** — 창을 넓히는 순간 채워져야 하고,
- *  안 보이는 동안 안 그리려면 resize 를 듣는 자리가 하나 더 생긴다(어긋날 자리도 하나 더).
- *  값은 이미 매 틱 도는 이 함수가 들고 있는 것뿐이라 새 계산이 없다. */
-function sideRail() {
-  const rA = $$("rArmy"), rG = $$("rGear");
-  if (!rA || !rG) return;
-  /* 군세 — 종류별로 센다. **마을에서는 마릿수가 뜻이 없다**(서 있는 하수인이 없다) —
-     같은 자리에 「다음 판에 데려갈 상한」만 적는다(아래 판의 gArmy 와 같은 결). */
-  const town = MODE.at === "town";
-  const cnt = {};
-  if (!town) for (const u of S.minions) if (!u.own) cnt[u.kind] = (cnt[u.kind] | 0) + 1;
-  setHTML(rA, Object.entries(MINIONS).map(([k, m]) => {
-    const v = cnt[k] | 0;
-    return `<div class="r${town || v ? "" : " zero"}"><span class="i">${m.ico}</span>` +
-           `<span class="n">${m.n}</span><span class="v">${town ? "—" : v}</span></div>`;
-  }).join("") +
-  (town ? `<div class="cap">상한 <b>${armyCap()}</b></div>`
-        : `<div class="cap">군세 <b>${armyN()}/${armyCap()}</b>${thrallN() ? ` · 지배 <b>${thrallN()}</b>` : ""}` +
-          ` · 시체 <b>${S.corpses}</b></div>`));
-  /* 낀 것 — 빈 칸은 안 그린다. 하나도 없으면 그 말을 한 줄로 한다(빈 상자는 고장으로 읽힌다).
-     ★ 슬롯이 열 칸이 된 뒤로 이 목록이 **자리보다 길다**(잰 값 180px 대 88px). 예전엔
-       `overflow:hidden` 이 넷을 조용히 먹고 넷째 줄을 글자 가운데서 끊었다. 이제
-       **들어가는 만큼만 온전히 세우고 마지막 줄에 「…외 N」**을 놓는다.
-     ★ 재는 것은 **줄이 바뀔 때와 창이 바뀔 때만** 한다 — 이 함수는 매 틱 도는데
-       clientHeight 를 매번 읽으면 그때마다 레이아웃을 강제로 되돌린다(렉 항목과 한 벌). */
-  const gearRow = (k, it) =>
-    `<div class="r" title="${GEAR[k].n} — ${GEAR[k].d}">` +
-    `<i style="background-image:url(assets/ui/gear/${k}.png)"></i>` +
-    `<span class="n t${it.tier}">${nameOf(it)}</span></div>`;
-  const worn = GEAR_KEYS.map(k => [k, equipped(k)]).filter(([, it]) => it);
-  /* 자리를 정하는 것은 낀 것만이 아니다 — 위아래 칸(군세·의뢰)의 줄 수가 바뀌면
-     남는 높이도 바뀐다. 그래서 그 수까지 표에 넣는다. */
-  const sig = worn.map(([k, it]) => k + it.tier + nameOf(it)).join("|") +
-              `#${rA.children.length}/${($("rQuest") || { children: [] }).children.length}` +
-              `@${innerWidth}x${innerHeight}`;
-  if (rG.__sig !== sig) {
-    rG.__sig = sig;
-    rG.innerHTML = worn.map(([k, it]) => gearRow(k, it)).join("") ||
-                   `<div class="none">아직 낀 것이 없다</div>`;
-    /* 다 그린 뒤에 잰다 — 이때의 clientHeight 가 **이 칸이 받은 자리**다
-       (flex:0 1 auto 라 넘치면 딱 그만큼으로 눌려 있다). */
-    const first = rG.firstElementChild;
-    if (worn.length && first) {
-      const rowH = first.getBoundingClientRect().height || 1;
-      const fit = Math.floor(rG.clientHeight / rowH);
-      if (fit >= 1 && worn.length > fit) {
-        const show = Math.max(1, fit - 1);            // 마지막 한 줄은 「…외 N」이 쓴다
-        rG.innerHTML = worn.slice(0, show).map(([k, it]) => gearRow(k, it)).join("") +
-                       `<div class="r more">…외 ${worn.length - show}</div>`;
-      }
-    }
-  }
+/** ══ 옆 패널 채우기는 **없앴다** ══ (병수님 2026-08-17 23:16 「필요없음」)
+ *  군세·몸·낀 것·의뢰·채비·지난 판이 여기서 만들어졌다. 패널이 사라졌으니 만들 자리도
+ *  없다 — **빈 함수를 남기지 않고 부르는 쪽에서도 지운다**(안 그러면 매 틱 도는 고리에
+ *  「아무 일도 안 하는 호출」이 남고, 다음 사람이 그게 뭘 하는지 찾아 헤맨다).
+ *  그 값들이 사라져도 화면은 안 비어 있다: 군세·시체·레벨은 **아래 판**이 말하고,
+ *  낀 것·수치·의뢰는 **능력치/가방 창**이 말한다. */
 
-  /* ── 몸 ── **패널이 위 100px 만 차고 아래가 텅 빈 검은 상자**였다(병수님 사진 18:28).
-     빈 자리를 무늬로 메우면 그건 장식이지 UI 가 아니다 — **늘 뜻이 있는 수**를 넣는다.
-     능력치 창과 **같은 값·같은 자**(num·mul)를 쓴다. 여기와 창이 다른 수를 말하면 둘 다 못 믿는다. */
-  const rB = $$("rBody");
-  if (rB) setHTML(rB, [
-    ["체력", num(hpMaxOf())], ["마나", num(mpMaxOf())],
-    ["본인", mul(selfDmgMul())], ["소환수", mul(minionDmgMul())],
-    ["금", `+${Math.round((goldMulOf() - 1) * 100)}%`],
-  ].map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join(""));
-
-  /* ── 채비 ── **마을에서만.** 「다음에 할 일」을 수로 적는다 — 마을은 들르는 곳이고,
-     들른 사람이 궁금한 건 **뭘 안 하고 내려가려는가**다. 없는 줄은 안 그린다
-     (「스킬 점수 0 남음」 같은 줄은 할 일이 아니라 소음이다). */
-  const rR = $$("rReady");
-  if (rR) {
-    const sp = spLeft(), full = META.bag.length >= BAG_MAX, f0 = startFloor();
-    setHTML(rR, [
-      sp > 0 ? ["스킬 점수", `<b class="hot">${sp}</b>`] : null,
-      ["가방", `${META.bag.length}/${BAG_MAX}${full ? " <b class='hot'>가득</b>" : ""}`],
-      f0 > 1 ? ["시작 층", `${f0}층`] : null,
-      (META.relics | 0) ? ["유해", `${META.relics}구 · ${mul(relicMul())}`] : null,
-      canRebirth() ? ["환생", `<b class="hot">할 수 있다</b>`]
-                   : ["환생까지", `${Math.max(0, REBIRTH_MIN - (META.deepest | 0))}층`],
-    ].filter(Boolean).map(([n, v]) =>
-      `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join(""));
-  }
-
-  /* ── 지난 판 ── 방금 판의 셈. **판을 한 번도 안 돈 세션에서는 안 그린다**(LASTRUN 은
-     기억에만 있어 새로 켜면 비어 있다) — 0 으로 채운 표는 「아직」이 아니라 「고장」으로 읽힌다. */
-  const rL = $$("rLast");
-  if (rL) setHTML(rL, LASTRUN.has
-    ? [["닿은 곳", `${LASTRUN.floor}층`], ["처치", num(LASTRUN.killed)],
-       ["금", `+${num(LASTRUN.gold)}`], ["얻은 것", `${LASTRUN.loot.length}`]]
-      .map(([n, v]) => `<div class="r"><span class="n">${n}</span><span class="v">${v}</span></div>`).join("")
-    : `<div class="none">아직 내려간 적이 없다</div>`);
-
-  /* ── 의뢰 ── **아직 안 깬 것 셋**만. 다 깬 목록을 세워 두면 할 일이 아니라 상장이 된다.
-     판정은 core.js(questProg/questDone)가 쥔다 — 같은 식이 두 곳이면 갈라진다. */
-  const rQ = $$("rQuest");
-  if (rQ) {
-    const open = QUESTS.filter((q) => !questDone(q)).slice(0, 3);
-    setHTML(rQ, open.length
-      ? open.map((q) => `<div class="r" title="${q.d}"><span class="n">${q.n}</span>` +
-          `<span class="v">${questProg(q)}/${q.goal}</span></div>`).join("")
-      : `<div class="none">다 끝냈다</div>`);
-  }
-}
 
 /** **자동으로 소환한다.** 방치형이므로 사람이 안 눌러도 군대는 선다 —
  *  사람이 하는 건 "언제 시체를 아껴 폭발로 쓸까" 같은 판단이지 잔손질이 아니다. */
