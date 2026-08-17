@@ -213,15 +213,16 @@ function drawWang(ctx, w, h, cx, cy, sc, squash) {
    ★ 열쇠에 **에셋이 붙었는지**(floorReady·decorReady)까지 넣는다. 안 넣으면 그림이
      늦게 도착했을 때 **빈 바닥이 영영 굳는다**. */
 let gcv = null, gctx = null, gkey = "", bakedGlows = [];
-export function groundCacheKey(w, h, cx, cy, sc, squash, scatter) {
+export function groundCacheKey(w, h, cx, cy, sc, squash, scatter, band) {
   return [w, h, Math.round(cx), Math.round(cy), sc.toFixed(3), squash.toFixed(3),
+          band ? Math.round(band.x0) + "," + Math.round(band.w) : "-",
           floorReady, decorReady, wanted, tiles.length,
           scatter ? [scatter.clear, scatter.density, scatter.decal,
                      scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-"].join("|");
 }
 /** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
-export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
-  const key = groundCacheKey(w, h, cx, cy, sc, squash, scatter);
+export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band) {
+  const key = groundCacheKey(w, h, cx, cy, sc, squash, scatter, band);
   /* ★★ **소품이 빛을 낸다** — drawScatter 안의 횃불이 `addGlow` 를 부른다. 바닥을 굽고
      나면 그 부름이 **굽는 그 한 프레임에만** 일어나서, 다음 프레임부터 횃불빛이
      통째로 사라진다(자로 대 보고 알았다 — 구운 길과 옛 길이 18만 픽셀 달랐다).
@@ -237,7 +238,7 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
     gctx.filter = "none"; gctx.imageSmoothingEnabled = true;
     gctx.clearRect(0, 0, w, h);
     const before = glows.length;
-    paintGround(gctx, w, h, cx, cy, radius, squash, sc, scatter);
+    paintGround(gctx, w, h, cx, cy, radius, squash, sc, scatter, band);
     bakedGlows = glows.slice(before);       // 소품이 낸 빛만 따로 적어 둔다
     gkey = key;
   } else {
@@ -248,9 +249,16 @@ export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
   drawGlows(ctx, squash);
 }
 
+/** 맵 띠 **안에서만** 그리게 오려낸다. 띠가 없으면(창이 좁아 띠 == 화면) 그냥 그린다. */
+function withBand(ctx, band, w, h, fn) {
+  if (!band || band.w >= w - 1) return fn();
+  ctx.save(); ctx.beginPath(); ctx.rect(band.x0, 0, band.w, h); ctx.clip();
+  fn(); ctx.restore();
+}
+
 /** 굽지 않고 **그 자리에서** 칠하는 옛 길 — 자가 두 길을 픽셀로 대 보라고 남긴다
  *  (빛을 구울 때 `drawGlowsSlow` 를 남긴 것과 같은 뜻). */
-export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
+export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band) {
   ctx.fillStyle = "#070504"; ctx.fillRect(0, 0, w, h);
 
   /* ① 돌바닥 — 타일을 격자로 깐다. **정수 좌표로만** 놓는다(소수면 가장자리가 흐려진다).
@@ -281,15 +289,43 @@ export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter) {
     /* ②' 얼룩 — **격자를 가로질러** 놓이는 것들. 타일을 아무리 늘려도 경계는 남는데,
        경계를 넘어 걸치는 것이 하나 있으면 거기서 격자가 끊긴다(디아블로 1 트리스트람의
        바닥이 그렇다: 같은 흙인데 밟아 닳은 길과 자국이 격자를 지운다). */
-    drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1);
+    /* ★ 얼룩은 **맵 띠 안에서만** — 바깥은 「단순 타일」이라야 띠가 띠로 읽힌다. */
+    withBand(ctx, band, w, h, () =>
+      drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1));
   }
 
   /* ②' 소품 — **조명보다 먼저** 그린다. 그래야 빛 밖의 것은 어둠에 잠기고 빛이 닿은
      것만 보인다. 나중에 그리면 어둠 위에 둥둥 떠서 스티커가 된다.
      ★ 마을에서 이걸 밖에서 따로 부르다가 **조명 뒤로 밀려** 어둠 속 소품이 또렷하게
      보였다. 부르는 곳이 둘이면 순서도 둘이 된다 — 여기 하나로 모은다. */
-  if (scatter) drawScatter(ctx, cx, cy, sc, squash, w, h,
-                           scatter.clear, scatter.density, scatter.set, scatter.wild);
+  if (scatter) withBand(ctx, band, w, h, () =>
+    drawScatter(ctx, cx, cy, sc, squash, w, h,
+                scatter.clear, scatter.density, scatter.set, scatter.wild));
+
+  /* ══ **맵 띠 바깥** ══ (병수님 2026-08-17 23:37 「어느정도 너비만 실제 맵으로 채우고,
+     나머지는 패턴이나 단순한 타일」). 돌바닥은 이미 화면 끝까지 깔려 있다 — 바깥에
+     **없는 것**이 소품·얼룩이고, 거기에 **가라앉힘**을 더해 「여기가 판이다」를 만든다.
+     ★ 어둠으로 **덮지** 않고 가라앉힌다(알파 0.55). 새까맣게 칠하면 옛날의 검은 여백이
+       그대로 돌아와 「화면이 작다」는 그 말을 다시 듣는다.
+     ★ 이음매는 **선이 아니라 번짐**이다 — 한 줄을 그으면 벽으로 읽히는데 벽이 아니다. */
+  if (band && band.w < w - 1) {
+    const L = Math.max(0, band.x0), R = Math.min(w, band.x0 + band.w);
+    const F = 110, DIM = "#050403";
+    ctx.save();
+    /* 왼쪽: 화면 끝(짙음) → 띠(투명). 오른쪽은 그 거울. */
+    for (const [x0, x1, from] of [[0, L, 0], [R, w, w]]) {
+      if (x1 - x0 < 1) continue;
+      const near = from === 0 ? x1 : x0;                  // 띠에 닿는 쪽
+      const g = ctx.createLinearGradient(near, 0, near + (from === 0 ? -F : F), 0);
+      g.addColorStop(0, DIM + "00"); g.addColorStop(1, DIM + "8c");
+      ctx.fillStyle = g; ctx.fillRect(x0, 0, x1 - x0, h);
+      /* 번짐 너머(띠에서 F 이상 떨어진 곳)는 고르게 가라앉힌 채로 둔다 */
+      const flatX0 = from === 0 ? x0 : Math.min(x1, x0 + F);
+      const flatX1 = from === 0 ? Math.max(x0, x1 - F) : x1;
+      if (flatX1 - flatX0 > 0) { ctx.fillStyle = DIM + "8c"; ctx.fillRect(flatX0, 0, flatX1 - flatX0, h); }
+    }
+    ctx.restore();
+  }
   /* (빛은 여기서 안 얹는다 — 구운 바닥에 굳으면 깜박임이 멈춘다. drawGround 가 위에서 부른다.) */
 
   /* ★★ 병수님: "지도 내 주위로 광원? 같은거 없애면 안됨?"

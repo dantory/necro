@@ -68,6 +68,7 @@ const RULERS = [
      숫자가 전장 위에 얹히고 패널이 172px 로 눌린 것을 사진 두 장을 받고서야 봤다.
      좌표를 재는 자라 빠르다(3 폭 × 0.8초). */
   { name: "rail_qa",      args: [],                             secs: 120, tier: "fast", expect: /판정/ },
+  { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* ★ 초기화 — **지우는 기능은 틀리는 방향이 둘**이고, 그중 「안 눌렀는데 지워진다」는
      되돌릴 수가 없다. 두 갈래를 다 켜서 보정해 둔 자다(둘 다 실제로 운다). */
   { name: "wipe_qa",      args: [],                             secs: 150, tier: "fast", expect: /판정/ },

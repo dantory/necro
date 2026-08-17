@@ -290,7 +290,11 @@ body.winopen #log{display:none}
    (구슬 위 숫자가 판 밖으로 8px 더 솟는다). top 은 style.css 가 `--panelH` 로 잡는데
    height 만 여기서 `--hudH` 로 잡으면 **아래가 8px 더 내려와** 숫자 자리를 도로 먹는다.
    패널 세로도 같은 값으로(.rail) — 셋이 한 식을 봐야 「다른 화면 세 개」가 안 된다. */
-#stage{height:min(calc(100% - var(--panelH)), var(--stageH))}
+/* ★★ 위 주석이 **바로 이 줄을 두고** 한 말이었는데 줄은 반대로 서 있었다
+   (「맵은 화면 끝까지 간다」고 적어 두고 `100% - --panelH` 로 잘랐다).
+   **적어 둔 «왜» 와 코드가 어긋나면 코드가 이긴다** — 주석은 아무것도 안 막는다.
+   이제 무대는 화면 전체다(style.css 와 **한 값**). 자(`arena_qa`)가 이걸 지킨다. */
+#stage{height:100%}
 .win{inset:38px 0 var(--hudH) 0}
 
 

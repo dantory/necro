@@ -550,10 +550,25 @@ function draw(dt) {
      남는 세로를 쓰려면 바닥의 눌림(SQUASH)을 화면비에 맞춰 **키운다**: 세로가 길수록 판을 더
      둥글게 펴서 세로를 먹는다. 다만 스프라이트는 세운 채(2.5D)라 SQUASH 는 상한을 둔다 —
      1 에 가까우면 바닥이 정면(탑다운)이 되어 옆모습 그림이 누워 버린다. */
+  /* ══ **실제 맵은 정해진 폭까지만** ══ (병수님 2026-08-17 23:37
+     「게임화면이 좌우로 무한정 늘어나는거 말고, 어느정도 너비만 실제 맵으로 채우고,
+       나머지는 패턴이나 단순한 타일을 까는 방법 있지 않나?」)
+     ★ 08-16 에 내가 무대에 상한(1120px)을 두었다가 「화면이 작다」는 말을 듣고 걷었는데,
+       걷고 나니 이번엔 **끝없이 퍼졌다.** 둘 다 옳다 — 걸린 것은 **무대**가 아니라
+       **맵**이었다. 무대(칠하는 넓이)는 화면 전체로 두고, **싸움이 벌어지는 띠**만 묶는다.
+     ★ 배율(`scByW`)도 **맵 폭**으로 잰다. 창 폭으로 재면 창을 늘릴수록 판이 커져서
+       (SC_MAX 에 닿기 전까지) 「무한정 늘어난다」가 그대로 돌아온다.
+     ★ 판(HUD)이 이제 무대 위에 겹치므로 **세로도 판만큼 뺀 넓이**로 잰다 — 안 그러면
+       눌림(squash)이 판 밑에 깔린 자리까지 세어 인물이 위로 몰린다. */
+  const MAP_MAX = 1180;                                  // 맵 띠의 최대 폭(스크린 px)
+  const mapW = Math.min(w, MAP_MAX);
+  const panelH = parseFloat(getComputedStyle(document.documentElement)
+                   .getPropertyValue("--panelH")) || 184;
+  const freeH = Math.max(240, h - panelH);               // 판에 안 가리는 세로
   const MARGIN = 0.05;                                   // 바깥 여백(양쪽 각 5%)
-  const scByW = (w * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
+  const scByW = (mapW * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
   const squash = Math.max(0.56, Math.min(0.86,
-                   (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
+                   (freeH * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
   /* ★★ 병수님: "좌우 화면 넓어졌을때도 고려해라 모바일도 좋은데 PC로 했을때도".
      예전엔 화면이 커진 만큼 **배율만 커졌다**(1440 폭에서 sc 2.07 — 모바일의 세 배).
      그래서 PC 에서는 바닥 타일이 거대해지고 조명 계단이 뭉텅이가 되고, 보이는 넓이는
@@ -564,7 +579,7 @@ function draw(dt) {
   /* ★ PC 기준으로 다시 잡는다. 시야는 넓게 두되(끝없는 맵) 인물이 콩알이 되면
      무엇이 싸우는지 안 보인다 — 1.05 는 모바일에서 넘어온 값이었다. */
   const SC_MAX = 1.05;
-  const sc = Math.min(SC_MAX, scByW, (h * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
+  const sc = Math.min(SC_MAX, scByW, (freeH * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
   const SQUASH = squash;
   /* 인물 크기(개체가 든 h)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
      서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
@@ -572,13 +587,17 @@ function draw(dt) {
      인물만 작으면 **무엇이 싸우는지** 안 보인다. PC 는 크게 봐도 되는 화면이다. */
   const us = Math.max(1, Math.min(1.35, sc / 0.44));
 
-  const cx = w / 2, cy = h * 0.5;
+  /* ★★ **가운데는 «보이는 넓이»의 가운데다.** 무대가 화면 전체를 얻은 순간
+     `h * 0.5` 는 판(HUD) 뒤로 내려간다 — 인물이 구슬 밑에 숨는다.
+     판에 안 가리는 띠(freeH)의 한가운데로 잡는다. */
+  const cx = w / 2, cy = freeH * 0.5;
   const px = (x) => cx + x * sc;
   const py = (y) => cy + y * sc * SQUASH;
   /* 검수용 — 마지막으로 그린 판의 실제 기하(반지름·눌림·인물배율). 자(headless)가 화면 대비
      판이 얼마나 찼는지 재려면 그림값 자체가 필요하다. RING_SPAWN 은 battle.js 상수(300). */
+  const BAND = { x0: (w - mapW) / 2, w: mapW };
   window.__S = S;          // 검수용 — 자(headless)가 실제 개체 위치를 읽어야 겹침을 잰다
-  window.__geo = { w, h, cx, cy, sc, squash: SQUASH, us,
+  window.__geo = { w, h, mapW, mapX0: (w - mapW) / 2, freeH, panelH, cx, cy, sc, squash: SQUASH, us,
                    ringW: 2 * RING_SPAWN * sc, ringH: 2 * RING_SPAWN * sc * SQUASH };
 
   /* 던전 바닥 — **돌 타일 위에 횃불빛 한 점.** 예전엔 검은 바탕 + 매끈한
@@ -665,7 +684,8 @@ function draw(dt) {
                     안(2.34)은 그대로 두고 바깥을 칸당 1.80 → **1.02**(=0.34×3)로. */
                  wild: { dens: 46, rolls: 3,
                          set: ["shrub", "shrub", "shrub", "rock", "rock", "rock",
-                               "stump", "stump", "boulder", "boulder", "logs", "tree"] } });
+                               "stump", "stump", "boulder", "boulder", "logs", "tree"] } },
+               BAND);
     drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
@@ -694,7 +714,7 @@ function draw(dt) {
   /* 소환진의 회전·맥동은 **경과 시간**으로 돈다(프레임 수 아님) — 30fps 와 60fps 가
      달라 보이면 안 된다. 마을 시계(townT)와 따로 두어 던전에서만 흐른다. */
   battleT += (dt || 0.016);
-  drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 });
+  drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 34 }, BAND);
   /* 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다.
      ★ **진과 함께 밀려 나간다**(battle.js 「진이 적 쪽으로 기운다」). 그림만 본인 자리에
        두었더니 군대가 제 고리 밖에 서 있어, 밀고 나가는 것이 「대열이 흐트러진 것」으로
