@@ -73,15 +73,22 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
    1512 창에서 패널이 **172px** 로 눌렸고, 그 좁은 폭에서 한글이 낱말 가운데서 꺾였다
    (병수님 사진 18:28 「입구」/「로」). 증상을 `word-break` 로 덮었지만 뿌리는 폭이다.
    `--railW` 는 좁은 창에서 **0px** 이라(패널을 아예 안 세운다) 이 식은 그때 예전 그대로다. */
-:root{ --stageW: min(1120px, calc(100vw - 2 * (var(--railW) + var(--railGap)))); --stageH: 760px; }
-#stage{position:fixed;
-  width:min(100vw, var(--stageW));
-  height:min(calc(100% - var(--panelH)), var(--stageH));
-  top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2);
-  left:calc((100vw - min(100vw, var(--stageW))) / 2);
-  background:#0a0806;display:block;
-  /* 무대 밖과 갈리는 테두리 — 「여기까지가 판」이 읽혀야 여백이 빈 곳으로 안 보인다 */
-  box-shadow:0 0 0 1px #2a2318, 0 0 40px 12px #000 inset}
+/* ══ 무대는 «전체화면» 이다 ══ (병수님 2026-08-17 21:26
+   「게임 화면이 너무 작은 느낌 … 전체화면으로 하고 좌우 UI는 없애」
+    → 「아니면 플로팅 형태로 전체화면에 겹쳐서 띄우던가」)
+   ★★ **08-16 에 내가 정한 것을 되돌린다.** 그때는 무대에 상한(1120×760)을 두고 둘레를
+     어둡게 하고 그 여백에 패널을 세웠다 — 까닭은 **칠할 픽셀**이었다(레티나 520만 →
+     294만 px). 그런데 그 상한이 병수님께는 「화면이 작다」로 읽혔다.
+     **아낀 픽셀보다 보이는 화면이 먼저다.** 되돌아오는 값은 성능 모드(dpr 2 → 1.35)가 갚는다.
+   ★ 옆 패널은 **없애지 않고 무대 위에 띄운다**(병수님이 두 번째 줄에서 준 대안) —
+     「없애」면 군세·낀 것·일지·의뢰를 통째로 잃는다.
+   ★ `--stageW` 는 아직 쓰인다 — 위 띠·아래 판·메뉴 띠가 그 폭으로 선다. 전체화면인 지금
+     그것은 곧 100vw 다(**한 자리에서만** 정한다 — 두 자리에 적으면 또 8px 이 어긋난다). */
+:root{ --stageW: 100vw; --stageH: 100vh; }
+#stage{position:fixed;left:0;top:0;
+  width:100vw;
+  height:calc(100% - var(--panelH));
+  background:#0a0806;display:block}
 /* 무대 둘레 — 어두운 돌바닥 결. 판이 가운데 서고 둘레가 가라앉는다(D2 의 앉음새). */
 body{background:#050403 radial-gradient(ellipse at 50% 40%, #14100b 0%, #050403 70%)}
 

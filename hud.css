@@ -447,7 +447,10 @@ body.in-town #stage{cursor:pointer}
      패널만 유독 「웹페이지」처럼 보인 까닭이 이것이다. 전부 18(=9×2)로 올린다. */
   font-size:18px;color:#8c8271;letter-spacing:0;
   /* 무대와 **같은 물건**으로 읽혀야 한다 — 창(.win .frame)과 같은 두 겹 테(어두운 선 + 금선) */
-  background:linear-gradient(#100c08f2,#0a0705f7);
+  /* ★ 무대 **위에 떠 있으므로** 바탕이 살짝 비친다 — 꽉 막으면 「화면을 잘라 먹은 판」이
+     되고, 너무 비치면 글자가 안 읽힌다. 그 사이에서 고른 값이다(병수님 21:26 「플로팅」). */
+  background:linear-gradient(#100c08dc,#0a0705ea);
+  backdrop-filter:blur(2px);
   box-shadow:0 0 0 1px #000, 0 0 0 2px #3a2f1c, 0 0 30px 10px #000 inset}
 /* ★ 제목 넷이 패널에서 124px 을 먹고 있었다(31px × 4). 그 값을 낀 것이 못 받아
    4칸이 잘려 나갔다 — 여백 3px 씩만 돌려줘도 16px 이 목록으로 간다(2026-08-17). */
@@ -519,8 +522,14 @@ body:not(.in-town) .townOnly{display:none}
      값: 무대가 1048 → 1008px (−3.8%). 무대는 어차피 상한 1120 에 못 닿는 폭이다. */
   :root{ --railW:240px }
   .rail{display:flex}
-  #sideL{ right:calc(50vw + var(--stageW) / 2 + var(--railGap)) }
-  #sideR{ left: calc(50vw + var(--stageW) / 2 + var(--railGap)) }
+  /* ★★ **무대 «옆»이 아니라 무대 «위»에 뜬다**(병수님 2026-08-17 21:26 「플로팅 형태로
+     전체화면에 겹쳐서」). 여태는 무대에서 폭을 빼앗아 그 옆에 세웠는데, 그 빼앗긴 폭이
+     「게임 화면이 너무 작다」로 읽혔다.
+     ★ 옛 식(`50vw ± 무대/2 ± 틈`)을 그대로 두면 --stageW 가 100vw 가 된 순간 패널이
+       **화면 밖으로 밀려난다**(실측 left:-252 · right:1524 — 찍어 보고 알았다).
+       자리를 바꿀 땐 그 자리를 셈하던 **식도 같이** 바꾼다. */
+  #sideL{ left:0; right:auto }
+  #sideR{ right:0; left:auto }
 
   /* ── 로그·단추는 **패널 안 슬롯에 담긴다**(js/main.js railLayout) ──
      여태 `position:fixed` 로 두고 무대의 top/height 식을 베껴 적었다. 그 베낌이
@@ -1261,3 +1270,11 @@ body.charOpen #statBody .jList{ grid-template-columns:1fr }
 #hudMenu #hLv.hasArt #hLvT{font-size:11px;position:absolute;bottom:0;right:2px;color:#c8aa6e}
 /* 마을에서만 쓰는 둘은 던전에서 **자리째** 빠진다 — 눌리지도 않는 칸이 서 있으면 거짓말이다. */
 body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{display:flex}
+
+/* ★ 패널이 무대 **위에** 뜨면서 위 띠의 양 끝을 덮었다 — 「19층 ×2.98 남은 적 7」이
+   왼쪽 패널에 가렸다(찍어 보고 알았다). 띠가 그만큼 안쪽에서 시작하게 한다.
+   ★ 겹치는 것을 z-index 로 밀어 올리지 않는다 — 그러면 글자가 패널 «위에» 떠서
+     둘 다 안 읽힌다. **자리를 비키는 것**이 맞다. */
+@media (min-width: 1200px) {
+  body.rails #top{ padding-left:calc(var(--railW) + 16px); padding-right:calc(var(--railW) + 16px) }
+}
