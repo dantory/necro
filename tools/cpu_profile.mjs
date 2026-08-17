@@ -48,10 +48,9 @@ const ev = async (e, aw = false) => {
 /* 사람이 지나는 길로 — 마을에서 시작해 던전으로 내려간다 */
 await ev(`localStorage.setItem("necro.meta.v1",JSON.stringify({gold:90000,lv:40,deepest:${FLOOR + 4},runs:6,up:{hp:6,mp:6,dmg:5,army:8},equip:{},bag:[],tree:{bone:3,armor:3,ghoul:3,legion:3,golem:3,rot:2,harvest:2}}))`);
 await S("Page.reload", { ignoreCache: true }); await wait(4500);
-await ev(`window.toDungeon && window.toDungeon()`); await wait(700);
-await ev(`(async()=>{const B=await import("/js/battle.js");B.enterFloor(${FLOOR});return 1;})()`, true);
-await wait(2500);
-/* 무겁게 만드는 길도 **판이 쓰는 문**으로만 낸다(summon/addCorpse) — 배열을 손으로
+
+/* 한 번 내려가 판을 세운다 — 끝에 **지금 어디인가**를 같이 물어 온다.
+   무겁게 만드는 길도 **판이 쓰는 문**으로만 낸다(summon/addCorpse) — 배열을 손으로
    밀어 넣으면 그림(S.piles)과 개수(S.corpses)가 어긋나 없는 결함을 재게 된다.
    ★★ **자리를 손으로 주지 않는다.** 예전엔 `S.nx`·`S.ny` 를 더해 넣었는데 **그런 칸은
       없다**(S 에 nx/ny 가 아예 없다) — 더한 값이 전부 NaN 이 되어 몸 절반이 NaN 자리에
@@ -59,16 +58,47 @@ await wait(2500);
       그래서 `step` 이 8.7% 로 1위인 것처럼 보였다 — **자가 제 손으로 만든 병목**이다.
       `summon(kind)` 을 인자 없이 부르면 판이 알아서 제 고리 자리에 세운다(사람이
       보는 진형과 같다). 시체도 마찬가지로 네크로 둘레의 실제 좌표계로 흩는다. */
-if (BODIES) await ev(`(async()=>{const B=await import("/js/battle.js");
-  const 종 = ["skel","ghoul","golem"];
-  for (let i=(S.minions||[]).length; i<${BODIES}; i++) B.summon(종[i%3]);
-  for (let i=0;i<${BODIES} * 4;i++) B.addCorpse((i%11-5)*24, ((i/11|0)%7-3)*20, i%3);
-  const 성한몸 = (S.minions||[]).filter(m=>isFinite(m.x)&&isFinite(m.y)).length;
-  return { 몸: (S.minions||[]).length, 성한몸, 시체: S.corpses };})()`, true);
-await wait(1500);
-/* 시체는 **개수(숫자)** 다 — 배열이 아니다(그림은 S.piles). 여기서 .length 를 붙이면
-   늘 undefined 라 「시체 0」으로 읽혀 무거운 판을 가벼운 판으로 오인한다. */
-const 판 = await ev(`({몸:(S.minions||[]).length, 적:(S.mobs||[]).length, 시체:S.corpses|0, 그림:(S.piles||[]).length})`);
+const 내려가기 = async () => {
+  await ev(`window.toDungeon && window.toDungeon()`); await wait(700);
+  await ev(`(async()=>{const B=await import("/js/battle.js");B.enterFloor(${FLOOR});return 1;})()`, true);
+  await wait(2500);
+  if (BODIES) await ev(`(async()=>{const B=await import("/js/battle.js");
+    const 종 = ["skel","ghoul","golem"];
+    for (let i=(S.minions||[]).length; i<${BODIES}; i++) B.summon(종[i%3]);
+    for (let i=0;i<${BODIES} * 4;i++) B.addCorpse((i%11-5)*24, ((i/11|0)%7-3)*20, i%3);
+    return 1;})()`, true);
+  await wait(1500);
+  /* 시체는 **개수(숫자)** 다 — 배열이 아니다(그림은 S.piles). 여기서 .length 를 붙이면
+     늘 undefined 라 「시체 0」으로 읽혀 무거운 판을 가벼운 판으로 오인한다. */
+  return await ev(`({어디:(window.__MODE||{}).at||"?", 죽음:!!S.dead, 층:S.floor|0,
+    몸:(S.minions||[]).length, 적:(S.mobs||[]).length, 시체:S.corpses|0, 그림:(S.piles||[]).length})`);
+};
+
+/* ★★ **재기 직전에 「지금 던전인가」를 다시 묻는다** (2026-08-17 12:xx).
+   30층은 본인이 죽는 층이라, 판을 세우는 4.7초 사이에 죽어 **이미 마을로 끌려간 채**
+   재기 시작하는 판이 있다 — 실측 세 판 중 **둘**이 그랬다(표본 89개가 전부 town).
+   고약한 것은 그때도 스냅샷이 **던전처럼 보인다**는 점이다: 죽어도 배열이 곧장 안 비어
+   몸17·적16·시체140 이 그대로 적힌다(그 판의 JS초당은 35.5 · 성한 판은 121.5 — ×3.4 로
+   좋게 나오는 거짓이다). 「던전%」 자가 뒤에서 버려 주기는 하지만, 그러면 A/B 가 성한
+   판을 모으느라 **세 배를 돌고**(hud_ab 의 다시뽑기 상한 MAX 를 넘기면 아예 못 모은다).
+   그래서 버리기 전에 **다시 내려간다** — 자는 「걸러내는 것」만이 아니라 「제자리에
+   세우는 것」까지가 제 일이다([[probe-must-walk-the-real-path]]).
+   ★ 다시 갈 때는 **판을 새로 연다**(Page.reload). 같은 판 안에서 `toDungeon()` 만 세 번
+     불러 보니 **세 번 다 같은 자리에서 죽었다** — 다시 뽑는 것이 아니라 같은 판을 다시
+     보는 것이었다. `toDungeon()` 이 `closeAll()`+`newRun()` 을 하므로 정산창은 알아서 걷힌다. */
+let 판 = null, 헛걸음 = [];
+for (let 판째 = 1; 판째 <= 3; 판째++) {
+  if (판째 > 1) { await S("Page.reload", { ignoreCache: true }); await wait(4500); }
+  const s = await 내려가기();
+  if (s.어디 === "dungeon" && !s.죽음) { 판 = s; break; }
+  헛걸음.push(`${판째}:${s.어디}${s.죽음 ? "·죽음" : ""}`);
+}
+if (!판) {
+  console.log(JSON.stringify({ 층: FLOOR, 헛걸음 }, null, 1));
+  console.log(`FAIL — 세 번 내려갔는데 재기 직전에 던전이 아니었다(${헛걸음.join(" ")})`);
+  await raw("Target.closeTarget", { targetId }); bws.close(); process.exit(1);
+}
+if (헛걸음.length) 판.다시내려감 = 헛걸음.join(" ");
 
 await S("Profiler.enable");
 await S("Profiler.setSamplingInterval", { interval: 200 });   /* 200µs — 짧은 함수도 잡힌다 */
