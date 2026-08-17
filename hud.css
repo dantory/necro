@@ -644,7 +644,33 @@ body:not(.in-town) .townOnly{display:none}
 .frame.wide > h2, .frame.wide > .wSub, .frame.wide > .winFoot{flex:0 0 auto}
 .frame.wide > .tip{flex:0 0 auto;max-height:40vh}
 
-#treeWrap{position:relative;flex:1 1 auto;min-height:0;margin-bottom:12px}
+/* ══ 세 줄기가 **통째로** 서야 한다 ══ (병수님 참고 사진 2026-08-17 21:07 · ROADMAP ②)
+   D2R 트리는 줄기 끝까지가 한 화면에 다 있다. 우리는 다섯째 칸(군단 · 시체 잔치 ·
+   어둠의 지배)이 창 밖이었다 — 1512×863 에서 **82px 넘쳤다**(`tools/tree_fit.mjs`).
+
+   ★ 재고 나서야 원인이 보였다: 칸이 큰 게 아니라 **장식이 판보다 컸다.**
+     줄기 세 개가 쓰는 높이 493px 에 창틀·제목·설명이 400px 를 썼다.
+     그래서 깎는 것은 **읽을 것(칸·그림·이름)이 아니라 장식**이다 —
+     아래 여백 · 제목 크기 · 잇는 선의 길이. 칸과 아이콘은 그대로 둔다. */
+#winTree .frame{padding:10px 22px}          /* 20 → 10 · 위아래만 (좌우는 그대로) */
+#winTree h2{font-size:24px;letter-spacing:5px;margin-bottom:2px}
+#winTree .wSub{font-size:14px;margin:-2px 0 8px}
+#winTree .winFoot{margin-top:8px}
+/* 설명 상자는 **줄 수가 정해져 있다**(이름·요구·효과·찍기) — 여백만 줄인다 */
+#winTree .tip{padding:9px 16px}
+/* ★ 863 에서만 맞추고 끝내지 않는다 — 1280×800 에서는 아직 세 칸이 잘려 있었다
+   ([[carry-fixes-forward]]). 낮은 화면에서는 **곁말부터 뺀다**: 「점수는 모자란다」는
+   맛이고 다섯째 칸은 판이다. 칸과 그림은 여기서도 안 줄인다. */
+@media (max-height: 830px){
+  #winTree .frame{padding:6px 22px}
+  #winTree h2{font-size:21px;letter-spacing:4px;margin-bottom:0}
+  #winTree .wSub{display:none}
+  #winTree .tip{padding:6px 16px}
+  #winTree .tCol h3{padding:2px 0 6px}
+  #winTree .tNode .tn{font-size:13px;line-height:1.15}
+}
+
+#treeWrap{position:relative;flex:1 1 auto;min-height:0;margin-bottom:6px}
 /* 아래 끝이 흐려진다 = 더 있다. 스크롤바는 폰에서 안 보일 때가 많다. */
 #treeWrap::after{content:"";position:absolute;left:0;right:0;bottom:0;height:26px;
   pointer-events:none;background:linear-gradient(#0b080600,#0b0806)}
@@ -668,7 +694,7 @@ body:not(.in-town) .townOnly{display:none}
 /* ★ 배경을 아래로 흐리게 뒀더니 **굴릴 때 아이콘이 글자 뒤로 비쳤다** — 붙어 있는
    머리글은 제 자리를 완전히 가려야 한다. 불투명하게 두고 아래에 실선을 깐다. */
 /* 아래 여백까지 **불투명 상자 안에** 넣는다 — margin 으로 두면 그 틈으로 아이콘 끝이 비친다 */
-.tCol h3{position:sticky;top:0;z-index:3;margin:0;padding:5px 0 14px;
+.tCol h3{position:sticky;top:0;z-index:3;margin:0;padding:3px 0 9px;
   text-align:center;font-size:14px;letter-spacing:3px;color:#a08f6c;font-weight:normal;
   background:#100b07;box-shadow:0 1px 0 #2c2419, 0 6px 8px -6px #000}
 
@@ -678,7 +704,9 @@ body:not(.in-town) .townOnly{display:none}
 /* ══ 잇는 화살표 ══ 디아블로 2 는 칸과 칸을 **화살표**로 잇는다 — 선만 있으면
    「붙어 있다」이지만 화살표는 「이쪽이 저쪽을 연다」를 말한다.
    선행을 찍으면 불이 들어온다. */
-.tLink{position:relative;height:14px;margin:0 auto;width:3px;background:#4a4030}
+/* ★ 길이는 14 → 9. 화살촉이 6px 이라 여기가 바닥이다 — 더 줄이면 선이 사라지고
+   촉만 남아 「잇는 선」이 아니라 점으로 읽힌다. */
+.tLink{position:relative;height:9px;margin:0 auto;width:3px;background:#4a4030}
 .tLink::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
   border-left:5px solid transparent;border-right:5px solid transparent;
   border-top:6px solid #4a4030}
