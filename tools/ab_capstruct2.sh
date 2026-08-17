@@ -62,28 +62,48 @@ def load(arm, s):
     except Exception:
         return None
 
+"""★★ **자가 둘이고 눈금이 다르다** (08-17 09:1x 에 이 판에서 밟았다).
+   · `시간.군세.막힘`  — **뒷정리 창 안에서만** 센다(자리가 빈 채로 서 있던 초).
+   · `시간.막힘전`     — **판 전체 720초**를 센다.
+   같은 판인데 base 상한참이 **19% 대 55%** 로 나온다. ROADMAP 의 「48~63%」와 끝 조건
+   「30% 아래」는 **판 전체 자**로 적힌 수다 — 그러니 판정도 그 자로 해야 한다.
+   ⑧-e(`ab_capstruct`)는 뒷정리 자로 판정했는데, 그때는 두 자가 같은 답을 냈을 뿐이다.
+   ([[floor-far-from-threshold]] 의 사촌 — 문턱과 **다른 자**로 재면 판정이 거짓이 된다.)"""
+
 def stat(d):
-    """(최고층, 상한, 머릿수, 실효화력, 상한참%, 재사용%, 마나부족%, 시체없음%)"""
+    """(최고층, 상한, 머릿수, 실효화력, 상한참%, 재사용%, 마나부족%, 시체없음%)
+       막힘 넷은 **판 전체 자**(막힘전)로 잰다 — 끝 조건이 그 자로 적혀 있다."""
     top = d["rows"][-1]["최고층"]
     A = (d.get("시간") or {}).get("군세") or {}
-    막 = A.get("막힘") or {}
-    초 = A.get("초") or 0
-    n = (초 / 0.05) or 1e-9
-    pc = lambda k: 100 * 막.get(k, 0) / 초 if 초 else 0.0
+    M = (d.get("시간") or {}).get("막힘전") or {}
+    n = ((A.get("초") or 0) / 0.05) or 1e-9
+    초 = M.get("초") or 0
+    pc = lambda k: 100 * M.get(k, 0) / 초 if 초 else 0.0
     return (top, A.get("상한합", 0) / n, A.get("머릿수합", 0) / n, A.get("화력합", 0) / n,
             pc("상한참"), pc("재사용"), pc("마나부족"), pc("시체없음"))
 
+def stat_cleanup(d):
+    """옛 자(뒷정리 창) — 견줄 수 있게 같이 찍는다. ⑧-e 표와 이어 보기 위함이다."""
+    A = (d.get("시간") or {}).get("군세") or {}
+    막 = A.get("막힘") or {}
+    초 = A.get("초") or 0
+    return tuple(100 * 막.get(k, 0) / 초 if 초 else 0.0
+                 for k in ("상한참", "재사용", "마나부족", "시체없음"))
+
 rows = {a: [] for a in ARMS}
 tops = {a: [] for a in ARMS}
-print(f"{'씨앗':>4} " + " ".join(f"{a+' 최고/머릿수/화력/상한참':>28}" for a in ARMS))
+cln = {a: [] for a in ARMS}
+print("막힘 %% 는 **판 전체 720초** 자다(막힘전). 괄호는 옛 뒷정리 자 — ⑧-e 표와 이어 보라.")
+print(f"{'씨앗':>4} " + " ".join(f"{a+' 최고/머릿수/화력/상한참':>30}" for a in ARMS))
 for s in SE:
     cells = []
     for a in ARMS:
         d = load(a, s)
         if not d:
-            cells.append(f"{'?':>28}"); continue
+            cells.append(f"{'?':>30}"); continue
         st = stat(d); rows[a].append(st); tops[a].append(st[0])
-        cells.append(f"{f'{st[0]} / {st[2]:.1f} / {st[3]:.0f} / {st[4]:.0f}%':>28}")
+        c = stat_cleanup(d); cln[a].append(c)
+        cells.append(f"{f'{st[0]} / {st[2]:.1f} / {st[3]:.0f} / {st[4]:.0f}%({c[0]:.0f})':>30}")
     print(f"{s:>4} " + " ".join(cells))
 print()
 
@@ -96,7 +116,9 @@ for a in ARMS:
     agg[a] = tuple(avg([x[i] for x in r]) for i in range(8))
     top, cap, head, pw, jam, cd, mana, corp = agg[a]
     print(f"{a:>6}  최고층 {top:.1f}(합 {sum(tops[a])}) · 상한 {cap:.1f} · 머릿수 {head:.1f} · 실효화력 {pw:.0f}")
-    print(f"        막힘 → 상한참 {jam:.0f}% · 재사용 {cd:.0f}% · 마나부족 {mana:.0f}% · 시체없음 {corp:.0f}%")
+    print(f"        판 전체 막힘 → 상한참 {jam:.0f}% · 재사용 {cd:.0f}% · 마나부족 {mana:.0f}% · 시체없음 {corp:.0f}%")
+    q = [avg([x[i] for x in cln[a]]) for i in range(4)]
+    print(f"        (뒷정리 자 → 상한참 {q[0]:.0f}% · 재사용 {q[1]:.0f}% · 마나부족 {q[2]:.0f}% · 시체없음 {q[3]:.0f}%)")
 print()
 
 if "base" not in agg or "merge" not in agg:
