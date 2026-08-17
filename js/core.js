@@ -1363,6 +1363,24 @@ export const RAISE_BATCH_DEF = 1;
 export const RAISE_BATCH_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_BATCH != null)
   ? +globalThis.__RAISE_BATCH : RAISE_BATCH_DEF;
 
+/* ══ 마른 마나에 문을 연다 ══ (㉤ __BURN_MANA) 「시체 태우기」(시체 4 → 마나)는 이 게임이
+   이미 가진 **마나 쪽 구조 출구**인데, 자동 진행에서 열리는 조건이 **「시체가 넘칠 때」**
+   뿐이었다(`S.corpses >= CORPSE_MAX*0.85` = 140 중 119구). 그래서 ㉣ 이 만든 판
+   — 마나가 40% 를 막는데 시체는 46~72구로 «중간»인 판 — 에서는 **문이 닫혀 있었다.**
+   벽이 마나인 자리에서 마나로 나가는 길이 안 열리면 그건 손잡이가 아니라 벽이다
+   ([[knob-that-does-nothing]]).
+   이 팔은 문턱을 **마나 쪽으로** 돌린다: 마나가 이 몫 아래로 마르면, 소환에 쓸 시체를
+   BURN_KEEP 구 남겨 둘 수 있는 한 태운다. **값을 안 만진다** — 태우는 양도 얻는 마나도
+   그대로고, 바뀌는 것은 「언제 열리는가」뿐이다.
+   **0 이면 손 안 댐**(예전과 비트까지 같다 — && 가 앞에서 끊어 RNG 도 안 쓴다).
+   main.js auto() 가 쓴다 — 검수기가 globalThis.__BURN_MANA 로 켠다. */
+export const BURN_MANA_DEF = 0;
+export const BURN_MANA_OF = () => (typeof globalThis !== "undefined" && globalThis.__BURN_MANA != null)
+  ? +globalThis.__BURN_MANA : BURN_MANA_DEF;
+/** 태우고도 소환에 남겨 두는 시체. 이 아래로는 마나가 말라도 안 태운다 —
+ *  시체를 다 태워 군대를 못 세우면 「마나를 얻고 판을 잃는」 팔이 된다. */
+export const BURN_KEEP = 12;
+
 
 /* ══════════════════════════════════════════════════════════════
    ══ 스킬 트리 ══ 병수님: "레벨이 오르면서 더 좋은 소환수를 뽑을 수 있게

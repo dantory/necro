@@ -59,6 +59,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_CAPOVER != null ? `globalThis.__CAP_OVER = ${+process.env.LH_CAPOVER};` : ""}
    ${process.env.LH_CAPMERGE != null ? `globalThis.__CAP_MERGE = ${+process.env.LH_CAPMERGE};` : ""}
    ${process.env.LH_RAISEBATCH != null ? `globalThis.__RAISE_BATCH = ${+process.env.LH_RAISEBATCH};` : ""}
+   ${process.env.LH_BURNMANA != null ? `globalThis.__BURN_MANA = ${+process.env.LH_BURNMANA};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
    ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
    ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}

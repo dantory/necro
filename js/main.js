@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1612,6 +1612,14 @@ function auto() {
   }
   if (S.mobs.length && S.corpses >= CORPSE_MAX * tac.novaCorpse && (!tac.novaBossOnly || boss)) cast("nova");
   if (!globalThis.__NOSINK && S.corpses >= CORPSE_MAX * 0.85 && S.mp < mpMaxOf() * 0.90) cast("burn");
+  /* ㉤ **마른 마나에 문을 연다** (__BURN_MANA · 기본 0 = 꺼짐). 위 줄은 「시체가 넘칠 때」만
+     연다 — 140 중 119구다. 그래서 마나가 벽인데 시체는 중간(46~72구)인 판에서는 이 출구가
+     통째로 닫혀 있었다(㉣ 이 만든 판이 정확히 그랬다: 마나부족 40% · 시체는 안 넘침).
+     여기서는 문턱을 **마나 쪽으로** 돌린다 — 태우는 양도 얻는 마나도 그대로고, 바뀌는
+     것은 「언제 열리는가」뿐이다. 소환에 쓸 몫(BURN_KEEP)은 남긴다.
+     ★ 꺼짐이면 `bm > 0` 이 앞에서 끊어 cast 를 안 부른다 — RNG 도 안 쓴다. */
+  { const bm = BURN_MANA_OF();
+    if (!globalThis.__NOSINK && bm > 0 && S.mp < mpMaxOf() * bm && S.corpses >= BURN_KEEP) cast("burn"); }
 }
 
 /* ══ 마을과 던전 ══ 병수님: "마을에서 던전으로 진입하는거고".
