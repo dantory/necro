@@ -8,7 +8,7 @@
      ③ 꼭대기 등급(마지막 tier) 셋은 안 합쳐진다 — 셋이 그대로
      ④ 슬롯이 다르면 안 합쳐진다(wand 둘 + robe 하나 → 그대로 셋)
      ⑤ 합쳐진 것이 낀 것보다 좋으면 자동 착용 · 벗은 것이 가방에
-     ⑥ 200개를 던져도 가방은 12칸을 안 넘고, 금 이중가산이 없다(Δgold = Σ녹은금)
+     ⑥ 200개를 던져도 bagPack.overflow 는 늘 0·찬 칸이 40을 안 넘고, 금 이중가산이 없다(Δgold = Σ녹은금)
 
    ⑦(cdp_verify ui 오류·netfail 0)은 별도 명령으로 잰다: node tools/cdp_verify.mjs <out.png> ui
 
@@ -82,12 +82,17 @@ const ex = `(async()=>{
       M.equip.wand && M.equip.wand.tier===2 && M.bag.length===1 && M.bag[0] && M.bag[0].tier===1,
       "낀등급="+(M.equip.wand&&M.equip.wand.tier)+" bag="+M.bag.length+" 벗은등급="+(M.bag[0]&&M.bag[0].tier));
 
-  // ⑥ 200개 → 12칸 안 넘음 · 금 이중가산 없음(Δgold = Σ녹은금)
+  /* ⑥ 200개 → overflow 0·40칸 안 넘음 · 금 이중가산 없음(Δgold = Σ녹은금). 유니크는 이 셈의
+     밖이다 — 진짜 길(takeDrop)은 중복 유니크를 그 자리서 금으로 바꾸지만 bagPut 에 **직접**
+     넣으면 그 거름망이 없어 유니크가 쌓인다(녹지 않아 자리를 못 낸다). 유니크의 「가방을 안
+     먹나」는 bag_probe ①ㄱ 이 진짜 길로 따로 잰다. 여기서는 합쳐지는 평범한 것만 본다. */
   reset();
-  const g0 = M.gold; let meltSum = 0, maxBag = 0;
-  for (let i=0;i<200;i++){ const melted = C.bagPut(C.rollDrop(20)); for (const m of melted) meltSum += m.gold; maxBag = Math.max(maxBag, M.bag.length); }
-  rec("⑥ 200개 → 12칸 유지 · Δgold = Σ녹은금", maxBag<=12 && (M.gold-g0)===meltSum,
-      "maxBag="+maxBag+" Δgold="+(M.gold-g0)+" Σ녹은금="+meltSum);
+  const g0 = M.gold; let meltSum = 0, 넘친적 = 0, maxUsed = 0;
+  for (let n=0;n<200;){ const it = C.rollDrop(20); if (it.uid) continue;
+    const melted = C.bagPut(it); for (const m of melted) meltSum += m.gold;
+    const p = C.bagPack(M.bag); if (p.overflow.length) 넘친적++; maxUsed = Math.max(maxUsed, p.used); n++; }
+  rec("⑥ 200개 → overflow 0·40칸 유지 · Δgold = Σ녹은금", 넘친적===0 && maxUsed<=40 && (M.gold-g0)===meltSum,
+      "넘친적="+넘친적+" maxUsed="+maxUsed+" Δgold="+(M.gold-g0)+" Σ녹은금="+meltSum);
 
   return JSON.stringify(out);
 })()`;

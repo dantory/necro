@@ -45,7 +45,15 @@ await S("Page.reload", { ignoreCache: true });
 await new Promise(r => setTimeout(r, 3500));
 
 if (MODE === "foot") { await S("Runtime.evaluate", { expression: "window.S.speed=0; window.S.mobs.length=0; window.S.minions.length=0; window.S.fx.length=0;" }); await new Promise(r => setTimeout(r, 500)); }
-if (MODE === "inv") { await S("Runtime.evaluate", { expression: "document.getElementById('winStat').classList.add('on')" }); await new Promise(r => setTimeout(r, 400)); }
+if (MODE === "inv") {
+  /* 가방을 **채운 채로** 찍는다(빈 가방은 표본이 아니다) — 슬롯마다 두 등급씩 넣어 D2 결의
+     크기별 자리잡기(지팡이 세로·반지 한 칸)가 그림에 다 보이게 한다. 슬롯 이름은 게임에서
+     가져온다(손으로 적었다가 GEAR 에 없는 물건을 심어 자를 터뜨린 적이 있다). */
+  await S("Runtime.evaluate", { expression: `(()=>{const M=window.META;const K=window.__GEAR_KEYS||[];M.bag=[];
+    for(const k of K){M.bag.push({k,tier:3,af:[{id:"dmg",v:14}]});M.bag.push({k,tier:2,af:[{id:"hp",v:60}]});}
+    window.saveMeta&&window.saveMeta();window.__openWin&&window.__openWin("bag");})()` });
+  await new Promise(r => setTimeout(r, 500));
+}
 
 const MEAS = `(function(){
   const q=s=>[...document.querySelectorAll(s)];

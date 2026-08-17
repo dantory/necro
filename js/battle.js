@@ -5,7 +5,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          GATELORDS, gatelordFor, gatelordIdx,
-         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
+         GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
          questNote, registerQuestToast, autoSpend, spLeft } from "./core.js";
 
@@ -1108,7 +1108,7 @@ export function step(dt) {
       const pickedFused = r.fused.some((f) => f.mats.includes(r.ref));
       let spill;
       if (r.worn)          { say(`<b class="${nc}">${nm}</b> 착용 — ${g.n}` + afl); spill = r.melted; }
-      else if (r.bagged)   { say(`<b class="${nc}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})` + afl); spill = r.melted; }
+      else if (r.bagged)   { say(`<b class="${nc}">${nm}</b> → 가방 (${bagUsed()}/${BAG_MAX})` + afl); spill = r.melted; }
       else if (pickedFused){ spill = r.melted; }
       else                 { say(`<b class="${nc}">${nm}</b> → 금 ${r.melted[0].gold}` + afl); spill = r.melted.slice(1); }
       for (const m of spill) say(`가방이 차서 <b class="t${m.tier}">${m.n}</b> → 금 ${m.gold}`);

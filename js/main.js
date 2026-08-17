@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1489,7 +1489,7 @@ function hud() {
      가방은 상점·무덤·대장간이 채우는 칸이고, 군세는 **다음 판에 데려갈 상한**이다
      (마릿수 N/M 이 아니라 상한 하나 — 마을에는 서 있는 하수인이 없다). */
   if (MODE.at === "town") {
-    setTxt($$("gCorpse"), `가방 ${META.bag.length}/${BAG_MAX}`);
+    setTxt($$("gCorpse"), `가방 ${bagUsed()}/${BAG_MAX}`);
     setTxt($$("gArmy"), `군세 ${armyCap()}`);   // 「최대」는 뺀다 — 좁은 줄에서 수를 밀어낸다(실측 22px)
   } else {
   setTxt($$("gCorpse"), `시체 ${S.corpses}/${CORPSE_MAX}`);
@@ -1676,7 +1676,7 @@ const digFateHtml = (r) => {
   const fused = r.fused.find((f) => f.mats.includes(r.ref));
   let line;
   if (r.worn)       line = `<b class="${cls}">${nm}</b> 갈아 끼움`;
-  else if (r.bagged) line = `<b class="${cls}">${nm}</b> → 가방 (${META.bag.length}/${BAG_MAX})`;
+  else if (r.bagged) line = `<b class="${cls}">${nm}</b> → 가방 (${bagUsed()}/${BAG_MAX})`;
   else if (fused)   line = `셋이 하나로 — <b class="${TIER_CLS[fused.tier]}">${fused.n}</b>`;
   else              line = `<b class="${cls}">${nm}</b> → 금 ${r.melted[0].gold}`;
   return `<div class="tipDig">방금 · ${line}</div>`;
@@ -1686,7 +1686,7 @@ function drawDigTip() {
   const cap = dropTierCap(META.deepest), cost = digCost(), can = META.gold >= cost;
   $("shopTip").innerHTML =
     `<div class="tipName t4">무덤 파기</div>
-     <div class="tipKind">금을 전리품으로 · 가방 ${META.bag.length}/${BAG_MAX}</div>
+     <div class="tipKind">금을 전리품으로 · 가방 ${bagUsed()}/${BAG_MAX}</div>
      <div class="tipStat">지금 깊이 <b>${META.deepest}층</b> — 최고 <b class="${TIER_CLS[cap]}">${cap}등급</b>까지</div>
      <div class="tipNote sm">깊이를 따라 값이 오른다 — 벌이와 같은 결로 매달아 두었다</div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
@@ -1723,7 +1723,7 @@ function drawShop() {
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
     `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
-     <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${META.bag.length}/${BAG_MAX}</div>
+     <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${bagUsed()}/${BAG_MAX}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
     ruleHtml(it) +
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
@@ -2015,12 +2015,19 @@ function dollHtml() {
 }
 
 function drawBag() {
-  /* 가방 — 12칸. 채운 칸은 그 물건, 빈 칸은 .cell.empty. */
-  const bagCells = Array.from({ length: BAG_MAX }, (_, i) => {
-    const it = META.bag[i];
-    if (!it) return `<div class="cell empty"></div>`;
-    return gearCell(it, `data-bpick="${i}"`, statSel && statSel.src === "bag" && statSel.i === i);
+  /* 가방 — 10×4 격자. 자리는 bagPack 하나가 잡는다(화면·검수가 같은 셈). 물건 칸은 그
+     자리로 명시 배치하고(grid-area), 남는 자리마다 빈 칸(.cell.empty)을 하나씩 놓는다. */
+  const { placed, used } = bagPack(META.bag);
+  const occ = new Uint8Array(BAG_COLS * BAG_ROWS);
+  const itemCells = placed.map((p) => {
+    for (let y = p.r; y < p.r + p.h; y++) for (let x = p.c; x < p.c + p.w; x++) occ[y * BAG_COLS + x] = 1;
+    const area = `grid-area:${p.r + 1}/${p.c + 1}/span ${p.h}/span ${p.w}`;
+    return gearCell(p.it, `data-bpick="${p.i}" style="${area}"`,
+      statSel && statSel.src === "bag" && statSel.i === p.i);
   }).join("");
+  let emptyCells = "";
+  for (let r = 0; r < BAG_ROWS; r++) for (let c = 0; c < BAG_COLS; c++)
+    if (!occ[r * BAG_COLS + c]) emptyCells += `<div class="cell empty" style="grid-area:${r + 1}/${c + 1}"></div>`;
 
   $("bagBody").innerHTML =
     `<div class="sCols">
@@ -2029,9 +2036,9 @@ function drawBag() {
              베껴 둔 한 벌이 여기 있어서, 슬롯 모양을 고쳐도 가방창 쪽은 안 바뀔 뻔했다
              (2026-08-18 · 바로 위 dollHtml 의 주석이 경고하던 그 일이 이미 일어나 있었다). */
           dollHtml()}</div>
-      <div class="sSec bag"><h3>가방 ${META.bag.length}/${BAG_MAX}</h3>
+      <div class="sSec bag"><h3>가방 ${used}/${BAG_MAX}</h3>
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
-        <div class="grid">${bagCells}</div></div>
+        <div class="grid">${itemCells}${emptyCells}</div></div>
     </div>`;
   $("bagTip").innerHTML = statTipHtml();
   $("bagGold").textContent = (META.gold | 0).toLocaleString();

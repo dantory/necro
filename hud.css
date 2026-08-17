@@ -880,8 +880,11 @@ body.in-town #hTactic{ display:inline-block; }
 /* 방치형은 폰이 먼저이므로 **쌓는 것이 기본**이고, 480px 이상에서만 나란히 둔다. */
 .sCols{display:flex;flex-direction:column;gap:14px}
 .sSec h3{margin:0 0 8px;font-size:14px;letter-spacing:2px;color:#a08f6c;font-weight:normal}
-/* 가방은 12라 6칸 — 칸 그림(.cell)은 상점과 똑같고 열 수만 다르다. */
-.sSec.bag .grid{grid-template-columns:repeat(6,1fr);margin-bottom:0}
+/* 가방은 D2 처럼 10×4(상점 좌판·정산은 6열 그대로). 격자를 10:4 로 두고 4행을 고르게
+   나누면 각 칸이 폭/10 인 정사각이 된다. grid-area 로 여러 칸을 잇는 물건 칸에서는
+   `.cell` 의 aspect-ratio:1 을 풀어야 한다 — 안 풀면 이은 칸이 정사각으로 찌그러진다. */
+.sSec.bag .grid{grid-template-columns:repeat(10,1fr);grid-template-rows:repeat(4,1fr);aspect-ratio:10 / 4;width:100%;margin-bottom:0}
+.sSec.bag .grid .cell{aspect-ratio:auto}
 .sFuse{font-size:11px;line-height:1.4;color:#8a7a5c;margin:0 0 8px}
 /* ── 페이퍼 돌 ── 낀 것 여섯을 목록처럼 늘어놓지 않고 가운데 인물 그림 둘레에 D2 결로
    건다: 투구는 머리 위(helm)·부적은 목(neck)·무기는 왼쪽(wpn)·갑옷은 오른쪽(arm)·
@@ -1234,6 +1237,10 @@ body.in-town #hTactic{ display:inline-block; }
   body.charOpen #winBag .sSec.eq{ display:none }
   body.charOpen #winBag .sCols{ gap:0 }
   body.charOpen #winBag .sSec.bag{ flex:1 1 auto }
+  /* 도킹한 가방 프레임은 **제 몫(창의 절반 폭)을 다 쓴다.** flex row(.win) 안에서 width:auto 인
+     프레임은 내용만큼만 좁아지고(shrink-to-fit) 그러면 아래 격자까지 폭이 안 정해져 10열이 콩알이
+     된다. 창(#winBag)이 이미 절반 폭이라 여기서 폭을 못박으면 격자가 정상 크기로 내려간다. */
+  body.charOpen #winBag .frame{ width:100% }
   /* 금은 두 패널 **발치에 모두** 둔다 — D2 도 인벤토리 아래에 금이 있다(가방창은 감춰 뒀었다). */
   body.charOpen #winBag .winFoot .purse{ display:inline }
 }

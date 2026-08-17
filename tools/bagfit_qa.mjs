@@ -58,8 +58,11 @@ for (const [W, H] of SIZES) {
     const b=doll.closest(".wScroll")||doll.closest(".frame");
     const bb=b.getBoundingClientRect();
     /* ★ 가방 칸은 **인물과 다른 창**에 있을 수 있다(도킹). 칸 크기는 인물 쪽 --pdS 가
-       아니라 **실제로 선 가방 칸**을 잰다 — 예전엔 --pdS 를 읽어 도킹 뒤 0 이 나왔다. */
-    const cell=[...document.querySelectorAll(".win.on #bagBody .grid .cell")].find(vis);
+       아니라 **실제로 선 가방 칸**을 잰다 — 예전엔 --pdS 를 읽어 도킹 뒤 0 이 나왔다.
+       ★ 물건 칸은 이제 여러 칸을 잇는다(grid-area span) — 빈 칸(.cell.empty)만 1×1 이라
+         **한 칸의 진짜 폭**이다. 그걸 재야 콩알 격자를 큰 물건으로 못 속인다. */
+    const cell=[...document.querySelectorAll(".win.on #bagBody .grid .cell.empty")].find(vis)
+             ||[...document.querySelectorAll(".win.on #bagBody .grid .cell")].find(vis);
     const cw=cell?Math.round(cell.getBoundingClientRect().width):0;
     /* 「보이는 자리」는 구르는 칸의 **눈에 보이는 네모** — 그 밖으로 1px 이라도 나가면 잘린 것이다. */
     const slots=[...doll.querySelectorAll(".pdSlot")].map(e=>{

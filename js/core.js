@@ -725,13 +725,13 @@ export const upCost = (k) => Math.round(UPS[k].base * Math.pow(1.55, META.up[k] 
 export const GEAR = {
   wand:  { n:"지팡이", d:"본인 기본 공격력", u:"pct",
            tiers:["뼈 지팡이","녹슨 홀","흑요석 홀","심장의 홀","왕의 홀"],
-           cost:[0, 90, 320, 1100, 3800], val:[0, 0.25, 0.6, 1.1, 1.9] },
+           cost:[0, 90, 320, 1100, 3800], val:[0, 0.25, 0.6, 1.1, 1.9], sz:[1,3] },
   robe:  { n:"망토",   d:"최대 체력", u:"flat",
            tiers:["누더기","가죽 망토","사슬 망토","제의","왕의 제의"],
-           cost:[0, 80, 300, 1000, 3500], val:[0, 40, 110, 260, 560] },
+           cost:[0, 80, 300, 1000, 3500], val:[0, 40, 110, 260, 560], sz:[2,3] },
   charm: { n:"부적",   d:"마나 회복", u:"rate",
            tiers:["없음","뼛조각","은 부적","영혼석","군주의 인장"],
-           cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2] },
+           cost:[0, 120, 420, 1400, 4600], val:[0, 0.6, 1.5, 3.0, 5.2], sz:[1,1] },
   /* ══ 슬롯 셋을 더 낸다 ══ (병수님 2026-08-16 「투구·장갑·반지」 · ROADMAP 757)
      페이퍼 돌에 여섯 칸을 앉히려 셋을 연다 — **새 밸런스 축을 만들지 않고** 이미 곱해지는
      자리 하나씩에만 건다: 투구=최대 마나(mpMaxOf) · 장갑=소환수 피해(dmgMulOf, UPS.dmg
@@ -744,13 +744,13 @@ export const GEAR = {
      cost 도 같은 결(등급마다 뛰고 3~4가 사건)로 기존 셋의 ~65% 에 둔다. */
   helm:  { n:"투구",   d:"최대 마나", u:"flat",
            tiers:["맨머리","해골 투구","수의 두건","무덤지기 투구","재의 왕관"],
-           cost:[0, 60, 210, 720, 2500], val:[0, 12, 32, 68, 120] },
+           cost:[0, 60, 210, 720, 2500], val:[0, 12, 32, 68, 120], sz:[2,2] },
   glove: { n:"장갑",   d:"소환수 피해", u:"pct",
            tiers:["맨손","뼈 장갑","수의 장갑","도굴꾼 장갑","재의 장갑"],
-           cost:[0, 60, 210, 720, 2500], val:[0, 0.06, 0.14, 0.24, 0.35] },
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.06, 0.14, 0.24, 0.35], sz:[2,2] },
   ring:  { n:"반지",   d:"금 획득", u:"pct",
            tiers:["없음","뼈 반지","수의 반지","무덤지기 반지","재의 인장"],
-           cost:[0, 80, 280, 950, 3200], val:[0, 0.08, 0.18, 0.32, 0.50] },
+           cost:[0, 80, 280, 950, 3200], val:[0, 0.08, 0.18, 0.32, 0.50], sz:[1,1] },
   /* ══ 넷을 더 낸다 ══ (병수님 2026-08-16 17:26 「장비슬롯 더 늘려」)
      앞의 셋과 같은 규칙이다 — **새 밸런스 축을 만들지 않고** 이미 곱해지는 자리 하나씩에만.
        · 방패 = 최대 체력(bodyHp, 망토 자리) — 망토의 ~55%
@@ -761,16 +761,16 @@ export const GEAR = {
      ★ 걸음(신발)만은 **비율**이라 상한을 둔다(아래 minionSpd) — 빠른 건 좋지만 순간이동은 안 된다. */
   shield:{ n:"방패",   d:"최대 체력", u:"flat",
            tiers:["없음","나무 방패","뼈 방패","무덤지기 방패","재의 방패"],
-           cost:[0, 70, 250, 850, 2900], val:[0, 22, 60, 145, 310] },
+           cost:[0, 70, 250, 850, 2900], val:[0, 22, 60, 145, 310], sz:[2,3] },
   belt:  { n:"허리띠", d:"시체 획득", u:"pct",
            tiers:["없음","가죽 띠","뼈 사슬","장의사 띠","재의 띠"],
-           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.12, 0.21, 0.32] },
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.12, 0.21, 0.32], sz:[2,1] },
   boots: { n:"신발",   d:"소환수 걸음", u:"pct",
            tiers:["맨발","해진 신","무두질 신","도굴꾼 장화","재의 장화"],
-           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.11, 0.19, 0.28] },
+           cost:[0, 60, 210, 720, 2500], val:[0, 0.05, 0.11, 0.19, 0.28], sz:[2,2] },
   ring2: { n:"반지 ②", d:"경험치", u:"pct",
            tiers:["없음","녹슨 고리","수의 고리","무덤지기 고리","재의 고리"],
-           cost:[0, 80, 280, 950, 3200], val:[0, 0.06, 0.14, 0.25, 0.40] },
+           cost:[0, 80, 280, 950, 3200], val:[0, 0.06, 0.14, 0.25, 0.40], sz:[1,1] },
 };
 
 /* ══ 같은 등급의 다른 얼굴 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
@@ -1037,12 +1037,50 @@ export function afSum(id) {
   for (const k of GEAR_KEYS) for (const a of (equipped(k)?.af || [])) if (a.id === id) s += a.v;
   return s;
 }
-/* ══ 가방 ══ 병수님: "12칸. 차면 **점수가 제일 낮은 것부터** 저절로 금이 된다."
-   방치형이므로 **격자·드래그를 만들지 않는다** — 기본은 자동이고 손은 선택이다.
-   차면 스스로 제일 나쁜 것을 녹여 자리를 낸다. 그래서 가방이 넘쳐 판이 멈추는 일이 없다. */
-export const BAG_MAX = 12;
+/* ══ 가방 ══ 병수님: "D2 처럼 — 10×4 격자, 물건마다 차지하는 칸이 다르다."
+   방치형이므로 **드래그·수동 배치를 만들지 않는다** — 자리는 저절로 잡히고(bagPack),
+   안 들어가면 **점수가 제일 낮은 것부터** 저절로 녹아 자리를 낸다(bagTrim). 그래서
+   가방이 넘쳐 판이 멈추는 일이 없다. 「칸 수」로 재던 것을 「들어가느냐」로 바꾼다. */
+export const BAG_COLS = 10, BAG_ROWS = 4;        // D2 와 같은 10×4
+/** BAG_MAX 는 **없애지 않는다** — 뜻이 「물건 개수」에서 「칸 수」(=40)로 바뀐다.
+ *  머리글(가방 N/40)·검수기가 이 값을 「몇 칸까지」로 읽는다. */
+export const BAG_MAX = BAG_COLS * BAG_ROWS;
+/** 이 물건이 차지하는 칸 [w,h] — 진실은 GEAR[k].sz 하나. 모르는 슬롯(옛 이름·오타로 sz 가
+ *  없어도)은 1×1 로 떨어져 안 죽는다. */
+export const sizeOf = (it) => (it && GEAR[it.k] && GEAR[it.k].sz) || [1, 1];
+/** ★ **자리잡기는 여기 하나.** 배열 순서대로 왼쪽 위부터 행 우선(row-major)으로 훑어
+ *  **처음 들어가는 자리**에 놓는다. 순수 함수여야 한다(META 를 안 만진다) — 검수기가 직접
+ *  부르고, 화면도 이 함수 하나를 써서 그린다(자리 셈을 두 곳에 두면 한쪽만 고쳐지는 사고가
+ *  이 리포에 이미 있었다 — dollHtml 주석 참고).
+ *  돌려주는 값: { placed:[{it,i,c,r,w,h}], overflow:[…들어가지 못한 물건], used:<찬 칸 수> } */
+export function bagPack(list) {
+  const occ = new Uint8Array(BAG_COLS * BAG_ROWS);
+  const placed = [], overflow = [];
+  const free = (c, r, w, h) => {
+    if (c + w > BAG_COLS || r + h > BAG_ROWS) return false;
+    for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) if (occ[y * BAG_COLS + x]) return false;
+    return true;
+  };
+  for (let i = 0; i < list.length; i++) {
+    const [w, h] = sizeOf(list[i]);
+    let put = false;
+    for (let r = 0; r <= BAG_ROWS - h && !put; r++)
+      for (let c = 0; c <= BAG_COLS - w && !put; c++)
+        if (free(c, r, w, h)) {
+          for (let y = r; y < r + h; y++) for (let x = c; x < c + w; x++) occ[y * BAG_COLS + x] = 1;
+          placed.push({ it: list[i], i, c, r, w, h }); put = true;
+        }
+    if (!put) overflow.push(list[i]);
+  }
+  let used = 0; for (let i = 0; i < occ.length; i++) used += occ[i];
+  return { placed, overflow, used };
+}
+/** 다 들어가는가 — 「칸 수」가 아니라 「들어가느냐」. */
+export const bagFits = (list) => bagPack(list).overflow.length === 0;
+/** 지금 가방이 **찬 칸 수** — 머리글·로그·툴팁이 「N/40」의 N 으로 쓴다(개수 아님). */
+export const bagUsed = () => bagPack(META.bag).used;
 /** 물건을 녹여 얻는 금. 예전엔 takeDrop 안에 `cost*0.22` 로 박혀 있던 식이다 —
- *  이제 가방(bagPut)도 같은 값으로 녹이므로 **두 곳에 같은 식을 두지 않으려** 여기 모은다. */
+ *  이제 가방(bagTrim)도 같은 값으로 녹이므로 **두 곳에 같은 식을 두지 않으려** 여기 모은다. */
 export const meltGold = (it) => Math.round(GEAR[it.k].cost[it.tier] * 0.22);
 
 /* ══ 합성 ══ 병수님: "중복은 금이 아니라 **재료**로 — 셋을 합치면 한 단계 위(병수님 취향의 합성)".
@@ -1100,21 +1138,19 @@ export function bagFuse() {
  *  이미 돌려주던 `melted` 계약을 **바꾸지 않으려**(②·④ 검수기가 본다) 여기 잠깐 둔다. */
 let lastFused = [];
 
-/** 가방에 넣는다. 12칸을 넘으면 **점수가 제일 낮은 것부터** 금으로 녹인다(넘친 만큼 반복).
- *  방금 넣은 그것이 제일 나쁘면 그 자리에서 녹아 없어질 수도 있다 — 그래서 「가방에 남았나」는
- *  부르는 쪽이 `META.bag.includes(it)` 로 확인한다. 녹은 금은 여기서 바로 META.gold 에 더하고,
- *  **녹인 목록**(로그가 「무엇이 얼마에 녹았는지」를 말할 수 있게)을 돌려준다. */
-export function bagPut(it) {
-  META.bag.push(it);
-  lastFused = bagFuse();                          // ★ 녹이기 전에 합친다 — 중복은 금이 아니라 재료
+/** 자리가 안 나면(bagFits 가 아니면) **점수가 제일 낮은 것부터** 금으로 녹인다(들어갈
+ *  때까지 반복). 유니크는 규칙이 점수로 안 잡혀 건너뛴다 — 가방이 통째로 유니크뿐이라
+ *  녹일 것이 없으면 넘쳐도 둔다(막다른 골목의 break). 녹인 목록을 돌려준다.
+ *  ★ bagPut(주울 때)과 불러오기(옛 세이브가 40칸을 넘겨 열릴 때)가 **같은 한 벌**을 쓴다. */
+export function bagTrim() {
   const melted = [];
-  while (META.bag.length > BAG_MAX) {
-    let lo = -1;                                  // 점수가 제일 낮은 칸을 찾아 녹인다 — 단 유니크는 건너뛴다
+  while (!bagFits(META.bag)) {
+    let lo = -1;
     for (let i = 0; i < META.bag.length; i++) {
-      if (META.bag[i].uid) continue;              // 유니크는 규칙이 점수로 안 잡혀 저절로 녹으면 안 된다
+      if (META.bag[i].uid) continue;
       if (lo < 0 || scoreOf(META.bag[i]) < scoreOf(META.bag[lo])) lo = i;
     }
-    if (lo < 0) break;                            // 가방이 통째로 유니크뿐 — 녹일 것이 없다(넘쳐도 둔다)
+    if (lo < 0) break;
     const [gone] = META.bag.splice(lo, 1);
     const gold = meltGold(gone);
     META.gold += gold;
@@ -1122,6 +1158,19 @@ export function bagPut(it) {
   }
   return melted;
 }
+
+/** 가방에 넣는다. 안 들어가면(bagFits 가 아니면) **점수가 제일 낮은 것부터** 금으로 녹인다.
+ *  방금 넣은 그것이 제일 나쁘면 그 자리에서 녹아 없어질 수도 있다 — 그래서 「가방에 남았나」는
+ *  부르는 쪽이 `META.bag.includes(it)` 로 확인한다. 녹은 금은 bagTrim 이 바로 META.gold 에 더하고,
+ *  **녹인 목록**(로그가 「무엇이 얼마에 녹았는지」를 말할 수 있게)을 돌려준다. */
+export function bagPut(it) {
+  META.bag.push(it);
+  lastFused = bagFuse();                          // ★ 녹이기 전에 합친다 — 중복은 금이 아니라 재료
+  return bagTrim();
+}
+/* ★ 옛 세이브가 40칸을 넘겨 열리면(큰 물건 여럿) 규칙 한 벌(bagTrim)로 자리를 낸다 —
+   12개 이하 옛 세이브는 대개 그대로 들어가고, 넘치면 주울 때와 같은 규칙으로 녹는다. */
+bagTrim();
 
 /** 주웠을 때 무슨 일이 일어나는가. 점수가 높으면 **그 자리에서 갈아 끼우고**(방치형이므로
  *  고르라고 세우지 않는다) 벗은 것은 가방으로, 아니면 곧장 가방으로 — 빈손으로 돌려보내지 않는다.
