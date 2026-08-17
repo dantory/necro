@@ -107,11 +107,20 @@ for (const seed of SEEDS) {
 }
 
 /* ── 판정 ──
-   ★ 실측: 상한(140) 포화는 before 에서 이미 ~0% 다 — 시체 폭발의 gulp(쌓인 만큼 크게
-     먹음)이 앞선 커밋에서 「140 붙박이」를 이미 풀어 놨다(평균 보유 ~27). 그래서 판정을
-     **한 단계 무른 「≥50% 상한」 밴드**(hoard, 진짜로 쌓이는 시간)로 옮긴다. 그것마저
-     원래 낮으면(<3%) 쌓임 자체가 없다는 뜻이라 회귀만 없으면 통과로 본다.
-   조건: hoard 밴드 절반 아래(또는 원래 <3%) + 최고층 회귀 없음(-8% 안) + 소비처 셋이
+   ★★ (08-17 16:1x) **판정을 「≥50% 밴드」에서 「상한 포화」로 되돌린다 — 밴드가 자가
+     아니었다.** 12분·씨앗 1/3/9/13 을 재니 b40(≥56)·b50(≥70)이 네 씨앗 **전부** before 와
+     after 에서 **소수점 16 자리까지 똑같았다**(0.4195833333333333 …). b70(≥98)도 넷 중 둘은
+     똑같고 나머지 둘은 **14400 표본 중 한 톨** 차다(0.3536→0.3535). 그 사이 폭발 소비는
+     3360→3888 로 528 구나 달랐는데도다. 곧 밸브가 만든 차이는 **거의 전부 98 위**에
+     있고, 밴드 셋은 「못이 처음 그 선을 넘은 시각」만 재는 **상수**다.
+     까닭은 자리다 — 소비처 셋은 `main.js` 에서 `S.corpses >= CORPSE_MAX * 0.85`(=119)
+     에서만 열리고 한 입이 4·8·16 이다. **119 에서 여는 밸브로 70 선을 못 내린다.**
+     문턱(119)과 자(70)가 다른 자리를 보면 판정이 영영 안 움직인다
+     ([[floor-far-from-threshold]] · [[threshold-and-ruler-must-match]]).
+   → 그래서 **밸브가 실제로 다스리는 띠 = 상한(140) 포화**로 잰다. 30분 판에서 이게 ~0%
+     였던 것은 그때 얘기고(그래서 밴드로 옮겼던 것), 12분 판에서는 19.6~24.4% 로 넉넉히
+     움직인다. 원래부터 낮으면(<3%) 쌓임이 없다는 뜻이라 회귀만 없으면 통과로 본다.
+   조건: 상한 포화 절반 아래(또는 원래 <3%) + 최고층 회귀 없음(-8% 안) + 소비처 셋이
      실제로 돎(각 use>0 이 한 씨앗 이상) + 안 말라 버림 + 오류 0. */
 const MAXC = 140;
 const bHoard = rows.reduce((a, r) => a + r.before.b50, 0) / rows.length;
@@ -120,16 +129,16 @@ const bSat = rows.reduce((a, r) => a + r.before.sat, 0) / rows.length;
 const aSat = rows.reduce((a, r) => a + r.after.sat, 0) / rows.length;
 const aAvg = rows.reduce((a, r) => a + r.after.avg, 0) / rows.length;
 const regressed = rows.filter(r => r.after.최고 < r.before.최고 * 0.92);
-const halved = aHoard <= bHoard / 2 || bHoard < 0.03;
+const halved = aSat <= bSat / 2 || bSat < 0.03;
 const dried = aAvg < MAXC * 0.10;
 const fired = ["burn", "wall", "offer"].filter(k => rows.some(r => (r.after.use[k] | 0) > 0));
 const pass = halved && regressed.length === 0 && !dried && fired.length === 3 && !allErrs.length;
-console.log(`\n상한(140) 포화  before ${(bSat * 100).toFixed(1)}% → after ${(aSat * 100).toFixed(1)}%  (이미 ~0 — gulp 가 앞서 풀었다)`);
-console.log(`쌓임(≥50%) 밴드  before ${(bHoard * 100).toFixed(2)}% → after ${(aHoard * 100).toFixed(2)}%  (절반선 ${(bHoard * 50).toFixed(2)}%)`);
+console.log(`\n상한(140) 포화  before ${(bSat * 100).toFixed(1)}% → after ${(aSat * 100).toFixed(1)}%  (절반선 ${(bSat * 50).toFixed(1)}% — 이것이 판정선)`);
+console.log(`쌓임(≥50%) 밴드  before ${(bHoard * 100).toFixed(2)}% → after ${(aHoard * 100).toFixed(2)}%  (참고만 — 119 밸브가 70 선을 못 내려 상수다)`);
 console.log(`after 평균 보유 ${aAvg.toFixed(1)} (상한 ${MAXC}의 ${(aAvg / MAXC * 100).toFixed(0)}%) · 소비처 실제 돎: ${fired.join(",") || "없음"}`);
 if (regressed.length) console.log(`최고층 회귀: ${regressed.map(r => `씨${r.seed} ${r.before.최고}→${r.after.최고}`).join(" · ")}`);
 console.log(`판정: ${pass ? "PASS" : "FAIL"}` +
-            ` (쌓임 절반 ${halved ? "O" : "X"} · 회귀없음 ${regressed.length === 0 ? "O" : "X"} · 셋다돎 ${fired.length === 3 ? "O" : "X"} · 안마름 ${!dried ? "O" : "X"} · 오류 ${allErrs.length})`);
+            ` (포화 절반 ${halved ? "O" : "X"} · 회귀없음 ${regressed.length === 0 ? "O" : "X"} · 셋다돎 ${fired.length === 3 ? "O" : "X"} · 안마름 ${!dried ? "O" : "X"} · 오류 ${allErrs.length})`);
 fs.writeFileSync(OUT, JSON.stringify({ MIN, SEEDS, rows, bHoard, aHoard, bSat, aSat, aAvg, fired, pass }, null, 1));
 console.log("errors:", allErrs.slice(0, 3));
 bws.close();
