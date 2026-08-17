@@ -138,8 +138,24 @@
     <div class="wSub">「지금 이 몸이 무엇을 할 수 있는가.」</div>
     <div class="wScroll" id="statBody"></div>
     <div class="winFoot"><span class="purse">가진 금 <b id="statGold">0</b></span>
+      <!-- 초기화 — **여기 둔다.** 「지금 이 몸이 무엇을 할 수 있는가」를 보는 창이,
+           그 몸을 지우는 자리이기도 하다. 늘 뜨지만 제일 낮은 톤(.faint)이라
+           눈이 먼저 가지 않는다 — 되돌릴 수 없는 단추는 찾을 수는 있되 손에
+           걸리지는 않아야 한다. -->
+      <button class="btn ghost faint" data-go="wipe" title="처음부터 다시 — 저장을 통째로 지운다">초기화</button>
       <button class="btn ghost" data-go="bag">가방 ▸</button>
       <button class="btn" data-close>나가기</button></div>
+  </div></div>
+
+  <!-- 초기화 — 환생과 **다른 일**이라 그 차이를 창에서 말한다(환생은 지고 가고, 이것은 안 지고 간다).
+       되돌릴 수 없으므로 확인을 받는다 — 그만두기가 기본 자리(왼쪽·먼저)다. -->
+  <div class="win" id="winWipe"><div class="frame">
+    <h2>초 기 화</h2>
+    <div class="wSub">「아무것도 없던 자리로 — 지고 갈 것도 없이.」</div>
+    <div id="wipeBody"></div>
+    <div class="winFoot">
+      <button class="btn" data-close>그만두기</button>
+      <button class="btn ghost danger" data-wipe>모두 지운다</button></div>
   </div></div>
 
   <!-- ══ 가방 ══ 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. -->

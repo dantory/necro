@@ -1083,6 +1083,15 @@ body.in-town #hTactic{ display:inline-block; }
    어느 것이 이 창을 닫는 단추인지 눈이 한 번 더 고른다. */
 .btn.ghost{ background:linear-gradient(#1d1409,#140d07); border-color:#4e4029; color:#9d8f74 }
 .btn.ghost:hover{ border-color:var(--gold); color:#d8c191 }
+/* ★ 되돌릴 수 없는 단추는 **찾을 수는 있되 손에 걸리지는 않아야** 한다.
+   .faint 는 평소엔 거의 바탕에 잠겨 있다가, 손을 얹으면 그제야 제 색을 낸다 —
+   「초기화」가 「가방 ▸」과 같은 세기로 서 있으면 오누름이 시간 문제다. */
+.btn.ghost.faint{ opacity:.42; border-color:#3a3227; color:#7b715f }
+.btn.ghost.faint:hover{ opacity:1; border-color:#a05a44; color:#e0a892 }
+/* 확인 창의 실행 단추 — **붉다.** 이 창에서 기본 자리(왼쪽·먼저)는 「그만두기」가 갖고,
+   지우는 쪽은 색으로만 눈에 든다. 두 단추가 같은 옷이면 손이 먼저 움직인다. */
+.btn.ghost.danger{ border-color:#7a3226; color:#d08a76 }
+.btn.ghost.danger:hover{ border-color:#c8503a; color:#ffb9a2; background:linear-gradient(#2a1109,#1c0b06) }
 .winFoot{ gap:8px }
 
 /* ★ 능력치·가방의 발에는 **단추 둘**(형제·나가기)이 선다. 거기 「가진 금 8,400」까지

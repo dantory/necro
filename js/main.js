@@ -1,5 +1,5 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
- diveMax, diveAt, DIVE_STEP, startFloor, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1660,7 +1660,7 @@ export const MODE = { at: "town" };
 
 /* ══ 마을의 창 ══ **한 줄에 한 가지 결정**만 담는다. 값이 여럿이면 표가 되고,
    표는 방치형이 아니라 숙제가 된다. */
-const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine", "winTactic", "winDive"];
+const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "winReborn", "winOffline", "winDoctrine", "winTactic", "winDive", "winWipe"];
 /* 창이 뜨면 **뒤의 로그를 죽인다** — 정산 창이 떠 있는데 그 밖에 「전멸 · 20층에서
    쓰러짐」이 붉게 남아 시선이 갈렸다(병수님 2026-08-12). 창은 지금 읽을 것 하나만
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
@@ -2136,6 +2136,25 @@ function drawReborn() {
        유해와 최고 기록만 남는다 — <b>되돌릴 수 없다.</b></div>`;
 }
 
+/** ══ 초기화 확인 ══ (병수님 2026-08-17 「초기화 기능 좀 만들어줘」)
+ *  **환생과 무엇이 다른지를 이 자리에서 말한다.** 둘 다 「처음으로」인데 하나는 지고 가고
+ *  하나는 안 지고 간다 — 그 차이를 모르고 누르면 유해 수십 구가 소리 없이 사라진다.
+ *  그래서 지금 **지워질 것을 수로** 적는다(빈 판에서 눌러도 0 이 뜨는 게 낫다 —
+ *  「무엇이 사라지는지」를 늘 같은 자리에서 읽게 된다). */
+function drawWipe() {
+  const rel = META.relics | 0, rb = META.rebirths | 0;
+  const done = QUESTS.filter((q) => questDone(q)).length;
+  $("wipeBody").innerHTML =
+    `<div class="tip">
+       <div class="tipStat">가장 깊이 <b>${META.deepest}층</b> <span class="dim">(최고 ${Math.max(META.best | 0, META.deepest | 0)}층)</span></div>
+       <div class="tipStat">레벨 <b>Lv.${META.lv}</b> · 금 <b>${num(META.gold)}</b> · 가방 <b>${META.bag.length}</b></div>
+       <div class="tipStat">유해 <b class="t3">${rel}구</b> · 회차 <b>${rb}회</b> · 일지 <b>${done}/${QUESTS.length}</b></div>
+     </div>
+     <div class="rebornWarn">환생은 <b>유해·회차·일지·최고 기록을 지고</b> 다시 걷는다.
+       초기화는 <b>그것까지 전부</b> 지운다 — 아무것도 없던 자리로 돌아간다.
+       <b>되돌릴 수 없다.</b></div>`;
+}
+
 /* ══ 오프라인 정산 패널 ② ══ 껐다 켠 사이의 벌이를 「그동안 N분 · 금 X · 시체 Y」로 보여
    준다. 상한(8시간)에 걸렸으면 그것도 알린다. 정산·환생과 같은 돌(winFoot·tip). */
 function drawOffline(off) {
@@ -2180,6 +2199,13 @@ document.addEventListener("click", (e) => {
     META.dive = +t.getAttribute("data-dive") | 0; saveMeta(); drawDive(); return;
   }
   if (t.hasAttribute && t.hasAttribute("data-dive-go")) { closeAll(); toDungeon(); return; }
+  /* 초기화 — **저장을 지우고 판을 새로 연다.** 값을 하나씩 되돌리지 않는 까닭은
+     core.js wipeSave 주석에 있다(새 필드를 더할 때마다 여기를 같이 고쳐야 하고,
+     한 번 빠뜨리면 그 값만 살아남는다). 새로고침이 가장 확실한 「처음」이다. */
+  if (t.hasAttribute && t.hasAttribute("data-wipe")) {
+    if (wipeSave()) location.reload();
+    return;
+  }
   if (t.hasAttribute && t.hasAttribute("data-reborn")) {
     if (rebirth()) { closeAll(); syncReborn(); belt(); hud(); markSp(); }
     return;
@@ -2248,7 +2274,7 @@ document.addEventListener("click", (e) => {
 /* 검수용 — 자가 마을 건물 좌표를 못 맞춰서 창을 못 열었다. 여는 길을 하나 내준다. */
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
-  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine", tactic:"winTactic" }[which];
+  const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine", tactic:"winTactic", wipe:"winWipe" }[which];
   if (idOf && idOf !== "winEnd" && $(idOf).classList.contains("on")) { closeAll(); return; }
   /* 창 하나를 열면 나머지는 **먼저 닫는다**(closeAll) — 스킬 트리·상태창과 같은 결.
      상인/대장간만 손으로 토글하다 상태창을 못 닫아 두 장이 겹쳤다(closeAll 에 winStat 를
@@ -2265,6 +2291,7 @@ window.__openWin = (which) => {
      한다(줄바꿈은 값 길이에 달렸으므로 판을 한 번 죽여 나온 한 벌로는 못 잰다). */
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
   if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
+  if (which === "wipe")  { closeAll(); drawWipe();   win("winWipe",  true); }
   if (which === "doctrine"){ closeAll(); drawDoctrine(); win("winDoctrine", true); }
   if (which === "tactic")  { closeAll(); drawTactic();   win("winTactic", true); }
   if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
