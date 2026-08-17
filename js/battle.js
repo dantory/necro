@@ -3,7 +3,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
-         armyCapEff, CAP_MERGE_OF, MERGE_MAX, RAISE_BATCH_OF, raiseHasteMul,
+         armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          GATELORDS, gatelordFor, gatelordIdx,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -845,6 +845,36 @@ function weakestMergeable(kind) {
     if (!best || u.hpMax < best.hpMax) best = u;
   }
   return best;
+}
+
+/** ㉧ **자리를 내준다**(__SLOT_YIELD · 기본 0 = 꺼짐). 편성이 `id` 를 더 원하는데 군세가
+ *  꽉 찼으면, `from` 에 적은 종 중 **제일 약한 하나를 물러나게 해** 그 칸을 비운다.
+ *  ★ **세울 수 있는지 먼저 본다**(해금·재사용·마나·시체) — 안 그러면 해골만 잃고 그 자리가
+ *    다른 종에게 도로 먹힌다. 보는 식은 castOnce 와 **같은 것**을 쓴다(corpseNeedOf·mpCost).
+ *    자리를 비우면 시체 값(SUMMON_COST_STEP)이 되레 내려가므로, 여기 통과하면 소환도 통과한다.
+ *  ★ 제일 약한 것 = **덜 키운 것 먼저, 그 다음 hpMax 최소**(㉢ 머지로 키운 몸을 버리면
+ *    쌓은 것을 지우는 셈이다). 지배한 놈(own)은 상한에 안 세므로 손대지 않는다.
+ *  ★ 물러난 몸은 **시체를 안 남긴다** — 남기면 그 시체로 다음 소환을 하는 셈이라 「차례」가
+ *    아니라 「자원」을 잰 것이 된다(core.js ㉧ 주석).
+ *  ★ 읽기만 할 때는 난수를 안 쓴다 — 꺼져 있으면 첫 줄에서 false 라 A/B 가 비트까지 같다. */
+export function slotYield(id, from) {
+  if (SLOT_YIELD_OF() <= 0) return false;
+  if (armyN() < armyCapEff()) return false;            // 자리가 있으면 물릴 까닭이 없다
+  const sk = SKILLS.find(s => s.id === id);
+  if (!sk) return false;                                // 미해금 — 자리를 내줘도 못 세운다
+  if ((S.cd[id] || 0) > 0 || S.mp < mpCost(sk) || S.corpses < corpseNeedOf(sk, false)) return false;
+  let best = null;
+  const worth = (u) => (u.mg | 0) * 1e9 + u.hpMax;
+  for (const u of S.minions) {
+    if (u.own || !from.includes(u.kind)) continue;
+    if (!best || worth(u) < worth(best)) best = u;
+  }
+  if (!best) return false;
+  const i = S.minions.indexOf(best);
+  if (i < 0) return false;
+  S.minions.splice(i, 1);
+  say(`<b>${MINIONS[best.kind].n}</b> 자리를 물림`);
+  return true;
 }
 
 /** ㉣ 한 손짓에 여럿 — **기다림을 자원으로 바꾼다**(__RAISE_BATCH · 기본 1 = 꺼짐).

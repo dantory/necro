@@ -58,6 +58,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}
    ${process.env.LH_CAPOVER != null ? `globalThis.__CAP_OVER = ${+process.env.LH_CAPOVER};` : ""}
    ${process.env.LH_CAPMERGE != null ? `globalThis.__CAP_MERGE = ${+process.env.LH_CAPMERGE};` : ""}
+   ${process.env.LH_SLOTYIELD != null ? `globalThis.__SLOT_YIELD = ${+process.env.LH_SLOTYIELD};` : ""}
    ${process.env.LH_RAISEBATCH != null ? `globalThis.__RAISE_BATCH = ${+process.env.LH_RAISEBATCH};` : ""}
    ${process.env.LH_BURNMANA != null ? `globalThis.__BURN_MANA = ${+process.env.LH_BURNMANA};` : ""}
    ${process.env.LH_SPILL != null ? `globalThis.__RAISE_SPILL = ${+process.env.LH_SPILL};` : ""}

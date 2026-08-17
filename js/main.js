@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
-import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -1587,6 +1587,12 @@ function auto() {
      그 식과 정확히 같은 산수라, 편성을 안 건드린 판은 손대기 전과 한 톨도 안 다르다.
      채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 아래 그대로 둔다. */
   const { golem: wantGolem, ghoul: wantGhoul } = doctrineWants(cap);
+  /* ㉧ **골렘이 원하는 만큼 안 서면 제일 약한 해골에게 자리를 물린다**(__SLOT_YIELD · 기본 꺼짐).
+     자가 답한 자리다(ab_golem.sh 08-17 19:0x): 나무를 당겨 해금을 85초 앞당겼는데 **선 기수는
+     1.2 그대로**였고, 미해금에서 뺀 15% 를 **꽉참이 그대로 받아먹었다**(33→40%). 열렸을 땐
+     이미 해골이 칸을 다 차지한 뒤라, 고칠 것은 값도 해금 시각도 아니라 **채우는 차례**다.
+     꺼져 있으면 slotYield 가 첫 줄에서 false 라 아래 사슬이 예전과 비트까지 같다. */
+  if (nGolem < wantGolem) slotYield("golem", ["skel"]);
   /* ㉡㉢ 상한 위(over)·꽉 참(merge) 이 켜지면 상한에 닿아도 소환을 시도한다 — cast() 가
      초과 세우기/머지를 스스로 판단한다(못 하면 side-effect 없이 false 라 이 사슬이 안전).
      둘 다 꺼졌으면 armyCapEff()==cap · CAP_MERGE_OF()≤1 이라 조건이 예전 `armyN() < cap` 과 같다. */

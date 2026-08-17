@@ -1399,6 +1399,22 @@ export const CAP_MERGE_OF = () => (typeof globalThis !== "undefined" && globalTh
   ? +globalThis.__CAP_MERGE : CAP_MERGE_DEF;
 export const MERGE_MAX = 4;
 
+/* ══ 자리를 내준다 ══ (㉧ __SLOT_YIELD · 기본 0 = 꺼짐) 「골렘이 왜 안 서나」를 잰 자
+   (tools/ab_golem.sh)가 남긴 마지막 벽이다 — 나무를 Lv.16 → Lv.10 으로 당겨 해금을 85초
+   앞당겼더니 **미해금에서 뺀 15% 를 꽉참이 고스란히 받아먹었다**(33→40%). 즉 벽은 하나가
+   아니라 **사슬**이고, 남은 고리는 「열렸을 땐 이미 해골이 칸을 다 차지했다」는 것이다.
+   그래서 값이 아니라 **채우는 차례**를 고친다: 편성이 골렘을 더 원하는데 자리가 없으면
+   **제일 약한 해골 하나를 물러나게 해** 그 칸을 내준다(㉢ merge 는 같은 종만 키우므로
+   골렘이 0 기일 때는 아무 일도 못 한다 — 이 팔이 그 빈 자리를 연다).
+   ★ 물러난 해골은 **시체를 안 남긴다** — 남기면 그 시체로 골렘을 세우는 셈이라
+     「차례를 고쳤다」가 아니라 「자원을 얹었다」가 된다(재는 것이 흐려진다).
+   ★ 0 = 손 안 댐 · 1 = 켬. 켜도 **몇 번이고 물리지는 않는다** — 부족한 기수(want − 선 것)와
+     골렘 재사용(6초)이 스스로 상한이다. 골렘이 다 서면 그 자리에서 멈춘다.
+   battle.js slotYield() 가 쓴다 — 검수기가 globalThis.__SLOT_YIELD 로 켠다. */
+export const SLOT_YIELD_DEF = 0;
+export const SLOT_YIELD_OF = () => (typeof globalThis !== "undefined" && globalThis.__SLOT_YIELD != null)
+  ? +globalThis.__SLOT_YIELD : SLOT_YIELD_DEF;
+
 /* ══ 기다림 대신 자원으로 ══ (㉣ __RAISE_BATCH) 「재사용」이 막는 시간을 **값으로 깎지 않고**
    한 손짓에 여럿을 세워 없앤다 — 재사용 초는 한 톨도 안 건드리고, 이어 세우는 몸마다
    시체·마나를 **평소대로 그대로** 낸다. 그래서 벽이 「기다림」에서 **「자원」**으로 옮겨
