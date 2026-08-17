@@ -28,8 +28,8 @@
          작은 그림도 붙여 봤는데 13px 어두운 판 위에서 안 보여 뺐다 —
          안 보이는 장식은 없는 것만 못하다.
          (인벤토리는 따로 없다. 능력치 창 안에 낀 것 3칸 + 가방 12칸으로 들어 있다.) -->
-    <span class="who"><button id="hName" class="hBtn" title="능력치 — 지금 이 몸의 수치">능력치</button>
-      <button id="hLv" class="hBtn lvBtn" title="스킬 트리">스킬 <span id="hLvT">Lv.1</span><i id="spDot"></i></button>
+    <span class="who"><button id="hName" class="hBtn" title="능력치 — 지금 이 몸의 수치 (C)">능력치</button>
+      <button id="hLv" class="hBtn lvBtn" title="스킬 트리 (T)">스킬 <span id="hLvT">Lv.1</span><i id="spDot"></i></button>
       <!-- ★★ 금은 **단추가 아니라 읽는 값**인데, 그동안 홀로 맨 글자였다 —
            앞의 「· 」가 유일한 칸막이였고 스킬 단추와의 틈이 5.5px 뿐이었다.
            마을에서는 그 자리 뒤가 우물·지붕이라 「금」의 왼쪽이 먹혀, 병수님 눈에는
@@ -38,7 +38,7 @@
            제 바닥을 달고 다니고, 칸막이 노릇도 판이 대신한다(「· 」를 뺀 까닭).
            (예전 주석이 말하던 「360px 에서 낱말만 접는다」는 사라졌다 —
             모바일을 걷어내며 그 자를 없앴고, `.gw` 규칙은 애초에 없었다.) -->
-      <button id="hBag" class="hBtn" title="가방 — 낀 것과 주운 것">가방</button>
+      <button id="hBag" class="hBtn" title="가방 — 낀 것과 주운 것 (I)">가방</button>
       <span class="coin"><span class="gw">금</span><span id="hGold">0</span></span></span>
   </div>
 
@@ -51,10 +51,10 @@
   <button id="hReborn" class="hBtn" title="환생 — 처음부터 다시, 대신 영구 배수(유해)">환생 ⟳</button>
   <!-- 편성 — **마을에서 늘** 뜨는 단추(왼쪽 위 하늘). 환생이 오른쪽인 것과 짝으로 왼쪽에 둔다.
        CSS 의 body.in-town 만으로 켜고 끈다(늘 열려 있어 syncReborn 같은 조건이 없다). -->
-  <button id="hDoctrine" class="hBtn" title="편성 — 어떤 군대를 세울지 고른다">편성 ⚔</button>
+  <button id="hDoctrine" class="hBtn" title="편성 — 어떤 군대를 세울지 고른다 (O)">편성 ⚔</button>
   <!-- 운용 — 편성과 짝. **마을에서 늘** 뜬다(편성 바로 아래). 「무엇을 세울지」(편성)와
        「주술을 언제 쓸지」(운용)는 방치형에서 사람이 쥔 두 손잡이라 나란히 둔다. -->
-  <button id="hTactic" class="hBtn" title="운용 — 폭발·저주를 언제 쓸지 고른다">운용 ✹</button>
+  <button id="hTactic" class="hBtn" title="운용 — 폭발·저주를 언제 쓸지 고른다 (P)">운용 ✹</button>
 
   <div id="log"></div>
 

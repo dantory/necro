@@ -2246,8 +2246,36 @@ document.addEventListener("click", (e) => {
   if (t.closest && (t.closest(".frame") || t.closest(".hBtn"))) return;   // 창 안 · 여는 단추는 제 일을
   closeAll(); e.stopPropagation(); e.preventDefault();
 }, true);
-/* 키보드가 있는 화면에서는 Esc 도 같은 뜻이다(PC 에서 창을 닫으려 구석을 찾아다녔다). */
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && softWins().length) closeAll(); });
+/* ══ 단축키 ══ (병수님 2026-08-17 21:06 「그리고 단축키도 있어야함」)
+   ──────────────────────────────────────────────────────────────
+   PC 전용 게임인데 키는 `Esc` 하나뿐이었다 — 창을 열려면 매번 손이 아래 판까지 내려간다.
+   ★★ **벨트 칸에는 이미 1~8 이 «적혀» 있었다**(belt() 의 `<span class="k">`). 적어 놓고
+     안 먹으면 그건 장식이 아니라 **거짓말**이다 — 눌러 보고서야 안 도는 걸 안다.
+     그래서 숫자키부터 진짜로 잇는다.
+   자리는 D2 를 따른다: C 캐릭터 · I 인벤토리 · T 스킬트리 · Esc 닫기.
+   우리 것 둘도 마을에서만: O 편성 · P 운용.
+   ★ **글쇠는 화면에도 적는다** — 안 적힌 단축키는 없는 것과 같다(단추 title 에 넣는다).
+   ★ 조합키(⌘·Ctrl·Alt)가 눌린 것은 **건너뛴다** — ⌘R(새로고침)·⌘I(검사)를 뺏으면 안 된다.
+     한글 자판이어도 `e.code`(KeyC 등)는 그대로라 그걸 본다(`e.key` 는 「ㅊ」가 된다). */
+const HOTKEY = {
+  KeyC: () => window.__openWin("stat"),
+  KeyA: () => window.__openWin("stat"),      // 「능력치」의 ㄱ자 — C 와 같은 자리
+  KeyI: () => window.__openWin("bag"),
+  KeyB: () => window.__openWin("bag"),
+  KeyT: () => window.__openWin("tree"),
+  KeyS: () => window.__openWin("tree"),
+  KeyO: () => { if (MODE.at === "town") window.__openWin("doctrine"); },
+  KeyP: () => { if (MODE.at === "town") window.__openWin("tactic"); },
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if (softWins().length) closeAll(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;      // 브라우저 몫은 브라우저에게
+  /* 숫자 1~8 = 벨트 — **칸에 적힌 그 수**다. 쓸 수 있는 스킬만 돈다(cast 가 판단한다). */
+  const n = e.code.startsWith("Digit") ? +e.code.slice(5) : 0;
+  if (n >= 1 && n <= SKILLS.length) { cast(SKILLS[n - 1].id); e.preventDefault(); return; }
+  const fn = HOTKEY[e.code];
+  if (fn) { fn(); e.preventDefault(); }
+});
 
 /* 누르는 것 하나로 셋을 다 받는다 — 창 안의 단추와 나가기. */
 document.addEventListener("click", (e) => {
