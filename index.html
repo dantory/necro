@@ -142,7 +142,8 @@
     <h2>가 방</h2>
     <div class="wSub">「낀 것과 주운 것. 고르면 뜯어본다.」</div>
     <div class="wScroll" id="bagBody"></div>
-    <div class="tip" id="bagTip"></div>
+    <!-- ⑦ 툴팁은 이제 **떠 있는 검은 상자**(#ftip, body 자식)다 — 붙박이 한 칸(#bagTip)은 뺐다.
+         그 자리(높이)는 가방 격자가 쓴다. D2 는 칸 «옆»에 뜨지 창 아래에 붙지 않는다. -->
     <div class="winFoot"><span class="purse">가진 금 <b id="bagGold">0</b></span>
       <button class="btn ghost" data-go="stat">◂ 능력치</button>
       <button class="btn" data-close>나가기</button></div>
@@ -254,6 +255,10 @@
       <div class="lTxt" id="lTxt">뼈를 맞추는 중…</div>
     </div>
   </div>
+
+  <!-- ⑦ 떠 있는 툴팁 — 칸에 올리거나 누르면 그 칸 «옆»에 뜬다(js/main.js ftip*).
+       **창 안이 아니라 body 자식 + position:fixed** 로 띄운다 — 창 안에 두면 overflow:auto 에 잘린다. -->
+  <div class="ftip" id="ftip"></div>
 
   <script type="module" src="js/main.js"></script>
 </body>

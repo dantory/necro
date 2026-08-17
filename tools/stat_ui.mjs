@@ -82,7 +82,7 @@ const R = await ev(`(function(){
   }
   // 툴팁 이름 색도 등급을 따르는가 — 낀 wand(t1) 를 골라 본다
   document.querySelector('[data-spick="wand"]').click();
-  const tipName = document.querySelector("#bagTip .tipName");
+  const tipName = document.querySelector("#ftip .tipName");
   const tipCls = tipName && tipName.classList.contains("t1");
   const tipColor = tipName && getComputedStyle(tipName).color === WANT.t1;
 

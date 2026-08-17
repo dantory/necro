@@ -362,8 +362,18 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .cell i.up-dmg { background-image:url("assets/ui/tree/dark.png") }
 .cell i.up-army{ background-image:url("assets/ui/tree/legion.png") }
 
-/* ── 툴팁 ── 검은 판에 글만. **테두리는 얇게** — D2 툴팁은 장식이 없다 */
-.tip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
+/* ── 툴팁 ── 검은 판에 글만. **테두리는 얇게** — D2 툴팁은 장식이 없다.
+   ⑦ 떠 있는 상자(.ftip)도 **같은 검은 판·같은 테**를 쓴다 — 색을 두 곳에 적으면 갈라진다. */
+.tip, .ftip{background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
+/* ⑦ 칸 «옆»에 뜨는 상자 — 창 안에 두면 overflow:auto 에 잘려 body 자식으로 빼 fixed 로 띄운다
+   (자리잡기는 main.js ftipPlace 하나가 한다). 올려 볼 때는 통과, 눌러 붙박으면(.pin) 「끼기」를 받는다. */
+.ftip{position:fixed;left:0;top:0;z-index:50;display:none;
+  max-width:280px;max-height:calc(100vh - 16px);overflow:auto;pointer-events:none;
+  /* 창 안 .tip 은 어두운 판 위라 85% 로도 읽히지만, 떠 있는 상자는 **빛나는 물건 칸 위**에
+     떠서 뒤의 등급 숫자·테가 글자를 뚫고 올라온다. 여기서만 완전히 막고 그림자로 띄운다. */
+  background:#000;box-shadow:inset 0 0 0 1px #3e3324, 0 6px 18px #000000b3}
+.ftip.on{display:block}
+.ftip.pin{pointer-events:auto}
 .tipName{font-size:18px;margin-bottom:2px}
 .tipName .lv{color:#8a7c60}
 .tipKind{color:#6b5f4e;margin-bottom:6px;word-break:keep-all}
@@ -770,9 +780,9 @@ body.in-town #stage{cursor:pointer}
 
 /* ══ 설명 ══ 세 줄이 **서로 다른 일**을 한다: 무엇인가 · 조건 · 효과.
    전에는 셋이 같은 크기라 눈이 어디부터 볼지 몰랐다. */
-.tip .tipName{font-size:19px}
-.tip .tipKind{font-size:12px}
-.tip .tipStat{font-size:15px;line-height:1.45;color:#b7a88c}
+.tip .tipName, .ftip .tipName{font-size:19px}
+.tip .tipKind, .ftip .tipKind{font-size:12px}
+.tip .tipStat, .ftip .tipStat{font-size:15px;line-height:1.45;color:#b7a88c}
 
 /* ══ 위쪽 띠의 **단추 둘** ══ 능력치(이름)와 스킬 트리(레벨).
    ★★ 예전엔 그냥 글자였다. 입구가 있어도 **눌러야 하는 줄 알 길이 없으면 없는 것과
@@ -1080,7 +1090,7 @@ body.in-town #hTactic{ display:inline-block; }
 }
 .win h2{ font-size:32px; letter-spacing:6px }
 .win .wSub{ font-size:16px }
-.tip{ padding:14px 18px; font-size:16px }
+.tip, .ftip{ padding:14px 18px; font-size:16px }
 .winFoot{ font-size:17px }
 .btn{ font-size:17px; padding:7px 18px }
 
@@ -1132,9 +1142,8 @@ body.in-town #hTactic{ display:inline-block; }
   opacity:0; transition:opacity .16s;
 }
 .wScroll.more::after{ opacity:1 }
-/* 가방의 설명 칸은 **안 구른다** — 발 바로 위에 붙박이로 선다(트리와 같은 결).
-   .win .frame > .tip 이 flex:1 로 자라게 돼 있어서 그대로 두면 설명이 화면을 다 먹는다. */
-#winBag .frame > .tip{ flex:0 0 auto; max-height:40%; overflow-y:auto }
+/* 가방의 설명은 이제 **떠 있는 상자**(⑦ · #ftip)라 창 안에 붙박이 .tip 이 없다 —
+   예전의 `#winBag .frame > .tip` 규칙은 그 칸과 함께 뺐다. */
 
 /* 창 발의 형제 단추(가방 ▸ / ◂ 능력치) — 「나가기」보다 한 톤 낮게. 같은 세기로 두면
    어느 것이 이 창을 닫는 단추인지 눈이 한 번 더 고른다. */

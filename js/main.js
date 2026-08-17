@@ -1630,8 +1630,12 @@ const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "
    남겨야 창이다. 어느 창이든 하나라도 열려 있으면 끈다(hud.css 의 body.winopen). */
 /* ★ 열 때 **다시 잰다** — 그리는 것(drawStat/drawBag)이 창을 열기 **전에** 돌아서,
    그 자리에서는 아직 숨은 칸이라 clientHeight 가 0 이다(넘침 판정이 못 선다). */
+/* ⑦ 떠 있는 툴팁(#ftip)이 붙박인 칸 · 지금 마우스가 올라와 있는 칸. win() 이 닫힐 때
+   상자를 거두므로 여기(win 위)서 미리 선언해 둔다(안 그러면 참조가 앞서 터진다). */
+let ftipPin = null, ftipHover = null;
 const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
-  if (on) { fitDoll(); for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); } };
+  if (on) { fitDoll(); for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); }
+  else if (id === "winBag" || id === "winStat") ftipClose(); };   // 닫으면 떠 있는 상자도 거둔다
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
 /* ★ `charOpen`(능력치+가방 한 벌)도 여기서 걷는다 — 창만 닫고 표식을 남기면 다음에
@@ -1905,22 +1909,25 @@ const gearCmpHtml = (bag) => {
 };
 
 /** 고른 것의 옵션 — 상점 툴팁과 **같은 모양**(tipName 색=등급 · tipKind · tipStat · tipAf).
- *  가방 것이면 「지금 낀 것과의 차이」 + 「끼기」. 낀 것을 고르면 그대로 보여 준다. */
-const statTipHtml = () => {
-  if (!statSel) return `<div class="tipKind">칸을 고르면 뜯어본다 · 가방 것은 「끼기」로 낀다</div>`;
-  const it = statSel.src === "bag" ? META.bag[statSel.i] : equipped(statSel.k);
+ *  가방 것이면 「지금 낀 것과의 차이」 + 「끼기」. 낀 것을 고르면 그대로 보여 준다.
+ *  ★ ⑦ 떠 있는 툴팁이 이 **하나**를 쓴다 — 새 생성기를 또 만들지 않는다(같은 식이 두 곳이면
+ *    갈라진다). `sel` 은 고른 칸(기본은 statSel), `pinned` 은 「끼기」 단추를 붙일지다:
+ *    올려 보기(hover)는 pinned:false 로 「끼기」 없이, 눌러 붙박으면 pinned:true 로 단추를 단다. */
+const statTipHtml = (sel = statSel, { pinned = true } = {}) => {
+  if (!sel) return `<div class="tipKind">칸을 고르면 뜯어본다 · 가방 것은 「끼기」로 낀다</div>`;
+  const it = sel.src === "bag" ? META.bag[sel.i] : equipped(sel.k);
   if (!it) return `<div class="tipKind">빈 칸</div>`;
   const g = GEAR[it.k];
   const fmt = (v) => gearShow(it.k, v);
-  const pl = statSel.src === "eq" ? (META.plus[it.k] | 0) : 0;
+  const pl = sel.src === "eq" ? (META.plus[it.k] | 0) : 0;
   return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""}</div>
-    <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${statSel.src === "eq" ? " · 낀 것" : ""}</div>
+    <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${sel.src === "eq" ? " · 낀 것" : ""}</div>
     <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
     ruleHtml(it) +
     it.af.map((a) => `<div class="tipAf">${afText(a)}</div>`).join("") +
-    (statSel.src === "bag" ? gearCmpHtml(it) : "") +
-    (statSel.src === "bag"
-      ? `<div class="tipBuy"><button class="btn" data-bagwear="${statSel.i}">끼기</button></div>`
+    (sel.src === "bag" ? gearCmpHtml(it) : "") +
+    (sel.src === "bag" && pinned
+      ? `<div class="tipBuy"><button class="btn" data-bagwear="${sel.i}">끼기</button></div>`
       : "");
 };
 
@@ -1951,7 +1958,7 @@ for (const id of ["statBody", "bagBody"]) {
   const el = $(id);
   if (el) el.addEventListener("scroll", () => markMore(el), { passive: true });
 }
-addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore($("bagBody")); });
+addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore($("bagBody")); if (ftipPin) ftipReflow(); });
 
 /** 페이퍼 돌을 **창 높이에 맞춘다** — 칸을 46px 로 못박아 두었더니 여섯 줄이 316px 가 되어
  *  아래 두 줄(신발·반지)이 창 밖으로 나갔다(08-17, 넘침 94px @1512×863).
@@ -1986,6 +1993,7 @@ function drawStat() {
   $("statBody").innerHTML = (docked ? dollHtml() : "") + statNumbers() + questListHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
   markMore($("statBody"));
+  ftipReflow();                  /* 도킹하면 인물이 이 창에 산다 — 붙박인 상자를 새 칸에 다시 붙인다(⑦) */
 }
 
 /** 가방 — 낀 것 셋 + 가방 열둘 + 고른 것의 설명. 물건을 만지는 곳은 여기 하나다. */
@@ -2040,11 +2048,104 @@ function drawBag() {
         <div class="sFuse">같은 슬롯·같은 등급 셋이 모이면 저절로 한 단계 위로 합쳐진다</div>
         <div class="grid">${itemCells}${emptyCells}</div></div>
     </div>`;
-  $("bagTip").innerHTML = statTipHtml();
   $("bagGold").textContent = (META.gold | 0).toLocaleString();
   fitDoll();                     /* ★ 넘침을 재기 **전에** 맞춘다 — 순서가 바뀌면 한 판 늦는다 */
   markMore($("bagBody"));
+  ftipReflow();                  /* 다시 그리면 칸이 새로 생긴다 — 붙박인 상자를 그 새 칸에 다시 붙인다(⑦) */
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ⑦ 떠 있는 툴팁 — D2 처럼 칸 «옆»에 검은 상자가 뜬다(붙박이 한 칸이 아니라).
+   ────────────────────────────────────────────────────────────
+   · 내용은 statTipHtml() **하나**가 만든다(같은 식이 두 곳이면 갈라진다).
+   · 자리잡기는 ftipPlace() **하나**가 한다 — 순수함수라 화면과 검수기가 같은 셈을 읽는다
+     (window.__ftipPlace 로 열어 둔다).
+   · 대상 칸: 가방 격자([data-bpick])와 페이퍼 돌([data-spick]) 둘 다. 도킹(charOpen)에서
+     인물이 능력치 창으로 가도 보이는 것만 잡는다(display:none 이면 offsetParent 가 null).
+   ══════════════════════════════════════════════════════════════ */
+const FTIP_GAP = 8, FTIP_PAD = 8;   // 칸에서 띄우는 틈 · 화면 가장자리 여백
+/* 칸·상자·화면 크기만 받아 자리를 낸다 — 오른쪽에 8px 띄우되 안 들어가면 왼쪽으로 뒤집고,
+   넘치면 밀어 언제나 화면 안(여백 8px)에 둔다. 순수함수라 검수기가 같은 셈을 부른다. */
+function ftipPlace(cell, tip, vw, vh) {
+  let flip = false;
+  let left = cell.right + FTIP_GAP;                               // 칸 오른쪽에 8px 띄운다
+  if (left + tip.w > vw - FTIP_PAD) { left = cell.left - FTIP_GAP - tip.w; flip = true; }  // 안 들어가면 왼쪽으로
+  left = Math.max(FTIP_PAD, Math.min(left, vw - FTIP_PAD - tip.w));  // 그래도 넘치면 화면 안으로 당긴다
+  let top = Math.max(FTIP_PAD, Math.min(cell.top, vh - FTIP_PAD - tip.h));  // 세로는 칸 위에 맞추되 위·아래로 안 나가게
+  return { left, top, flip };
+}
+window.__ftipPlace = ftipPlace;    // 검수용(tools/tip_probe.mjs) — 화면과 같은 자리 셈을 CDP 에서 잰다
+
+const ftipSel = (cell) => cell.hasAttribute("data-bpick")
+  ? { src: "bag", i: +cell.getAttribute("data-bpick") }
+  : { src: "eq",  k: cell.getAttribute("data-spick") };
+
+/* 붙박인 칸을 지금 화면에서 찾는다 — 다시 그리면 칸이 새로 생기고, 도킹하면 인물이 옮겨
+   간다. 보이는 창에서 보이는 칸만(offsetParent 가 null 이면 숨은 것). */
+function ftipCellFor(sel) {
+  if (!sel) return null;
+  const q = sel.src === "bag" ? `[data-bpick="${sel.i}"]` : `[data-spick="${sel.k}"]`;
+  for (const w of document.querySelectorAll(".win.on")) {
+    const el = w.querySelector(q);
+    if (el && el.offsetParent !== null) return el;
+  }
+  return null;
+}
+/* 상자를 칸 옆에 붙인다 — 켠 뒤에 잰다(꺼진 채로는 크기가 0 이라 자리를 못 낸다). */
+function ftipAnchor(sel, cell, pinned) {
+  const f = $("ftip");
+  f.innerHTML = statTipHtml(sel, { pinned });
+  f.classList.toggle("pin", pinned);
+  f.classList.add("on");
+  const c = cell.getBoundingClientRect(), t = f.getBoundingClientRect();
+  const p = ftipPlace({ left: c.left, right: c.right, top: c.top, bottom: c.bottom },
+                      { w: t.width, h: t.height }, innerWidth, innerHeight);
+  f.style.left = p.left + "px"; f.style.top = p.top + "px";
+}
+function ftipHide()  { const f = $("ftip"); if (f) f.classList.remove("on", "pin"); ftipHover = null; }  // 감추기만(붙박이는 안 건드림)
+function ftipClose() { ftipPin = null; ftipHide(); }                                                     // 붙박이까지 푼다
+/* 붙박인 상자를 새 칸에 다시 붙인다 — 칸이 사라졌으면(끼워져 가방을 떠났거나 굴려 사라졌으면) 거둔다. */
+function ftipReflow() {
+  if (!ftipPin) return;
+  const cell = ftipCellFor(ftipPin);
+  if (cell) ftipAnchor(ftipPin, cell, true); else ftipClose();
+}
+/* 칸을 누르면 그 칸에 붙박는다 — .sel 표식도 같이 켜고(statSel), 열린 창을 다시 그리면
+   그 안의 ftipReflow 가 상자를 새 칸에 붙인다. */
+function ftipPinCell(cell) {
+  ftipPin = ftipSel(cell); statSel = ftipPin;
+  if ($("winStat").classList.contains("on")) drawStat();
+  if ($("winBag").classList.contains("on")) drawBag();
+  ftipReflow();
+}
+
+/* 올리면 뜨고 벗어나면 사라진다 — 마우스만(터치는 눌러 붙박는다). 붙박인 동안은 안 바뀐다.
+   같은 칸 안에서의 이동엔 다시 그리지 않는다(ftipHover 로 막는다). */
+document.addEventListener("mouseover", (e) => {
+  if (ftipPin) return;
+  const cell = e.target.closest && e.target.closest("[data-bpick],[data-spick]");
+  if (!cell || cell.offsetParent === null || cell === ftipHover) return;
+  ftipHover = cell;
+  ftipAnchor(ftipSel(cell), cell, false);            // 보기만 — 「끼기」 없음(pointer-events:none)
+});
+document.addEventListener("mouseout", (e) => {
+  if (ftipPin) return;
+  const cell = e.target.closest && e.target.closest("[data-bpick],[data-spick]");
+  if (!cell) return;
+  if (e.relatedTarget && cell.contains(e.relatedTarget)) return;   // 칸 안 이동은 안 지운다
+  ftipHide();
+});
+/* 누르면 붙박는다(마우스·터치·검수기 .click() 모두 click 으로 온다). 칸도 상자도 아닌 곳을
+   누르면 풀린다. 상자 안(「끼기」)은 위 click 핸들러가 처리하므로 여기선 건너뛴다. */
+document.addEventListener("click", (e) => {
+  if (e.target.closest && e.target.closest("#ftip")) return;
+  const cell = e.target.closest && e.target.closest("[data-bpick],[data-spick]");
+  if (cell && cell.offsetParent !== null) { ftipPinCell(cell); return; }
+  if (ftipPin) ftipClose();
+});
+/* 굴림·창 크기 변경에 자리를 다시 잡는다 — 상자가 칸을 떠나 허공에 남으면 안 된다.
+   굴림은 안쪽 칸(.wScroll)에서 나므로 캡처로 받는다. */
+addEventListener("scroll", () => { if (ftipPin) ftipReflow(); else ftipHide(); }, true);
 
 /* ══ 정산 ══ 판이 끝나면 「이번 판에 얻은 것」을 상점 좌판과 **같은 칸**(.cell·.grid)으로
    세운다 — 등급 색은 TIER_CLS 그대로. 판을 되살려 다시 재지 않고 die() 가 굳혀 둔 LASTRUN
@@ -2170,7 +2271,7 @@ const softWins = () => WINS.filter((w) => w !== "winEnd" && w !== "winOffline" &
 document.addEventListener("click", (e) => {
   if (!softWins().length) return;
   const t = e.target;
-  if (t.closest && (t.closest(".frame") || t.closest(".hBtn"))) return;   // 창 안 · 여는 단추는 제 일을
+  if (t.closest && (t.closest(".frame") || t.closest(".hBtn") || t.closest("#ftip"))) return;   // 창 안 · 여는 단추 · 떠 있는 툴팁(⑦)은 제 일을
   closeAll(); e.stopPropagation(); e.preventDefault();
 }, true);
 /* ══ 단축키 ══ (병수님 2026-08-17 21:06 「그리고 단축키도 있어야함」)
@@ -2237,17 +2338,17 @@ document.addEventListener("click", (e) => {
   if (dpick) { META.doctrine = dpick.getAttribute("data-doc"); saveMeta(); drawDoctrine(); return; }
   const tpick = t.closest && t.closest("[data-tac]");
   if (tpick) { META.tactic = tpick.getAttribute("data-tac"); saveMeta(); drawTactic(); return; }
-  /* 상태창의 고르기·끼기도 **같은 핸들러의 갈래**로 — 새 리스너를 남발하지 않는다. */
-  const spick = t.closest && t.closest("[data-spick]");
-  if (spick) { statSel = { src: "eq", k: spick.getAttribute("data-spick") }; drawBag(); return; }
-  const bpick = t.closest && t.closest("[data-bpick]");
-  if (bpick) { statSel = { src: "bag", i: +bpick.getAttribute("data-bpick") }; drawBag(); return; }
+  /* 칸을 고르고 붙박는 일은 «떠 있는 상자»(⑦)의 ftip 리스너가 쥔다 — 여기(전역 click)는
+     상자 안 「끼기」만 받는다. 칸 고르기 갈래를 여기 두면 자리 셈이 두 곳으로 갈라진다. */
   const bwear = t.getAttribute && t.getAttribute("data-bagwear");
   if (bwear) {
     const it = META.bag[+bwear];                   // 낀 뒤 가방 index 는 밀리므로 지금 붙잡는다
     equipFromBag(+bwear);
-    statSel = it ? { src: "eq", k: it.k } : null;  // 방금 낀 그 슬롯을 골라 둔다(툴팁이 바뀐다)
-    saveMeta(); drawBag(); hud();
+    statSel = it ? { src: "eq", k: it.k } : null;  // 방금 낀 그 슬롯을 골라 둔다(상자 내용이 바뀐다)
+    ftipPin = statSel;                             // 붙박이를 방금 낀 슬롯으로 옮긴다(가방 칸은 사라졌다)
+    saveMeta();
+    if ($("winStat").classList.contains("on")) drawStat();   // 도킹 시 인물 쪽 .sel·재배치
+    drawBag(); hud();                              // drawBag 의 ftipReflow 가 새 칸에 상자를 다시 붙인다
     return;
   }
   if (t.hasAttribute && t.hasAttribute("data-dig")) {
