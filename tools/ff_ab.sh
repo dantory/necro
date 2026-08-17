@@ -31,10 +31,17 @@ for arm in ff norm; do
       const w=o.머문곳||{};
       if((o.콘솔오류||[]).length){console.log("BAD\t콘솔오류");process.exit(0)}
       if((w["던전%"]??0)<95){console.log(`BAD\t던전 ${w["던전%"]}%`);process.exit(0)}
+      /* ★★ **팔이 제 팔인지 본다**(2026-08-17, 첫 판에 바로 걸렸다). norm 팔인데
+         되짚기 100% 로 잰 판이 하나 섞여 들어와 중앙값을 124 쪽으로 끌었다 —
+         「어느 화면인가」를 재듯 **「어느 속도인가」도 재서 안 맞으면 버린다.**
+         (판을 세우는 사이에 죽으면 startFloor 가 deepest 아래로 되돌려 놓는다.) */
+      const ff=w["되짚기%"]??-1, want=process.argv[2];
+      if(want==="ff"&&ff<95){console.log(`BAD\tff 팔인데 되짚기 ${ff}%`);process.exit(0)}
+      if(want==="norm"&&ff>5){console.log(`BAD\tnorm 팔인데 되짚기 ${ff}%`);process.exit(0)}
       const step=(o.JS상위||[]).find(r=>r.이름&&r.이름.startsWith("step"));
       console.log(["OK",o.JS초당ms,w["되짚기%"],(o.JS상위||[])[0]?.이름,(o.JS상위||[])[0]?.비율,
         step?step.ms:"", o.판?JSON.stringify(o.판):""].join("\t"));
-    ' "$f")
+    ' "$f" "$arm")
     if [ "${verdict%%	*}" = OK ]; then
       got=$((got + 1)); mv "$f" "tmp/ff_ab/${arm}_ok${got}.json"
       echo "[$arm $got/$N] $verdict"
@@ -51,7 +58,9 @@ const fs=require("fs");
 const med=a=>{const s=[...a].sort((x,y)=>x-y);return s.length?+( s.length%2?s[(s.length-1)/2]:(s[s.length/2-1]+s[s.length/2])/2 ).toFixed(1):NaN};
 for(const arm of ["ff","norm"]){
   const fl=fs.readdirSync("tmp/ff_ab").filter(f=>f.startsWith(arm+"_ok"));
-  const os=fl.map(f=>JSON.parse((t=>t.slice(t.indexOf("{"),t.lastIndexOf("}")+1))(fs.readFileSync("tmp/ff_ab/"+f,"utf8"))));
+  let os=fl.map(f=>JSON.parse((t=>t.slice(t.indexOf("{"),t.lastIndexOf("}")+1))(fs.readFileSync("tmp/ff_ab/"+f,"utf8"))));
+  /* 표에서도 한 번 더 거른다 — 고르는 자와 세는 자가 다르면 또 섞인다 */
+  os=os.filter(o=>arm==="ff"?o.머문곳["되짚기%"]>=95:o.머문곳["되짚기%"]<=5);
   if(!os.length){console.log(arm,"— 성한 판 없음");continue}
   const g=n=>os.map(o=>(o.JS상위||[]).find(r=>r.이름&&r.이름.startsWith(n))?.ms||0);
   console.log(arm,
