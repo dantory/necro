@@ -1219,3 +1219,21 @@ body.charOpen #statBody .jList{ grid-template-columns:1fr }
 .hudMenu .hBtn{position:static;inset:auto;display:inline-flex;align-items:center;gap:5px;
   font-size:16px;padding:4px 14px}
 /* 스킬 점수가 남으면 붙는 점(#spDot)은 그대로 따라온다 — 자리를 옮겨도 신호는 산다. */
+
+/* ★ 메뉴가 **줄지어 서야** 메뉴로 읽힌다(병수님 21:05 「디아블로는 하단에 메뉴가 있다고」
+   — 아래로 내린 뒤에도 다시 지적받았다). 글자 단추 둘이 가운데 떠 있으면 그건 라벨이지
+   메뉴가 아니다. 다섯을 **벨트와 같은 폭**에 고르게 펴고, 칸도 벨트 칸과 같은 결로. */
+.hudMenu{gap:5px;justify-content:space-between}
+/* ★★ **id 로 적어야 이긴다** — `.hudMenu .hBtn`(0,2,1)은 `#hDoctrine{position:absolute}`
+   (1,0,0)에게 진다. 그대로 뒀더니 편성·운용이 **벨트 위로 떠올랐다**(찍어 보고 알았다).
+   오늘 아침 옆 패널 발치에서 **똑같은 덫**에 걸려 주석까지 적어 놓고 또 걸렸다 —
+   「자리를 옮길 땐 옛 position 부터 걷는다」가 규칙이어야 한다. */
+.hudMenu .hBtn,
+#hudMenu #hName, #hudMenu #hBag, #hudMenu #hLv,
+#hudMenu #hDoctrine, #hudMenu #hTactic{
+  position:static; inset:auto; top:auto; left:auto; right:auto; bottom:auto;
+  flex:1 1 0; min-width:0; justify-content:center; padding:5px 4px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+/* 마을에서만 쓰는 둘(편성·운용)은 던전에서 **자리째** 빠진다 — 눌리지도 않는 칸이
+   서 있으면 메뉴가 거짓말을 한다(옛 규칙은 inline-block 이라 자리를 남겼다). */
+body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{ display:flex }

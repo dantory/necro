@@ -150,7 +150,10 @@ function railLayout() {
   };
   move("log", "logSlot");
   move("hLeave", "footR"); move("hReborn", "footR");
-  move("hDoctrine", "footL"); move("hTactic", "footL");
+  /* ★ 편성·운용은 **더 이상 여기서 옮기지 않는다** — 2026-08-17 21:1x 에 아래 판 메뉴로
+     갔다(`menuLayout`). 목록에 남겨 뒀더니 창 크기가 바뀔 때마다 **도로 패널 발치로
+     끌어갔고**, 그러면 메뉴에서 둘이 사라진다. 물건은 **한 곳에서만** 옮겨야 한다 —
+     두 손이 같은 것을 잡으면 나중에 잡은 손이 이긴다(rail_qa 가 이걸 잡았다). */
   document.body.classList.toggle("rails", on);     // CSS 는 이 표식 하나로 갈린다(폭 조건을 두 번 안 적는다)
 }
 railLayout();
@@ -161,7 +164,15 @@ railLayout();
    ★ 금(`.coin`)은 안 옮긴다 — 그건 누르는 것이 아니라 **읽는 값**이라 위 띠가 제자리다. */
 function menuLayout() {
   const slot = $("hudMenu"); if (!slot) return;
-  for (const id of ["hName", "hLv"]) { const el = $(id); if (el) slot.appendChild(el); }
+  /* ★★ **두 개로는 「메뉴」로 안 읽힌다**(병수님 2026-08-17 21:05 「디아블로는 하단에
+     메뉴가 있다고」 — 아래로 내린 뒤에도 다시 지적받았다). D2 의 아래 판은 캐릭터·
+     인벤토리·스킬·퀘스트가 **줄지어 선** 한 줄이다. 「아래에 있다」가 아니라
+     **「메뉴처럼 서 있다」**여야 한다. 그래서 창을 여는 것을 **전부** 여기로 모은다.
+     ★ 나가기·환생은 안 옮긴다 — 그건 **메뉴가 아니라 행동**이고, 옆 패널 발치가 제자리다
+       (`rail_qa` 가 그 자리를 지킨다). */
+  for (const id of ["hName", "hBag", "hLv", "hDoctrine", "hTactic"]) {
+    const el = $(id); if (el) slot.appendChild(el);
+  }
 }
 menuLayout();
 
@@ -2661,6 +2672,9 @@ $("hLeave").addEventListener("click", () => { if (MODE.at === "dungeon") retreat
    (되돌릴 수 없으므로 바로 실행하지 않는다). */
 $("hReborn").addEventListener("click", () => { if (canRebirth()) window.__openWin("reborn"); });
 $("hName").addEventListener("click", () => window.__openWin("stat"));
+/* 가방 — 능력치와 **같은 한 벌**을 연다(도킹하면 둘이 같이 선다). D2 도 캐릭터와
+   인벤토리가 각각 아이콘을 갖되 같은 화면을 이룬다. 좁은 창에서는 가방 쪽만 뜬다. */
+$("hBag").addEventListener("click", () => window.__openWin("bag"));
 $("hDoctrine").addEventListener("click", () => window.__openWin("doctrine"));
 $("hTactic").addEventListener("click", () => window.__openWin("tactic"));
 /* 트리를 찍으면 **벨트가 바뀔 수 있다**(구울·골렘이 열린다) — 다시 짓는다. */

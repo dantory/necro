@@ -82,7 +82,10 @@ for (const [nm, o] of [["처음", wide], ["병수님 폭 1512", tight], ["오간
   if (Math.abs(o.아래판.l - o.무대.l) > 1) fails.push(`① 아래 판이 무대와 왼쪽이 ${Math.abs(o.아래판.l - o.무대.l)}px 어긋난다`);
 
   /* ── ② 로그·단추가 패널 «안»에 담겼는가 ── */
-  const want = { 로그: "logSlot", 나가기: "footR", 환생: "footR", 편성: "footL", 운용: "footL" };
+  /* ★ 편성·운용은 **아래 판 메뉴로 옮겼다**(2026-08-17 21:1x 「디아블로는 하단에 메뉴가
+     있다고」). 나가기·환생만 패널 발치에 남는다 — 그건 메뉴가 아니라 **행동**이라서다.
+     자에 적힌 자리를 같이 안 옮기면, 옳게 옮긴 것을 자가 「틀렸다」고 운다. */
+  const want = { 로그: "logSlot", 나가기: "footR", 환생: "footR", 편성: "hudMenu", 운용: "hudMenu" };
   for (const k of Object.keys(want))
     if (o.부모[k] !== want[k]) fails.push(`② ${k}가 패널 밖에 있다(부모 ${o.부모[k]}, ${want[k]} 여야 한다)`);
   if (o.로그보임 === "none") fails.push("② 넓은 창에서 로그가 안 보인다");   // 넓은 창에서는 창이 떠 있어도 보여야 한다(패널 안이라 안 겹친다)
@@ -96,8 +99,12 @@ for (const [nm, o] of [["처음", wide], ["병수님 폭 1512", tight], ["오간
 
 /* ── ④ 좁은 창: 통째로 안 뜨고 원래 자리로 ── */
 if (narrow.패널 !== "none") fails.push(`④ 좁은 창(1200)인데 패널이 떴다 — 여백이 없는 폭에서는 침범이다`);
-for (const k of ["로그", "나가기", "환생", "편성", "운용"])
+/* ★ 편성·운용은 폭과 상관없이 **늘 아래 판 메뉴**에 있다(옆 패널이 안 뜨는 폭에서도
+   아래 판은 있다). 되돌아와야 하는 것은 로그·나가기·환생 셋이다. */
+for (const k of ["로그", "나가기", "환생"])
   if (narrow.부모[k] !== "BODY") fails.push(`④ 좁은 창인데 ${k}가 패널 안에 갇혀 있다(부모 ${narrow.부모[k]})`);
+for (const k of ["편성", "운용"])
+  if (narrow.부모[k] !== "hudMenu") fails.push(`④ ${k}가 아래 판 메뉴를 벗어났다(부모 ${narrow.부모[k]})`);
 if (narrow.로그보임 === "none" && !narrow.창열림) fails.push("④ 좁은 창에서 로그가 사라졌다");
 if (narrow.로그.r > narrow.뷰[0] + 1 || narrow.로그.l < -1) fails.push(`④ 좁은 창에서 로그가 화면 밖으로 나갔다(${narrow.로그.l}~${narrow.로그.r}/${narrow.뷰[0]})`);
 for (const n of narrow.숫자) if (n.t < narrow.무대.b)
