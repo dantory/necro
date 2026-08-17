@@ -155,6 +155,16 @@ function railLayout() {
 }
 railLayout();
 
+/* ══ 아래 판으로 메뉴를 내린다 ══ (병수님 2026-08-17 20:33 「하단에 메뉴로 빼줘」)
+   위 띠의 「능력치」·「스킬」을 **아래 판 벨트 밑**으로 옮긴다. 옆 패널과 **같은 방법**이다 —
+   새로 만들지 않고 **있던 것을 옮긴다**(제목·툴팁·여는 길이 두 벌이 되면 한쪽만 고치게 된다).
+   ★ 금(`.coin`)은 안 옮긴다 — 그건 누르는 것이 아니라 **읽는 값**이라 위 띠가 제자리다. */
+function menuLayout() {
+  const slot = $("hudMenu"); if (!slot) return;
+  for (const id of ["hName", "hLv"]) { const el = $(id); if (el) slot.appendChild(el); }
+}
+menuLayout();
+
 /* ══ 그림 ══ PixelLab 으로 구운 스프라이트(assets/). **아직 안 온 것은 색 덩어리로 낸다** —
    그림 한 장이 없다고 판이 멈추면 에셋 굽는 동안 아무것도 못 본다. 오면 그때부터 그림이 뜬다. */
 const COL = {

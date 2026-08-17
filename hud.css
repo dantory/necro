@@ -1210,3 +1210,12 @@ body.charOpen #statBody > .pdoll{ margin:0 auto 8px; max-width:250px }
    D2 의 능력치도 한 줄에 하나씩이다 — 폭을 다시 짜는 대신 칸 수를 줄인다. */
 body.charOpen #statBody .sStat:not(.jList){ grid-template-columns:1fr; column-gap:0 }
 body.charOpen #statBody .jList{ grid-template-columns:1fr }
+
+/* ── 아래 판의 메뉴 ── (병수님 2026-08-17 20:33 「하단에 메뉴로 빼줘」)
+   벨트 바로 밑, 구슬 사이. D2 의 아래 판이 캐릭터·인벤토리·스킬을 여는 자리다.
+   ★ 벨트 칸과 **같은 돌**을 쓴다(.hBtn 이 이미 그 결이다) — 한 판에 두 가지 단추가
+     있으면 어느 것이 이 게임의 단추인지 눈이 한 번 더 고른다. */
+.hudMenu{display:flex;gap:8px;justify-content:center;margin-top:7px}
+.hudMenu .hBtn{position:static;inset:auto;display:inline-flex;align-items:center;gap:5px;
+  font-size:16px;padding:4px 14px}
+/* 스킬 점수가 남으면 붙는 점(#spDot)은 그대로 따라온다 — 자리를 옮겨도 신호는 산다. */
