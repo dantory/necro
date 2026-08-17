@@ -1,4 +1,4 @@
-import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1574,7 +1574,17 @@ function auto() {
        cast 는 못 쓰면 side-effect 없이 false 라(battle.js) 이 한 줄 사슬이 안전하다. */
     if (!(nGolem < wantGolem && cast("golem")) &&
         !(nGhoul < wantGhoul && S.corpses >= 2 && cast("ghoul")))
-      cast("raise");
+      /* ㉥ **해골이 제 재사용에만 막혔으면 다른 결로 샌다**(core.js RAISE_SPILL_OF · 기본 0).
+         여기까지 왔다는 것은 자리도 자원도 있다는 뜻이다(위 armyCapEff/merge 검사를 지났고
+         cast 는 못 쓰면 side-effect 없이 false 다). 그런데 S.cd 는 스킬마다 따로라, 해골이
+         쿨인 그 순간 구울 손은 비어 있을 수 있다 — 검수기로 재 보니 merge 판에서 그 초의
+         **42~51%** 가 그랬다. 편성 몫(wantGhoul)을 넘겨 세우는 것이 이 팔의 전부고,
+         재사용 초·마나·시체 값은 한 톨도 안 건드린다.
+         ★ 시체 2 이상일 때만 구울로 샌다 — 위 편성 사슬과 **같은 문턱**이다(해골 몫을
+           굶기지 않는다). 꺼져 있으면 && 가 앞에서 끊어 cast 를 안 부른다(RNG 도 그대로). */
+      if (!cast("raise") && RAISE_SPILL_OF() > 0 && (S.cd.raise || 0) > 0) {
+        if (!(S.corpses >= 2 && cast("ghoul"))) cast("golem");
+      }
   }
   /* **저주도 자동이다.** 벽은 관문이었고(죽기 직전 5초 피해의 100%가 「층의 주인」)
      셈이 답을 말한다 — 군대가 보스를 잡는 데 35초가 걸리는데 군대는 19초면 지워진다.

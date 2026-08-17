@@ -60,6 +60,7 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_CAPMERGE != null ? `globalThis.__CAP_MERGE = ${+process.env.LH_CAPMERGE};` : ""}
    ${process.env.LH_RAISEBATCH != null ? `globalThis.__RAISE_BATCH = ${+process.env.LH_RAISEBATCH};` : ""}
    ${process.env.LH_BURNMANA != null ? `globalThis.__BURN_MANA = ${+process.env.LH_BURNMANA};` : ""}
+   ${process.env.LH_SPILL != null ? `globalThis.__RAISE_SPILL = ${+process.env.LH_SPILL};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
    ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
    ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}
@@ -164,6 +165,30 @@ const tick = (sec) => `(async()=>{
          : (S.cd.raise || 0) > 0  ? "재사용"
          : "셀차례";
   };
+  /* ── ★ **「재사용」은 손이 노는 것인가, 채널이 막힌 것인가** (08-17 11:0x) ────────
+     위 통은 S.cd.raise **하나만** 본다. 그런데 S.cd 는 **스킬마다 따로**고
+     (이 안은 템플릿 문자열이라 역따옴표를 못 쓴다)
+     구울(2.0초)·골렘(6.0초)은 제 재사용을 따로 센다 — 즉 raise 가 쿨인 그 순간에
+     다른 소환 손이 **비어 있을 수 있다.** 자동 진행(main.js auto)은 편성 몫을 채우고
+     나면 오직 raise 만 두드리므로, 비어 있어도 **안 쓴다.**
+     ⑧-h 가 좁힌 물음(「재사용 61% 는 진짜 벽인가」)의 값이 정확히 이 자리다:
+       · 그 초의 대부분에 구울·골렘이 **쓸 수 있었다** → 벽이 아니라 **안 쓴 손**이다
+       · 대부분 그것들도 쿨/자원에 막혀 있었다 → 채널 전체가 막힌 **진짜 벽**이다
+     40분짜리 팔을 걸기 **전에** 손잡이가 움직일 자리가 있는지부터 본다
+     ([[knob-that-does-nothing]]). 읽기만 하므로 난수 소비는 그대로다. */
+  const 쓸수있나 = (id) => {
+    const sk = C.SKILLS.find(s => s.id === id);
+    if (!sk) return false;                          // 트리가 안 열렸으면 애초에 없는 손이다
+    const capBase = C.armyCap(), capEff = C.armyCapEff(), have = C.armyN();
+    const over = have >= capBase && have < capEff;
+    if (have >= capEff) {                           // 꽉 참 — 그 종으로 머지가 되는가
+      const mgOn = typeof globalThis.__CAP_MERGE !== "undefined" && globalThis.__CAP_MERGE != null && +globalThis.__CAP_MERGE > 1;
+      if (!(mgOn && S.minions.some(u => !u.own && u.kind === C.MINION_OF[id] && (u.mg | 0) < C.MERGE_MAX))) return false;
+    }
+    return (S.cd[id] || 0) <= 0
+        && S.mp >= C.mpCost(sk) * (over ? 2 : 1)
+        && S.corpses >= B.corpseNeedOf(sk, over);
+  };
   for (let i = 0; i < n; i++) {
     try {
       /* 이 0.05 초를 어느 통에 부을지 — **step 전의 판**이 그 동안의 상태다. */
@@ -181,7 +206,8 @@ const tick = (sec) => `(async()=>{
            예전에 잰 숫자와 그대로 견줄 수 있다. */
         const G = T.막힘전 || (T.막힘전 = { 초: 0, 상한참: 0, 시체없음: 0, 마나부족: 0, 재사용: 0, 셀차례: 0,
                                             빈첫: -1, 빈끝: -1, 빈늦: 0,
-                                            늦초: 0, 못합: 0, 못바닥: 1e9, 얕은: [0, 0, 0, 0, 0, 0] });
+                                            늦초: 0, 못합: 0, 못바닥: 1e9, 얕은: [0, 0, 0, 0, 0, 0],
+                                            재사용속: { 구울: 0, 골렘: 0, 다른손: 0, 진짜멈춤: 0 } });
         G.초 += 0.05;
         /* ── ★ **눈금을 사다리로 낸다** (08-17 08:0x) ────────────────────────────
            옛 끝 조건 「시체없음 15%」는 못이 **정확히 0** 이라야 세는데(corpseNeed 1),
@@ -197,6 +223,13 @@ const tick = (sec) => `(async()=>{
           for (let j = 0; j < 칸.length; j++) if (S.corpses < 칸[j]) G.얕은[j] += 0.05;
         }
         const 통전 = 막힌통(); G[통전] += 0.05;
+        /* ★ 「재사용」인 초를 **손이 노는가 / 채널이 막혔는가**로 다시 나눈다(위 쓸수있나). */
+        if (통전 === "재사용") {
+          const g = 쓸수있나("ghoul"), go = 쓸수있나("golem"), R2 = G.재사용속;
+          if (g) R2.구울 += 0.05;
+          if (go) R2.골렘 += 0.05;
+          if (g || go) R2.다른손 += 0.05; else R2.진짜멈춤 += 0.05;
+        }
         /* ★ **언제** 못이 말랐나 — 세 팔이 「시체없음」을 초 단위로 똑같이 냈다면
            그 초는 팔과 무관한 자리, 곧 **판이 열리자마자**(아직 아무도 안 죽어 못이
            비어 있는 몇 초)일 것이다. 첫·마지막 시각과 **첫 1분을 뺀 초**를 같이 적어
@@ -580,6 +613,12 @@ if (시간) {
     const g초 = (v) => `${v.toFixed(0)}초(${Math.round(v / G.초 * 100)}%)`;
     console.log(`판 전체 막힘 — 시체없음 ${g초(G.시체없음)} · 마나부족 ${g초(G.마나부족)} · ` +
                 `재사용대기 ${g초(G.재사용)} · 셀차례기다림 ${g초(G.셀차례)} · [꽉참 ${g초(G.상한참)}]`);
+    /* ★ 「재사용」이 벽인지 **안 쓴 손**인지 — 그 초에 구울·골렘이 비어 있었나. */
+    if (G.재사용속 && G.재사용 > 0) {
+      const R2 = G.재사용속, p = (v) => `${Math.round(v / G.재사용 * 100)}%`;
+      console.log(`  재사용 속: 구울 쓸 수 있었음 ${p(R2.구울)} · 골렘 ${p(R2.골렘)} · ` +
+                  `**다른 손 있었음 ${p(R2.다른손)}** · 진짜 멈춤 ${p(R2.진짜멈춤)}`);
+    }
     console.log(`  못이 마른 자리: 첫 ${G.빈첫 < 0 ? "없음" : G.빈첫.toFixed(0) + "초"} · ` +
                 `마지막 ${G.빈끝 < 0 ? "없음" : G.빈끝.toFixed(0) + "초"} · ` +
                 `**첫 1분을 뺀 것 ${G.빈늦.toFixed(0)}초**`);

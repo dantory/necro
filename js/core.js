@@ -1363,6 +1363,23 @@ export const RAISE_BATCH_DEF = 1;
 export const RAISE_BATCH_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_BATCH != null)
   ? +globalThis.__RAISE_BATCH : RAISE_BATCH_DEF;
 
+/* ══ 막힌 결에서 다른 결로 샌다 ══ (㉥ __RAISE_SPILL) 「재사용」이 막는 시간의 **절반은
+   손이 노는 시간이었다.** S.cd 는 **스킬마다 따로**인데(해골 1.2초 · 구울 2.0초 · 골렘 6.0초)
+   자동 진행(main.js auto)은 편성 몫을 채우고 나면 **오직 해골만** 두드린다 — 그래서 해골이
+   쿨인 동안 구울 손이 비어 있어도 안 쓴다.
+   ★ **재 보고 낸 팔이다**(08-17 11:1x · 검수기 `재사용속`): merge 판에서 「재사용」인 초 중
+     **구울을 쓸 수 있었던 초가 42~51%** 였다(골렘은 2~6% — 마나 30·쿨 6초라 원래 드물다).
+     판 전체로 치면 약 29% 다. base 판은 14~24%(판 전체 7%) — 즉 **상한을 풀수록 이 손이
+     더 논다.** ⑧-h 가 좁힌 물음 「재사용 61% 는 진짜 벽인가」의 답이 여기 있다: 절반은
+     벽이 아니라 **안 쓴 손**이다.
+   ★ 값을 한 톨도 안 만진다 — 재사용 초·마나·시체·편성 몫 전부 그대로다. 바뀌는 것은
+     **해골이 제 재사용에만 막혔을 때 누가 그 자리를 채우는가** 뿐이다(㉣ 이 «같은 손에
+     같은 일을 더» 시켜 마나를 말려 죽인 것과 반대로, 여기서는 **다른 손**에 준다).
+   **0(꺼짐)이면 손 안 댐** — auto() 에서 && 가 앞에서 끊어 cast 를 아예 안 부른다. */
+export const RAISE_SPILL_DEF = 0;
+export const RAISE_SPILL_OF = () => (typeof globalThis !== "undefined" && globalThis.__RAISE_SPILL != null)
+  ? +globalThis.__RAISE_SPILL : RAISE_SPILL_DEF;
+
 /* ══ 마른 마나에 문을 연다 ══ (㉤ __BURN_MANA) 「시체 태우기」(시체 4 → 마나)는 이 게임이
    이미 가진 **마나 쪽 구조 출구**인데, 자동 진행에서 열리는 조건이 **「시체가 넘칠 때」**
    뿐이었다(`S.corpses >= CORPSE_MAX*0.85` = 140 중 119구). 그래서 ㉣ 이 만든 판
