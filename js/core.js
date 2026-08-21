@@ -1506,8 +1506,13 @@ const hpGrow = () => bodyHp() / bodyBase();
    **스스로 사라진다**(9 로 두면 1~8층에만 걸리고 9층부터는 한 톨도 안 다르다).
    ★ 천장도 **키운 배수(`hpGrow`)를 탄다** — 강화·장비를 얹으면 초반에도 더 버틴다.
      여유를 깎는 것이지 성장을 지우는 것이 아니다([[knob-that-does-nothing]]).
-   0 이면 문 없음(옛 그대로) — 검수기가 `__EARLY_HITS` 로 쓴다. */
-export const EARLY_HITS_DEF = 0;
+   0 이면 문 없음(옛 그대로) — 검수기가 `__EARLY_HITS` 로 쓴다.
+   ★ **9 로 켰다(2026-08-21 21:3x · 재고 나서 정했다).** 3분 × 씨앗 1·3·7 네 팔:
+     45초 버틸대수 **25 → 9**(설계값 · D2 Lv.1 네크로와 같은 자리) · 3분 최저체력비
+     0.2 → **0.04** · 그런데 3분 **층은 4.33 → 5.33(옛의 123%)** 이고 마나마름 30 → 31%
+     로 **한 자리에 머물지 않는다** — 위험이 늘었을 뿐 «멎음»이 아니다.
+     7 은 넘어간다(층 54% · 마나마름 42% · 죽음 3.67) — H-1 의 상한 3 과 같은 멎음이다. */
+export const EARLY_HITS_DEF = 9;
 const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HITS != null)
   ? +globalThis.__EARLY_HITS : EARLY_HITS_DEF;
 export const hpMaxOf = () => {

@@ -96,10 +96,19 @@ for (const SEED of SEEDS) {
 
 const n = Math.min(...rows.map(r => r.pts.length));
 const avg = (i, k) => +(rows.reduce((a, r) => a + r.pts[i][k], 0) / rows.length).toFixed(2);
-console.log(`\n  초   층   Lv 군세/상한  체력  버틸대수 최저체력비 맞은수 받은피해 처치 초당처치 마나마름% 자리참% 죽음`);
+// ★ 칸을 붙여 찍으면 수가 커질 때 옆칸과 들러붙는다 — 2026-08-21 에 「188103.33」 이
+//   되어 A/B 를 읽는 쪽이 그 줄을 통째로 버렸다(자가 고장난 것을 데이터가 없는 것으로
+//   읽을 뻔했다). 폭이 모자라도 칸 사이에 빈칸 하나를 «강제»한다.
+const COLS = [["층",5],["Lv",5],["군세/상한",9],["체력",7],["버틸대수",8],["최저체력비",10],
+              ["맞은수",8],["받은피해",8],["처치",7],["초당처치",8],["마나마름%",9],["자리참%",8],["죽음",5]];
+console.log("\n" + ["초".padStart(4), ...COLS.map(([h, w]) => h.padStart(w))].join(" "));
 for (let i = 0; i < n; i++) {
-  const p = (k, w) => String(avg(i, k)).padStart(w);
-  console.log(`${String(rows[0].pts[i].초).padStart(4)}${p("층",5)}${p("lv",5)}${p("군세",6)}/${String(avg(i,"상한")).padEnd(5)}${p("체력",7)}${p("버틸대수",9)}${p("최저",10)}${p("맞은수",8)}${p("받은피해",8)}${p("처치",6)}${p("초당처치",8)}${p("마나마름",9)}${p("자리참",8)}${p("죽음",5)}`);
+  const p = (k) => String(avg(i, k));
+  const vals = [p("층"), p("lv"), `${p("군세")}/${avg(i, "상한")}`, p("체력"), p("버틸대수"),
+                p("최저"), p("맞은수"), p("받은피해"), p("처치"), p("초당처치"),
+                p("마나마름"), p("자리참"), p("죽음")];
+  console.log([String(rows[0].pts[i].초).padStart(4),
+               ...vals.map((v, j) => v.padStart(COLS[j][1]))].join(" "));
 }
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
 bws.close(); process.exit(0);
