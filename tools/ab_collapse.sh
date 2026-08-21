@@ -15,7 +15,9 @@
 set -u
 REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
-OUT=tmp/collapse; mkdir -p "$OUT"
+OUT=${OUT:-tmp/collapse}; mkdir -p "$OUT"
+# ★ 팔을 갈아 끼울 때는 OUT 과 LH_HPGROW 를 같이 준다 — 자는 그대로 두고 판만 바꾼다.
+export OUT
 MIN=${MIN:-20}
 # 씨앗 목록은 ab_doc/ab_forgemix 와 **같다** — 두 자를 맞대려면 같은 판이어야 한다.
 SEEDS=${SEEDS:-"3 9 5 1 2 4"}
@@ -40,7 +42,7 @@ const all = { 앞A:0, 뒤A:0, 앞H:0, 뒤H:0, n:0, 앞복:[], 뒤복:[], 뒤사�
 for (const d of docs) {
   let 앞A=0, 뒤A=0, 앞H=0, 뒤H=0, n=0; const 앞복=[], 뒤복=[];
   for (const s of seeds) {
-    const f = `tmp/collapse/${d}_${s}.json`;
+    const f = `${process.env.OUT || "tmp/collapse"}/${d}_${s}.json`;
     if (!fs.existsSync(f)) continue;
     const j = JSON.parse(fs.readFileSync(f,"utf8"));
     const A = (j.붕괴&&j.붕괴.군세)||[], H = (j.붕괴&&j.붕괴.체력)||[];

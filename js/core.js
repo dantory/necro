@@ -1491,8 +1491,18 @@ const bodyHp = () => bodyBase() + (META.up.hp | 0) * 25
 /* HPGROW = 1 이면 위의 꼴(바닥 × 키운 배수). **0 이면 예전 그대로** `max(몸, 바닥)` —
    검수기가 `__HPGROW` 로 쓴다(다른 손잡이 `__SPLIT`·`__ARMY_WALL` 과 같은 꼴).
    D 에서 「깊은 층이 통째로 세진 것」이 20분 판의 죽음·최고층을 어디로 옮겼는지
-   재려면 **되돌린 팔**이 있어야 한다 — 없으면 견줄 것이 없다. */
-export const HPGROW_DEF = 1;
+   재려면 **되돌린 팔**이 있어야 한다 — 없으면 견줄 것이 없다.
+   ★ **2 = 바닥만 grow 를 안 탄다**(2026-08-22 · D-7). 0 으로 재 보니 깊은 띠에 처음으로
+     위험이 섰지만(절반아래 0초 → 65~87초) **앞 6분 죽음이 52 → 72 로 같이 늘었다.**
+     늘어난 자리는 바닥이 아니라 **천장**이다 — 0 은 `floorDmg×EARLY_HITS` 천장에서도
+     grow 를 뺏어 초반 여유를 한 번 더 깎는다(1-9층 손놓고 죽는데 66초 → 45초).
+     2 는 **천장은 그대로 grow 를 태우고 바닥만 안 태운다** = 초반은 한 톨도 안 바뀌고
+     깊은 층만 움직인다([[knob-that-does-nothing]] 을 안 밟는 쪽으로 쪼갠 것). */
+/* ★ **2 로 켰다(2026-08-22 01:4x · D-7 · 재고 나서 정했다).** 20분 × 씨앗 여섯 × 편성 둘:
+     깊은 띠 절반아래 **0초 → 65·74초**(처음 생겼다) · 초당 최대체력의 0.23% → **0.50%** ·
+     그러면서 **앞 6분은 바이트까지 그대로**(1-9층 받은 피해 7544 동일 · 죽음 61/앞 52/뒤 9 동일) ·
+     최고층 중앙 72 그대로. 0(되돌림)은 같은 깊이를 사는 대신 앞 6분 죽음을 52 → 72 로 물렸다. */
+export const HPGROW_DEF = 2;
 const HPGROW_OF = () => (typeof globalThis !== "undefined" && globalThis.__HPGROW != null)
   ? +globalThis.__HPGROW : HPGROW_DEF;
 const hpGrow = () => bodyHp() / bodyBase();
@@ -1517,8 +1527,13 @@ const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__E
   ? +globalThis.__EARLY_HITS : EARLY_HITS_DEF;
 export const hpMaxOf = () => {
   const f = S.floor | 0, floor = floorDmg(f) * SURVIVE_HITS, eh = EARLY_HITS_OF();
-  const grow = HPGROW_OF() ? hpGrow() : 1;
-  let base = HPGROW_OF() ? Math.max(bodyBase(), floor) : Math.max(bodyHp(), floor);
+  const hg = HPGROW_OF(), grow = hg ? hpGrow() : 1;
+  if (hg === 2) {                       // 바닥은 안전망으로만 · 천장은 grow 를 탄다
+    let v = Math.max(bodyHp(), floor);
+    if (eh > 0) v = Math.min(v, floorDmg(f) * eh * grow);
+    return Math.round(v);
+  }
+  let base = hg ? Math.max(bodyBase(), floor) : Math.max(bodyHp(), floor);
   if (eh > 0) base = Math.min(base, floorDmg(f) * eh);
   return Math.round(base * grow);
 };
