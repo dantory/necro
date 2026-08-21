@@ -14,42 +14,53 @@
 set -u
 REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
-OUT=/tmp/forgemix; mkdir -p "$OUT"
-SECS=${SECS:-1200}
+OUT=tmp/forgemix; mkdir -p "$OUT"
+MIN=${MIN:-20}
+# ★ 씨앗은 **여섯**이다 — `ab_doc.sh` 와 **같은 목록**이라야 두 자를 맞댈 수 있다.
+#   셋으로 쟀을 때 「편성 사이 폭 12% vs 씨앗 사이 폭 31%」로 잡음이 신호보다 컸다
+#   ([[seed-the-probe]]) — 그때의 「미달」은 결론이 아니라 «못 쟀다» 였다.
+SEEDS=${SEEDS:-"3 9 5 1 2 4"}
+# ★★ 첫 판에 **인자를 틀렸다**: loop_health 의 첫 인자는 «초»가 아니라 «분»인데 1200 을
+#   넘겨 **1200분**을 돌렸다(23분을 그렇게 태웠다). 한 판은 20분짜리가 **11초**다.
 for doc in balance bone flesh wall; do
-  for seed in 3 9 5; do
+  for seed in $SEEDS; do
     f="$OUT/${doc}_${seed}.json"
     [ -s "$f" ] && continue
-    LH_SEED=$seed LH_DOC=$doc node tools/loop_health.mjs "$SECS" > "$f" 2>"$OUT/${doc}_${seed}.err"
-    echo "== $doc seed$seed 끝 ==" >&2
+    LH_SEED=$seed LH_DOC=$doc node tools/loop_health.mjs "$MIN" "$f" > "$OUT/${doc}_${seed}.log" 2>&1
+    echo "== $doc seed$seed 끝 · $(date +%H:%M:%S) ==" >&2
   done
 done
 node - <<'JS'
 const fs = require("fs");
-const docs = ["balance","bone","flesh","wall"], seeds = [3,9,5];
+const docs = ["balance","bone","flesh","wall"];
+const seeds = (process.env.SEEDS || "3 9 5 1 2 4").split(/\s+/).filter(Boolean);
 const N = { balance:"균형", bone:"해골", flesh:"구울", wall:"골렘벽" };
 const row = {};
 for (const d of docs) {
   const rs = [];
   for (const s of seeds) {
-    const p = `/tmp/forgemix/${d}_${s}.json`;
+    const p = `tmp/forgemix/${d}_${s}.json`;
     if (!fs.existsSync(p)) continue;
     try { rs.push(JSON.parse(fs.readFileSync(p, "utf8"))); } catch {}
   }
   if (!rs.length) continue;
-  const g = (f) => rs.map(f).reduce((a,b)=>a+b,0) / rs.length;
-  row[d] = { 최고층: +g(r => r.deepest ?? r.floor ?? 0).toFixed(1),
-             죽음:   +g(r => r.deaths ?? 0).toFixed(2),
-             레벨:   +g(r => r.lv ?? 0).toFixed(1),
+  const avg = (f) => rs.map(f).reduce((a,b)=>a+b,0) / rs.length;
+  const last = (r) => r.rows[r.rows.length - 1] || {};
+  row[d] = { 최고층: +avg(r => last(r).최고층 | 0).toFixed(1),
+             죽음:   +avg(r => (r.deaths || []).length).toFixed(2),
+             레벨:   +avg(r => last(r).레벨 | 0).toFixed(1),
+             군세:   +avg(r => last(r).군세 | 0).toFixed(1),
+             상한:   +avg(r => last(r).상한 | 0).toFixed(1),
              판수:   rs.length };
 }
-console.log("편성   | 최고층  죽음  레벨  판");
-for (const d of docs) if (row[d])
-  console.log(`${N[d].padEnd(6)} | ${String(row[d].최고층).padStart(6)} ${String(row[d].죽음).padStart(5)} ${String(row[d].레벨).padStart(5)} ${String(row[d].판수).padStart(3)}`);
+console.log("편성   | 최고층  죽음  레벨  군세 상한  판");
+for (const d of docs) if (row[d]) { const r = row[d];
+  console.log(`${N[d].padEnd(6)} | ${String(r.최고층).padStart(6)} ${String(r.죽음).padStart(5)} ${String(r.레벨).padStart(5)} ${String(r.군세).padStart(5)} ${String(r.상한).padStart(4)} ${String(r.판수).padStart(3)}`);
+}
 const fl = [];
-const fs2 = docs.filter(d => row[d]).map(d => row[d].최고층);
-if (fs2.length >= 2) {
-  const sp = Math.max(...fs2) / Math.max(1e-9, Math.min(...fs2)) - 1;
+const hi = docs.filter(d => row[d]).map(d => row[d].최고층);
+if (hi.length >= 2) {
+  const sp = Math.max(...hi) / Math.max(1e-9, Math.min(...hi)) - 1;
   console.log(`\n① 최고층 폭 ${(sp*100).toFixed(1)}%  (끝 조건 15% 이상)`);
   if (sp < 0.15) fl.push(`① 편성별 최고층이 ${(sp*100).toFixed(1)}% 밖에 안 갈린다 — 몸은 갈렸는데 판이 안 갈린다`);
 }
