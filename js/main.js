@@ -2225,6 +2225,15 @@ function drawEnd() {
        + runCell("쓴 시체", (r.used | 0).toLocaleString())
        + runCell("버틴 시간", mmss(r.secs))
        + `</div>`;
+  /* ★ **문이 열린 날 한 번은 말해 준다**(ROADMAP D-15 ㉮). 이제 고르지 않아도 저절로
+     깊은 데서 시작하므로, **말없이 그렇게 되면** 사람은 자기 판이 왜 65층에서 열리는지
+     모른다. 정산 창은 죽은 직후 반드시 보는 자리라 여기서 한 번만 적는다. */
+  if (diveMax() > 0 && !(META.diveTold | 0)) {
+    META.diveTold = 1; saveMeta();
+    $("endSub").innerHTML +=
+      `<div class="eWhere" style="color:#c8aa6e">건너뛰기가 열렸다 — 다음 판은 <b>${diveMax()}층</b>에서 시작한다`
+      + `<br><span style="opacity:.75;font-size:.9em">마을 문에서 바꿀 수 있다(처음부터도 고를 수 있다)</span></div>`;
+  }
   $("endGold").textContent = (META.gold | 0).toLocaleString();
 }
 
@@ -2242,7 +2251,8 @@ function drawDive() {
     `<div class="diveGrid">` + opts.map((f) =>
       `<button class="btn diveOpt${f === cur ? " on" : ""}" data-dive="${f}">${f ? f + "층" : "처음부터"}</button>`
     ).join("") + `</div>` +
-    `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.</div>`;
+    `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.` +
+    ((META.diveSet | 0) ? "" : `<br>고르지 않으면 <b>${max}층</b>부터 시작한다.`) + `</div>`;
 }
 function drawReborn() {
   const p = rebirthPreview();
@@ -2346,7 +2356,9 @@ document.addEventListener("click", (e) => {
   if (t.hasAttribute && t.hasAttribute("data-close")) { closeAll(); return; }
   /* ══ 환생 실행 ══ 확인 창의 「환생」 하나만이 여기로 온다 — 되돌릴 수 없다. */
   if (t.hasAttribute && t.hasAttribute("data-dive")) {
-    META.dive = +t.getAttribute("data-dive") | 0; saveMeta(); drawDive(); return;
+    /* ★ **고른 적이 있다**를 같이 적는다(core.js DIVE_DEF) — 「처음부터」를 고른 것도
+       고른 것이라, 그 뒤로는 기본값이 그 위를 안 덮는다. */
+    META.dive = +t.getAttribute("data-dive") | 0; META.diveSet = 1; saveMeta(); drawDive(); return;
   }
   if (t.hasAttribute && t.hasAttribute("data-dive-go")) { closeAll(); toDungeon(); return; }
   /* 초기화 — **저장을 지우고 판을 새로 연다.** 값을 하나씩 되돌리지 않는 까닭은
@@ -2436,6 +2448,9 @@ window.__openWin = (which) => {
      더해도, 여는 길이 closeAll 을 안 거치면 소용없다). 여는 길을 하나로 모은다. */
   if (which === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (which === "forge") { closeAll(); drawForge(); win("winForge", true); }
+  /* 건너뛰기 창은 마을 **문**을 눌러야 열린다(townHitAt) — 자가 그 자리를 못 짚으므로
+     여기에도 길을 둔다(D-15 · 창의 글월을 눈으로 보려면 열 수 있어야 한다). */
+  if (which === "dive")  { closeAll(); drawDive();  win("winDive", true); }
   /* ★ **능력치와 가방은 한 벌이다**(병수님 2026-08-17 「여전히 이상해」). D2 는 왼쪽에
      능력치, 오른쪽에 인벤토리가 **동시에** 선다 — 오가는 단추로 갈아 끼우는 것이 아니다.
      넓은 창에서는 둘을 같이 열고 `body.charOpen` 을 붙여 반씩 도킹한다(hud.css).

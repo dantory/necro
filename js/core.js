@@ -341,6 +341,21 @@ export const DIVE_BACK = 10;          // 최고 깊이에서 이만큼은 남긴
      잰 A/B 는 두 팔이 **바이트까지 같았다** — 12분 판의 죽음은 전부 3~10층에서 나는데
      그때 최고 깊이는 10 이하라 `diveMax()` 가 늘 0 이었다. 즉 건너뛰기는 **되짚기가
      생기는 그 자리에서 아예 안 열린다.** 게임 기본값은 그대로 두고 검수기만 문을 옮긴다. */
+/* ★ **문을 열어 둘 것인가**(D-15 · ROADMAP D-14 ㉮). 여태 기본값은 「처음부터」였다 —
+     창을 한 번도 안 연 사람은 죽을 때마다 **1층부터 예순다섯 층을 다시 걷는다.**
+     D-13·D-14 가 그 두 사람을 갈라 재 보니 **판이 다른 게임**이었다:
+       · 문 안 씀 — 뒤쪽 후퇴폭 79% · 되짚기 31% · 최고층 55  (④⑤ 둘 다 못 넘는다)
+       · 문 씀   — 뒤쪽 후퇴폭 14% · 되짚기 17% · 최고층 65 · 25층+ 죽음 29 → **41**
+     되짚기를 줄였는데 **죽음이 오히려 늘었다**(위험을 지운 D-10 과 정반대다).
+   ★ **CHECKPOINT 와 헷갈리지 말 것** — 그건 「최고 깊이 아래 마지막 관문」, 곧 **죽은
+     그 자리**에서 다시 세웠다(죽음 11 → 30, 벽은 그대로 · 같은 자리에서 튕기기만).
+     건너뛰기는 최고 깊이보다 **두 관문(10층) 아래**라 다시 자랄 자리가 남는다 —
+     그 열 층이 「튕김」과 「사건」을 가른다.
+   1 = 문이 열리면 **저절로 제일 깊은 데서** 시작한다(사람이 고르면 그 값이 이긴다).
+   0 = 옛 기본값(처음부터). A/B 로 되돌릴 문은 `globalThis.__DIVE_DEF`. */
+export const DIVE_DEF_DEF = 1;
+const DIVE_DEF = () => (typeof globalThis !== "undefined" && globalThis.__DIVE_DEF != null
+  ? +globalThis.__DIVE_DEF : DIVE_DEF_DEF);
 const DIVE_MIN = () => (typeof globalThis !== "undefined" && globalThis.__DIVE_MIN != null
   ? +globalThis.__DIVE_MIN : DIVE_MIN_DEEPEST);
 const DIVE_BK = () => (typeof globalThis !== "undefined" && globalThis.__DIVE_BACK != null
@@ -351,14 +366,16 @@ export const diveMax = () => {
   if (d < DIVE_MIN()) return 0;
   return Math.max(0, Math.floor((d - DIVE_BK()) / DIVE_STEP) * DIVE_STEP);
 };
-/** 사람이 고른 시작 층(고른 값은 저장된다). 조건이 바뀌면 저절로 줄어든다.
-    ★ 자동 진행에는 **고르는 창이 없다** — 검수기는 `globalThis.__AUTO_DIVE` 로
-      「늘 제일 깊이 고르는 사람」을 흉내 낸다(A/B 로 되짚기가 정말 줄어드는지 재는 문).
-      게임 쪽 기본값은 그대로 0 이라 사람이 보는 판은 안 달라진다. */
+/** 시작 층. 조건이 바뀌면 저절로 줄어든다(diveMax 로 깎는다).
+    ★ **고른 적이 있으면 그 값이 이긴다**(`META.diveSet`) — 「처음부터」를 고른 것도
+      고른 것이다. 한 번도 안 골랐으면 DIVE_DEF 가 정한다(위 주석).
+    ★ 검수기는 `globalThis.__AUTO_DIVE` 로 「늘 제일 깊이 고르는 사람」을 흉내 낸다. */
 export const diveAt = () => (
   (typeof globalThis !== "undefined" && globalThis.__AUTO_DIVE)
     ? diveMax()
-    : Math.min(META.dive | 0, diveMax()));
+    : (META.diveSet | 0)
+      ? Math.min(META.dive | 0, diveMax())
+      : (DIVE_DEF() ? diveMax() : 0));
 /** 죽은 뒤 다시 서는 층. 여태 닿아 본 깊이 아래의 마지막 관문(5의 배수). */
 export const startFloor = () =>
   Math.max(1, diveAt() || (CHECKPOINT ? Math.floor((META.deepest | 0) / 5) * 5 : 1));
@@ -423,8 +440,11 @@ function load() {
                     전부 primitive 라 아래 Object.assign(base, raw) 가 저절로 올려 준다 —
                     옛 저장엔 없으니 base 의 0/1 이 그대로 남는다(환생 전 사용자는 유해 0). */
                  relics: 0, rebirths: 0, best: 1,
-                 /* 사람이 고른 시작 층(0 = 1층부터). diveAt() 이 최고 깊이에 맞춰 깎는다. */
-                 dive: 0,
+                 /* 사람이 고른 시작 층(0 = 1층부터). diveAt() 이 최고 깊이에 맞춰 깎는다.
+                    diveSet = **고른 적이 있는가**(0 이면 DIVE_DEF 가 정한다 — 옛 저장은
+                    0 이라 「한 번도 안 고른 사람」으로 들어온다). diveTold = 문이 열렸다고
+                    한 번 알렸는가(정산 창에서 한 번만 말한다). */
+                 dive: 0, diveSet: 0, diveTold: 0,
                  doctrine: DOCTRINE_DEF,
                  tactic: TACTIC_DEF,
                  up: { hp:0, mp:0, dmg:0, army:0 },
