@@ -477,8 +477,16 @@ const GATE_VOW_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis._
      · 깊은 층에서는 몸과 위협이 **같은 배수**로 커진다 — 몫이 유지된 채 몸만 보인다.
    q = 1 이면 그대로 곱하고, 0 이면 손 안 댐. 사이 값은 「몸이 커진 만큼의 일부만」이다.
    검수기가 `globalThis.__GATE_VOW_LIFT` 로 쓴다.
-   ★ **기본값은 0 이다 — 값은 재고 나서 옮긴다**(`tools/ab_vowlift.sh`). */
-export const GATE_VOW_LIFT_DEF = 0;
+   ★ **1 로 켰다(2026-08-22 04:1x · D-12 · 재고 나서 정했다).** `HPGROW_DEF` 3 · `FLOOR_P_DEF`
+     0.5 와 **한 묶음**이다 — 셋이 같이 서야 ㉠(몸이 보인다)·㉡(깊은 층이 위험하다)이 함께 선다.
+     20분 × 씨앗 여섯 × 편성 둘로 기준 팔(`tmp/collapse_vow024`)·몸보임만(`tmp/collapse_fp05`)과
+     맞대어 재기 전에 적어 둔 끝 조건 넷을 **모두** 넘었다:
+       ① 몸 — 깊은 층 죽음 29 개의 최대체력이 **29 가지**(기준 팔은 45층 열여덟이 한 값)
+       ② 위험 — 25층+ 죽음 **29**(기준 22 의 132% · 끝 조건 80%). fp05 는 0 이었다
+       ③ 앞 6분 — 죽음 **61 대 61**(바이트까지 같다 · 산수대로 얕은 층엔 안 닿는다)
+       ④ 안전해지지 않았나 — 최고층 중앙 **55**(기준 65 · 끝 조건 74.75 아래)
+     값을 사이로 무르면(q<1) 몫이 그만큼 묽어져 ②가 먼저 샌다 — 1 이 「몫을 그대로 둔다」다. */
+export const GATE_VOW_LIFT_DEF = 1;
 const GATE_VOW_LIFT_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW_LIFT != null)
   ? +globalThis.__GATE_VOW_LIFT : GATE_VOW_LIFT_DEF;
 /** 수법마다 **한 방이 실제로 닿는 배수** — fireMech 안의 곱을 그대로 옮겨 적은 것이다.

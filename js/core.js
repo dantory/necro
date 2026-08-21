@@ -1502,7 +1502,13 @@ const bodyHp = () => bodyBase() + (META.up.hp | 0) * 25
      깊은 띠 절반아래 **0초 → 65·74초**(처음 생겼다) · 초당 최대체력의 0.23% → **0.50%** ·
      그러면서 **앞 6분은 바이트까지 그대로**(1-9층 받은 피해 7544 동일 · 죽음 61/앞 52/뒤 9 동일) ·
      최고층 중앙 72 그대로. 0(되돌림)은 같은 깊이를 사는 대신 앞 6분 죽음을 52 → 72 로 물렸다. */
-export const HPGROW_DEF = 2;
+/* ★ **3 으로 옮겼다(2026-08-22 04:1x · D-11 · 재고 나서 정했다).** 2 는 바닥에서 grow 를
+     통째로 뺀 탓에 **깊은 층에 「내가 만든 몸」이 없었다**(45층 죽음 열여덟이 최대체력
+     11340 «하나»). 3 은 바닥이 grow 의 일부(`FLOOR_P_DEF` = 0.5)만 타게 해 몸을 되돌리고,
+     그러면서 위협은 `GATE_VOW_LIFT` 가 **같은 배수**로 따라 올려 몫을 지킨다.
+     셋을 한꺼번에 켠 팔(p=0.5 · q=1.0)을 20분 × 씨앗 여섯 × 편성 둘로 재니 네 조건 모두 통과 —
+     자세한 표는 ROADMAP 「D-12」 절. 셋 중 하나만 켜면 배타에 걸린다(몸 아니면 위험). */
+export const HPGROW_DEF = 3;
 const HPGROW_OF = () => (typeof globalThis !== "undefined" && globalThis.__HPGROW != null)
   ? +globalThis.__HPGROW : HPGROW_DEF;
 const hpGrow = () => bodyHp() / bodyBase();

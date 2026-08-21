@@ -67,7 +67,10 @@ const r = await S("Runtime.evaluate", { expression: expr, awaitPromise: true, re
 if (r.exceptionDetails) { console.error(JSON.stringify(r.exceptionDetails)); process.exit(2); }
 const { rows, def } = JSON.parse(r.result.value);
 let bad = 0;
-if (def !== 0) { console.log(`\u2717 기본값이 0 이 아니다(${def}) — 재기 전에는 0 이라야 한다`); bad++; }
+/* ★ 재기 전에는 «0 이라야 한다» 였다. 쟀고(`tools/ab_vowlift.sh` · 2026-08-22 04:1x)
+   끝 조건 넷을 다 넘어 **1 로 옮겼다** — 그래서 이제는 «옮겨진 채로 있는가» 를 본다.
+   되돌릴 길(q=0)은 그대로 남아 있고, 아래 ②가 그 길이 무해함을 매번 다시 잰다. */
+if (def !== 1) { console.log(`\u2717 기본값이 1 이 아니다(${def}) — D-12 에서 옮긴 값이다`); bad++; }
 console.log("한 방이 «내 최대체력의 몇 %»로 닿는가 — q=0(지금) 대 q=1(위협도 같이 큼)\n");
 console.log("| 몸 | 층 | 팔 | 최대체력 | 배수 | 저주 | 돌진 | 웅덩이 |");
 console.log("| --- | --- | --- | --- | --- | --- | --- | --- |");
