@@ -697,7 +697,7 @@ export const xpNeed  = (lv) => Math.round(
   Math.pow(lv, globalThis.__XP_P != null ? +globalThis.__XP_P : XP_P_DEF));
 /** 강화는 **넷뿐이다.** 목록이 길면 방치형이 아니라 표 읽기가 된다. */
 export const UPS = {
-  hp:   { n:"생명력",   d:"최대 체력 +25",     base:14 },
+  hp:   { n:"생명력",   d:"최대 체력 +25%",    base:14 },
   mp:   { n:"기력",     d:"최대 마나 +8",      base:16 },
   dmg:  { n:"어둠의 힘", d:"소환수 피해 +8%",  base:22 },
   army: { n:"군세",     d:"소환수 상한 +1",    base:40 },
@@ -1327,10 +1327,27 @@ const SPLIT_OF = () => (typeof globalThis !== "undefined" && globalThis.__SPLIT 
   ? +globalThis.__SPLIT : SPLIT_DEF;
 /** 깊이를 미는 몫이 매달리는 층수 — 되짚어도 안 줄어드는 최고 도달 층. */
 const splitLv = () => SPLIT_OF() ? Math.max(1, META.deepest | 0) : META.lv;
+/** 맨몸 — 아무것도 안 키운 몸. 바닥(층의 격)과 견주는 것도, 「몇 배 키웠나」의 분모도 이것이다. */
+const bodyBase = () => 100 + (splitLv() - 1) * 8;
 /** 키운 것으로 쌓는 체력 — 얕은 층에서는 이쪽이 크다. */
-const bodyHp = () => 100 + (META.up.hp | 0) * 25 + (splitLv() - 1) * 8
+const bodyHp = () => bodyBase() + (META.up.hp | 0) * 25
                    + gearVal("robe") + gearVal("shield") + afSum("hp");   // 방패 = 최대 체력(망토와 같은 축)
-export const hpMaxOf = () => Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS);
+/* ══ 키운 몫은 **바닥 위에도 얹힌다** ══ (2026-08-21 · ROADMAP C-㉡)
+   예전 식은 `max(bodyHp, 층피해×5)` 였다. 바닥을 깔아 준다는 뜻은 옳았는데, 깊이가
+   붙으면 뒤엣것이 이겨서 **강화가 키운 것이 통째로 무시**됐다 — 생명력 강화는
+   맨몸 14층 · 계급 40 이어도 29층부터 «없는 축»이 됐고(20분 판은 75~79층까지 간다),
+   그 죽은 축이 강화 금의 23~28% 를 먹고 있었다([[knob-that-does-nothing]]).
+   그래서 **바닥은 바닥으로 되돌리고, 키운 몫은 «맨몸 대비 배수»로 그 위에 곱한다.**
+     · **맨몸(계급 0 · 맨손)은 어느 층에서도 한 톨도 안 바뀐다** — 배수가 1 이라
+       바닥이 그대로 나온다. 바닥이 맨몸보다 작은 얕은 층도 `bodyBase × 배수 = bodyHp`
+       라 예전 값과 완전히 같다(계급 20 이면 1~10층 600 그대로).
+     · 바뀌는 자리는 **바닥이 이기기 시작하는 층부터**다(계급 20 · 20층 600 → 1,860).
+     · 깊은 층에서는 「다섯 대」가 「다섯 대 × 키운 배수」가 된다 — 손잡이가 깊이와
+       **무관하게** 같은 일을 한다.
+     · 장비·부적의 체력도 같은 배수를 탄다(예전엔 그것들도 같이 먹혔다). */
+const hpGrow = () => bodyHp() / bodyBase();
+export const hpMaxOf = () => Math.round(
+  Math.max(bodyBase(), floorDmg(S.floor | 0) * SURVIVE_HITS) * hpGrow());
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
