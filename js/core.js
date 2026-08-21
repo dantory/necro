@@ -1572,12 +1572,39 @@ export const minionDmgMul = () => dmgMulOf() * minionMulOf();
      위는 예전의 6 으로 막으므로 이 손잡이는 **초반을 앞당길 뿐 천장을 안 올린다** —
      Lv.10 뒤로는 레벨 쪽이 크거나 같아 저절로 손을 뗀다(깊은 층은 한 톨도 안 달라진다).
    ARMY_WALL = 그 층 적 수의 몇 곱을 바닥으로 삼는가. **0 이면 손 안 댐**(예전 그대로) —
-   검수기가 `globalThis.__ARMY_WALL` 로 쓴다. */
-export const ARMY_WALL_DEF = 0.5;
+   검수기가 `globalThis.__ARMY_WALL` 로 쓴다.
+   ★★ **끄기로 했다 — 이 손잡이가 바로 위 「자라야 보인다」를 지우고 있었다**
+     (2026-08-21 · 병수님 「캐릭터가 초반부터 너무 쎔」). floorN(1)=14 라
+     `min(6, round(14×0.5))` 가 **1층에서 이미 6** 이다. 그래서 「셋으로 시작해 Lv.10 에 6」
+     이라 적어 둔 성장 축이 **한 번도 안 돌았다**([[knob-that-does-nothing]]) — 실측으로도
+     판을 연 지 15초에 상한 6·군세 2, 45초까지 맞은 횟수 1 이다(tools/start_probe.mjs).
+     그러면서 원래 노린 것(죽은 층 중앙값 5)은 **네 팔 전부 실패**했다(위 문단) —
+     값을 치른 자리는 초반의 손맛인데 산 것은 없다. 게다가 그때는 죽으면 1층부터
+     되짚었지만 지금은 **표식(startFloor)** 이 있어 죽음의 값도 그때보다 싸다.
+   ★★★ **끄지는 않았다 — 0 은 판을 멈춰 세웠다.** 다섯 팔을 3분 × 씨앗 셋으로 재 보니
+     상한 3 과 4 사이에 벼랑이 있다(tools/start_probe.mjs):
+       벽 0 / 0.2 (1층 상한 3) — 마나마름 **50%** · 3분에 **3.7층** · 죽음 1.7
+       벽 0.25   (1층 상한 4) — 마나마름 13~30% · 3분에 **4.3~6층** · 죽음 1.3
+       벽 0.5(옛)(1층 상한 6) — 마나마름 5~22% · 3분에 **8.7층** · 죽음 **0**
+     상한이 셋이면 벽이 곧 지워지고 남은 마나를 전부 되세우는 데 쓴다 — 위험이 아니라
+     **멎음**이다([[floor-far-from-threshold]] 의 반대편). 그래서 **0.25** 로 낮춘다:
+     1층 상한 4 → 12층에 6. 위험은 생기고(최저 체력비 0.51 → **0.20** · 죽음 0 → 1.3)
+     판은 계속 굴러간다. */
+export const ARMY_WALL_DEF = 0.25;
 const ARMY_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_WALL != null)
   ? +globalThis.__ARMY_WALL : ARMY_WALL_DEF;
+/* ══ 자라는 축의 «시작»과 «걸음» ══ 벽을 걷어도 시작이 3 이면 첫 층에 벌써 절반이다.
+   D2 의 네크로는 해골 **하나**로 시작해 점을 찍어 늘린다 — 그 결로 **걸음을 좁힌다**
+   (셋에서 **두 층마다** 하나 · deepest 9 에 예전의 6. 예전은 세 층마다였다).
+   ★ 시작을 2 로 더 낮춘 팔도 재 봤는데 **벽 쪽 벼랑에 걸린다**(아래 ★★★) — 3 이다.
+   ★ **천장(6)은 한 톨도 안 건드린다** — 중반 이후는 예전과 같은 판이어야
+     무엇이 무엇을 움직였는지 읽을 수 있다. 검수기가 `__ARMY_START`·`__ARMY_STEP` 으로
+     옛 값(3·3)을 도로 끼워 A/B 한다. */
+export const ARMY_START_DEF = 3, ARMY_STEP_DEF = 2;
 export const armyBase = () => {
-  const lv = Math.min(6, 3 + Math.floor((splitLv() - 1) / 3));   // 갈랐으면 층(deepest), 아니면 레벨
+  const st = globalThis.__ARMY_START != null ? +globalThis.__ARMY_START : ARMY_START_DEF;
+  const sp = globalThis.__ARMY_STEP  != null ? +globalThis.__ARMY_STEP  : ARMY_STEP_DEF;
+  const lv = Math.min(6, st + Math.floor((splitLv() - 1) / sp));   // 갈랐으면 층(deepest), 아니면 레벨
   const w  = ARMY_WALL_OF();
   return w ? Math.max(lv, Math.min(6, Math.round(floorN(S.floor) * w))) : lv;
 };
