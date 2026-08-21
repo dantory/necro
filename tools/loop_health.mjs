@@ -305,14 +305,39 @@ const tick = (sec) => `(async()=>{
         const hpm = C.hpMaxOf() || 1, hpr = S.hp / hpm;
         V.초 += 0.05;
         if (hpr < V.최저체력율) V.최저체력율 = hpr;
-        if (hpr < 0.5) { V.절반아래 += 0.05; if (!R.below) { R.below = 1; V.빠진횟수++; } }
+        if (hpr < 0.5) { V.절반아래 += 0.05; if (!R.below) { R.below = 1; V.빠진횟수++;
+          const DC0 = R.붕괴 || (R.붕괴 = { 군세: [], 체력: [] });
+          if (DC0.체력.length < 3000) DC0.체력.push({ t: Math.round(R.t * 10) / 10, 분: Math.floor(R.t / 60) + 1, 층: f }); } }
         else R.below = 0;
         if (hpr < 0.25) V.사분아래 += 0.05;
         /* 군세가 반토막 났나 — 층이 바뀌면 봉우리를 다시 센다(층마다 새로 짓는 군대다). */
         const have0 = C.armyN();
         if (R.peakF !== f) { R.peakF = f; R.peak = have0; R.halved = 0; }
         if (have0 > R.peak) { R.peak = have0; R.halved = 0; }
-        if (R.peak >= 4 && have0 * 2 <= R.peak && !R.halved) { R.halved = 1; V.반토막++; }
+        /* ── ★ **군대가 무너지는 사건이 «언제» 나는가**(D) ────────────────
+           08-21 실측: 20분 판의 죽음은 전부 앞 6분이고 뒤 14~16분은 위험이 0 이다.
+           그런데 「위기」는 **체력과 군세를 한 통에 담아** 세어서, 뒤쪽이 조용한 까닭이
+             ㉠ 군대가 **아예 안 무너져서**인지  ㉡ 무너져도 **즉시 다시 서서**인지
+           를 못 가른다. **둘은 고칠 자리가 정반대다** — ㉠ 이면 위협 쪽, ㉡ 이면 복구 쪽.
+           그래서 무너진 **순간의 사진**과 **다시 설 때까지 걸린 초**를 따로 적는다.
+           ★ 기존 「사건.목록」의 「위기」는 **손대지 않는다** — ev_curve.sh 가 그 이름을 읽는다.
+           ★ 읽기만 한다 — 게임 상태를 안 건드리므로 난수 소비가 그대로다(옛 판과 견줄 수 있다). */
+        const DC = R.붕괴 || (R.붕괴 = { 군세: [], 체력: [] });
+        if (R.복구대기) {                       // 다시 설 때까지 몇 초 걸렸나
+          if (R.복구대기.층 !== f) { R.복구대기.복구초 = null; R.복구대기.층바뀜 = 1; R.복구대기 = null; }
+          else if (have0 >= R.복구대기.봉우리) {
+            R.복구대기.복구초 = Math.round((R.t - R.복구대기.t) * 10) / 10; R.복구대기 = null; }
+        }
+        if (R.peak >= 4 && have0 * 2 <= R.peak && !R.halved) { R.halved = 1; V.반토막++;
+          if (DC.군세.length < 3000) {
+            const rec = { t: Math.round(R.t * 10) / 10, 분: Math.floor(R.t / 60) + 1, 층: f,
+                          봉우리: R.peak, 군세: have0, 상한: C.armyCap(),
+                          마나: Math.round(S.mp * 10) / 10, 마나최대: Math.round(C.mpMaxOf() * 10) / 10,
+                          시체: S.corpses, 체력율: Math.round(hpr * 100) / 100,
+                          복구초: undefined, 층바뀜: 0 };
+            DC.군세.push(rec); R.복구대기 = rec;
+          }
+        }
         const 띠 = f < 10 ? "1-9" : f < 25 ? "10-24" : f < 50 ? "25-49" : f < 100 ? "50-99" : "100+";
         const Z = V.띠[띠] || (V.띠[띠] = { 초: 0, 피해: 0, 피해율: 0, 맞은횟수: 0, 절반아래: 0, 원인: {} });
         Z.초 += 0.05; R.띠 = 띠;
@@ -765,11 +790,37 @@ if (시간) {
    끝 조건: **사건 사이 최대 간격이 3분(180초) 아래.** 넘는 구간이 곧 다음에 할 일이다.
    ★ 마지막 사건부터 끝까지의 꼬리도 간격으로 센다 — 30분째에 20분을 조용히 흘려보내고
      「최대 간격 2분」이라고 말하면 자가 거짓말을 하는 것이다. */
-let 사건 = null;
+let 사건 = null, 붕괴 = null;
 try {
   const re = await S("Runtime.evaluate", { expression: "JSON.stringify((window.__R||{}).사건||null)", returnByValue: true });
   사건 = JSON.parse(re.result.value || "null");
+  /* ★ 군대가 무너진 순간들(D) — 「위기」와 달리 **체력과 군세를 갈라** 적는다. */
+  const rb = await S("Runtime.evaluate", { expression: "JSON.stringify((window.__R||{}).붕괴||null)", returnByValue: true });
+  붕괴 = JSON.parse(rb.result.value || "null");
 } catch {}
+if (붕괴) {
+  const A = 붕괴.군세 || [], H = 붕괴.체력 || [];
+  const 끝m = MIN;
+  const 앞 = (L) => L.filter((e) => e.분 <= 6).length, 뒤 = (L) => L.filter((e) => e.분 > 6).length;
+  const per = (n, m) => m > 0 ? (n / m).toFixed(2) : "–";
+  console.log("\n── 군대가 무너지는 사건(D) ──");
+  console.log(`  군세 반토막 **${A.length}번** (앞 6분 ${앞(A)} · 뒤 ${끝m - 6}분 ${뒤(A)})`
+    + ` · 분당 앞 ${per(앞(A), 6)} 대 뒤 ${per(뒤(A), 끝m - 6)}`);
+  console.log(`  체력 절반아래 **${H.length}번** (앞 6분 ${앞(H)} · 뒤 ${끝m - 6}분 ${뒤(H)})`
+    + ` · 분당 앞 ${per(앞(H), 6)} 대 뒤 ${per(뒤(H), 끝m - 6)}`);
+  /* ★ **다시 설 때까지 걸린 초** — 이것이 ㉠(안 무너진다)과 ㉡(무너져도 즉시 선다)을 가른다. */
+  const 복 = (L) => { const v = L.map((e) => e.복구초).filter((x) => typeof x === "number");
+    const 못 = L.filter((e) => typeof e.복구초 !== "number").length;
+    v.sort((a, b) => a - b);
+    return v.length ? `중앙 ${v[v.length >> 1].toFixed(1)}초 (n=${v.length} · 층이 먼저 바뀜 ${못})` : `복구 표본 0 (층이 먼저 바뀜 ${못})`; };
+  const 앞A = A.filter((e) => e.분 <= 6), 뒤A = A.filter((e) => e.분 > 6);
+  console.log(`  다시 서기까지 — 앞 6분 ${복(앞A)} · 뒤 ${복(뒤A)}`);
+  const 사진 = (L, n) => { if (!L.length) return "없음";
+    const md = (k) => { const v = L.map((e) => e[k]).sort((a, b) => a - b); return v[v.length >> 1]; };
+    return `마나 ${md("마나")}/${md("마나최대")} · 시체 ${md("시체")} · 체력율 ${md("체력율")} · 층 ${md("층")} · 봉우리 ${md("봉우리")}`; };
+  console.log(`  무너진 순간(중앙값) — 앞: ${사진(앞A)}`);
+  console.log(`                        뒤: ${사진(뒤A)}`);
+}
 if (사건) {
   const L = 사건.목록 || [], 끝 = MIN * 60;
   const 수 = 사건.수 || {};
@@ -793,6 +844,6 @@ if (사건) {
     : `→ **끝 조건 못 넘김** — ${최대.len.toFixed(0)}초 동안 화면에서 아무 일도 안 났다.`
       + ` 그 구간(${mm(최대.from)}~${mm(최대.to)})이 다음 작업이다`);
 }
-fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간, 주술, 사건 }, null, 1));
+fs.writeFileSync(process.argv[3] || "/tmp/loop_health.json", JSON.stringify({ rows, deaths, 시간, 주술, 사건, 붕괴 }, null, 1));
 console.log("errors:", errs.slice(0, 3), "netfail:", netfail.slice(0, 3));
 await raw("Target.closeTarget", { targetId }); bws.close();
