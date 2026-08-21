@@ -76,18 +76,27 @@ const A = await ev(`(function(){
            purseTxt: document.getElementById("statGold").textContent.trim() };
 })()`);
 
-/* ⓑ 눌러 본다 — 군세 단추. 값(상한)이 오르고 금이 값만큼 준다. */
+/* ⓑ 눌러 본다 — 군세 단추. 금이 값만큼 줄고, **그 줄이 그 자리서 다시 그려진다.**
+   ★★ **증인을 바꿨다**(2026-08-21 18:2x). 여태 증인이 「군세 **상한** 숫자」였는데,
+     상한은 **안 움직일 수 있다** — 「소수 정예」갈래는 상한에 ×0.77 을 걸고 **내림**해서
+     계급 5·6·7 이 전부 6 이다(ROADMAP F 에 표로 적었다). 그래서 자가 자 안에서만 졌고,
+     두 번 돌려 보고서야 잡음이 아닌 걸 알았다.
+     ⓕ 가 묻고 싶은 것은 「누른 자리가 **다시 그려지는가**」다 — 상한은 그 물음의
+     증인으로 나쁘다. **늘 움직이는 것**(그 줄 전체의 글자 = 계급이 함께 적힌다)으로 옮긴다.
+     ★ 상한이 헛도는 것 자체는 **자를 고쳐서 없앨 일이 아니다** — ROADMAP F 로 따로 남긴다. */
 const B = await ev(`(function(){
   const before = { cap: window.__armyCap ? 0 : 0, gold: window.META.gold|0, lv: window.META.up.army|0 };
   const btn = document.querySelector('#statBody button.upBtn[data-up="army"]');
-  const capBefore = [...document.querySelectorAll("#statBody .tipStat")]
-    .find(d => d.querySelector(".sN")?.textContent.trim() === "군세")?.querySelector("b").textContent.trim();
-  btn.click();
-  const capAfter = [...document.querySelectorAll("#statBody .tipStat")]
-    .find(d => d.querySelector(".sN")?.textContent.trim() === "군세")?.querySelector("b").textContent.trim();
+  const row = () => { const d = [...document.querySelectorAll("#statBody .tipStat")]
+    .find(d => d.querySelector(".sN")?.textContent.trim() === "군세");
+    return d ? { 줄: d.textContent.replace(/\s+/g, " ").trim(),
+                 상한: d.querySelector("b")?.textContent.trim() } : null; };
+  const r0 = row(); btn.click(); const r1 = row();
+  const capBefore = r0 && r0.상한, capAfter = r1 && r1.상한;
+  const rowBefore = r0 && r0.줄, rowAfter = r1 && r1.줄;
   return { lvBefore: before.lv, lvAfter: window.META.up.army|0,
            goldBefore: before.gold, goldAfter: window.META.gold|0,
-           capBefore, capAfter, open: document.getElementById("winStat").classList.contains("on") };
+           capBefore, capAfter, rowBefore, rowAfter, open: document.getElementById("winStat").classList.contains("on") };
 })()`);
 
 /* ⓒ 금이 모자라면 죽는다 — 눌러도 아무 일이 안 나야 한다(조용히 무시가 아니라 disabled). */
@@ -140,9 +149,13 @@ const T = [
   ["ⓔ 누르면 실제로 오른다 — 등급 +1 · 금이 값만큼 준다",
     B.lvAfter === B.lvBefore + 1 && B.goldAfter < B.goldBefore,
     `강화 ${B.lvBefore}→${B.lvAfter} · 금 ${B.goldBefore}→${B.goldAfter}`],
-  ["ⓕ 누른 자리가 그 자리서 다시 그려진다 — 군세 값이 바뀐다",
-    B.capBefore !== B.capAfter && B.open,
-    `군세 ${B.capBefore}→${B.capAfter} · 창 ${B.open ? "열림" : "닫힘"}`],
+  /* ★ 증인은 **줄 전체**다(계급이 같이 적히므로 늘 움직인다). 상한은 곁들여 적기만 한다 —
+     정예 갈래에서 상한이 안 움직이는 것은 ROADMAP F 가 맡는다. */
+  ["ⓕ 누른 자리가 그 자리서 다시 그려진다 — 그 줄이 바뀐다",
+    !!B.rowBefore && B.rowBefore !== B.rowAfter && B.open,
+    `줄 «${B.rowBefore}» → «${B.rowAfter}» · 상한 ${B.capBefore}→${B.capAfter}` +
+    (B.capBefore === B.capAfter ? " (상한은 안 움직였다 — ROADMAP F)" : "") +
+    ` · 창 ${B.open ? "열림" : "닫힘"}`],
   ["ⓖ 금이 없으면 죽고, 눌러도 안 오른다",
     C.rows.filter(r => r.up).every(r => r.off === true) && C.lvSame,
     `죽은 것=${C.rows.filter(r => r.up && r.off).length}/4 · 등급 그대로=${C.lvSame}`],

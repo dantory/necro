@@ -69,6 +69,9 @@ const RULERS = [
      좌표를 재는 자라 빠르다(3 폭 × 0.8초). */
   { name: "rail_qa",      args: [],                             secs: 120, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
+  /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
+     ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
+  { name: "forge_mix",    args: [],                             secs: 60,  tier: "fast", expect: /통과|미달/ },
   /* ★ 초기화 — **지우는 기능은 틀리는 방향이 둘**이고, 그중 「안 눌렀는데 지워진다」는
      되돌릴 수가 없다. 두 갈래를 다 켜서 보정해 둔 자다(둘 다 실제로 운다). */
   { name: "wipe_qa",      args: [],                             secs: 150, tier: "fast", expect: /판정/ },

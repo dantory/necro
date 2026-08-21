@@ -1268,8 +1268,60 @@ export const gearDelta = (k, d) => {
      · 상점(장비) = 「한 번이 사건」 · 트리 = 되돌릴 수 없는 갈림길 → **손에 남긴다.**
    ★ 다음에 살 수 있는 **장비 한 벌 값은 남겨 둔다**(forgeReserve). 안 그러면 상점에
      갈 때마다 금이 0 이라 「살 것이 없는 가게」가 되고, 손으로 하는 축이 통째로 죽는다.
-   제일 싼 것부터 사므로 넷이 고르게 오르고, 값이 1.55^n 이라 저절로 느려진다 —
-   상한을 새로 두지 않아도 곡선이 알아서 눕는다. */
+
+   ══ **「제일 싼 것부터」를 버린다** ══ (병수님 2026-08-21 17:40 「① 자동 구매 규칙을 바꾼다」)
+   여태는 `upCost` 최소를 샀다. 그런데 밑값이 14/16/22/40 이고 **곱이 넷 다 1.55** 라,
+   그 규칙은 계급을 **고정 간격에 못 박는다** — 금을 1천에서 1억까지(10만 배) 부어도
+   폭이 **2** 였다(3·3·2·1 → 28·28·27·26, `tools/forge_mix.mjs` 로 실측).
+   그건 축 넷이 아니라 **금 하나에 붙은 눈금 넷**이다. 등급·문턱을 얹어도 시간이
+   알아서 넘으므로, **값이 아니라 규칙**을 바꿔야 풀린다(밑값·곱을 축마다 달리 해도
+   간격만 바뀌고 여전히 묶인다 — 그것도 재 봤다).
+
+   새 규칙: **몫(weight) 대비 제일 뒤처진 축**을 산다. `(계급+1) / 몫` 이 최소인 것.
+     · 그러면 계급 비가 **몫에 수렴**한다 — 몫이 2:1 이면 계급도 대략 2:1 이 된다.
+     · 그리고 **몫을 편성(doctrine)과 트리 갈래가 정한다** → 빌드마다 다른 몸이 된다.
+       여태 「무엇을 소환할지」만 갈리고 **몸은 누구나 똑같았다.**
+   ★ **마나에는 바닥을 둔다.** 08-21 에 죽음 일곱을 뜯어 보니 **전부 마나 0~6** 이었다
+     (체력이 모자라 죽은 것은 하나도 없었다). 마나를 굶기는 몫은 **앞 6분의 죽음을
+     늘린다** — 어느 편성에서도 mp 몫을 0.85 아래로 두지 않는다.
+   ★ **재련은 규칙을 안 바꾼다.** 뒤처진 축의 값과 **제일 싼 재련**을 견줘 싼 쪽을 산다 —
+     여태와 같은 자리다. 무한 축이라 여기가 굶으면 후반에 금이 갈 데가 없어진다
+     (`forge_mix` 의 ㉣ 가 그걸 지킨다). */
+
+/** 축마다의 **몫.** 편성이 고르고, 트리 갈래가 그 위에 곱한다.
+ *  ★ 균형(기본)은 **넷 다 1** — 지난 측정의 축이 그대로 성립해야 A/B 를 이어서 읽는다.
+ *  ★ 어느 칸도 0 이 아니다. 0 이면 그 축은 **영영 안 사지고**, 「고른다」가 아니라
+ *    「없앤다」가 된다(트리 갈래는 잠그는 게 맞지만 몸은 그렇지 않다). */
+const FORGE_W = {
+  balance: { hp:1.0, mp:1.0, dmg:1.0, army:1.0 },  // 균형 — 여태의 몸
+  bone:    { hp:0.7, mp:1.3, dmg:0.9, army:2.0 },  // 머릿수: 상한과, 그걸 세울 마나
+  flesh:   { hp:1.9, mp:0.9, dmg:1.4, army:0.8 },  // 자힐 몸: 두껍고 세게, 수는 적게
+  wall:    { hp:1.7, mp:1.0, dmg:0.8, army:1.4 },  // 골렘 벽: 버티는 몸 + 벽 수
+};
+/** 트리 갈래가 몫에 **곱한다** — 찍은 쪽으로 몸이 따라간다. 안 찍었으면 1(안 건드림). */
+const FORK_W = {
+  legion: { army:1.30, mp:1.15 },                  // 군단 — 머릿수, 그리고 세울 마나
+  elite:  { army:0.55, dmg:1.40, hp:1.20 },        // 소수 정예 — 수를 줄이고 하나를 세게
+  fury:   { dmg:1.25, hp:0.90 },                   // 광포 — 주는 만큼 뺏는다(트리와 같은 결)
+  stone:  { hp:1.25, dmg:0.90 },                   // 석화
+  glut:   { army:1.15, hp:1.10 },                  // 탐식 — 시체를 몸으로
+  pyro:   { dmg:1.25, mp:1.10 },                   // 불꽃 장례 — 터뜨리는 쪽
+  drain:  { mp:1.30 },                             // 영혼 착취 — 마나 축
+  haste:  { dmg:1.15, mp:1.10 },                   // 신속
+};
+const MP_FLOOR = 0.85;      // ★ 마나 바닥 — 위 주석의 「죽음 일곱이 전부 마나 0~6」
+/** 지금 빌드가 각 축에 두는 몫. 편성 × (찍은 갈래들). */
+export function forgeWeights() {
+  const base = FORGE_W[doctrineId()] || FORGE_W[DOCTRINE_DEF];
+  const w = { ...base };
+  const tree = (META && META.tree) || {};
+  for (const id in FORK_W) {
+    if (!(tree[id] > 0)) continue;
+    for (const k in FORK_W[id]) w[k] = (w[k] || 1) * FORK_W[id][k];
+  }
+  w.mp = Math.max(w.mp || 1, MP_FLOOR);
+  return w;
+}
 function forgeReserve() {
   let r = 0;
   for (const k of GEAR_KEYS) { const nx = gearNext(k); if (nx !== null) r = Math.max(r, GEAR[k].cost[nx]); }
@@ -1281,10 +1333,17 @@ function forgeReserve() {
  *    1.55 라 저절로 번갈아 오르고, 재련이 무한 축이라 대장간이 다 차도 금이 계속 쓰인다.
  *    forgeReserve() 를 그대로 존중해 상점(손으로 사는 축) 몫은 남긴다. */
 export function autoForge(max = 8) {
-  const bought = [], keep = forgeReserve();
+  const bought = [], keep = forgeReserve(), W = forgeWeights();
   for (let i = 0; i < max; i++) {
-    let pick = null, lo = Infinity, reforge = false;
-    for (const k in UPS)       { const c = upCost(k);      if (c < lo) { lo = c; pick = k; reforge = false; } }
+    /* ① 강화 넷 중 **몫 대비 제일 뒤처진** 것. 값이 아니라 «얼마나 밀렸나»로 고른다.
+       같으면 싼 쪽(결정적이어야 검수기의 A/B 가 성립한다 — 난수 한 톨 없다). */
+    let pick = null, lo = Infinity, reforge = false, need = Infinity;
+    for (const k in UPS) {
+      const n = ((META.up[k] | 0) + 1) / (W[k] || 1), c = upCost(k);
+      if (n < need || (n === need && c < lo)) { need = n; lo = c; pick = k; reforge = false; }
+    }
+    /* ② 재련은 **여태와 같은 자리** — 뒤처진 축의 값보다 싸면 그쪽을 산다.
+       무한 축이라 여기가 굶으면 후반에 금이 갈 데가 없다. */
     for (const k of GEAR_KEYS) { const c = reforgeCost(k); if (c < lo) { lo = c; pick = k; reforge = true;  } }
     if (!pick || META.gold - lo < keep) break;
     META.gold -= lo;
