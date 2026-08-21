@@ -1345,9 +1345,18 @@ const bodyHp = () => bodyBase() + (META.up.hp | 0) * 25
      · 깊은 층에서는 「다섯 대」가 「다섯 대 × 키운 배수」가 된다 — 손잡이가 깊이와
        **무관하게** 같은 일을 한다.
      · 장비·부적의 체력도 같은 배수를 탄다(예전엔 그것들도 같이 먹혔다). */
+/* HPGROW = 1 이면 위의 꼴(바닥 × 키운 배수). **0 이면 예전 그대로** `max(몸, 바닥)` —
+   검수기가 `__HPGROW` 로 쓴다(다른 손잡이 `__SPLIT`·`__ARMY_WALL` 과 같은 꼴).
+   D 에서 「깊은 층이 통째로 세진 것」이 20분 판의 죽음·최고층을 어디로 옮겼는지
+   재려면 **되돌린 팔**이 있어야 한다 — 없으면 견줄 것이 없다. */
+export const HPGROW_DEF = 1;
+const HPGROW_OF = () => (typeof globalThis !== "undefined" && globalThis.__HPGROW != null)
+  ? +globalThis.__HPGROW : HPGROW_DEF;
 const hpGrow = () => bodyHp() / bodyBase();
 export const hpMaxOf = () => Math.round(
-  Math.max(bodyBase(), floorDmg(S.floor | 0) * SURVIVE_HITS) * hpGrow());
+  HPGROW_OF()
+    ? Math.max(bodyBase(), floorDmg(S.floor | 0) * SURVIVE_HITS) * hpGrow()
+    : Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS));
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
