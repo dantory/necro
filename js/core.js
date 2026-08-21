@@ -1541,11 +1541,12 @@ const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__E
 export const FLOOR_P_DEF = 0.5;
 const FLOOR_P_OF = () => (typeof globalThis !== "undefined" && globalThis.__FLOOR_P != null)
   ? +globalThis.__FLOOR_P : FLOOR_P_DEF;
-export const hpMaxOf = () => {
+/* p 를 밖에서 넣어 볼 수 있게 갈라 둔다 — `hpFloorLift` 가 «p=0 이었다면» 을 물어야 한다. */
+const hpMaxWith = (pOver) => {
   const f = S.floor | 0, floor = floorDmg(f) * SURVIVE_HITS, eh = EARLY_HITS_OF();
   const hg = HPGROW_OF(), grow = hg ? hpGrow() : 1;
   if (hg === 3) {                       // 바닥이 grow 의 일부(p)만 탄다 · 천장은 그대로
-    let v = Math.max(bodyHp(), floor * Math.pow(grow, FLOOR_P_OF()));
+    let v = Math.max(bodyHp(), floor * Math.pow(grow, pOver != null ? pOver : FLOOR_P_OF()));
     if (eh > 0) v = Math.min(v, floorDmg(f) * eh * grow);
     return Math.round(v);
   }
@@ -1558,6 +1559,15 @@ export const hpMaxOf = () => {
   if (eh > 0) base = Math.min(base, floorDmg(f) * eh);
   return Math.round(base * grow);
 };
+export const hpMaxOf = () => hpMaxWith();
+/* ══ **이 수정이 내 몸을 몇 배로 부풀렸는가** — 위협이 그만큼 따라 커지라고 있는 자다 ══
+   (2026-08-22 · ROADMAP D-11) `__FLOOR_P` 로 깊은 층에 「내가 만든 몸」을 되돌리면
+   몸만 커지고 위협은 제자리라 **45·65층 죽음이 통째로 0** 이 됐다(D-10). 위협에 이 배수를
+   그대로 곱하면 두 끝이 같이 선다 — 몸은 보이고, 몫은 그대로다.
+     · **p = 0 이면 어느 층에서도 정확히 1** 이다(지금 기본값) — 곱해도 한 톨도 안 바뀐다.
+     · 얕은 층은 p 가 몇이든 1 이다(거기선 바닥이 안 이겨서 `__FLOOR_P` 가 안 닿는다) —
+       그래서 이 자는 **앞 6분을 건드릴 수가 없다**(「몫 바닥」 꼴이 진 자리가 여기다). */
+export const hpFloorLift = () => { const a = hpMaxWith(0); return a > 0 ? hpMaxWith() / a : 1; };
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도

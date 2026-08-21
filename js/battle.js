@@ -1,4 +1,4 @@
-import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, isGate, META, mpRegenOf, SQUASH_VIEW,
+import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, hpFloorLift, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
@@ -451,6 +451,36 @@ const GATE_VOW_OF = () => (typeof globalThis !== "undefined" && globalThis.__GAT
 export const GATE_VOW_CAP_DEF = 0.24;
 const GATE_VOW_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW_CAP != null)
   ? +globalThis.__GATE_VOW_CAP : GATE_VOW_CAP_DEF;
+/* ══ 위협도 **내 몸이 커진 만큼** 커진다(GATE_VOW_LIFT) ══════════════════════
+   D ㉠·㉡ 이 배타로 끝난 자리가 여기다(2026-08-22 03:4x · D-10). 깊은 층에 「내가 만든
+   몸」을 되돌리려고 `hpMaxOf` 의 바닥을 올렸더니(`__FLOOR_P`) **45·65층 죽음이 통째로 0** 이
+   됐다 — 몸만 커지고 위협은 안 커져서다. 그래서 손댈 자리는 `hpMaxOf` 가 아니라 **위협**이다.
+   ★ 위협의 «일부»는 이미 몸을 따라 크고 있었다 — 45층 산수를 그대로 적으면:
+       층피해 2268 · 최대체력 11340(=2268×5)
+       저주 3.8배 → 8618 (체력의 76%)  → 상한 0.24 가 **걸린다** → 2721 (24%)
+       돌진 3.0배 → 6804 (60%)        → 상한이 **걸린다**       → 2721 (24%)
+       웅덩이 0.85배 → 1928 (17%)      → 상한에 **안 걸린다**    → 그대로 (17%)
+     상한에 걸리는 둘은 `hpMaxOf × 0.24` 라 몸을 따라 큰다. 몸을 2.8배로 키우면 그 둘은
+     2.8배가 되는데 **웅덩이만 제자리**라 몫이 17% → 6% 로 묽어진다. 죽음이 「5초피해 /
+     최대체력 = 1.00」의 칼날 위에 서 있었으니 그 묽어짐 하나로 0 이 된다.
+   ✗ **먼저 「몫의 바닥」 꼴로 짰다가 물렀다**(같은 날 04:1x · `tools/vowmin_check.mjs`).
+     상한과 같은 눈금의 바닥(한 방이 최소 최대체력의 몇 %)은 **얕은 층부터 문다** —
+     거기선 바닥항이 안 이겨서 한 방이 체력의 1.7~7.9% 밖에 안 되기 때문이다.
+     0.24 를 걸면 1층 저주가 **1.7% → 24%** 로 열네 배가 된다. 값을 낮춰도 순서는 같아서
+     (깊은 층 웅덩이 17% 아래로 내리면 깊은 층에서 아무 일도 안 하고, 그 위로 올리면
+     얕은 층부터 문다) **D 가 필요한 자리에는 영영 안 닿는다.** 재기 전에 자가 말해 줬다.
+   ★ 그래서 «몫»이 아니라 **배수**로 짠다: `hpFloorLift()` — `__FLOOR_P` 가 «지금 이
+     깊이에서» 내 몸을 몇 배로 부풀렸는지 그 값 그대로다(core.js).
+     · **p = 0 이면 어느 층에서도 정확히 1** — 지금 기본값에서는 한 톨도 안 바뀐다.
+     · **얕은 층은 p 가 몇이든 1** — 거기선 바닥이 안 이겨 `__FLOOR_P` 가 안 닿는다.
+       곧 이 손잡이는 **앞 6분을 건드릴 수가 없다**(끝 조건 ②가 산수로 보장된다).
+     · 깊은 층에서는 몸과 위협이 **같은 배수**로 커진다 — 몫이 유지된 채 몸만 보인다.
+   q = 1 이면 그대로 곱하고, 0 이면 손 안 댐. 사이 값은 「몸이 커진 만큼의 일부만」이다.
+   검수기가 `globalThis.__GATE_VOW_LIFT` 로 쓴다.
+   ★ **기본값은 0 이다 — 값은 재고 나서 옮긴다**(`tools/ab_vowlift.sh`). */
+export const GATE_VOW_LIFT_DEF = 0;
+const GATE_VOW_LIFT_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_VOW_LIFT != null)
+  ? +globalThis.__GATE_VOW_LIFT : GATE_VOW_LIFT_DEF;
 /** 수법마다 **한 방이 실제로 닿는 배수** — fireMech 안의 곱을 그대로 옮겨 적은 것이다.
  *  상한을 「최대체력의 몇 %」로 걸려면 이 배수를 나눠 줘야 눈금이 수법끼리 같아진다.
  *  add 는 졸개를 세우는 것이라 한 방이 없다(상한 대상이 아니다 — 1 로 둔다). */
@@ -1519,8 +1549,12 @@ export function step(dt) {
        커진 만큼 위험도 같이 커지고, 어느 깊이에서도 한 방이 나를 지우지 못한다.
        주인이 제 손으로 내는 수법(아래 루프)은 여기를 지나지 않는다. */
     let pd = p.dmg;
-    { const cap = p.vow ? GATE_VOW_CAP_OF() : 0;
-      if (cap > 0) pd = Math.min(pd, hpMaxOf() * cap / (MECH_HIT[p.mech] || 1)); }
+    /* ★ 몸이 커진 배수(GATE_VOW_LIFT)를 **먼저** 곱하고 상한으로 자른다 — 상한 자체도
+       `hpMaxOf` 를 읽으므로 같은 배수를 타고, 그래서 몫이 유지된 채 몸만 보인다. */
+    { const hit = MECH_HIT[p.mech] || 1;
+      const cap = p.vow ? GATE_VOW_CAP_OF() : 0, q = p.vow ? GATE_VOW_LIFT_OF() : 0;
+      if (q > 0) pd *= Math.pow(hpFloorLift(), q);
+      if (cap > 0) pd = Math.min(pd, hpMaxOf() * cap / hit); }
     if (fireMech(p.mech, pd, p.col, p.cvx, p.cvy)) return;
   }
   for (const m of S.mobs) {

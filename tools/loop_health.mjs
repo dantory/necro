@@ -65,6 +65,9 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_GATESEC != null ? `globalThis.__GATE_SEC = ${+process.env.LH_GATESEC};` : ""}
    ${process.env.LH_VOW != null ? `globalThis.__GATE_VOW = ${+process.env.LH_VOW};` : ""}
    ${process.env.LH_VOWCAP != null ? `globalThis.__GATE_VOW_CAP = ${+process.env.LH_VOWCAP};` : ""}
+   ${/* ★ 위협이 **몸이 커진 만큼** 같이 큰다(ROADMAP D-11 · battle.js GATE_VOW_LIFT).
+        `__FLOOR_P` 가 부풀린 배수를 약속의 세기에 그대로 곱한다 — p=0 이면 1 이라 무해. */""}
+   ${process.env.LH_VOWLIFT != null ? `globalThis.__GATE_VOW_LIFT = ${+process.env.LH_VOWLIFT};` : ""}
    ${process.env.LH_WALL != null ? `globalThis.__ARMY_WALL = ${+process.env.LH_WALL};` : ""}
    ${process.env.LH_CAPOVER != null ? `globalThis.__CAP_OVER = ${+process.env.LH_CAPOVER};` : ""}
    ${process.env.LH_CAPMERGE != null ? `globalThis.__CAP_MERGE = ${+process.env.LH_CAPMERGE};` : ""}
