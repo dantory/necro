@@ -887,6 +887,25 @@ export const dropChance = (f) => DROP_PER_FLOOR / Math.max(1, floorN(f));
 /** 이 층에서 나올 수 있는 **제일 높은 등급.** 깊이가 곧 좋은 물건이다.
  *  5층마다 한 단계 — 20층이면 마지막 등급까지 나온다. */
 export const dropTierCap = (f) => Math.min(4, 1 + Math.floor(f / 5));
+/** ══ 물건 레벨(il) ══ D2 의 **지역 레벨(alvl)** 자리다. (ROADMAP G-a)
+ *  `dropTierCap` 은 15층이면 꼭대기 4 에 닿아 **그 뒤 60~65층이 새 물건을 하나도 안 줬다**
+ *  (`tools/depth_probe.mjs` 로 재니 15층→80층 「한 판 최고 점수」가 **1.00배** — 눈금이 없다).
+ *  등급 이름을 더 만들어 상한을 올리는 길도 있지만, 그건 열 슬롯의 이름·값·값어치를 다
+ *  새로 짜는 일이고 **끝이 또 생긴다.** D2 가 실제로 쓰는 건 그 길이 아니다 — 같은 베이스라도
+ *  **어느 깊이에서 떨어졌느냐**가 값을 가른다. 그래서 물건마다 `il`(떨어진 층)을 새기고,
+ *  기본 수치와 옵션 폭을 **둘 다** 이 하나로 곱한다(자가 둘이면 어디서 세는지 못 찾는다).
+ *
+ *  ★ 꼴은 **로그**다 — 층은 끝이 없는데(한 생에 수백 층까지 간다) 선형·지수로 매달면
+ *    깊은 데서 터진다. 로그면 **영영 오르되 천천히** 오른다:
+ *      15층 1.00 · 30층 1.55 · 60층 2.10 · 80층 2.33 · 200층 3.05 · 500층 3.81
+ *  ★ IL_FREE(=15) 아래는 1.0 이다 — 초반 판은 지금과 **한 톨도 안 달라진다**(회귀 안전).
+ *  ★ 적은 깊이에 **지수**로 세진다(depthMul). 그 옆에서 로그 2.3배는 난이도를 안 뒤집는다
+ *    — 이 축은 «세짐»이 아니라 «주울 이유»를 만드는 자리다. */
+export const IL_FREE = 15, IL_GAIN = 0.55;
+export const ilMul = (il) => {
+  const d = Math.max(0, (+il || 0) - IL_FREE);
+  return 1 + IL_GAIN * Math.log2(1 + d / IL_FREE);
+};
 export const GEAR_KEYS = Object.keys(GEAR);
 
 /** ★ **저장이 들고 온 물건을 여기서 한 번 거른다.** `GEAR` 에 없는 슬롯(k)이나 없는
@@ -899,14 +918,17 @@ export const GEAR_KEYS = Object.keys(GEAR);
  *  ★ 목록을 새로 적지 않는다 — 진실은 GEAR 하나여야 이름을 고칠 때 같이 따라온다. */
 const gearOk = (it) => !!(it && GEAR[it.k] && GEAR[it.k].cost[it.tier] != null
                           && (!it.uid || UNIQ_BY_ID[it.uid]));
-META.bag = (META.bag || []).filter(gearOk);
+/* ★ 물건 레벨도 여기서 거른다 — 옛 세이브에는 `il` 이 아예 없고(→0, 곱수 1.0 이라 지금과 같다),
+   문자열·음수·소수·무한이 섞여 오면 ilMul 이 NaN 을 뱉어 gearVal·scoreOf 가 통째로 썩는다. */
+const ilOk = (it) => { if (it) it.il = (typeof it.il === "number" && isFinite(it.il) && it.il > 0) ? Math.floor(it.il) : 0; return it; };
+META.bag = (META.bag || []).filter(gearOk).map(ilOk);
 /* ★ 낀 것도 여기서 거른다 — **모르는 슬롯은 버리고, 없는 슬롯은 0등급(null)으로 채운다.**
    슬롯을 늘려도 옛 세이브(셋만 든 것)가 그대로 열리게: 새 슬롯은 null 로 서고(0등급),
    지워진 슬롯은 사라진다. 진실은 GEAR_KEYS 하나라 이름을 고치면 여기가 따라온다. */
 if (!META.equip || typeof META.equip !== "object") META.equip = {};
 for (const k of Object.keys(META.equip)) if (!GEAR[k]) delete META.equip[k];
 for (const k of GEAR_KEYS)
-  META.equip[k] = (META.equip[k] && gearOk(META.equip[k])) ? META.equip[k] : null;
+  META.equip[k] = (META.equip[k] && gearOk(META.equip[k])) ? ilOk(META.equip[k]) : null;
 /* ★ 재련 단계도 같은 자리에서 거른다(ROADMAP ⑧-a·382 「저장을 믿지 않는 자리를 한 곳 더」).
  *  문자열·음수·소수·모르는 슬롯이 들어오면 reforgeCost 의 pow 나 gearVal 이 NaN 을 뱉는다. */
 if (!META.plus || typeof META.plus !== "object") META.plus = {};
@@ -932,9 +954,10 @@ export function rollDrop(f) {
      한 생에 f≥10 전리품을 UNIQ_DROP_EVERY 개 모아야 하나 — S.uniqCtr 는 newRun 이 0 으로. */
   if (f >= 10 && ++S.uniqCtr >= UNIQ_DROP_EVERY) {
     S.uniqCtr = 0;
-    return mkUnique(UNIQUE[uniqRotor++ % UNIQUE.length]);
+    return mkUnique(UNIQUE[uniqRotor++ % UNIQUE.length], f);
   }
-  return mkItem(k, Math.min(cap, tier));
+  /* ★ 떨어진 층을 그대로 물건 레벨로 새긴다 — 같은 4등급이라도 **더 깊은 데서 나온 것**이 낫다. */
+  return mkItem(k, Math.min(cap, tier), false, f);
 }
 
 /** ══ 「무덤 파기」의 값 ══ 금 수입(goldFor)은 층에 1.12 로 붙지만, **한 판 벌이**에는
@@ -980,12 +1003,12 @@ export const AFFIX = {
   xp:     { n:"경험치",    u:"%",   pre:"깨우치는", w:0.55, r:[10, 28], p:0.6 },
 };
 const AF_KEYS = Object.keys(AFFIX);
-const afMul = (tier) => 0.6 + 0.35 * tier;            // 1등급 0.95 → 4등급 2.0
+const afMul = (tier, il) => (0.6 + 0.35 * tier) * ilMul(il);   // 1등급 0.95 → 4등급 2.0, 여기에 깊이(il)가 곱해진다
 /** 등급이 높을수록 **많이** 붙는다. 1등급 0~1 · 4등급 3(상한). */
 function afCount(tier) {
   return Math.min(3, Math.max(0, tier - 1 + (Math.random() < 0.35 ? 1 : 0)));
 }
-function rollAffix(tier, taken) {
+function rollAffix(tier, taken, il) {
   const pool = AF_KEYS.filter((id) => !taken.includes(id));
   let tot = 0; for (const id of pool) tot += AFFIX[id].p;
   let r = Math.random() * tot, id = pool[pool.length - 1];
@@ -994,26 +1017,26 @@ function rollAffix(tier, taken) {
   /* ★ 군세만 등급으로 안 키운다. 처음엔 다 같이 곱했더니 4등급에서 +2 가 나왔고,
      셋을 끼면 상한이 6→12 로 **두 배**가 됐다 — 옵션 하나가 판을 통째로 바꾸면
      그건 옵션이 아니라 다른 게임이다. 뽑기가 드문 것으로 값어치를 지킨다. */
-  const raw = (a.r[0] + Math.random() * (a.r[1] - a.r[0])) * (a.flat ? 1 : afMul(tier));
+  const raw = (a.r[0] + Math.random() * (a.r[1] - a.r[0])) * (a.flat ? 1 : afMul(tier, il));
   return { id, v: id === "mp" ? Math.round(raw * 10) / 10 : Math.max(1, Math.round(raw)) };
 }
 /** 물건 하나를 만든다. `plain` 이면 옵션 없이 — **상점이 파는 것이 그것이다**.
  *  상점은 바닥이고 던전이 천장이어야 「한 판 더」가 산다. */
-export function mkItem(k, tier, plain = false) {
+export function mkItem(k, tier, plain = false, il = 0) {
   const af = [];
-  if (!plain) { const n = afCount(tier); for (let i = 0; i < n; i++) af.push(rollAffix(tier, af.map((x) => x.id))); }
+  if (!plain) { const n = afCount(tier); for (let i = 0; i < n; i++) af.push(rollAffix(tier, af.map((x) => x.id), il)); }
   /* 얼굴(v) — 같은 등급 안에서 이름만 가른다. 값에는 한 톨도 안 쓰인다. */
-  return { k, tier, af, v: Math.floor(Math.random() * 3) };
+  return { k, tier, af, v: Math.floor(Math.random() * 3), il: il | 0 };
 }
 /** 유니크 하나를 만든다 — **등급 4 취급**(GEAR[k] 최고 등급)에 uid 로 규칙을 표식하고,
  *  옵션은 두지 않는다(규칙이 값어치다 · 난수를 안 먹어 결정적이다). */
-export function mkUnique(u) {
-  return { k: u.k, tier: GEAR[u.k].tiers.length - 1, af: [], uid: u.id };
+export function mkUnique(u, il = 0) {
+  return { k: u.k, tier: GEAR[u.k].tiers.length - 1, af: [], uid: u.id, il: il | 0 };
 }
 /** 물건끼리 견주는 **하나의 자.** 자동 착용·자동 처분이 전부 이걸 본다 —
  *  자가 여럿이면 「왜 이게 안 끼워졌지」가 설명이 안 된다. */
 export const scoreOf = (it) =>
-  !it ? -1 : it.tier * 100 + (it.uid ? 60 : 0) + (META.plus[it.k] | 0) * PLUS_W
+  !it ? -1 : it.tier * 100 * ilMul(it.il) + (it.uid ? 60 : 0) + (META.plus[it.k] | 0) * PLUS_W
              + it.af.reduce((s, a) => s + (AFFIX[a.id]?.w || 0) * a.v, 0);
 /** 이름 — 제일 센 옵션이 앞에 붙는다(디아블로의 접두사).
  *  ★ 접두사는 **「~의」로 끝내지 않는다.** 등급 이름 절반이 이미 「심장의 홀」·「왕의 제의」
@@ -1247,7 +1270,10 @@ export const gearNext = (k) => {
   const t = gearTier(k) + 1;
   return t < GEAR[k].tiers.length ? t : null;
 };
-export const gearVal = (k) => GEAR[k].val[gearTier(k)] + (META.plus[k] | 0) * reforgeStep(k);
+/** ★ 낀 물건의 **물건 레벨**이 기본 수치를 곱한다(ilMul) — 재련(plus)은 금이 주는 몫이라
+ *  곱수 밖에 둔다(깊이의 몫과 금의 몫이 섞이면 어느 쪽이 올렸는지 못 읽는다). */
+export const gearVal = (k) => GEAR[k].val[gearTier(k)] * ilMul(equipped(k)?.il)
+                            + (META.plus[k] | 0) * reforgeStep(k);
 /** 값을 **보여 주는 꼴** — 단위(GEAR[k].u)에 맞춰 %·수·/초 로. 화면 셋(상점·상태창·견줌)이
  *  같은 자를 쓰게 한 곳에 둔다(예전엔 저마다 `k` 로 갈라, 슬롯을 늘릴 때마다 셋을 다 고쳤다). */
 export const gearShow = (k, v) => {

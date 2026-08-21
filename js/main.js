@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1691,7 +1691,7 @@ function drawDigTip() {
   $("shopTip").innerHTML =
     `<div class="tipName t4">무덤 파기</div>
      <div class="tipKind">금을 전리품으로 · 가방 ${bagUsed()}/${BAG_MAX}</div>
-     <div class="tipStat">지금 깊이 <b>${META.deepest}층</b> — 최고 <b class="${TIER_CLS[cap]}">${cap}등급</b>까지</div>
+     <div class="tipStat">지금 깊이 <b>${META.deepest}층</b> — 최고 <b class="${TIER_CLS[cap]}">${cap}등급</b>까지 · 깊이 <b>×${ilMul(META.deepest).toFixed(2)}</b></div>
      <div class="tipNote sm">깊이를 따라 값이 오른다 — 벌이와 같은 결로 매달아 두었다</div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
        <button class="btn" data-dig ${can ? "" : "disabled"}>파기</button></div>` +
@@ -1728,7 +1728,8 @@ function drawShop() {
   $("shopTip").innerHTML =
     `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
      <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${bagUsed()}/${BAG_MAX}</div>
-     <div class="tipStat">${g.d} <b>${fmt(g.val[t])}</b></div>` +
+     <div class="tipStat">${g.d} <b>${fmt(g.val[t] * ilMul(it?.il))}</b></div>` +
+    (it?.il > 0 ? `<div class="tipNote sm">${it.il}층에서 나온 것 · 깊이 <b>×${ilMul(it.il).toFixed(2)}</b></div>` : "") +
     ruleHtml(it) +
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
     ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +
@@ -1922,7 +1923,9 @@ const statTipHtml = (sel = statSel, { pinned = true } = {}) => {
   const pl = sel.src === "eq" ? (META.plus[it.k] | 0) : 0;
   return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""}</div>
     <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${sel.src === "eq" ? " · 낀 것" : ""}</div>
-    <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier])}</b></div>` +
+    <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier] * ilMul(it.il))}</b></div>` +
+    /* 물건 레벨 — 「같은 등급인데 왜 더 좋지?」의 답이 이 한 줄이다(깊이가 곱한다). */
+    (it.il > 0 ? `<div class="tipNote sm">${it.il}층에서 나온 것 · 깊이 <b>×${ilMul(it.il).toFixed(2)}</b></div>` : "") +
     ruleHtml(it) +
     it.af.map((a) => `<div class="tipAf">${afText(a)}</div>`).join("") +
     (sel.src === "bag" ? gearCmpHtml(it) : "") +
