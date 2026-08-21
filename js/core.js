@@ -1496,10 +1496,27 @@ export const HPGROW_DEF = 1;
 const HPGROW_OF = () => (typeof globalThis !== "undefined" && globalThis.__HPGROW != null)
   ? +globalThis.__HPGROW : HPGROW_DEF;
 const hpGrow = () => bodyHp() / bodyBase();
-export const hpMaxOf = () => Math.round(
-  HPGROW_OF()
-    ? Math.max(bodyBase(), floorDmg(S.floor | 0) * SURVIVE_HITS) * hpGrow()
-    : Math.max(bodyHp(), floorDmg(S.floor | 0) * SURVIVE_HITS));
+/* ══ 초반에만 걸리는 문 — 몸의 여유가 «스물다섯 대»였다 ══ (2026-08-21 · ROADMAP H-2)
+   바닥(`floorDmg × SURVIVE_HITS`)은 **깊은 층**을 지키는 장치라 1층에서는 20 밖에 안 되고,
+   그 자리는 맨몸 100 이 이긴다 — 그래서 1층이 **25대**, 5층 20대다(설계값 다섯 대에는
+   12층쯤 가야 닿는다). D2 의 Lv.1 네크로는 여덟~아홉 대다.
+   `bodyBase` 를 낮추거나 `floorDmg` 밑값을 올리는 길은 **모든 깊이**를 흔든다(전자는
+   `hpGrow` 의 분모, 후자는 소환수가 맞는 피해까지). 그래서 **천장을 따로 낸다** —
+   `floorDmg(f) × EARLY_HITS`. 이 천장은 층을 따라 저절로 자라서 바닥과 만나는 순간
+   **스스로 사라진다**(9 로 두면 1~8층에만 걸리고 9층부터는 한 톨도 안 다르다).
+   ★ 천장도 **키운 배수(`hpGrow`)를 탄다** — 강화·장비를 얹으면 초반에도 더 버틴다.
+     여유를 깎는 것이지 성장을 지우는 것이 아니다([[knob-that-does-nothing]]).
+   0 이면 문 없음(옛 그대로) — 검수기가 `__EARLY_HITS` 로 쓴다. */
+export const EARLY_HITS_DEF = 0;
+const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HITS != null)
+  ? +globalThis.__EARLY_HITS : EARLY_HITS_DEF;
+export const hpMaxOf = () => {
+  const f = S.floor | 0, floor = floorDmg(f) * SURVIVE_HITS, eh = EARLY_HITS_OF();
+  const grow = HPGROW_OF() ? hpGrow() : 1;
+  let base = HPGROW_OF() ? Math.max(bodyBase(), floor) : Math.max(bodyHp(), floor);
+  if (eh > 0) base = Math.min(base, floorDmg(f) * eh);
+  return Math.round(base * grow);
+};
 export const mpMaxOf  = () => 40  + (META.up.mp | 0) * 8  + (splitLv() - 1) * 3 + gearVal("helm");   // 투구 = 최대 마나
 /* ══ 초반의 벽 · 막는 것은 상한이 아니라 **마나**였다 ══
    ARMY_WALL(그 층 적 수를 군세 상한의 바닥으로) 은 상한을 3 → 6~7 로 올렸는데도
