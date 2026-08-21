@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [];
+const rows = [], deaths = [];
 for (const SEED of SEEDS) {
   const { targetId } = await raw("Target.createTarget", { url: PAGE });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
@@ -59,7 +59,8 @@ for (const SEED of SEEDS) {
   const tick = `(async()=>{
     const B = await import("/js/battle.js"), C = await import("/js/core.js");
     const S = window.__S; const n = Math.round(${STEP} / 0.05);
-    const R = window.__R || (window.__R = { autoT:0, deaths:0, hi:1, hits:0, taken:0, lo:1, kills:0, dry:0, full:0, samp:0, prevHp:S.hp, prevKill:S.killed|0 });
+    const R = window.__R || (window.__R = { autoT:0, deaths:0, hi:1, hits:0, taken:0, lo:1, kills:0, dry:0, full:0, samp:0, prevHp:S.hp, prevKill:S.killed|0,
+      tsec:0, hist:[], deathLog:[], reported:0 });
     for (let i = 0; i < n; i++) {
       try { B.step(0.05); } catch (e) { return JSON.stringify({ 예외: (e + "").slice(0,140) }); }
       if (S.floor > R.hi) R.hi = S.floor;
@@ -67,11 +68,26 @@ for (const SEED of SEEDS) {
       R.prevHp = S.hp;
       R.lo = Math.min(R.lo, S.hp / Math.max(1, S.hpMax));
       const k = S.killed | 0; if (k > R.prevKill) { R.kills += k - R.prevKill; } R.prevKill = k;
-      R.samp++; if (S.mp < C.mpCost ? false : false) {}
+      R.samp++; R.tsec += 0.05;
+      /* **죽는 순간의 사진** — 「군대가 무너진 뒤 마나가 없어 못 세운다」는 08-21 의 진단이
+         D-7~D-17 뒤에도 그대로인지 보려면 죽음마다 그 자리를 적어 둬야 한다
+         ([[cause-written-in-the-item-is-a-guess]]). 앞 5초(100틱)를 굴려 둔다. */
+      R.hist.push([S.minions.length, S.mp, S.corpses, S.hp / Math.max(1, S.hpMax)]);
+      if (R.hist.length > 100) R.hist.shift();
       if (S.mp < 6) R.dry++;                                    // 해골 한 마리도 못 세우는 순간
       if (S.minions.length >= C.armyCap()) R.full++;             // 자리가 꽉 찬 순간
       if ((R.autoT += 0.05) > 0.35) { R.autoT = 0; try { window.auto(); } catch {} }
-      if (S.dead) { R.deaths++; R.prevHp = 0; C.META.runs++; B.newRun(); R.prevHp = S.hp; R.prevKill = S.killed|0; }
+      if (S.dead) {
+        const H = R.hist, cap = C.armyCap();
+        const m = (j) => +(H.reduce((a, x) => a + x[j], 0) / Math.max(1, H.length)).toFixed(1);
+        const pct = (f) => +(H.filter(f).length / Math.max(1, H.length) * 100).toFixed(0);
+        R.deathLog.push({ 초: Math.round(R.tsec), 층: S.floor, 군세: S.minions.length, 상한: cap,
+          마나: Math.round(S.mp), 마나최대: Math.round(S.mpMax), 시체: S.corpses,
+          버틸대수: +(S.hpMax / C.floorDmg(S.floor)).toFixed(1),
+          앞5초군세: m(0), 앞5초마나: m(1), 앞5초시체: m(2),
+          앞5초마름: pct(x => x[1] < 6), 앞5초자리참: pct(x => x[0] >= cap) });
+        R.deaths++; R.prevHp = 0; C.META.runs++; B.newRun(); R.prevHp = S.hp; R.prevKill = S.killed|0; R.hist.length = 0;
+      }
     }
     const f = S.floor;
     return JSON.stringify({ 층:f, lv:C.META.lv, 군세:S.minions.length, 상한:C.armyCap(),
@@ -80,7 +96,8 @@ for (const SEED of SEEDS) {
       버틸대수:+(S.hpMax/C.floorDmg(f)).toFixed(1), 처치:R.kills,
       초당처치:+(R.kills/(${STEP}*(window.__ti=(window.__ti||0)+1))).toFixed(2),
       마나마름:+(R.dry/R.samp*100).toFixed(0), 자리참:+(R.full/R.samp*100).toFixed(0),
-      죽음:R.deaths });
+      죽음:R.deaths,
+      죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
   const pts = [];
@@ -88,6 +105,8 @@ for (const SEED of SEEDS) {
     const r = (await S("Runtime.evaluate", { awaitPromise: true, returnByValue: true, expression: tick })).result.value;
     const o = JSON.parse(r);
     if (o.예외) { console.log(`씨앗 ${SEED} ${t}초에 예외: ${o.예외}`); break; }
+    for (const d of (o.죽음기록 || [])) deaths.push({ SEED, ...d });
+    delete o.죽음기록;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -109,6 +128,28 @@ for (let i = 0; i < n; i++) {
                 p("마나마름"), p("자리참"), p("죽음")];
   console.log([String(rows[0].pts[i].초).padStart(4),
                ...vals.map((v, j) => v.padStart(COLS[j][1]))].join(" "));
+}
+/* ══ 죽는 순간의 사진 ══ 「무엇이 죽였나」는 층별 평균으로는 안 보인다 —
+   죽음 하나하나의 자리(군세·마나·시체·버틸대수)를 세어야 갈린다. */
+if (deaths.length) {
+  const DC = [["씨앗",5],["초",5],["층",5],["군세/상한",9],["마나/최대",9],["시체",5],["버틸대수",8],
+              ["앞5초군세",9],["앞5초마나",9],["앞5초시체",9],["앞5초마름%",10],["앞5초자리참%",12]];
+  console.log(`\n── 죽음 ${deaths.length} 개의 사진 ──`);
+  console.log(DC.map(([h, w]) => h.padStart(w)).join(" "));
+  for (const d of deaths)
+    console.log([d.SEED, d.초, d.층, `${d.군세}/${d.상한}`, `${d.마나}/${d.마나최대}`, d.시체,
+                 d.버틸대수, d.앞5초군세, d.앞5초마나, d.앞5초시체, d.앞5초마름, d.앞5초자리참]
+                .map((v, j) => String(v).padStart(DC[j][1])).join(" "));
+  const mean = (f) => +(deaths.reduce((a, d) => a + f(d), 0) / deaths.length).toFixed(1);
+  /* 갈래를 셈으로 나눈다 — 「마나가 없어 다시 못 세웠다」(마름) 대 「몸이 모자랐다」(버틸대수). */
+  const dryDeath = deaths.filter(d => d.앞5초마름 >= 50).length;
+  const thinArmy = deaths.filter(d => d.앞5초군세 <= d.상한 * 0.4).length;
+  const softBody = deaths.filter(d => d.버틸대수 < 8).length;
+  console.log(`\n평균: 군세 ${mean(d => d.군세)}/${mean(d => d.상한)} · 마나 ${mean(d => d.마나)}/${mean(d => d.마나최대)} ` +
+              `· 시체 ${mean(d => d.시체)} · 버틸대수 ${mean(d => d.버틸대수)} · 층 ${mean(d => d.층)}`);
+  console.log(`갈래: 마나마름(앞5초 마름≥50%) ${dryDeath}/${deaths.length} · ` +
+              `군세얇음(앞5초 군세≤상한40%) ${thinArmy}/${deaths.length} · ` +
+              `몸모자람(버틸대수<8) ${softBody}/${deaths.length}`);
 }
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
 bws.close(); process.exit(0);
