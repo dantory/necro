@@ -242,6 +242,50 @@ export const floorN    = (f) => (globalThis.__SPAWN_BASE != null ? +globalThis._
 export const isGate    = (f) => f % 5 === 0;
 export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
 
+/* ══ 구역(장소) ══ (ROADMAP G-b) **80층이 1층과 같은 방이었다.**
+   G-a 로 깊이가 «값»을 주게 됐지만, 화면은 여전히 한 방이다 — 바닥도 적도 이름도
+   1층과 80층이 같으니 「어디를 돌까」가 성립하지 않는다. D2 의 파밍은 **장소를 고르는
+   것**이다(무덤·소굴·성역이 각기 다른 것을 준다). 그 자리를 여기서 연다.
+
+   ★ **자를 둘로 늘리지 않는다.** 졸개 표(옛 `MOB_TIERS`)를 여기로 **접어 넣었다** —
+     `from`·`kinds` 가 옛 표와 **글자 그대로 같아서** 적 구성은 한 톨도 안 바뀐다
+     (깊은 두 구역 40·60 도 26 구역과 같은 식구다). 즉 이 판은 **이름·바닥·드랍표**만
+     새로 얹는다. 난이도를 같이 흔들면 무엇이 무엇을 움직였는지 못 읽는다.
+
+   ★ **드랍표**(bias)는 그 구역에서 잘 나오는 슬롯이다. 적지 않은 슬롯은 1.
+     ── 난수를 **한 톨도 더 안 먹는다**: 옛 식 `GEAR_KEYS[floor(r*len)]` 이 뽑기 하나를
+     쓰던 자리에서, 같은 뽑기 하나를 **저울에 얹어** 고른다(씨앗 재현이 산다).
+
+   ★ **바닥**(tile)은 이미 구워 둔 타일 셋을 돌려 쓴다(원본 밝기 crypt 42 · bone 62 ·
+     camp 117 — 화면 밝기가 40~50 에 서게 main.js 에서 굽는다). 밝기는 **타일의 것**이지
+     구역의 것이 아니다 — 같은 타일을 쓰는 두 구역이 다른 밝기면 같은 재료가 두 얼굴이 된다.
+   ★ 그것만으론 세 가지밖에 안 갈리므로 **색 기운**(tint)을 얹는다 — 바닥을 구울 때
+     한 번 곱하는 것이라 매 프레임 값이 아니다(ground.js `useFloor`). */
+export const ZONES = [
+  { from: 1,  n: "무너진 묘지",   tile: "crypt", tint: null,
+    kinds: ["fallen"],                        bias: { wand: 2.2, charm: 1.6 } },
+  { from: 4,  n: "썩은 시체 굴",  tile: "crypt", tint: "#8fa07a",
+    kinds: ["fallen", "zombie"],              bias: { robe: 2.2, belt: 1.8 } },
+  { from: 9,  n: "뼈의 회랑",     tile: "bone",  tint: "#a4b0bc",
+    kinds: ["fallen", "zombie", "skelarch"],  bias: { helm: 2.2, shield: 1.8 } },
+  { from: 16, n: "잿빛 야영터",   tile: "camp",  tint: "#a8906c",
+    kinds: ["zombie", "skelarch", "brute"],   bias: { glove: 2.2, boots: 1.8 } },
+  { from: 26, n: "어둠의 성소",   tile: "bone",  tint: "#7d7fa8",
+    kinds: ["skelarch", "brute", "brute"],    bias: { ring: 2.2, ring2: 1.8 } },
+  { from: 40, n: "마른 피의 골",  tile: "camp",  tint: "#a06a62",
+    kinds: ["skelarch", "brute", "brute"],    bias: { wand: 2.2, glove: 1.8 } },
+  { from: 60, n: "심연",          tile: "crypt", tint: "#6a72a0",
+    kinds: ["skelarch", "brute", "brute"],    bias: { charm: 2.2, ring2: 1.8 } },
+];
+/** 그 층이 선 구역. 표는 얕은 데서 자주 갈리고 깊은 데서 넓다 — 첫 몇 분에
+ *  「바뀐다」가 자주 와야 내려가는 맛이 생긴다. */
+export const zoneOf = (f) =>
+  [...ZONES].reverse().find(z => (f | 0) >= z.from) || ZONES[0];
+/** 구역이 바뀌는 층인가 — 알림·바닥 갈아 끼우기가 이걸로 걸린다. */
+export const zoneStart = (f) => ZONES.some(z => z.from === (f | 0));
+/** 그 층에 실제로 서는 졸개 종류(battle.js `mobKindFor` 와 검수기가 함께 쓴다). */
+export const zoneKinds = (f) => zoneOf(f).kinds;
+
 /* ══ 관문의 주인 넷 ══ 관문(5·10·15…)은 여태 **체력만 불어난 같은 놈**이었다 — 이름도
    「층의 주인」 하나, 수법도 없다. 그래서 5·10·15 층이 그림도 싸움도 똑같아 「이 층 주인은
    이렇게 싸운다」가 없었다(ROADMAP 2단계 ④). 이름 있는 주인 넷을 관문 층 번호로 **돌려
@@ -322,6 +366,7 @@ export const startFloor = () =>
 /** 한 번의 내려감(run) 동안만 사는 값. **금·레벨은 여기 없다** — META 에 있다. */
 export const S = {
   floor: 1, t: 0, speed: 1, running: true, dead: false,
+  zone: null,                 // 지금 선 구역 이름(ROADMAP G-b) — enterFloor 가 적고 main.js 가 읽는다
   spawnQ: [], spawnT: 0,          // 적이 나오려고 서 있는 줄(한 번에 짠 하고 안 나온다)
   hp: 100, hpMax: 100, mp: 40, mpMax: 40,
   corpses: 0,                 // **시체가 자원이다**
@@ -943,8 +988,21 @@ for (const k of GEAR_KEYS) {
  *  1.06 같은 **소수**가 됐다(그 값으로 cost 를 읽어 금이 NaN 이 됐다).
  *  자가 「장비_후 1.0666」을 뱉어서 잡혔다 — 이름은 뜻이 다르면 달라야 한다. */
 let uniqRotor = 0;
+/** ══ 구역 드랍표 ══ (ROADMAP G-b) 그 구역에서 **잘 나오는 슬롯**을 저울로 얹는다.
+ *  ★ **뽑기를 하나도 더 안 쓴다** — 옛 식은 `GEAR_KEYS[floor(r*len)]` 로 뽑기 하나를
+ *    썼다. 여기서도 **같은 뽑기 하나**를 저울 위에 흘려 고른다. 난수 소비 개수가
+ *    글자 그대로 같아야 씨앗 재현(loop_health A/B)이 산다.
+ *  ★ 저울에 안 적힌 슬롯은 1 이다 — 목록을 두 벌 적으면 슬롯을 늘릴 때 한 쪽이 썩는다. */
+export function dropKeyFor(f, r) {
+  const bias = zoneOf(f).bias || {};
+  let sum = 0;
+  for (const k of GEAR_KEYS) sum += (bias[k] > 0 ? bias[k] : 1);
+  let x = r * sum;
+  for (const k of GEAR_KEYS) { x -= (bias[k] > 0 ? bias[k] : 1); if (x < 0) return k; }
+  return GEAR_KEYS[GEAR_KEYS.length - 1];      // 부동소수 끝자락
+}
 export function rollDrop(f) {
-  const k = GEAR_KEYS[Math.floor(Math.random() * GEAR_KEYS.length)];
+  const k = dropKeyFor(f, Math.random());
   const cap = dropTierCap(f);
   /* 위쪽 등급일수록 드물게 — 제곱으로 눌러 「높은 게 나왔다」가 사건이 되게. */
   const tier = 1 + Math.floor(Math.pow(Math.random(), 2.1) * cap);

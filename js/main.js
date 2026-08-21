@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
 import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
@@ -1378,6 +1378,24 @@ function beltState() {
  *  밝히는 것은 **자랐을 때만**(마을로 돌아와 ×1.00 이 되는 것은 상이 아니다).
  *  ★ 자란 것을 **글자로 비교하지 않는다** — 줄인 표기에서는 `×1.2k` 의 parseFloat 이
  *  1.2 라 ×999 → ×1.2k 가 **줄어든 것으로 읽힌다**. 값 자체를 들고 비교한다. */
+/** ══ 구역을 화면에 세운다 ══ (ROADMAP G-b) `S.zone`(battle.js 가 적는다)만 보고
+ *  **한 방향으로** 움직인다 — 바닥을 갈아 끼우고, 머리말에 이름을 적는다.
+ *  ★ hud() 는 매 프레임 도는데 `useFloor` 는 바닥을 다시 굽게 만든다(캐시 열쇠에
+ *    tile·tint 가 들어 있다). 그래서 **바뀐 순간에만** 부른다 — 매 프레임 부르면
+ *    화면 전체를 매 프레임 다시 칠하는 꼴이 된다(그 값은 rtd 에서 한 번 치렀다).
+ *  ★ 마을에서는 안 부른다 — hud() 의 이 갈래가 던전일 때만 도는 자리다. */
+let _zone = null;
+function syncZone() {
+  const z = zoneOf(S.floor | 0);
+  if (_zone === z.n) return;
+  _zone = z.n;
+  useFloor(z.tile, z.tint);
+  setTxt($$("hZone"), z.n);
+}
+/** 마을로 나가면 구역 기억을 지운다 — 안 지우면 다시 내려왔을 때 같은 구역으로 보고
+ *  마을 흙바닥(useFloor("town"))을 그대로 깔고 있는다. */
+export const zoneForget = () => { _zone = null; };
+
 let _depthV = 0;
 function setDepth(txt, v = 0) {
   const el = $("hDepth");
@@ -1434,8 +1452,10 @@ function hud() {
     setLeft(`<span class="lw">가장 </span>깊이 ${META.deepest}층`);
     /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
     setDepth("");
+    setTxt($$("hZone"), "");      // 마을은 구역이 아니다
   } else {
   setTxt($$("hFloor"), S.floor + "층");
+  syncZone();
   setDepth(mul(depthMul()), depthMul());
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
@@ -2459,6 +2479,7 @@ $("stage").addEventListener("mouseleave", () => { setTownHover(null); $("stage")
 export function toTown(why) {
   MODE.at = "town";
   useFloor("town");      // 마을은 흙길
+  zoneForget();          // 다시 내려올 때 구역 바닥을 새로 깔게(안 지우면 흙길이 남는다)
   document.body.classList.add("in-town");
   /* ★ **마을은 쉬는 곳이다 — 몸을 추스른다.**(병수님 2026-08-17 19:59
      「던전에서 사망하고 마을로 돌아왔을때, 체력이 0 임」)
@@ -2485,7 +2506,7 @@ export function toTown(why) {
 export function toDungeon() {
   closeAll();
   MODE.at = "dungeon";
-  useFloor("crypt");   // 던전은 돌바닥
+  useFloor("crypt");   // 던전은 돌바닥 — 곧 syncZone 이 그 층의 구역 바닥으로 갈아 끼운다
   document.body.classList.remove("in-town");
   newRun();
   syncReborn();
@@ -2689,6 +2710,12 @@ preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
 /* ★ 조명을 걷었으니 **바닥 밝기가 그대로 화면 밝기**다. 던전은 어둡게(1.55),
    마을은 원본이 이미 밝아 오히려 낮춘다(0.72) — 어둠은 조명이 아니라 여기서 만든다. */
 loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
+/* ★ 구역 바닥 둘을 더 굽는다(ROADMAP G-b). 원본 밝기가 제각각이라(crypt 42 · bone 62 ·
+   camp 117) boost 로 **화면 밝기를 40~50 에 맞춘다** — 재료가 밝다고 화면까지 밝아지면
+   깊은 층이 되레 환해져 「내려간다」가 깨진다. 구역을 가르는 것은 밝기가 아니라
+   **무늬와 색 기운**(ZONES.tint)이다. */
+loadFloor("assets/floor/bone_tile.png", 0.70, "bone");     // 62 × 0.70 ≈ 43
+loadFloor("assets/floor/camp_tile.png", 0.38, "camp");     // 117 × 0.38 ≈ 44
 /* ★ 마을 바닥을 **야영지 마른 풀**로 바꾼다(병수님이 준 D2 로그 야영지 화면).
    갈색 흙 한 가지는 「공터」로 읽혔다 — 마른 풀빛이라야 야영지가 된다.
    원본 평균 110 이라 0.70 을 곱해 70 안팎 — 던전(40~60)보다 밝고 눈이 안 시리다. */

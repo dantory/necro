@@ -4,7 +4,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
-         GATELORDS, gatelordFor, gatelordIdx,
+         GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
          questNote, registerQuestToast, autoSpend, spLeft } from "./core.js";
@@ -460,6 +460,15 @@ export function enterFloor(f) {
   } else {
     say(`<b>${f}층</b> 진입`);
   }
+  /* ── 구역이 갈리는 층(ROADMAP G-b) ── 바닥·색이 통째로 바뀌는 순간이라 **말로도**
+     짚어 준다. 안 짚으면 「화면이 왜 이래」가 되고, 짚으면 「새 데 왔다」가 된다.
+     ★ 바닥 갈아 끼우기 자체는 여기서 안 한다 — battle 은 그림을 모르는 자리다.
+       `S.zone` 만 적어 두고 main.js 의 `syncZone` 이 그걸 보고 움직인다(한 방향). */
+  { const z = zoneOf(f);
+    if (S.zone !== z.n) {
+      S.zone = z.n;
+      if (f > 1) say(`<b style="color:#c8a96a">${z.n}</b> 에 들어섰다`);
+    } }
   S.spawnT = 0;                                // 첫 놈은 바로
   /* 이 층에 들어선 자리를 적어 둔다 — 층을 비웠을 때 「몇 마리 · 몇 초」를 말하려면
      시작점이 있어야 한다(아래 「층이 비면 내려간다」). 판을 안 건드리는 숫자다. */
@@ -540,17 +549,13 @@ function popSpawn() {
 }
 
 /* 적의 **얼굴은 깊이가 정한다.** 위층은 작은 것들, 아래로 갈수록 험한 것이 섞인다 —
-   층이 바뀐 게 숫자 말고 화면에서도 읽혀야 "내려가고 있다"가 성립한다. */
-const MOB_TIERS = [
-  { from: 1,  kinds: ["fallen"] },
-  { from: 4,  kinds: ["fallen", "zombie"] },
-  { from: 9,  kinds: ["fallen", "zombie", "skelarch"] },
-  { from: 16, kinds: ["zombie", "skelarch", "brute"] },
-  { from: 26, kinds: ["skelarch", "brute", "brute"] },
-];
+   층이 바뀐 게 숫자 말고 화면에서도 읽혀야 "내려가고 있다"가 성립한다.
+   ★ 표는 이제 **구역**(core.js `ZONES`)이 들고 있다(ROADMAP G-b) — 여기 있던 `MOB_TIERS`
+     를 그리로 접었다. `from`·`kinds` 가 옛 표와 글자 그대로 같아 **적 구성은 안 바뀐다.**
+     이름·바닥·드랍표가 같은 표에서 나와야 「이 구역엔 이런 것이 산다」가 한 자리에 선다. */
 /** 그 층에 실제로 서는 졸개 종류. 검수기가 「같은 층 식구끼리」 세우려면 필요하다. */
-export const mobKindsFor = (f) => tierOf(f).kinds;
-const tierOf = (f) => [...MOB_TIERS].reverse().find(x => f >= x.from) || MOB_TIERS[0];
+export const mobKindsFor = (f) => zoneOf(f).kinds;
+const tierOf = (f) => zoneOf(f);
 const mobKindFor = (f) => {
   const t = tierOf(f);
   return t.kinds[Math.floor(Math.random() * t.kinds.length)];
@@ -1907,6 +1912,7 @@ export function newRun() {
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], pendMech: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
+    zone: null,                         // 새 판은 구역도 처음부터 — 안 지우면 enterFloor 가 「같은 구역」으로 보고 바닥을 안 간다
 
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
     dealtAcc: 0, armyDps: 0,           // 「지금 군대가 내는 화력」 — 판이 바뀌면 앞 판 기억을 안 물려받는다

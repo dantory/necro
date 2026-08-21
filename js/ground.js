@@ -28,9 +28,18 @@ let tiles = [], floorReady = false;
    아무것도 안 왔고, 나중에 먼저 도착한 crypt 가 기본으로 눌러앉았기 때문이다.
    그래서 **원하는 이름을 적어 두고**, 그 이름이 도착할 때 그때 갈아 끼운다. */
 let wanted = "crypt";
+/* ══ 구역 색 기운 ══ (ROADMAP G-b) 구운 타일은 셋(crypt·bone·camp)뿐인데 구역은 일곱이다.
+   타일을 넷 더 굽는 것은 반나절 일이고, 그러고도 여덟 번째 구역에서 같은 벽을 만난다.
+   대신 **다 칠하고 난 바닥에 색을 한 번 곱한다** — 굽는 캔버스 안에서 한 번뿐이라
+   매 프레임 값이 아니다(캐시 열쇠에 tint 를 넣어 구역이 바뀌면 다시 굽게 했다).
+   ★ **곱하기**(multiply)다. 위에 반투명으로 덮으면 어두운 데가 뿌옇게 들뜬다 —
+     곱하면 밝은 데만 물들고 검은 데는 검은 채로 남아 던전다움이 안 깨진다.
+   ★ 빛(glow)은 이 뒤에 얹히므로 **횃불은 물들지 않는다**(drawGround 가 따로 부른다). */
+let tintCol = null;
+const TINT_A = 0.34;      // 색이 「필터를 끼운 것」으로 보이기 시작하는 선 바로 아래
 
-export function useFloor(name) {
-  wanted = name;
+export function useFloor(name, tint = null) {
+  wanted = name; tintCol = tint || null;
   if (tileSets[name]) { tiles = tileSets[name]; floorReady = true; }
 }
 
@@ -216,7 +225,7 @@ let gcv = null, gctx = null, gkey = "", bakedGlows = [];
 export function groundCacheKey(w, h, cx, cy, sc, squash, scatter, band) {
   return [w, h, Math.round(cx), Math.round(cy), sc.toFixed(3), squash.toFixed(3),
           band ? Math.round(band.x0) + "," + Math.round(band.w) : "-",
-          floorReady, decorReady, wanted, tiles.length,
+          floorReady, decorReady, wanted, tintCol || "-", tiles.length,
           scatter ? [scatter.clear, scatter.density, scatter.decal,
                      scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-"].join("|");
 }
@@ -301,6 +310,18 @@ export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band
   if (scatter) withBand(ctx, band, w, h, () =>
     drawScatter(ctx, cx, cy, sc, squash, w, h,
                 scatter.clear, scatter.density, scatter.set, scatter.wild));
+
+  /* ── 구역 색 기운(ROADMAP G-b) ── 소품까지 다 놓은 **뒤에** 한 번 곱한다. 바닥만
+     물들이면 그 위에 선 통·뼈무더기가 다른 동네 것으로 뜬다 — 한 장면이면 같이 물든다.
+     띠 바깥 가라앉힘보다는 **앞**이다(가라앉힌 데까지 물들일 까닭이 없다). */
+  if (tintCol) {
+    ctx.save();
+    ctx.globalCompositeOperation = "multiply";
+    ctx.globalAlpha = TINT_A;
+    ctx.fillStyle = tintCol;
+    ctx.fillRect(0, 0, w, h);
+    ctx.restore();
+  }
 
   /* ══ **맵 띠 바깥** ══ (병수님 2026-08-17 23:37 「어느정도 너비만 실제 맵으로 채우고,
      나머지는 패턴이나 단순한 타일」). 돌바닥은 이미 화면 끝까지 깔려 있다 — 바깥에
