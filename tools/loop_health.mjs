@@ -101,11 +101,17 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_DIVE != null ? `globalThis.__AUTO_DIVE = ${+process.env.LH_DIVE};` : ""}
    ${process.env.LH_DIVEMIN != null ? `globalThis.__DIVE_MIN = ${+process.env.LH_DIVEMIN};` : ""}
    ${process.env.LH_DIVEBACK != null ? `globalThis.__DIVE_BACK = ${+process.env.LH_DIVEBACK};` : ""}
+   ${/* D-15 이후 **「문 안 씀」팔은 이 문으로만 낸다** — 기본값이 「저절로 제일 깊이」로
+        옮겨졌으므로(core.js DIVE_DEF_DEF 1), LH_DIVE 를 안 주는 것만으로는 이제
+        「처음부터 걷는 사람」이 안 나온다. `LH_DIVEDEF=0` 이 그 옛 사람이다. */""}
+   ${process.env.LH_DIVEDEF != null ? `globalThis.__DIVE_DEF = ${+process.env.LH_DIVEDEF};` : ""}
    ${/* ⑧-d 되짚는 층에서만 쓰는 두 손잡이(전선은 안 건드린다) — battle.js rvGap/rvFull */""}
    ${process.env.LH_RVGAP != null ? `globalThis.__REVISIT_GAP = ${+process.env.LH_RVGAP};` : ""}
    ${process.env.LH_RVFULL != null ? `globalThis.__REVISIT_FULL = ${+process.env.LH_RVFULL};` : ""}
    ${/* ⑧-e 되짚는 층을 통째로 빨리 감는 배수 — battle.js rvFf */""}
-   ${process.env.LH_RVFF != null ? `globalThis.__REVISIT_FF = ${+process.env.LH_RVFF};` : ""}` });
+   ${process.env.LH_RVFF != null ? `globalThis.__REVISIT_FF = ${+process.env.LH_RVFF};` : ""}
+   ${/* ⑧-f 빨리 감는 동안 머리(auto)도 같이 도는가 — 0 이면 옛 판(머리 굶음) */""}
+   ${process.env.LH_RVBRAIN != null ? `globalThis.__RV_BRAIN = ${+process.env.LH_RVBRAIN};` : ""}` });
 await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
 await S("Page.navigate", { url: PAGE });
 await new Promise(r => setTimeout(r, 1500));

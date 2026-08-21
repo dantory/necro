@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
-import { TOUCH_K_DEF, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { TOUCH_K_DEF, registerAutoTick, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -1559,6 +1559,9 @@ function hud() {
 
 /** **자동으로 소환한다.** 방치형이므로 사람이 안 눌러도 군대는 선다 —
  *  사람이 하는 건 "언제 시체를 아껴 폭발로 쓸까" 같은 판단이지 잔손질이 아니다. */
+/* ⑧-f **되짚기 빨리 감기 안에서도 이 머리가 돈다**(battle.js registerAutoTick).
+   여태 auto 는 아래 그리는 고리에서만 불렸다 — 그래서 되짚는 층을 ×3 으로 감는 동안
+   머리는 셋에 한 번만 돌았다(ROADMAP J 가 S.speed 에서 이미 고친 그 결함이다). */
 function auto() {
   if (S.dead) return;
   /* ★ **금을 저절로 태운다**(core.js autoForge). 여기 둔 이유 — 마을은 들르는 곳이고
@@ -2591,6 +2594,10 @@ function loading(dt) {
 }
 
 let townT = 0, battleT = 0;
+/* ⑧-f 되짚는 층을 빨리 감는 동안 battle.step 이 이 머리를 직접 부른다.
+   바깥(아래 loop)은 제 dt 만 세므로 둘을 합치면 「게임초 ÷ 0.35」로 옳다. */
+registerAutoTick(auto);
+
 let last = 0, autoT = 0, hudT = 0;
 /* 프레임을 **판이 스스로 잰다** — 밖에서 재면(헤드리스 rAF) 병수님 화면과 무관한 값이
    나온다는 것을 오늘 배웠다. 최근 90프레임에서 **긴 프레임(>28ms)이 셋 중 하나를 넘으면**

@@ -280,6 +280,25 @@ export const REVISIT_FF_DEF = 3;
 const rvFf = () => (globalThis.__REVISIT_FF != null ? +globalThis.__REVISIT_FF : REVISIT_FF_DEF);
 let ffInside = false;   // 빨리 감는 동안의 재귀 방지 — 안쪽 step 은 제 몫만 돈다
 
+/** ⑧-f **빨리 감는 동안 «머리»도 같이 돈다.**
+ *  ROADMAP J 가 이미 한 번 고친 자리다 — 「배수를 올리면 판만 빨라지고 **머리는
+ *  그대로**였다(×3 은 군세를 셋에 하나만큼 채우고 ×8 은 여덟에 하나)」. 그때는
+ *  `S.speed` 쪽만 고쳤다(main.js 가 제 고리 안에서 auto 를 부르게). **되짚기 빨리
+ *  감기(⑧-e)에는 그 고침이 안 옮겨졌다** — 안쪽 step 은 판만 돌리고 auto() 는
+ *  바깥 고리가 제 dt 로만 세므로, FF 배수만큼 **머리가 굶는다**([[carry-fixes-forward]]).
+ *  실측(씨앗 3·균형·8분·「처음부터」 팔): FF 10 에서 죽음 **3 → 72**.
+ *  판이 어려워진 게 아니라 **소환할 차례를 못 얻어** 맨몸으로 걸은 것이다.
+ *  그래서 안쪽 고리도 **같은 박자(0.35 게임초)로** 머리를 부른다. 바깥 고리는 제
+ *  dt 만 세므로 둘을 합치면 「게임초 ÷ 0.35」로 옳다.
+ *  ★ 부르는 이는 등록해 준 쪽이다(main.js `auto` · 순환 import 를 피한다 —
+ *    core.js `registerQuestToast` 와 같은 결).
+ *  ★ 되짚는 층이 아니면 이 자리는 **아예 안 돈다** — 전선의 판은 글자 그대로 같다.
+ *  ★ `__RV_BRAIN=0` 이면 옛 판(머리 굶음)으로 되돌아간다 — A/B 의 base 팔. */
+export const REVISIT_BRAIN_DEF = 1;
+const rvBrain = () => (globalThis.__RV_BRAIN != null ? +globalThis.__RV_BRAIN : REVISIT_BRAIN_DEF);
+let autoTick = null, ffAutoT = 0;
+export const registerAutoTick = (fn) => { autoTick = fn; };
+
 /** 「들어섰다」 연출이 사는 시간 — main.js draw 가 이 안에서 비네트를 걷고 명패를 앉힌다.
  *  ★ 그리는 쪽도 이 값으로 진행도를 재므로 export 한다(양쪽에 숫자를 박으면 어긋난다). */
 export const ARRIVE_T = 1.6;
@@ -1140,7 +1159,14 @@ export function step(dt) {
     const n = Math.max(1, Math.round(rvFf()));
     if (n > 1 && revisiting()) {
       ffInside = true;
-      try { for (let i = 1; i < n && !S.dead && revisiting(); i++) step(dt); }
+      /* ⑧-f 안쪽 한 걸음마다 머리도 제 박자로 부른다(위 주석). */
+      const brain = autoTick && rvBrain();
+      try {
+        for (let i = 1; i < n && !S.dead && revisiting(); i++) {
+          step(dt);
+          if (brain && (ffAutoT += dt) > 0.35) { ffAutoT = 0; autoTick(); }
+        }
+      }
       finally { ffInside = false; }
       if (S.dead) return;
     }
