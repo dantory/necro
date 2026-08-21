@@ -1007,6 +1007,12 @@ export function cast(id) {
   return ok;
 }
 
+/** ★ **소환이 왜 «안 섰나»를 센다** — D-18 이 남긴 물음이다. 마나가 33~37 남았는데도
+ *  군세가 0.6 인 죽음이 일곱 있었다. 그것이 「마나가 없어 못 세움」인지 「세워도 곧장
+ *  지워짐」인지는 고칠 자리가 **정반대**인데, 여태 자에 소환 «시도»가 없어 못 갈랐다.
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 는 비트까지 같다). */
+export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 0, merge: 0, lost: 0 };
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1019,12 +1025,17 @@ function castOnce(id) {
   const over = isRaise(id) && armyN() >= armyCap() && armyN() < armyCapEff();
   const mpNeed = mpCost(sk) * (over ? 2 : 1);            // ㉡ 초과분은 마나 2배
   const corpseNeed = corpseNeedOf(sk, over);             // ㉡ 초과분은 시체 3배 (+ 군세만큼 오른 값)
+  const RT = isRaise(id) ? RAISE_TALLY : null;   // ★ 읽기만 — 아래 관문의 식을 그대로 다시 본다
+  if (RT) { RT.try++;
+    if ((S.cd[id] || 0) > 0) RT.cd++;
+    if (S.mp < mpNeed) RT.mana++;
+    if (S.corpses < corpseNeed) RT.corpse++; }
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < corpseNeed) return false;
   let merging = null, mergeMul = 1;
   if (isRaise(id) && armyN() >= armyCapEff()) {          // 실효 상한까지 꽉 참
     mergeMul = CAP_MERGE_OF();
     merging = mergeMul > 1 ? weakestMergeable(MINION_OF[id]) : null;
-    if (!merging) return false;                          // ㉢ 꺼졌거나 더 키울 대상 없음 → 예전처럼 못 섬
+    if (!merging) { if (RT) RT.capfull++; return false; } // ㉢ 꺼졌거나 더 키울 대상 없음 → 예전처럼 못 섬
   }
   if (id === "offer" && (!isGate(S.floor) || !S.mobs.some(m => m.boss))) return false;
 
@@ -1056,9 +1067,11 @@ function castOnce(id) {
       merging.hpMax = merging.hpMax * mergeMul;
       merging.dmg   = (merging.dmg || MINIONS[merging.kind].dmg) * mergeMul;
       merging.mg    = (merging.mg | 0) + 1;
+      RAISE_TALLY.merge++;
       say(`<b>${MINIONS[MINION_OF[id]].n}</b> 강화`);
     } else {
-      summon(MINION_OF[id], usedAt); say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`);
+      if (summon(MINION_OF[id], usedAt)) RAISE_TALLY.ok++; else RAISE_TALLY.capfull++;
+      say(`<b>${MINIONS[MINION_OF[id]].n}</b> 소환`);
     }
   }
   if (id === "nova") {
@@ -1959,6 +1972,7 @@ export function step(dt) {
     if (S.minions[i].hp > 0) continue;
     const dead = S.minions[i];
     S.minions.splice(i, 1);
+    RAISE_TALLY.lost++;                                  // ★ 「세워도 지워짐」쪽의 짝 — 위 RAISE_TALLY 머리말
     fall(dead, dead.art || ("minion/" + dead.kind), (dead.h || 40) * feedMul(dead));
     /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
     addCorpse(dead.x, dead.y, "bones", 1, dead.hpMax);   // 내 편의 주검도 자원이다

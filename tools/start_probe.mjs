@@ -72,7 +72,12 @@ for (const SEED of SEEDS) {
       /* **죽는 순간의 사진** — 「군대가 무너진 뒤 마나가 없어 못 세운다」는 08-21 의 진단이
          D-7~D-17 뒤에도 그대로인지 보려면 죽음마다 그 자리를 적어 둬야 한다
          ([[cause-written-in-the-item-is-a-guess]]). 앞 5초(100틱)를 굴려 둔다. */
-      R.hist.push([S.minions.length, S.mp, S.corpses, S.hp / Math.max(1, S.hpMax)]);
+      /* ★ 소환 계수기도 같이 굴린다(D-19) — 「마나가 없어 못 세움」과 「세워도 지워짐」은
+         고칠 자리가 정반대인데, 죽음의 사진만으로는 안 갈린다. 누적값을 담아 두고
+         죽는 순간에 앞 5초의 «차이»로 읽는다. */
+      const T = B.RAISE_TALLY;
+      R.hist.push([S.minions.length, S.mp, S.corpses, S.hp / Math.max(1, S.hpMax),
+                   T.try, T.ok, T.mana, T.corpse, T.cd, T.capfull, T.lost, T.merge]);
       if (R.hist.length > 100) R.hist.shift();
       if (S.mp < 6) R.dry++;                                    // 해골 한 마리도 못 세우는 순간
       if (S.minions.length >= C.armyCap()) R.full++;             // 자리가 꽉 찬 순간
@@ -81,7 +86,11 @@ for (const SEED of SEEDS) {
         const H = R.hist, cap = C.armyCap();
         const m = (j) => +(H.reduce((a, x) => a + x[j], 0) / Math.max(1, H.length)).toFixed(1);
         const pct = (f) => +(H.filter(f).length / Math.max(1, H.length) * 100).toFixed(0);
+        const d0 = H[0] || [], dz = H[H.length - 1] || [];
+        const dd = (j) => Math.max(0, (dz[j] | 0) - (d0[j] | 0));   // 앞 5초 동안 늘어난 몫
         R.deathLog.push({ 초: Math.round(R.tsec), 층: S.floor, 군세: S.minions.length, 상한: cap,
+          시도: dd(4), 세움: dd(5), 막힘마나: dd(6), 막힘시체: dd(7), 막힘쿨: dd(8),
+          막힘자리: dd(9), 잃음: dd(10), 키움: dd(11),
           마나: Math.round(S.mp), 마나최대: Math.round(S.mpMax), 시체: S.corpses,
           버틸대수: +(S.hpMax / C.floorDmg(S.floor)).toFixed(1),
           앞5초군세: m(0), 앞5초마나: m(1), 앞5초시체: m(2),
@@ -132,6 +141,8 @@ for (let i = 0; i < n; i++) {
 /* ══ 죽는 순간의 사진 ══ 「무엇이 죽였나」는 층별 평균으로는 안 보인다 —
    죽음 하나하나의 자리(군세·마나·시체·버틸대수)를 세어야 갈린다. */
 if (deaths.length) {
+  const DC2 = [["씨앗",5],["초",5],["시도",5],["세움",5],["잃음",5],["막힘쿨",7],["막힘마나",8],
+               ["막힘시체",8],["막힘자리",8],["키움",5]];
   const DC = [["씨앗",5],["초",5],["층",5],["군세/상한",9],["마나/최대",9],["시체",5],["버틸대수",8],
               ["앞5초군세",9],["앞5초마나",9],["앞5초시체",9],["앞5초마름%",10],["앞5초자리참%",12]];
   console.log(`\n── 죽음 ${deaths.length} 개의 사진 ──`);
@@ -150,6 +161,36 @@ if (deaths.length) {
   console.log(`갈래: 마나마름(앞5초 마름≥50%) ${dryDeath}/${deaths.length} · ` +
               `군세얇음(앞5초 군세≤상한40%) ${thinArmy}/${deaths.length} · ` +
               `몸모자람(버틸대수<8) ${softBody}/${deaths.length}`);
+
+  /* ══ D-19 · 「못 세웠나 · 세워도 지워졌나」 ══ 앞 5초의 소환 시도를 갈라 본다.
+     D-18 이 남긴 물음: 마나가 남았는데도 군세가 0 인 죽음이 일곱 있었다.
+     · 손이 안 나갔다  = 시도 자체가 없다(재사용만 돌고 있었다)
+     · 못 세웠다      = 시도는 했는데 마나·시체에 막혔다
+     · 지워졌다       = 세우기는 섰는데(세움>0) 그만큼 잃었다(잃음 ≥ 세움) */
+  console.log(`\n── 앞 5초에 손이 몇 번 나갔나 ──`);
+  console.log(DC2.map(([h, w]) => h.padStart(w)).join(" "));
+  for (const d of deaths)
+    console.log([d.SEED, d.초, d.시도, d.세움, d.잃음, d.막힘쿨, d.막힘마나, d.막힘시체, d.막힘자리, d.키움]
+                .map((v, j) => String(v).padStart(DC2[j][1])).join(" "));
+  const noTry  = deaths.filter(d => d.시도 === 0).length;
+  const cantRaise = deaths.filter(d => d.시도 > 0 && d.세움 === 0).length;
+  const wiped  = deaths.filter(d => d.세움 > 0 && d.잃음 >= d.세움).length;
+  const sum = (f) => deaths.reduce((a, d) => a + f(d), 0);
+  console.log(`\n앞5초 합계: 시도 ${sum(d=>d.시도)} · 세움 ${sum(d=>d.세움)} · 잃음 ${sum(d=>d.잃음)} · ` +
+              `막힘[쿨 ${sum(d=>d.막힘쿨)} · 마나 ${sum(d=>d.막힘마나)} · 시체 ${sum(d=>d.막힘시체)} · 자리 ${sum(d=>d.막힘자리)}]`);
+  console.log(`갈래2: 손이안나감(시도=0) ${noTry}/${deaths.length} · ` +
+              `못세움(시도>0·세움=0) ${cantRaise}/${deaths.length} · ` +
+              `지워짐(세움>0·잃음≥세움) ${wiped}/${deaths.length}`);
+  /* ★ D-18 이 꼽은 일곱 — **마르지 않았는데 군세가 얇은** 죽음만 따로 본다. */
+  const wet = deaths.filter(d => d.앞5초마름 < 50 && d.앞5초군세 <= d.상한 * 0.4);
+  if (wet.length) {
+    const wNo = wet.filter(d => d.시도 === 0).length;
+    const wCant = wet.filter(d => d.시도 > 0 && d.세움 === 0).length;
+    const wWipe = wet.filter(d => d.세움 > 0 && d.잃음 >= d.세움).length;
+    console.log(`\n★ 마르지 않았는데 군세가 얇은 죽음 ${wet.length} 개: ` +
+                `손이안나감 ${wNo} · 못세움 ${wCant} · 지워짐 ${wWipe} · ` +
+                `(시도 ${wet.reduce((a,d)=>a+d.시도,0)} · 세움 ${wet.reduce((a,d)=>a+d.세움,0)} · 잃음 ${wet.reduce((a,d)=>a+d.잃음,0)})`);
+  }
 }
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
 bws.close(); process.exit(0);
