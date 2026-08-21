@@ -1525,9 +1525,30 @@ const hpGrow = () => bodyHp() / bodyBase();
 export const EARLY_HITS_DEF = 9;
 const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HITS != null)
   ? +globalThis.__EARLY_HITS : EARLY_HITS_DEF;
+/* ══ 깊은 층에는 «내가 만든 몸»이 없다 ══ (2026-08-22 · ROADMAP D ㉠·㉡ · `6872185`)
+   HPGROW=2 는 바닥에서 grow 를 뺐다 — 그래서 바닥이 이기는 깊이부터 `hpMaxOf` 가
+   **`floorDmg × 5` 하나**가 된다. 실측(`wall_probe` · 열두 판 83죽음): 45층 죽음
+   **열여덟이 최대체력 11340 하나로 전부 같았다**(=2268×5). 씨앗 여섯도 편성 둘도
+   레벨도 안 가린다 — 20분 판이 77층까지 가니 **판의 뒤 4분의 3 에서 생명력은 없는 축**이다
+   ([[floor-erases-the-ramp]] · [[knob-that-does-nothing]]).
+   그런데 바닥에 grow 를 통째로 얹는 옛 꼴(HPGROW=1)은 반대쪽으로 샌다 — 60층에서
+   「다섯 대」가 「서른 대」가 되어 D 가 겨우 세운 깊은 층 위험이 도로 없어진다.
+   ★ 그래서 **바닥이 grow 의 «일부»만 타게** 한다: `floor × grow^p`.
+     · p = 0 이면 HPGROW=2 와 **한 톨도 안 다르고**, p = 1 이면 옛 HPGROW=1 과 같다
+       (mode 1 은 `max(bodyBase, floor) × grow` = `max(bodyHp, floor × grow)`).
+     · 곧 이 손잡이 하나가 두 끝을 잇는다 — 값은 **재고 나서** 정한다.
+     · 맨몸(계급 0 · 맨손)은 grow = 1 이라 p 가 몇이든 한 톨도 안 바뀐다. */
+export const FLOOR_P_DEF = 0.5;
+const FLOOR_P_OF = () => (typeof globalThis !== "undefined" && globalThis.__FLOOR_P != null)
+  ? +globalThis.__FLOOR_P : FLOOR_P_DEF;
 export const hpMaxOf = () => {
   const f = S.floor | 0, floor = floorDmg(f) * SURVIVE_HITS, eh = EARLY_HITS_OF();
   const hg = HPGROW_OF(), grow = hg ? hpGrow() : 1;
+  if (hg === 3) {                       // 바닥이 grow 의 일부(p)만 탄다 · 천장은 그대로
+    let v = Math.max(bodyHp(), floor * Math.pow(grow, FLOOR_P_OF()));
+    if (eh > 0) v = Math.min(v, floorDmg(f) * eh * grow);
+    return Math.round(v);
+  }
   if (hg === 2) {                       // 바닥은 안전망으로만 · 천장은 grow 를 탄다
     let v = Math.max(bodyHp(), floor);
     if (eh > 0) v = Math.min(v, floorDmg(f) * eh * grow);
