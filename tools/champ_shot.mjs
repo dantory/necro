@@ -44,15 +44,36 @@ if (!(await ev(`typeof window.__toDungeon === "function"`))) throw new Error("__
 await ev(`window.__toDungeon()`);
 await wait(1000);
 /* 우두머리는 10층부터 선다 — 판이 거기 닿을 때까지 굴리고, 절규 **예고가 뜬 순간**을 찍는다. */
-let ok = 0, best = null;
+/* ★★ **이 자는 2026-08-21 22:5x 에 «없는 이름»을 읽고 있었다** — `window.S` 는 없다
+     (있는 것은 `window.__S` · js/main.js:599). 그래서 아래 evaluate 가 **표본마다 null** 을
+     돌려줬고, 「12~19층에서 0.3초마다 들여다봐도 살아 있는 우두머리를 한 번도 못 잡았다」는
+     ROADMAP D-3 의 관찰은 **판이 아니라 자가 만든 것**이었다(고쳐 재니 74%).
+     이 파일 머리말이 바로 그 실수(`window.toDungeon`)를 적어 두고도 **아래 줄에 안 옮겼다**
+     ([[carry-fixes-forward]]). 그래서 이제 **못 읽으면 던진다** — 조용히 0 으로 끝나지 않게.
+   ★ 겸사겸사 **끝 조건의 자**도 여기서 잰다: 12~19층에서 **0.3초마다** 본 표본 중
+     살아 있는 우두머리가 잡히는 비율. 가속 판(loop_health)이 아니라 **사람이 보는 실시간
+     판**에서 센다 — 둘이 갈리면 그것 자체가 읽을거리다. */
+const peek = async () => {
+  const st = await ev(`(() => { const S = window.__S; if (!S) return null;
+    let 산 = 0, 선 = 0;
+    for (const m of (S.mobs || [])) if (m.champ) { 산++; if (!(m.born > 0)) 선++; }
+    return { f: S.floor, 산, 선, tell: (S.fx||[]).some(f => f.kind === "warn_curse"), howl: S.chowl|0 }; })()`);
+  if (st === null) throw new Error("window.__S 를 못 읽었다 — 자가 고장났다(이름을 확인할 것)");
+  return st;
+};
+let ok = 0, best = null, 표본 = 0, 잡힘 = 0, 보임 = 0;
 for (let i = 0; i < 700; i++) {
-  const st = await ev(`(() => { const S = window.S; if (!S) return null;
-    const c = (S.mobs||[]).filter(m => m.champ && !m.born);
-    return { f: S.floor, n: c.length, tell: (S.fx||[]).some(f => f.kind === "warn_curse"), howl: S.chowl|0 }; })()`);
-  if (st && st.f >= 12 && st.tell) { best = st; ok = 1; break; }
-  await wait(120);
+  const st = await peek();
+  if (st.f >= 12 && st.f <= 19) { 표본++; if (st.산) 잡힘++; if (st.선) 보임++; }
+  /* ★ **찍는 것은 그 순간에 찍는다.** 세는 일을 뒤에 붙이면서 찍기를 루프 밖으로
+     미뤘더니 54층 화면이 찍혔다(표본은 12~19층인데). 자리가 맞을 때 바로 누른다. */
+  if (!best && st.f >= 12 && st.f <= 19 && st.선 && st.tell) { best = st; ok = 1; await shot("tmp/champ_shot.png"); }
+  if (표본 >= 120) break;
+  await wait(300);
 }
+if (표본) console.log(`실시간 판 · 12~19층 표본 ${표본}(0.3초마다) · 살아 있음 **${(잡힘/표본*100).toFixed(1)}%** · 다 서 있음 ${(보임/표본*100).toFixed(1)}%`);
+else console.log("12~19층에 못 닿았다 — 표본 0(판정 불가)");
 console.log("찍는 순간 —", JSON.stringify(best), "· ok", ok);
-await shot("tmp/champ_shot.png");
+if (!ok) { await shot("tmp/champ_shot.png"); console.log("(자리를 못 잡아 마지막 화면을 찍었다 — 판정용 아님)"); }
 console.log("errs", errs);
 process.exit(0);
