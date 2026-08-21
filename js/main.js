@@ -968,6 +968,18 @@ function draw(dt) {
       ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
       ctx.restore();
     }
+    /* ══ 우두머리 무리 ══ **평지에서 군대를 쓸어내는 놈**이라 한눈에 갈려야 한다
+       (battle.js CHAMP 문). 관문 주인의 붉은 고리와 달리 금빛이고, 발밑에만 두른다 —
+       크기(×1.22)만으로는 「좀 큰 졸개」로 읽힌다. */
+    if (m.champ && !m.born) {
+      const rr = hh * 0.34;
+      ctx.save(); ctx.translate(x, y);
+      ctx.globalAlpha = 0.75; ctx.strokeStyle = m.col || "#e0b44a"; ctx.lineWidth = Math.max(1.5, 2 * us);
+      ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
+      ctx.globalAlpha = 0.18; ctx.fillStyle = m.col || "#e0b44a";
+      ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * SQUASH, 0, 0, 6.2832); ctx.fill();
+      ctx.restore(); ctx.globalAlpha = 1;
+    }
     drawOne(mbase, x, y, hh, m.boss ? COL.boss : COL.mob, m);
     /* 관문의 주인은 **다치기 전부터** 바를 보인다 — 얼마나 남았는지가 관문의 전부다 */
     /* ★ **적 바가 안 보여서 화면이 통째로 초록으로 읽혔다**(병수님: "아군과 적의 체력바가
@@ -979,7 +991,7 @@ function draw(dt) {
        **더 뜨겁다**(둘 사이 1.30:1 로 갈린다).
        ※ 초록/붉음은 색각이상에 약한 짝이라 **색만으로 편을 말하지 않는다** — 아군은
          발밑 룬 고리가 따로 있다(지배한 놈은 보라). 색은 거드는 채널이다. */
-    if (m.hp < m.hpMax || m.boss) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#ff6b52" : "#e05a4a");
+    if (m.hp < m.hpMax || m.boss || m.champ) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#ff6b52" : m.champ ? "#e0b44a" : "#e05a4a");
   }
 
   /* ══ 떨어진 전리품 ══ **잠깐 놓였다가 빨려 온다.** 방치형이라 주우러 가지 않으므로,

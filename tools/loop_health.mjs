@@ -74,6 +74,9 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
    ${process.env.LH_SPILL != null ? `globalThis.__RAISE_SPILL = ${+process.env.LH_SPILL};` : ""}
    ${process.env.LH_HASTE != null ? `globalThis.__RAISE_HASTE = ${+process.env.LH_HASTE};` : ""}
    ${process.env.LH_MANA != null ? `globalThis.__MANA_WALL = ${+process.env.LH_MANA};` : ""}
+   ${/* ★ 우두머리 무리(ROADMAP D-2) — 1 이면 평지에 우두머리가 서고 절규가 군대를 깎는다. */""}
+   ${process.env.LH_CHAMP != null ? `globalThis.__CHAMP = ${+process.env.LH_CHAMP};` : ""}
+   ${process.env.LH_CHAMPHOWL != null ? `globalThis.__CHAMP_HOWL = ${+process.env.LH_CHAMPHOWL};` : ""}
    ${process.env.LH_DOC != null ? `globalThis.__DOCTRINE = ${JSON.stringify(process.env.LH_DOC)};` : ""}
    ${process.env.LH_TAC != null ? `globalThis.__TACTIC = ${JSON.stringify(process.env.LH_TAC)};` : ""}
    ${process.env.LH_RUSH != null ? `globalThis.__RUSH = ${+process.env.LH_RUSH};` : ""}
@@ -376,6 +379,13 @@ const tick = (sec) => `(async()=>{
           const pn = (S.pools || []).length;          // 장판이 새로 깔린 수(줄어드는 건 시간 만료)
           if (pn > (R.poolN || 0)) gz(띠).장판 += pn - R.poolN;
           R.poolN = pn;
+          /* ★ **우두머리의 절규**(D-2) — 손잡이가 실제로 도는지부터 본다
+             ([[knob-that-does-nothing]]). S.chowl 은 판마다 0 으로 돌아가므로 «늘어난 만큼»만 센다. */
+          { const cn = S.chowl | 0;
+            if (cn > (R.chowl || 0)) { const g = gz(띠); g.절규 = (g.절규 | 0) + (cn - R.chowl); }
+            R.chowl = cn; }
+          { let cc = 0; for (const m of S.mobs) if (m.champ) cc++;
+            const g = gz(띠); g.우두머리초 = (g.우두머리초 || 0) + cc * 0.05; }
         }
         /* ── ★ **화면에서 사건이 얼마나 자주 나는가**(D-1) ─────────────────
            여태 잰 것은 깊이·시간·점유뿐인데 셋 다 **누적된 결과**라, 보는 사람 앞에서
@@ -751,7 +761,8 @@ if (시간) {
         console.log(`  ${k.padStart(6)}층 · 관문 ${g.관문}번 · 주인이 산 시간 ${g.보스초.toFixed(0)}초` +
                     ` (한 번에 ${(g.보스초 / g.관문).toFixed(1)}초) · 수법 ${g.수법}번` +
                     ` (관문당 ${(g.수법 / g.관문).toFixed(1)}) · 장판 ${g.장판}장` +
-                    ` · **한 번도 못 쓰고 죽은 관문 ${g.못쓰고죽음}/${g.관문}번**`);
+                    ` · **한 번도 못 쓰고 죽은 관문 ${g.못쓰고죽음}/${g.관문}번**` +
+                    ((g.절규 | 0) || (g.우두머리초 | 0) ? ` · 우두머리 절규 **${g.절규 | 0}번**(선 시간 ${(g.우두머리초 || 0).toFixed(0)}초)` : ""));
       }
       const 깊g = Gt["50-99"], 얕g = Gt["1-9"];
       if (깊g && 깊g.관문 >= 3) {

@@ -361,6 +361,29 @@ export const ADD_CAP_DEF = 4;
  *      79→76 · 86→80 · 74→77  (평균 79.7 → 77.7, −2.5%). 씨앗 사이 폭(±6)보다 작다.
  *    그만큼은 내준다 — 소환사 관문이 「평지와 같은데 이름만 다른 것」이던 것을 고치는 값이다.
  *  `globalThis.__ADD_DMG` 로 갈아 끼운다(A/B 손잡이는 남겨 둔다). */
+/* ══ 우두머리 무리 ══ **군대를 쓸어내는 것이 관문 안에만 있었다.**
+   소환수를 실제로 깎는 수법은 `fireMech` 의 `curse` 하나뿐인데, 주인은 층 번호로 넷을
+   돌려 쓰므로(`gatelordFor`) **저주받은 왕은 20층마다 한 번** 선다. 게다가 깊은 관문의
+   주인은 한 번에 1.0초를 살아 관문당 수법이 **1.0번**이다(2026-08-21 재측정). 그래서
+   50-99층 14분 동안 군세 반토막이 **0번**이었다(ROADMAP D-2).
+   D2 의 챔피언/유니크 무리 자리를 낸다 — **평지의 졸개 하나가 우두머리**가 되어
+   제 발로 서고, 주기적으로 **절규**해 둘레의 소환수를 깎는다.
+   ★ **절규는 네크로를 안 때린다.** 위험은 「군대가 지워진 다음」에 오는 것이지 이 수법
+     자체가 아니다 — 여기가 아프면 앞 6분의 죽음이 터진다(D-2 끝 조건 ㉡).
+   ★ **깎는 양은 «그 층의 격»(floorHp)으로 잡는다.** 층 피해(1.155^f)로 잡으면 소환수
+     체력(1.19^f)에 지므로 깊이가 붙을수록 안 도는 손잡이가 된다 — 이 항목이 고치려는
+     바로 그 구조를 다시 만드는 꼴이다. */
+const CHAMP_ON    = () => (globalThis.__CHAMP != null ? +globalThis.__CHAMP : 1);  // ★ 켰다(2026-08-21 22:4x · ab_champ 끝 조건 셋 다 통과)
+const CHAMP_FROM  = 10;      // 이 층부터 선다(앞 6분은 이미 위험하다 — 건드리지 않는다)
+const CHAMP_P     = 0.16;    // 졸개 하나가 우두머리일 확률
+const CHAMP_HP    = 3.0, CHAMP_DMG = 1.5, CHAMP_SIZE = 1.22;
+const CHAMP_CD    = 6.0, CHAMP_TELL = 0.9, CHAMP_R = 190;
+const CHAMP_WEAK  = 3.0;
+const CHAMP_COL   = "#e0b44a";
+/** 절규 한 번이 깎는 양 = 그 층 졸개 최대체력의 이만큼. 소환수 밑 체력이
+ *  `floorHp × RAISE_HP(0.42)` 라 0.25 면 대략 **두 번에 하나**를 지운다. */
+const CHAMP_HOWL_OF = () => (globalThis.__CHAMP_HOWL != null ? +globalThis.__CHAMP_HOWL : 0.25);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -414,7 +437,7 @@ const GATE_VOW_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis._
 /** 수법마다 **한 방이 실제로 닿는 배수** — fireMech 안의 곱을 그대로 옮겨 적은 것이다.
  *  상한을 「최대체력의 몇 %」로 걸려면 이 배수를 나눠 줘야 눈금이 수법끼리 같아진다.
  *  add 는 졸개를 세우는 것이라 한 방이 없다(상한 대상이 아니다 — 1 로 둔다). */
-const MECH_HIT = { curse: 3.8, charge: 3.0, pool: 0.85, add: 1 };
+const MECH_HIT = { curse: 3.8, charge: 3.0, pool: 0.85, add: 1, howl: 0 };  // howl 은 네크로를 안 때린다(GATE_VOW 상한 계산에만 쓰인다)
 /** 「지금 군대가 내는 화력」의 기억 길이(초). 짧으면 한 방에 출렁이고, 길면 관문에
  *  들어선 뒤의 화력을 못 따라간다. */
 const DPS_TAU = 4;
@@ -587,6 +610,15 @@ function spawnMob(f, i, n) {
               hp: floorHp(f), hpMax: floorHp(f),
               dmg: floorDmg(f), spd: 22 + Math.random() * 10,
               r: h * footR(), atk: 0, boss: false };
+  /* ★ 우두머리(위 CHAMP 문) — **관문 밖에서 군대를 쓸어내는 유일한 자리.**
+     난수를 새로 들이지 않는다(검수기가 씨앗을 박으면 여기도 그대로 굳는다). */
+  if (CHAMP_ON() && f >= CHAMP_FROM && Math.random() < CHAMP_P) {
+    m.champ = 1; m.col = CHAMP_COL;
+    m.hp = m.hpMax = Math.round(m.hpMax * CHAMP_HP);
+    m.dmg *= CHAMP_DMG;
+    m.h = Math.round(h * CHAMP_SIZE); m.r = m.h * footR();
+    m.howl = 0.35;   // ★ **서면서 바로 예고한다.** 한 박자 뒤로 미뤘더니 깊은 층에서 절규가 0 이었다(위 CHAMP 문)
+  }
   S.mobs.push(m);
   return m;
 }
@@ -1430,6 +1462,15 @@ export function step(dt) {
         if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, dmg * 1.7 * ampMul, u.x, u.y); u.weak = 3.0; }
       hurtNecro(dmg * 3.8 * ampMul, "curse", 0, -1);
     }
+    else if (mech === "howl") {
+      /* 우두머리의 절규 — **소환수만** 깎는다. cvx·cvy 가 터질 자리다(위 CHAMP 문). */
+      for (const u of S.minions)
+        if (Math.hypot(u.x - cvx, (u.y - cvy) * SQUASH_VIEW) < CHAMP_R) {
+          hitMinion(u, dmg, u.x - cvx, u.y - cvy); u.weak = CHAMP_WEAK;
+        }
+      S.fx.push({ t: 0.5, x: cvx, y: cvy, kind: "curse", col });
+      S.chowl = (S.chowl | 0) + 1;          // 검수기가 「손잡이가 실제로 도는가」를 보는 통
+    }
     else if (mech === "charge") {
       /* 주인이 겨눈 채 죽었을 때만 여기로 온다 — 달려들 몸이 없으니 겨눈 그 한 방만
          네크로에게 닿는다(길목 소환수 관통은 살아 있는 돌진에만 있다). */
@@ -1473,6 +1514,21 @@ export function step(dt) {
        예고는 판 한가운데 뜨므로(warn_* fx) 배어 나오는 동안 떠도 「예고 없이 터졌다」가
        아니다 — 붉은 고리가 조여드는 그 시간이 곧 예고다.
        돌진만은 몸이 실제로 달려들어야 하므로 다 선 뒤에 시작한다. */
+    /* ── 우두머리의 **절규** ── ★ 처음엔 「예고 뒤 제 손으로 터뜨린다」로 짰고, 그랬더니
+       25층 아래에서 **절규가 0번**이었다(2026-08-21 22:5x · 우두머리는 233초를 서 있었는데도).
+       까닭은 관문 주인과 **한 글자도 다르지 않다** — 깊은 층에서는 아무것도 서너 초를 못 산다.
+       그래서 이미 통한 방식을 그대로 쓴다: **약속으로 걸어 둔다**(S.pendMech).
+       예고를 띄우는 순간 그 자리·그 시각으로 약속이 걸리고, 우두머리가 그 사이 치워져도
+       **예정대로 터진다.** 위험이 「그놈이 얼마나 사느냐」에 매달리지 않게 하는 자리다.
+       ★ 배어 나오는 중(born)에도 시계는 돈다 — 관문 수법 루프와 같은 규칙(바로 아래 문단). */
+    if (m.champ && (m.howl -= dt) <= 0) {
+      m.howl = CHAMP_CD;
+      S.fx.push({ t: CHAMP_TELL, x: m.x, y: m.y, kind: "warn_curse", col: CHAMP_COL, r: CHAMP_R });
+      /* cvx·cvy 는 howl 에서 **터질 자리**로 쓴다(돌진의 겨눈 방향 자리를 나눠 쓴다).
+         warned:1 — 예고는 방금 띄웠으므로 약속 쪽이 또 띄우지 않는다. */
+      S.pendMech.push({ t: CHAMP_TELL, mech: "howl", dmg: floorHp(S.floor) * CHAMP_HOWL_OF(),
+                        col: CHAMP_COL, cvx: m.x, cvy: m.y, warned: 1 });
+    }
     if (!m.boss || !m.lord) continue;
     const lord = m.lord;
     if (lord.mech === "charge") {
@@ -1912,6 +1968,7 @@ export function newRun() {
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], pendMech: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
+    chowl: 0,                           // 이 판에서 우두머리가 지른 절규 수 — 검수기가 「손잡이가 도는가」를 본다
     zone: null,                         // 새 판은 구역도 처음부터 — 안 지우면 enterFloor 가 「같은 구역」으로 보고 바닥을 안 간다
 
     amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
