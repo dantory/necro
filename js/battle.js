@@ -488,6 +488,23 @@ const MANABURN_OF = () => (globalThis.__MANABURN != null ? +globalThis.__MANABUR
  *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
 const RAISECHOKE_OF = () => (globalThis.__RAISECHOKE != null ? +globalThis.__RAISECHOKE : 0);
 
+/** ★ **D-31 · 네 번째 갈래 — 관문이 «바닥의 시체»를 태운다**(`__CORPSEBURN`, 기본 0).
+ *  D-29(마나) 와 D-30(쿨) 이 둘 다 ✗ 로 닫으면서 같은 답을 남겼다: **저절로 다시 차는 것을
+ *  물어서는 뒤에 사건이 안 선다.** 마나는 `MANA_WALL` 이 늘 채워 놓고(뒤 막힘마나% 0·0·0),
+ *  쿨은 잠가 봐야 시도가 늘어 **되세운 몫이 되레 는다**(세움/분 147 → 167).
+ *  ☞ 남은 축은 **저절로 안 차는 것 — «시체»** 다. 지금 뒤 세 칸의 막힘시체% 는 **0 · 0 · 0**
+ *    이라 재료가 사실상 무한이다(유입이 층 깊이를 따라 늘고, 못은 상한 140 에 붙는다).
+ *    관문 수법(pool·curse·charge·add)이 터질 때 **바닥에 쌓인 시체의 이 비율만큼을 태우면**,
+ *    무너진 뒤 되세울 «재료»가 없어 같은 무너짐이 실제로 오래 남는다.
+ *  ★ **잃음 총량은 한 톨도 안 늘린다** — 소환수는 하나도 안 깎는다(D-26 ④ 가 막는 자리).
+ *    태우는 것은 **이미 죽어 바닥에 누운 것**뿐이다.
+ *  ★ **절규(howl)에는 안 붙인다** — 잃음의 94%가 이미 절규 하나라, 거기 얹으면 갈래가
+ *    또 하나가 아니라 같은 하나다(D-29·D-30 과 같은 규칙).
+ *  ★ A/B 의 출발값은 **0.5~0.8** 언저리: 못이 100 구 언저리에 앉아 있고 한 판에 수법이
+ *    수백 번 터지므로, 절반을 태워야 유입(깊은 층)과 겨룰 만하다.
+ *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
+const CORPSEBURN_OF = () => (globalThis.__CORPSEBURN != null ? +globalThis.__CORPSEBURN : 0);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -993,6 +1010,30 @@ export function useCorpse(n = 1, nearX = 0, nearY = 0, why = "?") {
   return at;
 }
 
+/** ★ **D-31 · 바닥의 시체를 «태운다»**(위 CORPSEBURN_OF 문) — 쓰는 것이 아니라 **없어지는** 것이다.
+ *  ★ 왜 `useCorpse` 를 안 부르나: 저쪽은 「자원으로 **썼다**」를 세는 길이라 `S.used`(정산이
+ *    읽는다)·소비처 집계·일어서는 먼지(rise)·유니크 twice 의 되돌림이 전부 달려 있다.
+ *    태워 없어진 시체가 「쓴 시체」로 세어지면 정산과 자가 둘 다 거짓말을 한다.
+ *  ★ 그래도 **개수(S.corpses)와 그림(S.piles)의 사슬은 저 둘과 똑같이 지킨다**(위 절의 그 규칙) —
+ *    한 구를 빼면 한 그림을 반드시 걷는다. 세는 길만 셋이 되고 **사슬은 여전히 하나**다.
+ *  수법은 네크로 발밑(중앙)에서 터지므로 **가까운 것부터** 탄다 — 눈이 기대하는 자리다.
+ *  난수를 한 톨도 안 먹는다(A/B 가 성립해야 한다). @return 실제로 태운 구수 */
+function burnCorpse(n) {
+  let took = 0;
+  for (let i = 0; i < n; i++) {
+    if (S.corpses <= 0) break;
+    S.corpses--; took++;
+    let bi = -1, bd = 1e9;
+    for (let j = 0; j < S.piles.length; j++) {
+      const d = Math.hypot(S.piles[j].x, S.piles[j].y * SQUASH_VIEW);
+      if (d < bd) { bd = d; bi = j; }
+    }
+    if (bi >= 0) { const p = S.piles.splice(bi, 1)[0];
+      S.fx.push({ t: 0.35, x: p.x, y: p.y, kind: "burn" }); }
+  }
+  return took;
+}
+
 /** @param at 쓴 시체의 자리. **거기서 일어선다** — 시체는 여기서 없어지는데 해골은
  *  저쪽에 나타나면 둘이 남남이라 「시체로 만들었다」가 안 읽힌다. */
 export function summon(kind, at) {
@@ -1178,6 +1219,15 @@ export const MANA_BURN = { n: 0, s: 0, dry: 0 };
  *     1초 위로 밀린 자리) — 이 칸이 0 이면 이미 쿨이던 것을 더 밀었을 뿐, **손은 못 묶은 것**이다
  *     ([[knob-that-does-nothing]]). */
 export const RAISE_CHOKE = { n: 0, s: 0, blk: 0 };
+
+/** ★ **D-31 · 바닥의 시체를 태우는 갈래의 자**(위 CORPSEBURN_OF 문). 세기만 한다.
+ *   · `n` = 태울 자리가 온 횟수(관문 수법이 터진 횟수) · `s` = 실제로 **태운 시체 수의 합**
+ *   · `dry` = 그 한 방에 못이 **바닥난** 횟수(태우고 나서 3 구 아래 = 해골 하나 세울 것도 없음)
+ *  ★ **여기서 «비율» 을 판정에 쓰지 않는다** — D-30 이 막힘쿨% 에 속을 뻔했다: 비율은
+ *    분모(시도)가 늘면 같이 오른다([[threshold-and-ruler-must-match]]). 이 축의 판정은
+ *    아래 D-24 표에 새로 붙인 **「못」(그 구간의 시체 못 평균)** 과 **세움/분** — 곧 «몫» 으로 본다.
+ *  ★ `dry` 가 0 이면 태우기는 하되 **재료를 못 끊은 것**이다([[knob-that-does-nothing]]). */
+export const CORPSE_BURN = { n: 0, s: 0, dry: 0 };
 
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
@@ -1708,6 +1758,12 @@ export function step(dt) {
           if (lock > was) { S.cd[rid] = lock; RAISE_CHOKE.s += lock - was;
             if (was < 1) took = true; } }
         if (took) RAISE_CHOKE.blk++; } }
+    /* ★ D-31 · **바닥의 시체를 태우는 갈래**(위 CORPSEBURN_OF 문). 기본 0 이면 이 줄은 아무 일도 안 한다. */
+    if (mech !== "howl") { const cb = CORPSEBURN_OF();
+      if (cb > 0) { CORPSE_BURN.n++;
+        const took2 = burnCorpse(Math.ceil(S.corpses * cb));
+        CORPSE_BURN.s += took2;
+        if (S.corpses < 3) CORPSE_BURN.dry++; } }
     /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
        절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
     const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl")

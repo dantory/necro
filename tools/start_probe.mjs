@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -127,6 +127,7 @@ for (const SEED of SEEDS) {
       버틸대수:+(S.hpMax/C.floorDmg(f)).toFixed(1), 처치:R.kills,
       초당처치:+(R.kills/(${STEP}*(window.__ti=(window.__ti||0)+1))).toFixed(2),
       마나마름:+(R.dry/R.samp*100).toFixed(0), 자리참:+(R.full/R.samp*100).toFixed(0),
+      시체:S.corpses,                                            // ★ D-31 · 못 크기 — 「몫」 으로 보는 자
       죽음:R.deaths,
       잃음누계: Object.fromEntries(B.LOST_KINDS.map(k => [k, B.LOST_BY[k] | 0])),
       깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
@@ -144,6 +145,8 @@ for (const SEED of SEEDS) {
       마나태움: B.MANA_BURN ? [B.MANA_BURN.n | 0, Math.round(B.MANA_BURN.s), B.MANA_BURN.dry | 0] : null,
       /* ★ D-30 · 되세우는 손을 잠그는 갈래의 자 (자리온횟수, 늘어난쿨합, 손을빼앗은횟수) */
       소환잠금: B.RAISE_CHOKE ? [B.RAISE_CHOKE.n | 0, Math.round(B.RAISE_CHOKE.s), B.RAISE_CHOKE.blk | 0] : null,
+      /* ★ D-31 · 바닥의 시체를 태우는 갈래의 자 (자리온횟수, 태운시체합, 못이바닥난횟수) */
+      시체태움: B.CORPSE_BURN ? [B.CORPSE_BURN.n | 0, B.CORPSE_BURN.s | 0, B.CORPSE_BURN.dry | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -160,11 +163,12 @@ for (const SEED of SEEDS) {
     if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
     if (o.마나태움) manaBurn[SEED] = o.마나태움;             // ★ D-29 · 마지막 점이 총계다
     if (o.소환잠금) raiseChoke[SEED] = o.소환잠금;           // ★ D-30 · 마지막 점이 총계다
+    if (o.시체태움) corpseBurn[SEED] = o.시체태움;           // ★ D-31 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫,
-                소환: o.소환누계, 군세: o.군세, 상한: o.상한 });   // ★ D-24
+                소환: o.소환누계, 군세: o.군세, 상한: o.상한, 시체: o.시체 });   // ★ D-24 (+ D-31 못)
     delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계; delete o.마나태움;
     pts.push({ 초: t, ...o });
   }
@@ -320,6 +324,13 @@ if (deaths.length) {
     for (const s2 of SEEDS) { const v = raiseChoke[s2]; if (!v) continue; CN += v[0] | 0; CS += v[1] | 0; CB += v[2] | 0; }
     if (CN) console.log(`  소환잠금(D-30) · 자리 ${CN} 번 · 늘어난 쿨 합 ${CS}초 · **한 번에 ${(CS / CN).toFixed(2)}초** · ` +
       `그 한 방에 손빼앗음 **${(CB / CN * 100).toFixed(1)}%** (${CB}번)`);
+    /* ★ **D-31 · 바닥의 시체를 태우는 갈래**(battle.js CORPSEBURN_OF). 기본 0 이면 이 줄이 아예 안 뜬다 —
+       뜨는데 「바닥남」이 0 이면 태우기는 하되 **재료를 못 끊은 것**이다([[knob-that-does-nothing]]).
+       ★ 판정은 이 비율이 아니라 아래 「못」 줄과 세움/분 이다([[threshold-and-ruler-must-match]]). */
+    let BN = 0, BS = 0, BD = 0;
+    for (const s2 of SEEDS) { const v = corpseBurn[s2]; if (!v) continue; BN += v[0] | 0; BS += v[1] | 0; BD += v[2] | 0; }
+    if (BN) console.log(`  시체태움(D-31) · 자리 ${BN} 번 · 태운 시체 합 ${BS} · **한 번에 ${(BS / BN).toFixed(1)}구** · ` +
+      `그 한 방에 못 바닥남(<3) **${(BD / BN * 100).toFixed(1)}%** (${BD}번)`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.
@@ -453,6 +464,20 @@ if (deaths.length) {
                  per(c.try), per(c.ok), per(c.lost), pc(c.cd), pc(c.mana), pc(c.corpse), pc(c.capfull)]
                 .map((v,j)=>String(v).padStart(W[j])).join(" "));
   }
+  /* ★ **D-31 · 「못」 — 그 구간에 바닥에 쌓여 있던 시체의 평균.** 위 막힘시체% 는 «비율» 이라
+     시도가 늘면 같이 오른다(D-30 이 막힘쿨% 에 똑같이 속을 뻔했다 ·
+     [[threshold-and-ruler-must-match]]). 재료 축의 판정은 **이 몫**으로 한다 —
+     지금(손잡이 0) 뒤 칸이 상한 140 에 붙어 있으면 재료가 사실상 무한이라는 뜻이다.
+     표와 따로 한 줄로 내는 까닭: 표에 칸을 더하면 옛 로그와 «바이트까지 같은가» 를
+     못 본다(A/B 0b 검사가 그걸 본다). */
+  const pool = BANDS.map(() => []);
+  for (const b of band) { if (b.시체 == null) continue;
+    const i = BANDS.findIndex(([lo,hi]) => b.층 >= lo && b.층 <= hi);
+    if (i >= 0) pool[i].push(b.시체); }
+  const poolTxt = BANDS.map(([lo,hi],i) => pool[i].length
+    ? `${lo}-${hi===9999?"":hi} ${(pool[i].reduce((a,x)=>a+x,0)/pool[i].length).toFixed(0)}` : null)
+    .filter(Boolean).join(" · ");
+  if (poolTxt) console.log(`  못(D-31 · 그 구간의 시체 못 평균 · 상한 ${140}) : ${poolTxt}`);
 }
 
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
