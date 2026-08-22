@@ -69,20 +69,32 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
      지난 표본의 표를 보고 «죽음»으로 닫는다(id → 표 를 따로 들고 있는 까닭). */
 const INSTALL = `(()=>{
  const SQ=0.78,CORE=26,LIM=90,TAUNT=130;
+ /* ★ 2026-08-23 · **자를 판과 맞췄다**([[threshold-and-ruler-must-match]]).
+    여태 이 자는 LIM=90 · TAUNT=130 을 제 손으로 적어 「자유인가」를 셌다. 그런데 판이
+    실제로 쓰는 둘레는 90 * gripMul() 이고, **뒷정리(몰려옴)에서는 상한이 아예 풀린다**
+    (lim = 1e9 — 아무 거리의 소환수에게나 붙는다 · 도발 130 은 몰려옴과 무관하게
+    130 * gripMul()). 어긋난 채로 D-43 의 두 팔을 견주면, **문이 놓아 준 적을 자가 도로
+    «붙잡힘»으로 닫아** 토막을 잘라 버린다 — 문이 무는지 안 무는지를 볼 수 없게 하는
+    어긋남이라 A/B 자체가 못 쓴다. 창구가 없는 낡은 판에서는 예전 수로 물러난다. */
+ const 둘레 = ()=>{ const mul = (window.__gripMul ? window.__gripMul() : 1);
+   const rush = window.__rushNow ? !!window.__rushNow() : false;
+   return { lim: rush ? 1e9 : LIM*mul, taunt: TAUNT*mul, mul, rush }; };
  const W = (window.__d42 = window.__d42 || { live:new Map(), eps:[], t:0 });
  window.__d42step = (dt)=>{
   const S=window.S||{}, M=S.mobs||[], U=S.minions||[];
-  W.t += dt;
+  const R = 둘레();                     // ★ 판이 지금 쓰는 그 둘레(문·몰려옴이 반영된 값)
+  W.t += dt; W.mulSum = (W.mulSum||0) + R.mul*dt; W.rushSec = (W.rushSec||0) + (R.rush?dt:0);
+  if (R.mul < 1) W.biteSec = (W.biteSec||0) + dt;
   const seen=new Set();
   let free=0, near=1e9, inCore=0;
   for(const m of M){
     seen.add(m.id);
     let td=1e9, wall=false;
     for(const u of U){ const d=Math.hypot(m.x-u.x,(m.y-u.y)*SQ);
-      if(d<td)td=d; if(u.kind==="golem"&&!u.own&&d<TAUNT)wall=true; }
+      if(d<td)td=d; if(u.kind==="golem"&&!u.own&&d<R.taunt)wall=true; }
     const dc=Math.hypot(m.x,m.y*SQ);
     if(dc<near)near=dc; if(dc<=CORE)inCore++;
-    const isFree = !(td<LIM) && !wall;
+    const isFree = !(td<R.lim) && !wall;
     if(isFree)free++;
     let e = W.live.get(m.id);
     if(isFree){
@@ -94,8 +106,15 @@ const INSTALL = `(()=>{
   }
   for(const [mid,e] of [...W.live]) if(!seen.has(mid)){ e.why="죽음"; W.eps.push(e); W.live.delete(mid); }
   return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead,n:U.length,mob:M.length,
-    free,near:M.length?Math.round(near):-1,inCore,eps:W.eps.length};
+    free,near:M.length?Math.round(near):-1,inCore,eps:W.eps.length,
+    mul:R.mul,rush:R.rush?1:0,lim:R.lim};
  };
+ /* ★ 문이 **정말 물었는지** 를 돌려준다 — 이걸 안 보면 「손잡이가 안 움직인 것」과
+    「손잡이가 움직였는데 판이 안 바뀐 것」을 못 가른다([[knob-that-does-nothing]]). */
+ window.__d42gate = ()=>{ const G = window.__GRIPST || null;
+   return { 몫평균:+((W.mulSum||0)/Math.max(0.001,W.t)).toFixed(3), 문초:+((W.biteSec||0)).toFixed(1),
+     몰려옴초:+((W.rushSec||0)).toFixed(1), 잰초:+W.t.toFixed(1),
+     판문초: G?+G.sec.toFixed(1):-1, 판몫평균: G&&G.sec>0?+(G.mulSum/G.sec).toFixed(3):1, 판hi: G?G.hi:-1 }; };
  window.__d42close = ()=>{ for(const [,e] of window.__d42.live){ e.why="창끝"; window.__d42.eps.push(e); }
    window.__d42.live.clear();
    return window.__d42.eps.map(e=>({id:e.id,why:e.why,d0:+e.d0.toFixed(1),d1:+(e.d1??e.d0).toFixed(1),
@@ -152,6 +171,7 @@ for (const SEED of SEEDS) {
     }
     await wait(200);
   }
+  const gate = (await ev(`window.__d42gate()`)) || null;   // ★ 문이 정말 물었는지
   const eps = (await ev(`window.__d42close()`)) || [];
   await fetch(`${CDP}/json/close/${targetId}`);
 
@@ -182,7 +202,7 @@ for (const SEED of SEEDS) {
     /* ★ D-43 끝 조건 ④㉲ · ⑤㉣ — 문이 «대가»가 아니라 «학살»이 되는지를 본다
        ([[equilibrium-pushes-back]]). 군세가 1 이하로 꺼져 있던 초를 센다. */
     거의전멸초: +(안.filter(h => h.n <= 1).length * 0.2).toFixed(1),
-    grip: GRIP,
+    grip: GRIP, gate,
   };
   console.log(`═════ 씨앗 ${SEED} ═════`);
   console.log(`  깊은 층까지 ${ff}초(×${FF} · 그 사이 끊김 ${내려가다죽음}) · 층 ${시작층}→${o.끝층} · 마을초 ${o.마을초} · 표본 ${o.표본}`);
@@ -191,6 +211,9 @@ for (const SEED of SEEDS) {
   console.log(`  토막 길이 중앙 ${o.토막초중앙}초 · 거리 ${o.시작거리중앙} → 최소 ${o.최소거리중앙} (좁힘 중앙 ${o.좁힘중앙} · 최고 ${o.좁힘최고})`);
   console.log(`  ★ 걷는가: 다가온 빠르기 중앙 ${o.빠르기중앙}/초 대 제 걸음 ${o.걸음중앙}/초 — **비 ${o.걷는비}** · 발묶인 표본 ${o.발묶인표본}/${o.총표본}`);
   console.log(`  껍질(26)까지 온 토막 ${o.껍질까지온토막}/${o.쓸토막} · 군세평균 ${o.군세평균} · 거의전멸초 ${o.거의전멸초} · 문 __GRIP=${o.grip == null ? "없음" : o.grip}`);
+  /* ★ 「손잡이가 움직였나」를 판정 앞에 먼저 찍는다 — 문초가 0 이면 아래 수는 문의 값이
+     아니라 그냥 또 한 판이다([[knob-that-does-nothing]] · [[silent-zero-is-not-an-observation]]). */
+  if (o.gate) console.log(`  ★ 문이 물었나: 문 초 ${o.gate.문초}/${o.gate.잰초} · 몫 평균 ${o.gate.몫평균} · 몰려옴 초 ${o.gate.몰려옴초} (판 자: 문초 ${o.gate.판문초} · 문 동안 몫 ${o.gate.판몫평균} · 옛최고 ${o.gate.판hi})`);
 }
 fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
 

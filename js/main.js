@@ -1,7 +1,7 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
-import { TOUCH_K_DEF, registerAutoTick, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
-import { SQUASH_VIEW as SQUASH_VIEW_C } from "./core.js";
+import { TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
@@ -2545,6 +2545,15 @@ export function toDungeon() {
    다시 그릴 때마다 움직인다. 좌표를 맞히려다 흰 마을 사진만 찍는 일이 있어 길을 뚫어 둔다
    (window.__S · window.__geo 와 같은 부류). */
 window.__toDungeon = toDungeon;
+/* ★ 검수용 — **자가 판과 같은 자를 쓰게** 한다(D-43 · [[threshold-and-ruler-must-match]]).
+   `d42_walk` 는 「적이 자유인가」를 제 손으로 `90`·`130` 을 적어 셌는데, 판이 실제로 쓰는
+   둘레는 `90 * gripMul()` 이고 **뒷정리(몰려옴)에서는 아예 1e9** 다. 문을 켠 팔에서 그
+   어긋남은 「문이 놓아 준 적」을 자가 도로 «붙잡힘»으로 닫아 토막을 잘라 버린다 —
+   문이 무는지 안 무는지를 **볼 수 없게** 만드는 어긋남이다. 그래서 판이 쓰는 그 수를
+   그대로 내준다(값은 안 바꾼다 · 읽기만 하는 창구다). */
+window.__gripMul = gripMul;                 // 지금 붙잡는 둘레에 곱하는 몫(문 꺼짐이면 1)
+window.__GRIPST  = GRIP;                    // 문의 자 — hi · mul · 문 초(sec) · 몫의 초가중 합(mulSum)
+window.__rushNow = () => rushOn() && !(S.spawnQ && S.spawnQ.length);   // 뒷정리면 상한이 풀린다(lim=1e9)
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
