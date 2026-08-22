@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -97,6 +97,27 @@ for (const SEED of SEEDS) {
         else if (W.armed) { if (rat <= 0.35) { const e = { 층: S.floor, 초: Math.round(R.tsec), t: R.tsec, 회복: null }; W.ev.push(e); W.pend = e; W.armed = false; } }
         else if (rat >= 0.70) W.armed = true;
       }
+      /* ★ D-34 · **같은 사건을 «상한» 이 아니라 «실제로 서 있던 수» 로 한 번 더 센다.**
+         D-33 이 남긴 ⓑ 다 — 상한을 옮기는 손잡이(__TOUGH)를 켜자 군세/상한이 0.89~1.07 로
+         올라가 **문턱을 아예 안 건드렸다.** 분모가 손잡이를 타면 자가 「무너짐이 사라졌다」고
+         말하지만 그것은 판이 아니라 자가 움직인 것이다([[threshold-and-ruler-must-match]]).
+         그래서 기준을 **판이 스스로 세워 둔 머릿수**로 바꾼다:
+           최고 = 최근 30초 동안 실제로 서 있던 최댓값 (손잡이가 못 옮기는 관측값)
+           무너짐 = 그 최고가 4마리 이상인데 **절반 이하로** 꺼진 순간 한 번
+           회복   = 다시 그 최고에 닿기까지 · 죽음으로 끊기면 −1
+         ★ 옛 자는 그대로 둔다 — 두 자를 나란히 찍어야 D-23~33 과 견줄 수 있다. */
+      {
+        const V = R.wallN || (R.wallN = { buf: new Array(30).fill(0), sec: -1, pend: null, ev: [] });
+        const n = S.minions.length, sec = Math.floor(R.tsec) % 30;
+        if (sec !== V.sec) { V.sec = sec; V.buf[sec] = 0; }
+        if (n > V.buf[sec]) V.buf[sec] = n;
+        let hi = 0; for (let i = 0; i < 30; i++) if (V.buf[i] > hi) hi = V.buf[i];
+        if (V.pend) { if (n >= V.pend.최고) { V.pend.회복 = +(R.tsec - V.pend.t).toFixed(1); V.pend = null; } }
+        else if (hi >= 4 && n * 2 <= hi) {
+          const e = { 층: S.floor, 초: Math.round(R.tsec), t: R.tsec, 최고: hi, 회복: null };
+          V.ev.push(e); V.pend = e;
+        }
+      }
       if (S.mp < 6) R.dry++;                                    // 해골 한 마리도 못 세우는 순간
       if (S.minions.length >= C.armyCap()) R.full++;             // 자리가 꽉 찬 순간
       if ((R.autoT += 0.05) > 0.35) { R.autoT = 0; try { window.auto(); } catch {} }
@@ -117,6 +138,7 @@ for (const SEED of SEEDS) {
           잃음갈래: B.LOST_KINDS.map((k, i) => [k, dd(12 + i)]).filter(x => x[1] > 0)
                       .map(x => x[0] + " " + x[1]).join(" ") || "-" });
         if (R.wall) { if (R.wall.pend) { R.wall.pend.회복 = -1; R.wall.pend = null; } R.wall.armed = false; }
+        if (R.wallN) { if (R.wallN.pend) { R.wallN.pend.회복 = -1; R.wallN.pend = null; } R.wallN.buf.fill(0); }   // ★ D-34 · 죽음은 무너짐이 아니다
         R.deaths++; R.prevHp = 0; C.META.runs++; B.newRun(); R.prevHp = S.hp; R.prevKill = S.killed|0; R.hist.length = 0;
       }
     }
@@ -134,6 +156,7 @@ for (const SEED of SEEDS) {
       터짐: Object.assign({}, B.MECH_FIRE),
       이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3), v.o | 0]])),
       무너짐: (R.wall ? R.wall.ev.map(e => [e.층, e.초, e.회복]) : []),
+      무너짐절대: (R.wallN ? R.wallN.ev.map(e => [e.층, e.초, e.회복, e.최고]) : []),   // ★ D-34 · 서 있던 수 기준
       /* ★ D-24 · **왜 «못 채우나»를 깊이별로 센다.** D-23 이 남긴 ㉮ 다 — 뒤에서 군세가
          상한의 절반에 상시로 머무는데, 그 자리가 「손이 안 나감·마나·시체·재사용·자리참」
          중 무엇인지는 여태 «죽는 순간의 앞 5초» 로만 봤다(죽음이 없는 구간은 못 본다).
@@ -162,6 +185,7 @@ for (const SEED of SEEDS) {
     lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
     fired[SEED] = o.터짐; bite[SEED] = o.이빨;              // ★ D-22 · 같은 결 — 마지막 점이 총계다
     if (o.무너짐) wall[SEED] = o.무너짐;                       // ★ D-23 · 마지막 점이 총계다
+    if (o.무너짐절대) wallN[SEED] = o.무너짐절대;             // ★ D-34 · 마지막 점이 총계다
     if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
     if (o.마나태움) manaBurn[SEED] = o.마나태움;             // ★ D-29 · 마지막 점이 총계다
     if (o.소환잠금) raiseChoke[SEED] = o.소환잠금;           // ★ D-30 · 마지막 점이 총계다
@@ -172,7 +196,7 @@ for (const SEED of SEEDS) {
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫,
                 소환: o.소환누계, 군세: o.군세, 상한: o.상한, 시체: o.시체 });   // ★ D-24 (+ D-31 못)
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계; delete o.마나태움; delete o.관문폭발;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.무너짐절대; delete o.소환누계; delete o.마나태움; delete o.관문폭발;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -434,6 +458,42 @@ if (deaths.length) {
   const front = cells[0].n + cells[1].n, back = all - front;
   console.log(`앞(층 1-20) ${front} · 판당 ${(front / SEEDS.length).toFixed(2)}   |   ` +
               `뒤(층 21+) ${back} · 판당 ${(back / SEEDS.length).toFixed(2)}`);
+}
+
+/* ══ D-34 · **같은 사건을 «서 있던 수» 로 다시 센다** ══ D-33 이 남긴 ⓑ 다.
+   위 자의 분모는 `armyCap()` 이라 **상한을 옮기는 손잡이가 자까지 같이 옮긴다**
+   (D-33 t=2: 군세/상한 0.57→1.00 이 되어 무너짐이 21.83 → 0.08 «판당» 으로 사라졌다).
+   이 자의 기준은 **최근 30초 동안 실제로 서 있던 최댓값**이라 손잡이가 못 옮긴다.
+     · 최고평균 = 그 사건들이 선 자리의 기준 머릿수 — **두 팔에서 이 값이 크게 다르면**
+       무너짐 수를 바로 견주지 말고 이 줄부터 볼 것([[floor-far-from-threshold]]).
+   ★ 두 자가 같은 판에서 서로 다른 말을 하면 **이 자를 믿는다** — 분모가 관측값이다. */
+{
+  const BANDS = [[1,10],[11,20],[21,40],[41,60],[61,9999]];
+  const cells = BANDS.map(() => ({ n: 0, rec: [], cut: 0, open: 0, hi: 0 }));
+  let all = 0;
+  for (const SEED of SEEDS) for (const [f, , r, hi] of (wallN[SEED] || [])) {
+    const i = BANDS.findIndex(([lo, hi2]) => f >= lo && f <= hi2);
+    if (i < 0) continue;
+    all++; cells[i].n++; cells[i].hi += hi | 0;
+    if (r === null) cells[i].open++;
+    else if (r < 0) cells[i].cut++;
+    else cells[i].rec.push(r);
+  }
+  const med = (a) => a.length ? (a = a.slice().sort((x, y) => x - y),
+    a.length % 2 ? a[(a.length - 1) / 2] : +((a[a.length / 2 - 1] + a[a.length / 2]) / 2).toFixed(1)) : "-";
+  const W3 = [9, 8, 9, 9, 9, 9, 9];
+  console.log(`\n── 군대가 무너지는 사건 · 절대 자 (서 있던 최고 → 절반 · 씨앗 ${SEEDS.length} · 합 ${all}) ──`);
+  console.log(["층구간", "무너짐", "판당", "회복초중앙", "죽음끊김", "안돌아옴", "최고평균"].map((h, i) => h.padStart(W3[i])).join(" "));
+  for (let i = 0; i < BANDS.length; i++) {
+    const c = cells[i];
+    console.log([`${BANDS[i][0]}-${BANDS[i][1] === 9999 ? "" : BANDS[i][1]}`, String(c.n),
+                 (c.n / SEEDS.length).toFixed(2), String(med(c.rec)), String(c.cut), String(c.open),
+                 c.n ? (c.hi / c.n).toFixed(1) : "-"]
+                .map((v, j) => String(v).padStart(W3[j])).join(" "));
+  }
+  const front2 = cells[0].n + cells[1].n, back2 = all - front2;
+  console.log(`앞(층 1-20) ${front2} · 판당 ${(front2 / SEEDS.length).toFixed(2)}   |   ` +
+              `뒤(층 21+) ${back2} · 판당 ${(back2 / SEEDS.length).toFixed(2)}`);
 }
 
 /* ══ D-24 · **뒤에서 왜 자리를 못 채우나** ══ D-23 이 남긴 ㉮ 다.
