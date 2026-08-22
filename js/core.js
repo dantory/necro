@@ -1935,6 +1935,49 @@ export const pulseCapMul = () => {
   return 1 - d * (PULSE_CRUSH.t / PULSE_ON());
 };
 
+/* ══ D-43 · 무너진 동안에는 «못 붙잡게» 한다 ══ (문 `__GRIP` · 기본 0)
+   D-42 가 잰 것이 이 문의 까닭이다 — 자유로워진 적은 **못 걷는 게 아니다.** 자유인 동안
+   실제로 안쪽으로 다가온 빠르기가 제 걸음의 **0.82 배**다. 진 것은 걸음이 아니라 **시간**이다:
+   자유 토막의 중앙이 **0.7초**뿐이라 한 토막에 16px 만 좁히는데, 서는 자리 184~197 에서
+   껍질 26 까지는 **158~171px** 이 필요하다. 40초 × 두 판에서 나온 156 개 토막 중
+   껍질까지 온 것은 **0 개**다. 군세가 셋으로 꺼져도 그 셋이 둘레 90 안의 적을 도로 붙잡아,
+   적이 안쪽으로 낸 열여섯 걸음을 **없던 일로 만든다.**
+   ★ 그래서 이 문은 값(90)을 그냥 낮추지 않는다 — **«언제»** 를 건드린다. 군세가 옛 최고 대비
+     얼마나 꺼졌느냐로 붙잡는 둘레를 좁힌다. **온전하면 정확히 90 그대로**다.
+       짧음 = max(0, 1 − 지금/옛최고)   ·   몫 = 1 − g · 짧음
+     통째로 갈린 순간(지금 0)에 g=1 이면 몫 0 — 아무도 못 붙잡아 자유가 **이어진다.**
+   ★ **자와 같은 말을 쓴다** — 옛 최고는 D-34 절대 자·D-35 문과 글자 그대로 같은
+     **최근 30초 관측 최댓값**이고 문턱도 같은 `hi ≥ 4` 다([[threshold-and-ruler-must-match]]).
+     제 통을 따로 도는 까닭은 CAP_CRUSH 의 통이 `__CAPCRUSH` 가 꺼지면 아예 안 돌기 때문이다.
+   ★ **상한도 자원도 한 톨 안 건드린다** — 이 문이 바꾸는 것은 오직 「적이 소환수를 알아보는
+     거리」다. 군세를 죽이거나 줄이는 D-32·D-35 갈래와 겹치지 않는다.
+   ★ **g = 0 이면 한 톨도 안 바뀐다** — 몫이 정확히 1 이라 `90 * 1 === 90` 이고 통조차 안 돈다
+     (난수도 한 톨 안 먹는다 — 검수기가 byte 단위로 견줄 수 있다). */
+export const GRIP_DEF = 0;      // ★ 재기 전까지 0 — 문만 나 있다
+export const GRIP_OF  = () => (typeof globalThis !== "undefined" && globalThis.__GRIP != null)
+  ? +globalThis.__GRIP : GRIP_DEF;
+/** 못 붙잡는 동안의 자 — (옛 최고, 지금 몫, 몫이 1 미만이던 초, 몫의 초가중 합) */
+export const GRIP = { buf: new Array(30).fill(0), slot: -1, hi: 0, mul: 1, sec: 0, mulSum: 0 };
+/** 판이 새로 서면 통을 비운다 — 죽음은 무너짐이 아니다(D-35 와 같은 까닭). */
+export const gripReset = () => { GRIP.buf.fill(0); GRIP.slot = -1; GRIP.hi = 0; GRIP.mul = 1; };
+/** 매 틱 한 번. `now` 는 지금 서 있는 소환수 수, `tsec` 은 판이 선 뒤 흐른 초. */
+export const gripTick = (dt, now, tsec) => {
+  const g = GRIP_OF();
+  if (!g) { GRIP.mul = 1; return; }              // 기본값은 통조차 안 돈다
+  const slot = Math.floor(tsec) % 30;
+  if (slot !== GRIP.slot) { GRIP.slot = slot; GRIP.buf[slot] = 0; }
+  if (now > GRIP.buf[slot]) GRIP.buf[slot] = now;
+  let hi = 0; for (let i = 0; i < 30; i++) if (GRIP.buf[i] > hi) hi = GRIP.buf[i];
+  GRIP.hi = hi;
+  /* 문턱 아래(hi < 4)에서는 **아무 일도 안 한다** — 애초에 군세가 얕은 자리에서까지
+     둘레를 풀면 그건 무너짐의 대가가 아니라 그냥 「판이 쉬워짐」이다. */
+  const short = hi >= 4 ? Math.max(0, 1 - now / hi) : 0;
+  GRIP.mul = 1 - g * short;
+  if (GRIP.mul < 1) { GRIP.sec += dt; GRIP.mulSum += GRIP.mul * dt; }
+};
+/** 붙잡는 둘레에 곱하는 몫 — **온전하면 정확히 1**(빠른 길이 그대로 선다). */
+export const gripMul = () => GRIP.mul;
+
 export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul() * deepCapMul() * pulseCapMul());
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.

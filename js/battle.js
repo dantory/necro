@@ -7,6 +7,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
          deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
          pulseTick, pulseReset, PULSE_CRUSH,          /* ★ D-37 · 그 눌림을 «짧고 잦게» */
+         gripTick, gripReset, gripMul, GRIP,        /* ★ D-43 · 무너진 동안엔 «못 붙잡게» */
          GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -1450,6 +1451,9 @@ export function step(dt) {
   /* ★ D-37 · 같은 눌림을 «짧고 잦게»(`__PULSECAP` · 기본 0). 방아쇠도 여기다 —
      층을 같이 넘겨야 층 21 아래에서 통이 아예 안 돈다. 꺼져 있으면 즉시 돌아온다. */
   pulseTick(dt, S.floor);
+  /* ★ D-43 · 무너진 동안엔 붙잡는 둘레가 좁아지는 문(`__GRIP` · 기본 0). 자(D-34)와
+     **같은 30초 통·같은 문턱**을 쓴다. 꺼져 있으면 몫이 정확히 1 이고 통조차 안 돈다. */
+  gripTick(dt, S.minions.length, S.t);
   /* 최대 체력을 **매 틱 맞춘다.** 예전엔 층을 넘을 때만 갱신해서, 판 안에서 레벨이
      오르면 최대치는 그대로인데 몸만 커져 화면에 **「824/816」** 이 떴다(2026-08-13
      스샷에서 눈으로 잡았다 — 자는 아무 말도 안 했다). 늘어난 만큼은 **채워 준다**
@@ -2088,11 +2092,14 @@ export function step(dt) {
           아무 거리의 소환수에게나 붙어 제 발로 다가온다. 이건 관문 주인(m.boss)에게도
           적용한다(걷다 붙는 것뿐이라 돌진 안무와 무관하다). */
     let wall = null, wd = 1e9;
-    const lim = rush ? 1e9 : 90;
+    /* ★ (c) D-43 · 무너진 동안엔 이 둘레가 좁아진다(문 `__GRIP` · 기본 0 이면 gripMul()===1
+       이라 `90 * 1 === 90` 그대로다). 몰려옴이 푼 상한(1e9)에는 손대지 않는다 — 거기선
+       「아무 거리의 소환수에게나 붙는다」가 뜻이라, 좁히면 문 둘이 서로를 지운다. */
+    const lim = rush ? 1e9 : 90 * gripMul();
     for (const u of S.minions) {
       const d = dist(m, u);
       if (d < td && d < lim) { td = d; tgt = u; }
-      if (u.kind === "golem" && !u.own && d < wd && d < TAUNT_R) { wd = d; wall = u; }
+      if (u.kind === "golem" && !u.own && d < wd && d < TAUNT_R * gripMul()) { wd = d; wall = u; }
     }
     if (wall) { tgt = wall; td = wd; }   // ★ 도발 거리 안에 벽이 있으면 벽으로 끌린다(위 TAUNT_R)
     if (tgt && td < m.r + tgt.r + 4) {
@@ -2388,6 +2395,7 @@ export function newRun() {
   crushReset();                                        // ★ D-35 · 죽음은 무너짐이 아니다 — 통을 비운다(자도 그런다)
   deepReset();                                         // ★ D-36 · 1층부터 다시 여는 것은 「깊이」가 아니다
   pulseReset();                                        // ★ D-37 · 같은 까닭 — 새 판은 틈부터 센다
+  gripReset();                                         // ★ D-43 · 같은 까닭 — 옛 최고를 새 판에 물려주지 않는다
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
