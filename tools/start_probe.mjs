@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -120,6 +120,7 @@ for (const SEED of SEEDS) {
       깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
       터짐: Object.assign({}, B.MECH_FIRE),
       이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3)]])),
+      장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3)] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -132,11 +133,12 @@ for (const SEED of SEEDS) {
     delete o.죽음기록;
     lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
     fired[SEED] = o.터짐; bite[SEED] = o.이빨;              // ★ D-22 · 같은 결 — 마지막 점이 총계다
+    if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫 });
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -266,6 +268,15 @@ if (deaths.length) {
       console.log([k.padStart(8), String(F[k] | 0).padStart(7), String(n).padStart(9),
                    (n ? avg.toFixed(1) : "-").padStart(13), 판정.padStart(12)].join(" "));
     }
+    /* ★ **D-22c · 장판만은 아래 줄을 본다.** 위 표의 pool 칸은 「틱 한 번당」이라 자와 문턱의
+       단위가 다르다([[threshold-and-ruler-must-match]]) — 한 장판이 한 소환수를 270번 때리므로
+       위 칸의 수는 늘 0.0~0.3 이다(손잡이를 스무 배 올려도 안 움직인다).
+       여기 「한 장판당 이빨%」가 ㉠(10% 이상)에 물릴 수다. */
+    let PP = 0, PN = 0, PS = 0;
+    for (const s2 of SEEDS) { const v = poolBite[s2]; if (!v) continue; PP += v[0] | 0; PN += v[1] | 0; PS += NUM(v[2]); }
+    if (PP) console.log(`  장판(D-22c) · 깔린 장판 ${PP} · 「장판×소환수」 쌍 ${PN} · ` +
+      `**한 장판당 이빨 ${PN ? (PS / PN * 100).toFixed(1) : "-"}%** ` +
+      `(쌍/장판 ${(PN / PP).toFixed(1)}) ← ㉠ 은 이 수로 본다`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.

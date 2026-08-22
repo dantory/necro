@@ -1068,6 +1068,23 @@ const tallyMechBite = (cause, dmg, u) => {
   b.n++; b.s += dmg / (u.hpMax || 1);
 };
 
+/** ★ **D-22c · 장판만은 «한 장판당» 으로 센다** — `MECH_BITE` 는 `hitMinion` 한 번을 「한 대」로
+ *  세는데 **장판만 틱마다 부른다**(4.5초 × 60Hz = 270번). 그래서 넷을 같은 자에 올리면 장판의
+ *  수만 270 으로 나뉜 것이 되고, 「한 대당 10%」라는 끝 조건은 장판에게 **27배로 넘치라는 말**이
+ *  된다([[threshold-and-ruler-must-match]]). 실제로 D-22b 의 네 눈금에서 손잡이를 스무 배
+ *  올려도 장판만 0.0~0.3 에 붙어 있었다 — 손잡이가 안 도는 게 아니라 **자가 틱을 세고 있었다.**
+ *  여기서 담는 것은 **장판 하나가 소환수 하나를 통틀어 몇 % 깎았나**다:
+ *    · `pools` = 깔린 장판 수 · `pairs` = 「장판 하나 × 그 안에 든 소환수 하나」 쌍의 수
+ *    · `s` = 그 쌍마다의 «제 체력 대비 누적 몫»의 합 → **`s/pairs` 가 ㉠ 에 물릴 수**다
+ *  장판마다 소환수별로 모아 두었다가(`pl.acc`) 그 장판이 꺼질 때 한 번에 넘긴다.
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
+export const MECH_POOL = { pools: 0, pairs: 0, s: 0 };
+const flushPoolBite = (pl) => {
+  if (!pl || !pl.acc) return;
+  for (const frac of pl.acc.values()) { MECH_POOL.pairs++; MECH_POOL.s += frac; }
+  pl.acc = null;
+};
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1588,7 +1605,9 @@ export function step(dt) {
     const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl") ? floorHp(S.floor) * GATE_MIN_OF() : dmg;
     if (mech === "pool")
       /* `mdmg` 가 **소환수 몫**이다(D-22b) — 네크로 몫(`dmg`)과 갈라 둔다. */
-      S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, mdmg: mdmgMin * 0.85, col });
+      /* `acc` 는 **D-22c 의 자**다(위 MECH_POOL 문) — 이 장판이 소환수별로 깎은 몫을 모은다. */
+      S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, mdmg: mdmgMin * 0.85, col,
+                     acc: (MECH_POOL.pools++, new Map()) });
     else if (mech === "add") {
       /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
          다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
@@ -1752,11 +1771,15 @@ export function step(dt) {
   /* ── 장판 ── 발밑에 남아 머무는 것(pool 주인). 안에 선 네크로는 지속 피해(pool), 소환수는 절반. */
   for (let i = S.pools.length - 1; i >= 0; i--) {
     const pl = S.pools[i];
-    if ((pl.t -= dt) <= 0) { S.pools.splice(i, 1); continue; }
+    if ((pl.t -= dt) <= 0) { flushPoolBite(pl); S.pools.splice(i, 1); continue; }   // ★ D-22c · 꺼질 때 넘긴다
     if (Math.hypot(pl.x, pl.y * SQUASH_VIEW) < pl.r) { hurtNecro(pl.dmg * dt, "pool", 0, -1); if (S.dead) return; }
     for (const u of S.minions)
-      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r)
-        hitMinion(u, (pl.mdmg != null ? pl.mdmg : pl.dmg) * 0.5 * dt, 0, -1, "pool");
+      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) {
+        const pd = (pl.mdmg != null ? pl.mdmg : pl.dmg) * 0.5 * dt;
+        /* ★ D-22c · 읽기만 — `hitMinion` 이 **실제로 무는 때**와 같은 조건으로만 센다. */
+        if (pl.acc && pd > 0 && u.hp > 0) pl.acc.set(u, (pl.acc.get(u) || 0) + pd / (u.hpMax || 1));
+        hitMinion(u, pd, 0, -1, "pool");
+      }
   }
   if (S.walls) for (let i = S.walls.length - 1; i >= 0; i--) if ((S.walls[i].t -= dt) <= 0) S.walls.splice(i, 1);
   while (S.hurtLog.length && S.t - S.hurtLog[0].t > 5) S.hurtLog.shift();   // 사인 판정은 직전 5초만
@@ -2133,6 +2156,7 @@ export function newRun() {
   /* ★ 1층이 아니라 **지나온 관문**에서 다시 선다(core.js 「표식」). 죽을 때마다
      1층부터 되짚어 내려오느라 시간의 35% 가 그 왕복에 들어갔다. */
   const f0 = startFloor();
+  for (const pl of S.pools || []) flushPoolBite(pl);   // ★ D-22c · 판이 갈리며 버려지는 장판도 세어 둔다
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
