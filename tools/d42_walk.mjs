@@ -41,9 +41,14 @@ const SEEDS = String(process.argv[3] || "1,3").split(",").map(Number);
 const TARGET = +(process.argv[4] || 21);
 const FF = +(process.env.D42_FF || 8);
 const FFCAP = +(process.env.D42_FFCAP || 200);
+/* ★ D-43 · 이 자로 «문을 켠 팔»도 재려고 낸 손잡이 둘. 판은 한 글자도 안 고친다 —
+   `D43_GRIP` 은 페이지가 서기 전에 `globalThis.__GRIP` 을 심을 뿐이고(0/없음이면 예전 그대로),
+   `D42_OUT` 은 두 팔의 수를 서로 안 덮게 딴 파일로 뺀다. */
+const GRIP = process.env.D43_GRIP == null ? null : +process.env.D43_GRIP;
+const OUT  = process.env.D42_OUT || "tmp/d42_walk.json";
 const fs = await import("node:fs");
 if (process.argv[2] === "judge") {
-  const j = JSON.parse(fs.readFileSync("tmp/d42_walk.json", "utf-8"));
+  const j = JSON.parse(fs.readFileSync(process.env.D42_OUT || "tmp/d42_walk.json", "utf-8"));
   console.log(`판정(저장된 수로 다시): ${판정(j)}`); process.exit(0); }
 
 const stale = (await (await fetch(CDP + "/json/list")).json())
@@ -108,7 +113,8 @@ for (const SEED of SEEDS) {
   await S("Page.addScriptToEvaluateOnNewDocument", { source:
     `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
        return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
-     globalThis.__AUTO_TREE = 1;` });
+     globalThis.__AUTO_TREE = 1;
+     ${GRIP == null ? "" : `globalThis.__GRIP = ${GRIP};`}` });
   await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: PAGE }); await wait(1500);
   await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -173,6 +179,10 @@ for (const SEED of SEEDS) {
     빠르기중앙: mid(빠르기), 걸음중앙: mid(걸음), 걷는비: 비,
     발묶인표본: 쓸.reduce((s, e) => s + e.rooted, 0), 총표본: 쓸.reduce((s, e) => s + e.n, 0),
     껍질까지온토막: 쓸.filter(e => e.dmin <= 26).length,
+    /* ★ D-43 끝 조건 ④㉲ · ⑤㉣ — 문이 «대가»가 아니라 «학살»이 되는지를 본다
+       ([[equilibrium-pushes-back]]). 군세가 1 이하로 꺼져 있던 초를 센다. */
+    거의전멸초: +(안.filter(h => h.n <= 1).length * 0.2).toFixed(1),
+    grip: GRIP,
   };
   console.log(`═════ 씨앗 ${SEED} ═════`);
   console.log(`  깊은 층까지 ${ff}초(×${FF} · 그 사이 끊김 ${내려가다죽음}) · 층 ${시작층}→${o.끝층} · 마을초 ${o.마을초} · 표본 ${o.표본}`);
@@ -180,9 +190,9 @@ for (const SEED of SEEDS) {
   console.log(`  자유 토막 ${o.토막} 개(0.4초 이상 ${o.쓸토막}) · 끝난 까닭 ${Object.entries(o.까닭).map(([k, v]) => `${k} ${v}`).join(" · ") || "없음"}`);
   console.log(`  토막 길이 중앙 ${o.토막초중앙}초 · 거리 ${o.시작거리중앙} → 최소 ${o.최소거리중앙} (좁힘 중앙 ${o.좁힘중앙} · 최고 ${o.좁힘최고})`);
   console.log(`  ★ 걷는가: 다가온 빠르기 중앙 ${o.빠르기중앙}/초 대 제 걸음 ${o.걸음중앙}/초 — **비 ${o.걷는비}** · 발묶인 표본 ${o.발묶인표본}/${o.총표본}`);
-  console.log(`  껍질(26)까지 온 토막 ${o.껍질까지온토막}/${o.쓸토막}`);
+  console.log(`  껍질(26)까지 온 토막 ${o.껍질까지온토막}/${o.쓸토막} · 군세평균 ${o.군세평균} · 거의전멸초 ${o.거의전멸초} · 문 __GRIP=${o.grip == null ? "없음" : o.grip}`);
 }
-fs.writeFileSync("tmp/d42_walk.json", JSON.stringify(out, null, 1));
+fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
 
 const bad = [];
 let 토막합 = 0;
