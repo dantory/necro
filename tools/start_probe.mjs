@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [];
+const rows = [], deaths = [], lostBy = {}, lostDmg = {};
 for (const SEED of SEEDS) {
   const { targetId } = await raw("Target.createTarget", { url: PAGE });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
@@ -76,8 +76,12 @@ for (const SEED of SEEDS) {
          고칠 자리가 정반대인데, 죽음의 사진만으로는 안 갈린다. 누적값을 담아 두고
          죽는 순간에 앞 5초의 «차이»로 읽는다. */
       const T = B.RAISE_TALLY;
+      /* ★ D-20 · **잃음의 «가해자»** 도 같이 굴린다. D-19 가 「세워도 지워짐 23/25」까지
+         갈랐지만 지운 쪽이 졸개의 이빨인지 우두머리의 절규인지는 안 세어 뒀다. */
+      const LK = B.LOST_KINDS, L = B.LOST_BY;
       R.hist.push([S.minions.length, S.mp, S.corpses, S.hp / Math.max(1, S.hpMax),
-                   T.try, T.ok, T.mana, T.corpse, T.cd, T.capfull, T.lost, T.merge]);
+                   T.try, T.ok, T.mana, T.corpse, T.cd, T.capfull, T.lost, T.merge,
+                   ...LK.map(k => L[k] | 0)]);
       if (R.hist.length > 100) R.hist.shift();
       if (S.mp < 6) R.dry++;                                    // 해골 한 마리도 못 세우는 순간
       if (S.minions.length >= C.armyCap()) R.full++;             // 자리가 꽉 찬 순간
@@ -94,7 +98,10 @@ for (const SEED of SEEDS) {
           마나: Math.round(S.mp), 마나최대: Math.round(S.mpMax), 시체: S.corpses,
           버틸대수: +(S.hpMax / C.floorDmg(S.floor)).toFixed(1),
           앞5초군세: m(0), 앞5초마나: m(1), 앞5초시체: m(2),
-          앞5초마름: pct(x => x[1] < 6), 앞5초자리참: pct(x => x[0] >= cap) });
+          앞5초마름: pct(x => x[1] < 6), 앞5초자리참: pct(x => x[0] >= cap),
+          /* 앞 5초에 소환수를 지운 갈래 — 「melee 6 · howl 2」 처럼 0 이 아닌 것만 */
+          잃음갈래: B.LOST_KINDS.map((k, i) => [k, dd(12 + i)]).filter(x => x[1] > 0)
+                      .map(x => x[0] + " " + x[1]).join(" ") || "-" });
         R.deaths++; R.prevHp = 0; C.META.runs++; B.newRun(); R.prevHp = S.hp; R.prevKill = S.killed|0; R.hist.length = 0;
       }
     }
@@ -106,6 +113,8 @@ for (const SEED of SEEDS) {
       초당처치:+(R.kills/(${STEP}*(window.__ti=(window.__ti||0)+1))).toFixed(2),
       마나마름:+(R.dry/R.samp*100).toFixed(0), 자리참:+(R.full/R.samp*100).toFixed(0),
       죽음:R.deaths,
+      잃음누계: Object.fromEntries(B.LOST_KINDS.map(k => [k, B.LOST_BY[k] | 0])),
+      깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -116,6 +125,8 @@ for (const SEED of SEEDS) {
     if (o.예외) { console.log(`씨앗 ${SEED} ${t}초에 예외: ${o.예외}`); break; }
     for (const d of (o.죽음기록 || [])) deaths.push({ SEED, ...d });
     delete o.죽음기록;
+    lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
+    delete o.잃음누계; delete o.깎인몫;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -142,7 +153,7 @@ for (let i = 0; i < n; i++) {
    죽음 하나하나의 자리(군세·마나·시체·버틸대수)를 세어야 갈린다. */
 if (deaths.length) {
   const DC2 = [["씨앗",5],["초",5],["시도",5],["세움",5],["잃음",5],["막힘쿨",7],["막힘마나",8],
-               ["막힘시체",8],["막힘자리",8],["키움",5]];
+               ["막힘시체",8],["막힘자리",8],["키움",5],["앞5초 잃음갈래",22]];
   const DC = [["씨앗",5],["초",5],["층",5],["군세/상한",9],["마나/최대",9],["시체",5],["버틸대수",8],
               ["앞5초군세",9],["앞5초마나",9],["앞5초시체",9],["앞5초마름%",10],["앞5초자리참%",12]];
   console.log(`\n── 죽음 ${deaths.length} 개의 사진 ──`);
@@ -170,7 +181,7 @@ if (deaths.length) {
   console.log(`\n── 앞 5초에 손이 몇 번 나갔나 ──`);
   console.log(DC2.map(([h, w]) => h.padStart(w)).join(" "));
   for (const d of deaths)
-    console.log([d.SEED, d.초, d.시도, d.세움, d.잃음, d.막힘쿨, d.막힘마나, d.막힘시체, d.막힘자리, d.키움]
+    console.log([d.SEED, d.초, d.시도, d.세움, d.잃음, d.막힘쿨, d.막힘마나, d.막힘시체, d.막힘자리, d.키움, d.잃음갈래 || "-"]
                 .map((v, j) => String(v).padStart(DC2[j][1])).join(" "));
   const noTry  = deaths.filter(d => d.시도 === 0).length;
   const cantRaise = deaths.filter(d => d.시도 > 0 && d.세움 === 0).length;
@@ -190,6 +201,27 @@ if (deaths.length) {
     console.log(`\n★ 마르지 않았는데 군세가 얇은 죽음 ${wet.length} 개: ` +
                 `손이안나감 ${wNo} · 못세움 ${wCant} · 지워짐 ${wWipe} · ` +
                 `(시도 ${wet.reduce((a,d)=>a+d.시도,0)} · 세움 ${wet.reduce((a,d)=>a+d.세움,0)} · 잃음 ${wet.reduce((a,d)=>a+d.잃음,0)})`);
+  }
+}
+/* ══ D-20 · **무엇이 소환수를 죽였나** ══ 「잃음」을 갈래로 가른다.
+   · 막타 = 마지막 한 방을 넣은 쪽(누가 마무리했나)
+   · 깎은몫 = 그 갈래가 소환수 체력에서 실제로 깎아낸 합(누가 갈고 있었나)
+   둘이 갈리면 「오래 갈아 놓고 남이 마무리한」 가해자가 드러난다. */
+{
+  const KS = Object.keys(lostBy[SEEDS[0]] || {});
+  if (KS.length) {
+    const sumBy = (o) => KS.reduce((a, k) => a + (o[k] | 0), 0);
+    const tot = {}, dmg = {};
+    for (const k of KS) { tot[k] = 0; dmg[k] = 0; }
+    for (const s of SEEDS) for (const k of KS) { tot[k] += lostBy[s]?.[k] | 0; dmg[k] += lostDmg[s]?.[k] | 0; }
+    const nAll = sumBy(tot), dAll = sumBy(dmg);
+    console.log(`\n── 무엇이 소환수를 죽였나 (${MIN}분 × 씨앗 ${SEEDS.length} · 잃음 ${nAll}) ──`);
+    console.log(["갈래".padStart(8), "막타".padStart(7), "막타%".padStart(7), "깎은몫".padStart(10), "깎은몫%".padStart(8)].join(" "));
+    for (const k of KS.sort((a, b) => tot[b] - tot[a]))
+      console.log([k.padStart(8), String(tot[k]).padStart(7),
+                   (nAll ? (tot[k] / nAll * 100).toFixed(0) : "0").padStart(7),
+                   String(dmg[k]).padStart(10),
+                   (dAll ? (dmg[k] / dAll * 100).toFixed(0) : "0").padStart(8)].join(" "));
   }
 }
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);

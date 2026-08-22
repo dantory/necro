@@ -1013,6 +1013,27 @@ export function cast(id) {
  *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 는 비트까지 같다). */
 export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 0, merge: 0, lost: 0 };
 
+/** ★ **무엇이 소환수를 죽이나** — D-19 가 남긴 물음이다. 죽음 25 개 중 23 개가 「세워도
+ *  지워짐」이었는데, 지운 «가해자»를 한 번도 안 세어 뒀다. 그것을 모르고 「덜 쓸리게」를
+ *  만지면 또 안 도는 손잡이가 된다([[knob-that-does-nothing]]).
+ *  · `LOST_BY`  = **마지막 한 방**을 넣은 갈래별 죽음 수
+ *  · `LOST_DMG` = 그 갈래가 소환수에게서 **실제로 깎아낸 몫**(합) — 막타만 세면 「오래
+ *    갈아 놓고 남이 마무리한」 가해자를 통째로 놓친다. 둘을 같이 봐야 갈린다.
+ *  갈래: melee 평지 졸개의 이빨 · add 주인이 부른 졸개 · lord 주인 본인의 손 ·
+ *        howl 우두머리의 절규 · curse 저주 · charge 돌진 · pool 장판 · etc 그 밖.
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
+export const LOST_KINDS = ["melee", "add", "lord", "howl", "curse", "charge", "pool", "etc"];
+export const LOST_BY = {}, LOST_DMG = {};
+for (const k of LOST_KINDS) { LOST_BY[k] = 0; LOST_DMG[k] = 0; }
+/** 소환수가 맞을 때마다 **누가·얼마나**를 적는다. **실제로 깎인 만큼만** 센다 —
+ *  넘치게 때린 마지막 한 방이 그 갈래의 몫을 부풀리면 「누가 갈고 있었나」가 뒤집힌다.
+ *  (깎기 «전»에 불러야 u.hp 가 남은 몸이다.) */
+function tallyMinionHurt(u, dmg, cause) {
+  const k = LOST_DMG[cause] != null ? cause : "etc";
+  LOST_DMG[k] += Math.max(0, Math.min(dmg, u.hp));
+  u.lastBy = k;
+}
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1304,10 +1325,16 @@ export function step(dt) {
     }
     const { tgt, dmg, heal } = p;
     if (!tgt || tgt.hp <= 0) continue;                  // 그새 죽었으면 허공을 친다
+    /* ★ **적이 내 소환수를 문 것**이면 갈래를 적는다(D-20). 평지 졸개(melee)·주인이 부른
+       졸개(add)·주인 본인(lord)은 손잡이가 서로 달라, 한 통에 담으면 「덜 쓸리게」를
+       어디에 대야 할지 모른다. 깎기 «전»에 센다. */
+    const tgtIsMob = S.mobs.includes(tgt);
+    if (!tgtIsMob) tallyMinionHurt(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1),
+                                   u.cause === "add" ? "add" : (u.boss ? "lord" : "melee"));
     hurtMob(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1));     // 제물로 약해진 관문 주인은 더 크게 맞는다
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
-    popNum(tgt.x, tgt.y, dmg, S.mobs.includes(tgt) ? "dmg" : "hurt");
+    popNum(tgt.x, tgt.y, dmg, tgtIsMob ? "dmg" : "hurt");
     tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
     tgt.kx = u.sdx; tgt.ky = u.sdy;
     /* ★ **얼마나** 밀리는지는 한 방이 제 몸에서 차지하는 몫이 정한다(core 의 knockOf).
@@ -1507,8 +1534,9 @@ export function step(dt) {
      · charge 예고 뒤 중앙으로 돌진해 큰 한 방 — 길목 소환수도 관통하며 때린다
      · curse  중앙 넓은 원에 한 번에 피해 + 원 안 소환수 잠깐 약화(weak)
      ★ 돌진 중(mstate≠0)에는 일반 이동/근접을 건너뛴다 — 아래 「적」 루프가 mstate 를 본다. */
-  const hitMinion = (u, dmg, dx, dy) => {
+  const hitMinion = (u, dmg, dx, dy, cause) => {
     if (dmg <= 0 || !u || u.hp <= 0) return;
+    tallyMinionHurt(u, dmg, cause);                       // ★ D-20 · 읽기만 — 깎기 전에 센다
     u.hp -= dmg; popNum(u.x, u.y, dmg, "hurt");
     u.flinch = 0.18; const l = Math.hypot(dx, dy) || 1; u.kx = dx / l; u.ky = dy / l;
     u.knock = knockOf(u, dmg);
@@ -1553,14 +1581,14 @@ export function step(dt) {
     }
     else if (mech === "curse") {
       for (const u of S.minions)
-        if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, dmg * 1.7 * ampMul, u.x, u.y); u.weak = 3.0; }
+        if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, dmg * 1.7 * ampMul, u.x, u.y, "curse"); u.weak = 3.0; }
       hurtNecro(dmg * 3.8 * ampMul, "curse", 0, -1);
     }
     else if (mech === "howl") {
       /* 우두머리의 절규 — **소환수만** 깎는다. cvx·cvy 가 터질 자리다(위 CHAMP 문). */
       for (const u of S.minions)
         if (Math.hypot(u.x - cvx, (u.y - cvy) * SQUASH_VIEW) < CHAMP_R) {
-          hitMinion(u, dmg, u.x - cvx, u.y - cvy); u.weak = CHAMP_WEAK;
+          hitMinion(u, dmg, u.x - cvx, u.y - cvy, "howl"); u.weak = CHAMP_WEAK;
         }
       S.fx.push({ t: 0.5, x: cvx, y: cvy, kind: "curse", col });
       S.chowl = (S.chowl | 0) + 1;          // 검수기가 「손잡이가 실제로 도는가」를 보는 통
@@ -1646,7 +1674,7 @@ export function step(dt) {
         m.walked = (m.walked || 0) + sp * dt; m.moving = 0.12;
         m.face = m.cvx < 0 ? -1 : 1; m.dx = m.cvx; m.dy = m.cvy;
         for (const u of S.minions)                          // 길목 소환수도 관통하며 때린다(한 번씩)
-          if (!u.hitByCharge && dist(m, u) < m.r + u.r) { hitMinion(u, m.dmg * 3.0 * ampMul, m.cvx, m.cvy); u.hitByCharge = 1; }
+          if (!u.hitByCharge && dist(m, u) < m.r + u.r) { hitMinion(u, m.dmg * 3.0 * ampMul, m.cvx, m.cvy, "charge"); u.hitByCharge = 1; }
         if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R + m.r * 0.5) {
           hurtNecro(m.dmg * 3.0 * ampMul, "charge", m.cvx, m.cvy);
           m.mstate = 0; m.mechCd = lord.cd; if (S.dead) return;
@@ -1684,7 +1712,7 @@ export function step(dt) {
     if ((pl.t -= dt) <= 0) { S.pools.splice(i, 1); continue; }
     if (Math.hypot(pl.x, pl.y * SQUASH_VIEW) < pl.r) { hurtNecro(pl.dmg * dt, "pool", 0, -1); if (S.dead) return; }
     for (const u of S.minions)
-      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) hitMinion(u, pl.dmg * 0.5 * dt, 0, -1);
+      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) hitMinion(u, pl.dmg * 0.5 * dt, 0, -1, "pool");
   }
   if (S.walls) for (let i = S.walls.length - 1; i >= 0; i--) if ((S.walls[i].t -= dt) <= 0) S.walls.splice(i, 1);
   while (S.hurtLog.length && S.t - S.hurtLog[0].t > 5) S.hurtLog.shift();   // 사인 판정은 직전 5초만
@@ -1973,6 +2001,7 @@ export function step(dt) {
     const dead = S.minions[i];
     S.minions.splice(i, 1);
     RAISE_TALLY.lost++;                                  // ★ 「세워도 지워짐」쪽의 짝 — 위 RAISE_TALLY 머리말
+    LOST_BY[dead.lastBy || "etc"]++;                     // ★ D-20 · 마지막 한 방을 넣은 갈래
     fall(dead, dead.art || ("minion/" + dead.kind), (dead.h || 40) * feedMul(dead));
     /* **내 소환수도 시체가 된다** — 다시 쓴다. 뼈만 남는다(살은 이미 없었다) */
     addCorpse(dead.x, dead.y, "bones", 1, dead.hpMax);   // 내 편의 주검도 자원이다
