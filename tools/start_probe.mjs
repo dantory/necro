@@ -220,7 +220,10 @@ if (deaths.length) {
 {
   const KS = Object.keys(lostBy[SEEDS[0]] || {});
   if (KS.length) {
-    const sumBy = (o) => KS.reduce((a, k) => a + (o[k] | 0), 0);
+    /* ★ 여기에도 «| 0» 이 있었다(D-22 에서 잡음). 갈래별 몫은 D-21 에서 NUM 으로 고쳤는데
+       **합을 내는 이 한 줄**이 그대로여서 20분 × 여섯의 분모가 음수가 되고 몫%가 -713 으로
+       찍혔다. 같은 고침을 옆자리에 안 옮긴 자리다([[carry-fixes-forward]]). */
+    const sumBy = (o) => KS.reduce((a, k) => a + NUM(o[k]), 0);
     const tot = {}, dmg = {};
     for (const k of KS) { tot[k] = 0; dmg[k] = 0; }
     /* ★ 깎은몫에 «| 0» 을 대면 안 된다 — 32비트로 잘려 2^31 을 넘는 순간 «음수»가 된다.
@@ -255,7 +258,11 @@ if (deaths.length) {
     console.log(["수법".padStart(8), "터짐".padStart(7), "맞은대수".padStart(9), "한대당 이빨%".padStart(13), "판정".padStart(12)].join(" "));
     for (const k of KS2.sort((a, b) => (F[b] | 0) - (F[a] | 0))) {
       const n = Bn[k] | 0, avg = n ? Bs[k] / n * 100 : 0;
-      const 판정 = !(F[k] | 0) && !n ? "㉠㉡ 안 터짐" : n && avg < 5 ? "㉢ 이빨없음" : n ? "돎" : "㉢ 안 닿음";
+      /* 100% 를 넘는 값은 **넘치게 때린 것**이다(한 대에 몸의 몇 배). 자르지 않는다 —
+         「두 대면 죽는다」와 「한 대에 네 배로 넘친다」는 다른 사실이고, 뒤엣것은
+         「더 세게」가 이미 남아도는 자리라는 뜻이다. */
+      const 판정 = !(F[k] | 0) && !n ? "㉠㉡ 안 터짐" : !n ? "㉢ 안 닿음"
+                 : avg < 5 ? "㉢ 이빨없음" : avg > 150 ? "돎(넘침)" : "돎";
       console.log([k.padStart(8), String(F[k] | 0).padStart(7), String(n).padStart(9),
                    (n ? avg.toFixed(1) : "-").padStart(13), 판정.padStart(12)].join(" "));
     }
