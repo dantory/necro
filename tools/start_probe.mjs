@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -86,6 +86,17 @@ for (const SEED of SEEDS) {
                    T.try, T.ok, T.mana, T.corpse, T.cd, T.capfull, T.lost, T.merge,
                    ...LK.map(k => L[k] | 0)]);
       if (R.hist.length > 100) R.hist.shift();
+      /* ★ D-23 · **「군대가 무너지는 사건」을 센다** — 세기만 한다(판을 한 글자도 안 건드린다).
+         무너짐 = 군세/상한이 **0.70 이상 섰다가 0.35 이하로** 떨어진 순간 한 번.
+         회복초 = 다시 0.70 에 닿기까지. 죽음으로 끊기면 −1(죽어서 0 이 되는 것은
+         무너짐이 아니라 죽음이다 — 그건 이미 따로 센다). */
+      {
+        const W = R.wall || (R.wall = { armed: false, pend: null, ev: [] });
+        const rat = S.minions.length / Math.max(1, C.armyCap());
+        if (W.pend) { if (rat >= 0.70) { W.pend.회복 = +(R.tsec - W.pend.t).toFixed(1); W.pend = null; W.armed = true; } }
+        else if (W.armed) { if (rat <= 0.35) { const e = { 층: S.floor, 초: Math.round(R.tsec), t: R.tsec, 회복: null }; W.ev.push(e); W.pend = e; W.armed = false; } }
+        else if (rat >= 0.70) W.armed = true;
+      }
       if (S.mp < 6) R.dry++;                                    // 해골 한 마리도 못 세우는 순간
       if (S.minions.length >= C.armyCap()) R.full++;             // 자리가 꽉 찬 순간
       if ((R.autoT += 0.05) > 0.35) { R.autoT = 0; try { window.auto(); } catch {} }
@@ -105,6 +116,7 @@ for (const SEED of SEEDS) {
           /* 앞 5초에 소환수를 지운 갈래 — 「melee 6 · howl 2」 처럼 0 이 아닌 것만 */
           잃음갈래: B.LOST_KINDS.map((k, i) => [k, dd(12 + i)]).filter(x => x[1] > 0)
                       .map(x => x[0] + " " + x[1]).join(" ") || "-" });
+        if (R.wall) { if (R.wall.pend) { R.wall.pend.회복 = -1; R.wall.pend = null; } R.wall.armed = false; }
         R.deaths++; R.prevHp = 0; C.META.runs++; B.newRun(); R.prevHp = S.hp; R.prevKill = S.killed|0; R.hist.length = 0;
       }
     }
@@ -120,6 +132,7 @@ for (const SEED of SEEDS) {
       깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
       터짐: Object.assign({}, B.MECH_FIRE),
       이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3), v.o | 0]])),
+      무너짐: (R.wall ? R.wall.ev.map(e => [e.층, e.초, e.회복]) : []),
       장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3), B.MECH_POOL.over | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
@@ -133,12 +146,13 @@ for (const SEED of SEEDS) {
     delete o.죽음기록;
     lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
     fired[SEED] = o.터짐; bite[SEED] = o.이빨;              // ★ D-22 · 같은 결 — 마지막 점이 총계다
+    if (o.무너짐) wall[SEED] = o.무너짐;                       // ★ D-23 · 마지막 점이 총계다
     if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫 });
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -341,5 +355,36 @@ if (deaths.length) {
                 .map((v,j)=>String(v).padStart(W[j])).join(" "));
   }
 }
+/* ══ D-23 · **「군대가 무너지는 사건」이 실제로 나는가** ══ D 항목의 이름을 재는 자다.
+   D-21 의 「잃음/분」은 뒤에서 되레 2.3배인데 군세는 안 준다 — 같이 커지기 때문이다.
+   그러니 무너짐은 **머릿수가 아니라 «상한 대비 비율»** 로 봐야 앞뒤를 견줄 수 있다. */
+{
+  const BANDS = [[1,10],[11,20],[21,40],[41,60],[61,9999]];
+  const cells = BANDS.map(() => ({ n: 0, rec: [], cut: 0, open: 0 }));
+  let all = 0;
+  for (const SEED of SEEDS) for (const [f, , r] of (wall[SEED] || [])) {
+    const i = BANDS.findIndex(([lo, hi]) => f >= lo && f <= hi);
+    if (i < 0) continue;
+    all++; cells[i].n++;
+    if (r === null) cells[i].open++;
+    else if (r < 0) cells[i].cut++;
+    else cells[i].rec.push(r);
+  }
+  const med = (a) => a.length ? (a = a.slice().sort((x, y) => x - y),
+    a.length % 2 ? a[(a.length - 1) / 2] : +((a[a.length / 2 - 1] + a[a.length / 2]) / 2).toFixed(1)) : "-";
+  const W2 = [9, 8, 9, 9, 9, 9];
+  console.log(`\n── 군대가 무너지는 사건 (군세/상한 0.70 → 0.35 · 씨앗 ${SEEDS.length} · 합 ${all}) ──`);
+  console.log(["층구간", "무너짐", "판당", "회복초중앙", "죽음끊김", "안돌아옴"].map((h, i) => h.padStart(W2[i])).join(" "));
+  for (let i = 0; i < BANDS.length; i++) {
+    const c = cells[i];
+    console.log([`${BANDS[i][0]}-${BANDS[i][1] === 9999 ? "" : BANDS[i][1]}`, String(c.n),
+                 (c.n / SEEDS.length).toFixed(2), String(med(c.rec)), String(c.cut), String(c.open)]
+                .map((v, j) => String(v).padStart(W2[j])).join(" "));
+  }
+  const front = cells[0].n + cells[1].n, back = all - front;
+  console.log(`앞(층 1-20) ${front} · 판당 ${(front / SEEDS.length).toFixed(2)}   |   ` +
+              `뒤(층 21+) ${back} · 판당 ${(back / SEEDS.length).toFixed(2)}`);
+}
+
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
 bws.close(); process.exit(0);
