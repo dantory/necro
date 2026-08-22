@@ -6,6 +6,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
          deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
+         pulseTick, pulseReset, PULSE_CRUSH,          /* ★ D-37 · 그 눌림을 «짧고 잦게» */
          GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -1446,6 +1447,9 @@ export function step(dt) {
   /* ★ D-36 · 깊이가 여는 문(`__DEEPCAP` · 기본 0). 무는 자리는 enterFloor 이고
      여기서는 눌린 초만 흘려보낸다. 꺼져 있으면 즉시 돌아온다. */
   deepTick(dt);
+  /* ★ D-37 · 같은 눌림을 «짧고 잦게»(`__PULSECAP` · 기본 0). 방아쇠도 여기다 —
+     층을 같이 넘겨야 층 21 아래에서 통이 아예 안 돈다. 꺼져 있으면 즉시 돌아온다. */
+  pulseTick(dt, S.floor);
   /* 최대 체력을 **매 틱 맞춘다.** 예전엔 층을 넘을 때만 갱신해서, 판 안에서 레벨이
      오르면 최대치는 그대로인데 몸만 커져 화면에 **「824/816」** 이 떴다(2026-08-13
      스샷에서 눈으로 잡았다 — 자는 아무 말도 안 했다). 늘어난 만큼은 **채워 준다**
@@ -2383,6 +2387,7 @@ export function newRun() {
   for (const pl of S.pools || []) flushPoolBite(pl);   // ★ D-22c · 판이 갈리며 버려지는 장판도 세어 둔다
   crushReset();                                        // ★ D-35 · 죽음은 무너짐이 아니다 — 통을 비운다(자도 그런다)
   deepReset();                                         // ★ D-36 · 1층부터 다시 여는 것은 「깊이」가 아니다
+  pulseReset();                                        // ★ D-37 · 같은 까닭 — 새 판은 틈부터 센다
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),

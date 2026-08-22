@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {}, capCrush = {}, deepCrush = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {}, capCrush = {}, deepCrush = {}, pulseCrush = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -176,6 +176,7 @@ for (const SEED of SEEDS) {
       상한눌림: C.CAP_CRUSH ? [C.CAP_CRUSH.n | 0, +C.CAP_CRUSH.sec.toFixed(1), C.CAP_CRUSH.hiSum | 0] : null,
       /* ★ D-36 · 깊이가 여는 문의 자 (걸린횟수, 눌린초합, 걸린층합) */
       깊이눌림: C.DEEP_CRUSH ? [C.DEEP_CRUSH.n | 0, +C.DEEP_CRUSH.sec.toFixed(1), C.DEEP_CRUSH.fSum | 0] : null,
+      잦은눌림: C.PULSE_CRUSH ? [C.PULSE_CRUSH.n | 0, +C.PULSE_CRUSH.sec.toFixed(1), C.PULSE_CRUSH.fSum | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -197,6 +198,7 @@ for (const SEED of SEEDS) {
     if (o.관문폭발) gateBlast[SEED] = o.관문폭발;             // ★ D-32 · 마지막 점이 총계다
     if (o.상한눌림) capCrush[SEED] = o.상한눌림;             // ★ D-35 · 마지막 점이 총계다
     if (o.깊이눌림) deepCrush[SEED] = o.깊이눌림;             // ★ D-36 · 마지막 점이 총계다
+    if (o.잦은눌림) pulseCrush[SEED] = o.잦은눌림;           // ★ D-37 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
@@ -526,6 +528,19 @@ if (deaths.length) {
     if (DN) console.log(`깊이눌림(D-36) · 걸림 ${DN} 번 · 눌린 초 합 ${DS.toFixed(0)} ` +
       `(**판당 ${(DS / SEEDS.length).toFixed(0)}초** · 한 번에 ${(DS / DN).toFixed(1)}초) · ` +
       `걸린 층 평균 ${(DF / DN).toFixed(1)}`);
+  }
+  /* ★ **D-37 · 그 눌림을 «짧고 잦게»**(core.js PULSE_OF). 기본 0 이면 이 줄이 안 뜬다.
+     ★ D-35·D-36 줄과 **꼭 같은 자리에** 선다 — 셋은 미는 것(자리)이 같고 «결»만 다르다.
+     ★ 이 갈래에서 볼 것은 **「한 번에 몇 초」와 「걸림 몇 번」** 이다. D-36 이 진 까닭이
+       한 번에 7.9초 · 층당 한 번이어서 사건이 하나로 합쳐진 것이었다 — 여기서는 같은
+       판당 초를 **더 잘게 쪼갠 만큼** 위 표의 뒤 판당이 올라야 한다. 안 오르면 「잘게
+       쪼개도 사건이 안 는다」가 답이고, 그것도 답이다. */
+  {
+    let PN = 0, PS = 0, PF = 0;
+    for (const s2 of SEEDS) { const v = pulseCrush[s2]; if (!v) continue; PN += v[0] | 0; PS += NUM(v[1]); PF += v[2] | 0; }
+    if (PN) console.log(`잦은눌림(D-37) · 걸림 ${PN} 번 · 눌린 초 합 ${PS.toFixed(0)} ` +
+      `(**판당 ${(PS / SEEDS.length).toFixed(0)}초** · 한 번에 ${(PS / PN).toFixed(1)}초) · ` +
+      `걸린 층 평균 ${(PF / PN).toFixed(1)}`);
   }
 }
 

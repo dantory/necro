@@ -1875,7 +1875,67 @@ export const deepCapMul = () => {
   return 1 - d * (DEEP_CRUSH.t / DEEP_SEC);
 };
 
-export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul() * deepCapMul());
+/* ══ D-37 · 눌림을 «짧고 잦게» 한다 ══ (`__PULSECAP` · 기본 0)
+   D-36 이 남긴 자리다. D-36 은 **일곱 갈래 만에 처음으로 «앞»을 한 톨도 안 건드렸다**
+   (앞 판당 23.33 → 23.33 · 죽음 12 → 12 · 최고층 101%). 방아쇠를 깊이로 옮긴 것이
+   옳았다는 뜻이다. 그런데 **뒤 사건이 3.00 → 1.67 로 또 절반이 됐다** — D-35 와 한
+   글자도 안 다른 수다.
+   ☞ **까닭은 눌림이 «길어서» 사건이 하나로 합쳐진 것**이다. 뒤에서 무너져 있던 «시간»은
+     164초 → **232초로 1.4배 늘었는데 «개수»가 줄었다.** 뒤 층에 머무는 시간이 15.8초인데
+     눌림이 8초라 **한 층에 한 번, 그것도 층의 절반 내내** 눌린 채다. 게다가 자는
+     「한 사건에 한 번 · 그 최고에 다시 닿아야 다시 문다」라, 상한이 풀려 머릿수가 옛
+     최고로 돌아갈 틈이 없으면 **여러 번 눌러도 한 번으로 센다**
+     ([[threshold-and-ruler-must-match]] — 문과 자가 같은 사건을 봐야 한다).
+   ☞ 그래서 미는 것(자리)도 거는 자리(깊이)도 **그대로 두고 «결»만 바꾼다**: 층 21 위에서
+     `ON`초 눌리고 `OFF`초 온전히 풀리기를 되풀이한다. 총 눌린 초는 D-36 과 비슷하되
+     (묽기 3/(3+4) = 43% 대 D-36 의 51%) **사건은 층당 1 번이 아니라 2.3 번** 선다.
+   ★ **틈이 이 갈래의 알맹이다.** OFF 동안 몫은 **정확히 1** 이다 — 어중간하게 눌린 채로
+     두면 머릿수가 옛 최고로 못 돌아가 자가 또 「한 번」으로 센다. 군세는 4초에 한 번
+     통째로 갈리므로(D-32) 4초 틈이면 자리가 다시 찬다.
+   ★ **통은 층을 넘어도 안 끊는다**(free-run) — 층마다 되감으면 머무는 시간이 짧은 층에서
+     눌림만 먹고 틈을 못 받는다. 대신 층 21 아래로 **되짚어 올라가면 통째로 푼다**
+     (앞에서는 한 번도 안 걸린다 — 그것이 D-36 이 지킨 ④⑤ 다).
+   ★ **d = 0 이면 한 톨도 안 바뀐다** — 몫이 정확히 1 이고 통조차 안 돈다. */
+export const PULSE_ON_DEF  = 3;   // 한 번 눌리는 시간(초)
+export const PULSE_OFF_DEF = 4;   // **온전히 풀려 있는 틈**(초) — 머릿수가 옛 최고로 돌아갈 자리
+export const PULSE_DEF     = 0;   // ★ 재기 전까지 0 — 문만 나 있다
+export const PULSE_OF = () => (typeof globalThis !== "undefined" && globalThis.__PULSECAP != null)
+  ? +globalThis.__PULSECAP : PULSE_DEF;
+const PULSE_ON  = () => (typeof globalThis !== "undefined" && globalThis.__PULSEON  != null)
+  ? +globalThis.__PULSEON  : PULSE_ON_DEF;
+const PULSE_OFF = () => (typeof globalThis !== "undefined" && globalThis.__PULSEOFF != null)
+  ? +globalThis.__PULSEOFF : PULSE_OFF_DEF;
+/** 잦은 눌림의 자 — (몇 번 눌렸나, 눌린 초 합, 남은 눌림, 남은 틈, 걸린 층의 합) */
+export const PULSE_CRUSH = { n: 0, sec: 0, t: 0, gap: 0, on: false, fSum: 0 };
+/** 판이 새로 서면 통을 푼다(그리고 앞으로 되짚어 올라가도 — pulseTick 안에서). */
+export const pulseReset = () => { PULSE_CRUSH.t = 0; PULSE_CRUSH.gap = 0; PULSE_CRUSH.on = false; };
+/** 매 틱 한 번 · **지금 층**을 같이 받는다(방아쇠가 층이므로 자리가 여기다). */
+export const pulseTick = (dt, f) => {
+  if (!PULSE_OF()) return;                        // 기본값은 통조차 안 돈다
+  if ((f | 0) < DEEP_FLOOR) {                     // ★ 앞은 구조적으로 한 번도 안 걸린다
+    if (PULSE_CRUSH.on || PULSE_CRUSH.t > 0 || PULSE_CRUSH.gap > 0) pulseReset();
+    return;
+  }
+  if (PULSE_CRUSH.on) {
+    PULSE_CRUSH.t -= dt; PULSE_CRUSH.sec += dt;
+    if (PULSE_CRUSH.t <= 0) { PULSE_CRUSH.on = false; PULSE_CRUSH.t = 0; PULSE_CRUSH.gap = PULSE_OFF(); }
+  } else {
+    PULSE_CRUSH.gap -= dt;
+    if (PULSE_CRUSH.gap <= 0) {
+      PULSE_CRUSH.on = true; PULSE_CRUSH.t = PULSE_ON();
+      PULSE_CRUSH.n++; PULSE_CRUSH.fSum += f | 0;
+    }
+  }
+};
+/** 눌린 몫 — 눌리기 시작한 순간이 제일 깊고(1−d) ON 초에 걸쳐 선형으로 1 로 돌아온다.
+ *  **틈(OFF) 동안에는 정확히 1** — 그 틈이 곧 자가 사건을 가르는 칼이다. */
+export const pulseCapMul = () => {
+  const d = PULSE_OF();
+  if (!d || !PULSE_CRUSH.on || PULSE_CRUSH.t <= 0) return 1;   // 정확히 1 — 빠른 길이 그대로 선다
+  return 1 - d * (PULSE_CRUSH.t / PULSE_ON());
+};
+
+export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul() * deepCapMul() * pulseCapMul());
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
