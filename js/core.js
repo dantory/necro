@@ -1790,7 +1790,7 @@ const armyCapRaw = (cutTough) => {
    ★ **c = 0 이면 한 톨도 안 바뀐다** — 몫이 정확히 1 이고 통(buf)조차 안 돈다
      (armyCapRaw 의 `cut === 1` 빠른 길도 그대로 선다). */
 export const CRUSH_SEC = 8;     // 눌려 있는 시간(초) — 회복초중앙 10초의 언저리
-export const CRUSH_DEF = 0;     // ★ 재기 전까지 0 — 문만 나 있다
+export const CRUSH_DEF = 0;     // ★ 재고 나서도 0 — ☒ 안 켠다(D-35 판정 · ④⑤ 가 깨졌다)
 export const CRUSH_OF = () => (typeof globalThis !== "undefined" && globalThis.__CAPCRUSH != null)
   ? +globalThis.__CAPCRUSH : CRUSH_DEF;
 /** 눌린 초를 재는 통 — 자와 같은 30칸(초당 한 칸) 관측 최댓값이 방아쇠다. */
