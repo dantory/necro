@@ -419,6 +419,23 @@ const CHAMP_HOWL_OF = () => (globalThis.__CHAMP_HOWL != null ? +globalThis.__CHA
  *    저주 ≈13% · 장판 ≈17% · 돌진 ≈27% 가 된다. **재기 전에는 안 켠다.** */
 const GATE_MIN_OF = () => (globalThis.__GATE_MIN != null ? +globalThis.__GATE_MIN : 0);
 
+/** ★ **D-22b ㉠ · 수법마다 «한 대」의 생김새가 달라 한 손잡이로는 셋이 같이 안 선다**
+ *  (2026-08-22 14:2x · 고친 자로 잰 씨앗 스물넷).
+ *  같은 base(`floorHp × __GATE_MIN`)를 넣어도 나오는 이빨이 갈린다 — 0.05 에서
+ *  **저주 15.2% · 장판 5.5% · 돌진 28.4%.** 까닭은 수법마다 뒤에 붙은 곱이 다르기
+ *  때문이다(저주 ×1.7 한 번 · 돌진 ×3.0 한 번 · 장판은 4.5초 동안 ×0.85×0.5×dt 를
+ *  나눠 받는데 소환수가 그 안에 계속 서 있지는 않는다).
+ *  ☞ 그래서 **손잡이 하나 + 수법별 곱**으로 가른다. 손잡이는 「관문이 얼마나 세냐」
+ *    한 자리를 잡고, 이 표는 「셋이 같은 높이에 서게」 맞춘다.
+ *    장판 2.5 는 5.5% × 2.5 ≈ 13.8% 를 노린 값이다(끝 조건 10 에 붙지 않게 여유를 둔다).
+ *  ⚠ `__GATE_MIN` 이 0 이면 이 표는 **한 번도 안 읽힌다** — 기본은 여전히 예전 그대로다. */
+const GATE_MUL = { pool: 2.5, curse: 1.0, charge: 1.0 };
+const GATE_MUL_OF = (mech) => {
+  const o = globalThis.__GATE_MUL;
+  const v = o && o[mech] != null ? +o[mech] : GATE_MUL[mech];
+  return v != null ? v : 1;
+};
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -1613,7 +1630,8 @@ export function step(dt) {
     MECH_FIRE[mech] = (MECH_FIRE[mech] | 0) + 1;          // ★ D-22 · 읽기만 — 터지긴 하는가
     /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
        절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
-    const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl") ? floorHp(S.floor) * GATE_MIN_OF() : dmg;
+    const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl")
+      ? floorHp(S.floor) * GATE_MIN_OF() * GATE_MUL_OF(mech) : dmg;
     if (mech === "pool")
       /* `mdmg` 가 **소환수 몫**이다(D-22b) — 네크로 몫(`dmg`)과 갈라 둔다. */
       /* `acc` 는 **D-22c 의 자**다(위 MECH_POOL 문) — 이 장판이 소환수별로 깎은 몫을 모은다. */
@@ -1746,7 +1764,8 @@ export function step(dt) {
         for (const u of S.minions)                          // 길목 소환수도 관통하며 때린다(한 번씩)
           /* ★ D-22b · 소환수 몫만 «층의 격» 축으로 — 바로 아래 `hurtNecro` 는 안 건드린다. */
           if (!u.hitByCharge && dist(m, u) < m.r + u.r) {
-            const cb = GATE_MIN_OF() > 0 ? floorHp(S.floor) * GATE_MIN_OF() : m.dmg;
+            const cb = GATE_MIN_OF() > 0
+              ? floorHp(S.floor) * GATE_MIN_OF() * GATE_MUL_OF("charge") : m.dmg;
             hitMinion(u, cb * 3.0 * ampMul, m.cvx, m.cvy, "charge"); u.hitByCharge = 1; }
         if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R + m.r * 0.5) {
           hurtNecro(m.dmg * 3.0 * ampMul, "charge", m.cvx, m.cvy);
