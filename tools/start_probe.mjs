@@ -28,6 +28,9 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
 await new Promise(r => bws.addEventListener("open", r));
 
 const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [];
+/* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
+   넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
+const NUM = (v) => Number(v) || 0;
 for (const SEED of SEEDS) {
   const { targetId } = await raw("Target.createTarget", { url: PAGE });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
@@ -217,7 +220,9 @@ if (deaths.length) {
     const sumBy = (o) => KS.reduce((a, k) => a + (o[k] | 0), 0);
     const tot = {}, dmg = {};
     for (const k of KS) { tot[k] = 0; dmg[k] = 0; }
-    for (const s of SEEDS) for (const k of KS) { tot[k] += lostBy[s]?.[k] | 0; dmg[k] += lostDmg[s]?.[k] | 0; }
+    /* ★ 깎은몫에 «| 0» 을 대면 안 된다 — 32비트로 잘려 2^31 을 넘는 순간 «음수»가 된다.
+       막타(개수)는 만 단위라 안 걸리지만 몫은 깊은 층에서 조 단위로 큰다. */
+    for (const s of SEEDS) for (const k of KS) { tot[k] += lostBy[s]?.[k] | 0; dmg[k] += NUM(lostDmg[s]?.[k]); }
     const nAll = sumBy(tot), dAll = sumBy(dmg);
     console.log(`\n── 무엇이 소환수를 죽였나 (${MIN}분 × 씨앗 ${SEEDS.length} · 잃음 ${nAll}) ──`);
     console.log(["갈래".padStart(8), "막타".padStart(7), "막타%".padStart(7), "깎은몫".padStart(10), "깎은몫%".padStart(8)].join(" "));
@@ -250,7 +255,7 @@ if (deaths.length) {
           cells[i].sec += b.초 - prev.초;
           for (const k of KS) {
             cells[i].n[k] += Math.max(0, (b.누계?.[k] | 0) - (prev.누계?.[k] | 0));
-            cells[i].d[k] += Math.max(0, (b.몫?.[k] | 0) - (prev.몫?.[k] | 0));
+            cells[i].d[k] += Math.max(0, NUM(b.몫?.[k]) - NUM(prev.몫?.[k]));   // ★ 여기도 «| 0» 금지
           }
         }
       }
