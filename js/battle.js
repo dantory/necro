@@ -1034,6 +1034,24 @@ function tallyMinionHurt(u, dmg, cause) {
   u.lastBy = k;
 }
 
+/** ★ **D-22 · 수법이 안 도는 까닭을 «셋»으로 가른다** — D-21 에서 저주(curse)의 몫이
+ *  20분 × 씨앗 여섯에서 막타 23/11,944 · 깎은몫 0% 로 나왔다. 그런데 「0」 하나로는
+ *  고칠 자리를 못 고른다 — 셋이 전혀 다른 자리이기 때문이다([[knob-that-does-nothing]]):
+ *    ㉠ **안 선다**   — 저주받은 왕이 20층마다 한 번뿐이라 애초에 안 만난다
+ *    ㉡ **안 터진다** — 서긴 서는데 주인이 tell 초를 못 살아 수법이 발동을 안 한다
+ *    ㉢ **이빨이 없다** — 터지긴 터지는데 깎는 양이 소환수 체력에 진다
+ *  ㉠ 은 층 배치 · ㉡ 은 약속(GATE_VOW) · ㉢ 은 피해 축을 고쳐야 한다 — **셋 다 다르다.**
+ *  · `MECH_FIRE` = 수법이 **실제로 터진 횟수**(주인이 살아서든 약속으로든) → ㉠㉡ 을 가른다
+ *  · `MECH_BITE` = 터질 때 소환수 하나를 **제 체력의 몇 할** 깎았나(합·건수) → ㉢ 을 잰다
+ *  ★ 절규(howl)가 대조군이다 — 그것은 `floorHp` 축이라 깊이에서 안 묽어진다(위 CHAMP 문).
+ *    같은 자에 둘을 나란히 놓으면 「축이 문제냐」가 한눈에 나온다.
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
+export const MECH_FIRE = {}, MECH_BITE = {};
+const tallyMechBite = (cause, dmg, u) => {
+  const b = MECH_BITE[cause] || (MECH_BITE[cause] = { n: 0, s: 0 });
+  b.n++; b.s += dmg / (u.hpMax || 1);
+};
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1537,6 +1555,7 @@ export function step(dt) {
   const hitMinion = (u, dmg, dx, dy, cause) => {
     if (dmg <= 0 || !u || u.hp <= 0) return;
     tallyMinionHurt(u, dmg, cause);                       // ★ D-20 · 읽기만 — 깎기 전에 센다
+    tallyMechBite(cause, dmg, u);                         // ★ D-22 · 읽기만 — 이빨이 있는가
     u.hp -= dmg; popNum(u.x, u.y, dmg, "hurt");
     u.flinch = 0.18; const l = Math.hypot(dx, dy) || 1; u.kx = dx / l; u.ky = dy / l;
     u.knock = knockOf(u, dmg);
@@ -1547,6 +1566,7 @@ export function step(dt) {
    *  필요 없고, charge 는 이미 겨눈 방향(cvx,cvy)만 있으면 된다.
    *  S.dead 가 되면 true 를 돌려준다 — 부르는 쪽이 그 프레임을 접는다. */
   const fireMech = (mech, dmg, col, cvx = 0, cvy = -1) => {
+    MECH_FIRE[mech] = (MECH_FIRE[mech] | 0) + 1;          // ★ D-22 · 읽기만 — 터지긴 하는가
     if (mech === "pool")
       S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, col });
     else if (mech === "add") {

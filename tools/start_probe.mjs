@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [];
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -118,6 +118,8 @@ for (const SEED of SEEDS) {
       죽음:R.deaths,
       잃음누계: Object.fromEntries(B.LOST_KINDS.map(k => [k, B.LOST_BY[k] | 0])),
       깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
+      터짐: Object.assign({}, B.MECH_FIRE),
+      이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3)]])),
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -129,11 +131,12 @@ for (const SEED of SEEDS) {
     for (const d of (o.죽음기록 || [])) deaths.push({ SEED, ...d });
     delete o.죽음기록;
     lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
+    fired[SEED] = o.터짐; bite[SEED] = o.이빨;              // ★ D-22 · 같은 결 — 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫 });
-    delete o.잃음누계; delete o.깎인몫;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -231,6 +234,31 @@ if (deaths.length) {
                    (nAll ? (tot[k] / nAll * 100).toFixed(0) : "0").padStart(7),
                    String(dmg[k]).padStart(10),
                    (dAll ? (dmg[k] / dAll * 100).toFixed(0) : "0").padStart(8)].join(" "));
+  }
+}
+
+/* ══ D-22 · 「0」 을 셋으로 가른다 ══ 위 표에서 저주(curse)는 막타 0% · 깎은몫 0% 다.
+   그런데 그 하나로는 **㉠ 안 선다 · ㉡ 안 터진다 · ㉢ 이빨이 없다** 를 못 가른다 —
+   셋은 고칠 자리가 전부 다르다([[knob-that-does-nothing]]).
+     · 터짐  = 수법이 실제로 발동한 횟수 → 0 이면 ㉠㉡, 많은데 몫이 0 이면 ㉢
+     · 이빨  = 한 대가 소환수 하나를 **제 체력의 몇 %** 깎았나(평균)
+   ★ 절규(howl)가 대조군이다 — floorHp 축이라 깊이에서 안 묽어진다. 나란히 놓고 본다. */
+{
+  const F = {}, Bn = {}, Bs = {};
+  for (const s2 of SEEDS) {
+    for (const [k, v] of Object.entries(fired[s2] || {})) F[k] = (F[k] | 0) + (v | 0);
+    for (const [k, v] of Object.entries(bite[s2] || {})) { Bn[k] = (Bn[k] | 0) + (v[0] | 0); Bs[k] = NUM(Bs[k]) + NUM(v[1]); }
+  }
+  const KS2 = [...new Set([...Object.keys(F), ...Object.keys(Bn)])];
+  if (KS2.length) {
+    console.log(`\n── 수법이 터지긴 하는가 · 터지면 이빨이 있는가 (${MIN}분 × 씨앗 ${SEEDS.length}) ──`);
+    console.log(["수법".padStart(8), "터짐".padStart(7), "맞은대수".padStart(9), "한대당 이빨%".padStart(13), "판정".padStart(12)].join(" "));
+    for (const k of KS2.sort((a, b) => (F[b] | 0) - (F[a] | 0))) {
+      const n = Bn[k] | 0, avg = n ? Bs[k] / n * 100 : 0;
+      const 판정 = !(F[k] | 0) && !n ? "㉠㉡ 안 터짐" : n && avg < 5 ? "㉢ 이빨없음" : n ? "돎" : "㉢ 안 닿음";
+      console.log([k.padStart(8), String(F[k] | 0).padStart(7), String(n).padStart(9),
+                   (n ? avg.toFixed(1) : "-").padStart(13), 판정.padStart(12)].join(" "));
+    }
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.
