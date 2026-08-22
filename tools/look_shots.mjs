@@ -28,8 +28,15 @@ const wait = (ms) => new Promise(r => setTimeout(r, ms));
 const shot = async (out) => { const s = await S("Page.captureScreenshot", { format: "png" }); fs.writeFileSync(out, Buffer.from(s.data, "base64")); console.log("wrote", out); };
 const ev = async (e) => (await S("Runtime.evaluate", { expression: e, returnByValue: true })).result?.value;
 
-/* 중반 세이브를 심는다 — 갓 시작한 판이 아니라 **몇 시간 논 사람**의 화면을 본다. */
-const meta = { gold: 182400, lv: 26, xp: 0, deepest: 52, runs: 6,
+/* 중반 세이브를 심는다 — 갓 시작한 판이 아니라 **몇 시간 논 사람**의 화면을 본다.
+   ★★ **`dive:1`(못 박은 시작 층)이 없으면 이 자는 사진이 아니라 장례식을 찍는다**
+   (D-22f · 2026-08-22 15:2x 에 쟀다). 시작 층은 `startFloor()` 가 **깊이에서 열 층 뒤**
+   로 잡으니 깊이 52 → **40층**인데, 여기 적은 몸(lv 26 · 강화 hp8/mp6/dmg9/army5)은
+   40층을 **13초**밖에 못 버틴다 — 45초 동안 **아홉 번** 죽어 10초를 마을에서 보냈다
+   (관문 저주 5,449 + 근접 · 군세는 내내 1). 「깊이 52」는 **마을 글자를 보려고** 적은
+   값이지 걸어서 얻은 깊이가 아니다. 그래서 깊이는 그대로 두고 **시작만 1층에 못 박아**
+   살아서 내려가는 화면을 찍는다(`diveSet`). */
+const meta = { gold: 182400, lv: 26, xp: 0, deepest: 52, runs: 6, dive: 1, diveSet: 1,
   up: { hp: 8, mp: 6, dmg: 9, army: 5 }, plus: { wand: 6, robe: 4, charm: 5 },
   equip: { wand: { k: "wand", tier: 3, af: [{ id: "dmg", v: 22 }, { id: "mp", v: 1.4 }] },
            robe: { k: "robe", tier: 3, af: [{ id: "hp", v: 88 }] },

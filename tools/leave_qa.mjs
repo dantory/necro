@@ -58,6 +58,21 @@ say(town.어디 === "town" && !town.보이나, `마을에선 숨는다 (at=${tow
   say(t.length === 0, `마을에서 말줄임으로 먹힌 글자 없음 ${t.length ? "→ " + t.join(", ") : ""}`);
 }
 
+/* ★★ **위에서 박은 「깊이 37」을 지고 던전에 들어가면 안 된다** (D-22f · 2026-08-22 15:2x).
+   시작 층은 `startFloor()` 가 **깊이에서 열 층 뒤**로 잡는다 — 깊이 37 이면 **25층**이다.
+   그런데 몸은 그 깊이를 걸어서 얻은 것이 아니라 위 한 줄이 «적어 넣은» 것이라, 25층에
+   서자마자 관문 주인의 장판에 녹는다. 재 보니 **여섯 판 전부 25층에서 14초 만에 죽었다**
+   (군세 0~2 · 장판이 피해의 3분의 2 · `__GATE_MIN` 0 이든 0.05 든 똑같이 죽는다 —
+   곧 관문 이빨 탓이 아니다). 그래서 5건이 줄줄이 울었다: 죽은 뒤에 단추를 누른 것이다.
+   ☞ 마을 글자를 다 쟀으면 **박은 값을 도로 물리고**, 시작 층을 1층에 **못 박는다**
+   (`diveSet`). 이 자가 보려는 것은 깊이가 아니라 「나가기」다.
+   ⚠ 프로필은 자들끼리 함께 쓰므로, 앞서 이 자가 저장해 버린 「깊이 37」도 여기서 씻긴다. */
+await S("Runtime.evaluate", { expression:
+  `window.META.deepest = 12; window.META.lv = 12;
+   window.META.dive = 1; window.META.diveSet = 1;   /* 시작 층을 1 로 못 박는다 */
+   window.saveMeta();` });
+await wait(300);
+
 /* ② 던전으로 들어가 한동안 굴린다 — 전리품과 금이 쌓여야 「잃은 것」을 잴 수 있다. */
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(600);
