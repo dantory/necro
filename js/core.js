@@ -1644,7 +1644,8 @@ export const selfMulOf   = () => 1 + afSum("dmg") / 100;
 export const minionMulOf = () => Math.max(0.2,
                                   1 + afSum("mdmg") / 100 + (hasUnique("lonely") ? LONELY_POW : 0)
                                 + rank("elite") * ELITE_POW
-                                + rank("marrow") * 0.08 + rank("fury") * 0.12 - rank("stone") * 0.04);
+                                + rank("marrow") * 0.08 + rank("fury") * 0.12 - rank("stone") * 0.04)
+                                * toughBackMul();   /* ★ D-33 — 체력과 «같은» 몫이라야 총량이 보존된다 */
 export const goldMulOf   = () => 1 + afSum("gold") / 100 + gearVal("ring");   // 반지 = 금 획득
 /** ③ 상태창이 읽는 **합친 피해 배수.** 판에서 본인은 `dmgMulOf()×selfMulOf()`,
  *  소환수는 `dmgMulOf()×minionMulOf()` 로 맞으므로(battle.js), 화면이 그 식을 다시
@@ -1723,13 +1724,52 @@ export const armyBase = () => {
 export const ELITE_CUT = 0.77;   // 단계마다 군세 상한 ×0.77 (3단계 = 0.457)
 export const ELITE_POW = 0.55;   // 단계마다 소환수 피해 +55%
 export const ELITE_HP  = 0.30;   // 단계마다 소환수 체력 +30%
-export const armyCap  = () => {
+/* ══ D-33 · 손잡이가 아니라 «회전율» 자체를 옮기는 문 ══ (`__TOUGH` · 기본 0)
+   D-29(마나)·D-30(쿨)·D-31(시체)·D-32(관문폭발) **넷이 다 졌다.** 넷 다 같은 모양으로:
+   무엇을 태우든 무엇을 물든 **되세움이 그만큼 따라 올랐다**(잃음/분 128→148 인데
+   세움/분 134→155). 까닭은 D-32 가 수로 굳혔다 — 서 있는 군세가 열 마리 안팎인데
+   세움/분이 134~155 이니 **군세 전체가 4초에 한 번 갈린다.** 회복초중앙 10초는
+   그 회전의 두세 바퀴일 뿐이라, 4초짜리 흐름 위에서는 무너짐이 «상태»는 되어도
+   «사건»은 못 된다.
+   ☞ 그래서 이번엔 태우는 쪽도 무는 쪽도 아니라 **회전율 자체**를 내린다:
+     **상한을 내리고 그만큼 한 마리를 두껍고 세게** 만든다. 한 마리가 오래 살아야
+     잃는 것이 아깝고, 그제야 무너짐이 사건이 된다.
+   ★ **총량은 일부러 보존한다**(k=1) — 상한이 ×0.6 이면 한 마리는 ÷0.6 이다.
+     그러면 군대의 체력 합도 피해 합도 그대로고 **갈린 것은 «알갱이 크기»뿐**이다.
+     이렇게 해야 뒤에 무슨 일이 나든 그것이 «회전율» 탓임을 말할 수 있다
+     (총량까지 같이 옮기면 D-26 ④ 「그냥 어려워졌다」와 구별이 안 된다).
+     덜 되갚아 보고 싶으면 `__TOUGH_K` 를 1 아래로 준다(ELITE 가 일부러 그렇게 한다).
+   ★ **t = 0 이면 한 톨도 안 바뀐다** — 두 몫이 정확히 1 이고(Math.pow(x,0) === 1),
+     armyCap 의 `cut === 1` 빠른 길도 그대로 선다. */
+export const TOUGH_CUT = 0.6;    // 한 단계마다 군세 상한 ×0.6
+export const TOUGH_DEF = 0;      // ★ 재기 전까지 0 — 문만 나 있다
+const TOUGH_OF   = () => (typeof globalThis !== "undefined" && globalThis.__TOUGH   != null) ? +globalThis.__TOUGH   : TOUGH_DEF;
+const TOUGH_K_OF = () => (typeof globalThis !== "undefined" && globalThis.__TOUGH_K != null) ? +globalThis.__TOUGH_K : 1;
+/** 상한이 깎이는 몫 (t=0 → 정확히 1) */
+export const toughCapMul  = () => Math.pow(TOUGH_CUT, TOUGH_OF());
+/** 한 마리가 되받는 몫 — **명목이 아니라 «실제로 깎인 정수 상한»에서 나온다.**
+ *  ★ 처음엔 `(1/0.6)^t` 라고 명목으로 적었다가 `tools/tough_check.mjs` 가 **재기 전에**
+ *    잡아냈다(③): 초반 상한은 3~8 이라 **ceil 이 이긴다** — 4 → ceil(4×0.36)=2 인데 한 마리는
+ *    ×2.78 이라 그 자리의 총량이 **139%** 가 된다. 뒤를 노린 손잡이가 **앞을 세게** 만드는 꼴이라
+ *    D-26 ④(그냥 어려워짐/쉬워짐)와 구별이 안 된다 — D-29·D-31·D-32 가 진 자리가 늘 여기였다.
+ *  ☞ 그래서 실제 두 정수의 비로 되받는다: `상한(t=0) / 상한(t)`. 그러면 총량이 **어느 자리에서나
+ *    정확히 100%** 고, 갈린 것은 «알갱이 크기»뿐이다. k 는 그 비에 걸리는 멱이다(k=1 = 보존). */
+export const toughBackMul = () => {
+  if (!TOUGH_OF()) return 1;                       // 기본값은 «정확히» 1 — 한 톨도 안 바뀐다
+  const a = armyCapRaw(1), b = armyCapRaw(toughCapMul());
+  return b > 0 ? Math.pow(a / b, TOUGH_K_OF()) : 1;
+};
+
+/* ★ D-33 이 셋째 몫으로 들어온다 — 그런데 **「t=0 이었다면 몇이었나」를 물을 수 있어야** 한다
+   (되받는 몫이 그 두 정수의 비다). 그래서 `hpMaxWith` 와 같은 꼴로 갈라 둔다. */
+const armyCapRaw = (cutTough) => {
   const c = armyBase() + (META.up.army | 0) + rank("legion") + afSum("army");
   /* 상한을 깎는 것이 **둘(정예·고독한 왕관)** 이라 곱해서 겹친다 — 어느 쪽도 상대를
      지우지 않는다. 바닥은 1 — 0 이 되면 판에 아무도 안 서서 게임이 멈춘다. */
-  const cut = Math.pow(ELITE_CUT, rank("elite")) * (hasUnique("lonely") ? 0.5 : 1);
+  const cut = Math.pow(ELITE_CUT, rank("elite")) * (hasUnique("lonely") ? 0.5 : 1) * cutTough;
   return cut === 1 ? c : Math.max(1, Math.ceil(c * cut));
 };
+export const armyCap  = () => armyCapRaw(toughCapMul());
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
@@ -2133,7 +2173,8 @@ export function autoSpend() {
    까닭 — 체력 배수가 0 이 되면 소환수가 서자마자 죽어 판이 멈춘다. */
 export const minionHpMul = () => Math.max(0.2,
                                   1 + rank("armor") * 0.12 + rank("elite") * ELITE_HP
-                                + rank("stone") * 0.16 - rank("fury") * 0.06);
+                                + rank("stone") * 0.16 - rank("fury") * 0.06)
+                                * toughBackMul();   /* ★ D-33 — 바닥(0.2) «밖»에 곱한다: 되받는 몫은 벌이 아니다 */
 
 /* ══ 소환수는 **제가 일어난 시체만큼 세다** ══
    여기가 이 게임에서 제일 크게 어긋나 있던 자리다. 해골 체력이 26(트리를 다 찍어도
