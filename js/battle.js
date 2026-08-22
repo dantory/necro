@@ -455,6 +455,25 @@ const GATE_MUL_OF = (mech) => {
   return v != null ? v : 1;
 };
 
+/** ★ **D-29 · 두 번째 «무너짐» 갈래를 낼 문 — 관문 주인이 «마나를» 태운다**(2026-08-22).
+ *  D-27~28 로 뒤(층 21+)의 무너짐이 판당 14.67 → 21.83 이 됐는데, 그 사건이 **절규 하나에
+ *  통째로 걸려 있다** — 잃음의 막타 71% · 깎은몫 **96%**(61층+ 는 97%). 한 갈래에 다 걸린
+ *  것 자체가 D 의 다음 일감이라고 D-28 이 닫으면서 적었다.
+ *  ☞ **다른 갈래는 «소환수를 또 지우는 것»이 아니어야 한다.** D 가 죽음의 사진에서 이미
+ *    읽은 뿌리가 따로 있다 — 일곱 죽음이 전부 **군세 0~3 · 마나 0~6** 이었고, 죽인 것은
+ *    「군대가 무너진 뒤 **마나가 없어 다시 못 세우는 것**」이었다. 그런데 뒤에서는
+ *    `MANA_WALL`(초당 되살리기 0.75 몫을 회복의 바닥으로) 이 그 자리를 메워 **무너져도
+ *    즉시 복구된다** — 그래서 무너짐이 «사건»이 안 되고 «상태»가 된다.
+ *    곧 두 번째 갈래의 자리는 **되세우는 힘**이다: 관문 수법이 터질 때 마나를 태우면
+ *    같은 무너짐이 **더 오래 남는다**(잃음 총량은 한 톨도 안 늘린다 — D-26 ④ 가 막는 자리).
+ *  ☞ **여기서는 문만 낸다.** 0 이면 예전과 한 톨도 안 달라지고(기본), 0 보다 크면 관문
+ *    수법(pool·curse·charge·add)이 터질 때 네크로의 마나를 `mpMaxOf() × 이 값` 만큼 태운다.
+ *    **절규(howl)에는 안 붙인다** — 그 갈래는 이미 서 있고, 거기 얹으면 또 한 갈래다.
+ *  ★ A/B 의 출발값은 **0.35** 언저리로 잡는다: 해골 하나가 마나 6 이고 회복 바닥이
+ *    초당 0.75마리(≈4.5/초)라, 최대마나의 3할을 태우면 대략 **몇 초를 못 세운다**.
+ *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
+const MANABURN_OF = () => (globalThis.__MANABURN != null ? +globalThis.__MANABURN : 0);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -1132,6 +1151,13 @@ const flushPoolBite = (pl) => {
   pl.acc = null;
 };
 
+/** ★ **D-29 · 마나를 태우는 갈래의 자**(위 MANABURN_OF 문). 세기만 한다.
+ *   · `n` = 태울 자리가 온 횟수(관문 수법이 터진 횟수) · `s` = 실제로 태운 마나의 합
+ *   · `dry` = 그 한 방에 **마나가 6 아래로 떨어진**(해골 하나도 못 세우는) 횟수
+ *  `s/n` 이 「한 번에 몇 태웠나」, `dry/n` 이 「그 태움이 손을 실제로 묶었나」다 —
+ *  둘째 칸이 0 이면 손잡이가 도는 게 아니라 **허공을 태우는 것**이다([[knob-that-does-nothing]]). */
+export const MANA_BURN = { n: 0, s: 0, dry: 0 };
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1647,6 +1673,11 @@ export function step(dt) {
    *  S.dead 가 되면 true 를 돌려준다 — 부르는 쪽이 그 프레임을 접는다. */
   const fireMech = (mech, dmg, col, cvx = 0, cvy = -1) => {
     MECH_FIRE[mech] = (MECH_FIRE[mech] | 0) + 1;          // ★ D-22 · 읽기만 — 터지긴 하는가
+    /* ★ D-29 · **마나를 태우는 갈래**(위 MANABURN_OF 문). 기본 0 이면 이 줄은 아무 일도 안 한다. */
+    if (mech !== "howl") { const mb = MANABURN_OF();
+      if (mb > 0) { const was = S.mp, burn = Math.min(S.mp, mpMaxOf() * mb);
+        S.mp -= burn; MANA_BURN.n++; MANA_BURN.s += burn;
+        if (was >= 6 && S.mp < 6) MANA_BURN.dry++; } }
     /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
        절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
     const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl")

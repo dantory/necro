@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -140,6 +140,8 @@ for (const SEED of SEEDS) {
       소환누계: (() => { const T = B.RAISE_TALLY;
         return { try:T.try, ok:T.ok, cd:T.cd, mana:T.mana, corpse:T.corpse, capfull:T.capfull, merge:T.merge, lost:T.lost }; })(),
       장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3), B.MECH_POOL.over | 0] : null,
+      /* ★ D-29 · 마나를 태우는 갈래의 자 (자리온횟수, 태운합, 마른횟수) — 손잡이가 0 이면 전부 0 이다 */
+      마나태움: B.MANA_BURN ? [B.MANA_BURN.n | 0, Math.round(B.MANA_BURN.s), B.MANA_BURN.dry | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -154,12 +156,13 @@ for (const SEED of SEEDS) {
     fired[SEED] = o.터짐; bite[SEED] = o.이빨;              // ★ D-22 · 같은 결 — 마지막 점이 총계다
     if (o.무너짐) wall[SEED] = o.무너짐;                       // ★ D-23 · 마지막 점이 총계다
     if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
+    if (o.마나태움) manaBurn[SEED] = o.마나태움;             // ★ D-29 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫,
                 소환: o.소환누계, 군세: o.군세, 상한: o.상한 });   // ★ D-24
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계; delete o.마나태움;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -302,6 +305,12 @@ if (deaths.length) {
     if (PP) console.log(`  장판(D-22c) · 깔린 장판 ${PP} · 「장판×소환수」 쌍 ${PN} · ` +
       `**한 장판당 이빨 ${PN ? (PS / PN * 100).toFixed(1) : "-"}%** ` +
       `(넘침 ${PN ? (PO / PN * 100).toFixed(1) : "-"}% · 쌍/장판 ${(PN / PP).toFixed(1)}) ← ㉠ 은 이 수로 본다`);
+    /* ★ **D-29 · 마나를 태우는 갈래**(battle.js MANABURN_OF). 기본 0 이면 이 줄이 아예 안 뜬다 —
+       뜨는데 「마름」이 0 이면 태우기는 하되 **손을 못 묶은 것**이다([[knob-that-does-nothing]]). */
+    let MN = 0, MS = 0, MD = 0;
+    for (const s2 of SEEDS) { const v = manaBurn[s2]; if (!v) continue; MN += v[0] | 0; MS += v[1] | 0; MD += v[2] | 0; }
+    if (MN) console.log(`  마나태움(D-29) · 자리 ${MN} 번 · 태운 마나 합 ${MS} · **한 번에 ${(MS / MN).toFixed(1)}** · ` +
+      `그 한 방에 마름(<6) **${(MD / MN * 100).toFixed(1)}%** (${MD}번)`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.
