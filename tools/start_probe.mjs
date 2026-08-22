@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {}, capCrush = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -172,6 +172,8 @@ for (const SEED of SEEDS) {
       시체태움: B.CORPSE_BURN ? [B.CORPSE_BURN.n | 0, B.CORPSE_BURN.s | 0, B.CORPSE_BURN.dry | 0] : null,
       /* ★ D-32 · 관문이 군세를 직접 무는 갈래의 자 (터진횟수, 문소환수합, 깎은몫합, 죽인수) */
       관문폭발: B.GATE_BLAST ? [B.GATE_BLAST.n | 0, B.GATE_BLAST.hit | 0, Math.round(B.GATE_BLAST.s), B.GATE_BLAST.k | 0] : null,
+      /* ★ D-35 · 무너진 직후 상한이 내려앉는 문의 자 (눌린횟수, 눌린초합, 기준머릿수합) */
+      상한눌림: C.CAP_CRUSH ? [C.CAP_CRUSH.n | 0, +C.CAP_CRUSH.sec.toFixed(1), C.CAP_CRUSH.hiSum | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -191,6 +193,7 @@ for (const SEED of SEEDS) {
     if (o.소환잠금) raiseChoke[SEED] = o.소환잠금;           // ★ D-30 · 마지막 점이 총계다
     if (o.시체태움) corpseBurn[SEED] = o.시체태움;           // ★ D-31 · 마지막 점이 총계다
     if (o.관문폭발) gateBlast[SEED] = o.관문폭발;             // ★ D-32 · 마지막 점이 총계다
+    if (o.상한눌림) capCrush[SEED] = o.상한눌림;             // ★ D-35 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
@@ -494,6 +497,20 @@ if (deaths.length) {
   const front2 = cells[0].n + cells[1].n, back2 = all - front2;
   console.log(`앞(층 1-20) ${front2} · 판당 ${(front2 / SEEDS.length).toFixed(2)}   |   ` +
               `뒤(층 21+) ${back2} · 판당 ${(back2 / SEEDS.length).toFixed(2)}`);
+  /* ★ **D-35 · 무너진 직후 상한이 내려앉는 문**(core.js CRUSH_OF). 기본 0 이면 이 줄이 안 뜬다.
+     ★ 이 줄은 **「문이 도는가」만** 말한다 — 눌림이 0 이면 방아쇠가 안 걸린 것이고
+       ([[knob-that-does-nothing]]), 판당 눌린 초가 0 에 가까우면 켜 놓고도 안 눌린 것이다.
+       **판정은 바로 위 표의 뒤 판당 · 회복초중앙**이다 — 이 줄이 아니다.
+     ★ 이 줄을 여기 두는 까닭: 처음엔 「수법 표」 블록 안에 적었다가 재기 전에 잡았다 —
+       그 블록은 `if (KS2.length)` 라, 수법이 한 번도 안 터진 짧은 판에서는 **문이 돌았는데도
+       줄이 통째로 안 떴다**(2분 smoke). 자는 제가 재는 표 옆에 선다. */
+  {
+    let KN = 0, KS = 0, KH = 0;
+    for (const s2 of SEEDS) { const v = capCrush[s2]; if (!v) continue; KN += v[0] | 0; KS += NUM(v[1]); KH += v[2] | 0; }
+    if (KN) console.log(`상한눌림(D-35) · 눌림 ${KN} 번 · 눌린 초 합 ${KS.toFixed(0)} ` +
+      `(**판당 ${(KS / SEEDS.length).toFixed(0)}초** · 한 번에 ${(KS / KN).toFixed(1)}초) · ` +
+      `기준 머릿수 평균 ${(KH / KN).toFixed(1)}`);
+  }
 }
 
 /* ══ D-24 · **뒤에서 왜 자리를 못 채우나** ══ D-23 이 남긴 ㉮ 다.

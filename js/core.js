@@ -1769,7 +1769,62 @@ const armyCapRaw = (cutTough) => {
   const cut = Math.pow(ELITE_CUT, rank("elite")) * (hasUnique("lonely") ? 0.5 : 1) * cutTough;
   return cut === 1 ? c : Math.max(1, Math.ceil(c * cut));
 };
-export const armyCap  = () => armyCapRaw(toughCapMul());
+/* ══ D-35 · 무너진 «직후» 상한이 내려앉는 문 ══ (`__CAPCRUSH` · 기본 0)
+   D-34 가 남긴 ⓐ 다. D-29(마나)·D-30(쿨)·D-31(시체)·D-32(관문폭발)·D-33(회전율)
+   **다섯이 다 졌고, 다섯 다 같은 자리에서 졌다** — 무엇을 태우든 무엇을 물든
+   **되세움이 그만큼 따라 올랐다.** 까닭은 D-32 가 수로 굳혔다: 서 있는 군세가
+   열 마리 안팎인데 세움/분이 134~155 이니 **군대 전체가 4초에 한 번 갈린다.**
+   그 흐름 위에서는 무너짐이 «상태»는 되어도 «사건»이 못 된다.
+   ☞ 여태 다섯은 전부 **«잃는 쪽»** 을 건드렸다. 이번엔 **«되세우는 자리 자체»** 를 민다:
+     무너진 순간 **상한이 한동안 내려앉고**, 그동안은 세우고 싶어도 세울 자리가 없다.
+     자원(마나·시체·쿨)은 한 톨도 안 건드린다 — 자리가 없는 것은 **저절로 다시 차지 않는다.**
+     D-29·D-31 이 「저절로 차는 것을 물었다」로 진 그 자리를 이번엔 비켜 간다.
+   ★ **방아쇠는 자와 «같은 말»을 쓴다** — `tools/start_probe.mjs` 의 D-34 절대 자와
+     글자 그대로 같은 식이다(최근 30초 관측 최댓값 hi · hi ≥ 4 · 서 있는 수 × 2 ≤ hi).
+     자가 세는 그 사건에 문이 붙어야 «사건 하나에 무슨 일이 났나»를 견줄 수 있다
+     ([[threshold-and-ruler-must-match]]).
+   ★ **분모를 손잡이에 안 태운다** — 기준은 상한이 아니라 **관측된 머릿수**라, 이 문이
+     상한을 내려도 방아쇠가 따라 움직이지 않는다(D-33 이 자를 옮겨 스스로 눈을 감은 일).
+   ★ **눌린 동안 서 있던 놈을 죽이지 않는다** — 상한은 「세울 수 있는 자리」일 뿐이다.
+     죽이면 그건 D-32(직접 무는 것)를 두 번 하는 것이고, 무너짐이 아니라 학살이 된다.
+   ★ **c = 0 이면 한 톨도 안 바뀐다** — 몫이 정확히 1 이고 통(buf)조차 안 돈다
+     (armyCapRaw 의 `cut === 1` 빠른 길도 그대로 선다). */
+export const CRUSH_SEC = 8;     // 눌려 있는 시간(초) — 회복초중앙 10초의 언저리
+export const CRUSH_DEF = 0;     // ★ 재기 전까지 0 — 문만 나 있다
+export const CRUSH_OF = () => (typeof globalThis !== "undefined" && globalThis.__CAPCRUSH != null)
+  ? +globalThis.__CAPCRUSH : CRUSH_DEF;
+/** 눌린 초를 재는 통 — 자와 같은 30칸(초당 한 칸) 관측 최댓값이 방아쇠다. */
+export const CAP_CRUSH = { n: 0, sec: 0, buf: new Array(30).fill(0), slot: -1, t: 0, hi: 0, hiSum: 0, pend: 0 };
+/** 판이 새로 서면 통을 비운다 — 죽음은 무너짐이 아니다(자도 여기서 버린다). */
+export const crushReset = () => {
+  CAP_CRUSH.buf.fill(0); CAP_CRUSH.slot = -1; CAP_CRUSH.t = 0; CAP_CRUSH.hi = 0; CAP_CRUSH.pend = 0;
+};
+/** 매 틱 한 번. `now` 는 지금 서 있는 내 소환수 수, `tsec` 은 판이 선 뒤 흐른 초. */
+export const crushTick = (dt, now, tsec) => {
+  if (!CRUSH_OF()) return;                       // 기본값은 통조차 안 돈다
+  const slot = Math.floor(tsec) % 30;
+  if (slot !== CAP_CRUSH.slot) { CAP_CRUSH.slot = slot; CAP_CRUSH.buf[slot] = 0; }
+  if (now > CAP_CRUSH.buf[slot]) CAP_CRUSH.buf[slot] = now;
+  let hi = 0; for (let i = 0; i < 30; i++) if (CAP_CRUSH.buf[i] > hi) hi = CAP_CRUSH.buf[i];
+  if (CAP_CRUSH.t > 0) { CAP_CRUSH.t -= dt; CAP_CRUSH.sec += dt; if (CAP_CRUSH.t < 0) CAP_CRUSH.t = 0; }
+  /* ★ **한 사건에 한 번**이라야 「사건 하나에 무슨 일이 났나」를 셀 수 있다. 처음엔 「눌려 있는
+     동안만 안 문다」로 적었다가 재기 전에 잡았다 — 30초 통에 옛 최고가 남아 있으니 8초가 풀리는
+     족족 **같은 무너짐을 다시 물어** 한 번에 n=2 가 됐다. 그래서 자(D-34)의 `pend` 와 **글자
+     그대로 같게** 한다: 한 번 물면 **그 최고에 다시 닿을 때까지** 안 문다(안 돌아오면 그 판은 한 번). */
+  if (CAP_CRUSH.pend) { if (now >= CAP_CRUSH.pend) CAP_CRUSH.pend = 0; return; }
+  if (CAP_CRUSH.t > 0) return;
+  if (hi >= 4 && now * 2 <= hi) { CAP_CRUSH.t = CRUSH_SEC; CAP_CRUSH.hi = hi; CAP_CRUSH.hiSum += hi; CAP_CRUSH.pend = hi; CAP_CRUSH.n++; }
+};
+/** 눌린 몫 — 무너진 순간이 제일 깊고(1−c) 8초에 걸쳐 **선형으로** 1 로 돌아온다.
+ *  계단으로 놓으면 8초째에 상한이 통째로 튀어 되세움이 한꺼번에 터진다(그러면 또
+ *  「무너짐이 사건이 아니다」로 돌아간다). 스르르 풀려야 그 사이가 «회복»이 된다. */
+export const crushCapMul = () => {
+  const c = CRUSH_OF();
+  if (!c || CAP_CRUSH.t <= 0) return 1;          // 정확히 1 — 빠른 길이 그대로 선다
+  return 1 - c * (CAP_CRUSH.t / CRUSH_SEC);
+};
+
+export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul());
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
