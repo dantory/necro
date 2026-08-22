@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -142,6 +142,8 @@ for (const SEED of SEEDS) {
       장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3), B.MECH_POOL.over | 0] : null,
       /* ★ D-29 · 마나를 태우는 갈래의 자 (자리온횟수, 태운합, 마른횟수) — 손잡이가 0 이면 전부 0 이다 */
       마나태움: B.MANA_BURN ? [B.MANA_BURN.n | 0, Math.round(B.MANA_BURN.s), B.MANA_BURN.dry | 0] : null,
+      /* ★ D-30 · 되세우는 손을 잠그는 갈래의 자 (자리온횟수, 늘어난쿨합, 손을빼앗은횟수) */
+      소환잠금: B.RAISE_CHOKE ? [B.RAISE_CHOKE.n | 0, Math.round(B.RAISE_CHOKE.s), B.RAISE_CHOKE.blk | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -157,6 +159,7 @@ for (const SEED of SEEDS) {
     if (o.무너짐) wall[SEED] = o.무너짐;                       // ★ D-23 · 마지막 점이 총계다
     if (o.장판자) poolBite[SEED] = o.장판자;                 // ★ D-22c · «한 장판당» 자 (깔린수, 쌍, 몫합)
     if (o.마나태움) manaBurn[SEED] = o.마나태움;             // ★ D-29 · 마지막 점이 총계다
+    if (o.소환잠금) raiseChoke[SEED] = o.소환잠금;           // ★ D-30 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
@@ -311,6 +314,12 @@ if (deaths.length) {
     for (const s2 of SEEDS) { const v = manaBurn[s2]; if (!v) continue; MN += v[0] | 0; MS += v[1] | 0; MD += v[2] | 0; }
     if (MN) console.log(`  마나태움(D-29) · 자리 ${MN} 번 · 태운 마나 합 ${MS} · **한 번에 ${(MS / MN).toFixed(1)}** · ` +
       `그 한 방에 마름(<6) **${(MD / MN * 100).toFixed(1)}%** (${MD}번)`);
+    /* ★ **D-30 · 되세우는 손을 잠그는 갈래**(battle.js RAISECHOKE_OF). 기본 0 이면 이 줄이 아예 안 뜬다 —
+       뜨는데 「손빼앗음」이 0 이면 이미 쿨이던 것을 더 민 것뿐이다([[knob-that-does-nothing]]). */
+    let CN = 0, CS = 0, CB = 0;
+    for (const s2 of SEEDS) { const v = raiseChoke[s2]; if (!v) continue; CN += v[0] | 0; CS += v[1] | 0; CB += v[2] | 0; }
+    if (CN) console.log(`  소환잠금(D-30) · 자리 ${CN} 번 · 늘어난 쿨 합 ${CS}초 · **한 번에 ${(CS / CN).toFixed(2)}초** · ` +
+      `그 한 방에 손빼앗음 **${(CB / CN * 100).toFixed(1)}%** (${CB}번)`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.

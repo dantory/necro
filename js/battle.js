@@ -474,6 +474,20 @@ const GATE_MUL_OF = (mech) => {
  *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
 const MANABURN_OF = () => (globalThis.__MANABURN != null ? +globalThis.__MANABURN : 0);
 
+/** ★ **D-30 · 세 번째 갈래 — 관문이 «되세우는 손»을 잠근다**(`__RAISECHOKE`, 기본 0).
+ *  D-29 가 마나를 태워 보고 남긴 답이 이 문을 냈다: **뒤의 병목은 마나가 아니라 «쿨»이다.**
+ *  D-27 A 팔의 뒤 세 칸은 막힘쿨% **75 · 68 · 52** 인데 막힘마나% 는 **0 · 0 · 0** 이다 —
+ *  MANA_WALL 이 마나를 늘 채워 놔서 태워도 다음 소환 전에 다시 찬다(그래서 앞으로 샜다).
+ *  ☞ 그러니 무너진 뒤 **되세우기가 한동안 안 되게** 하는 자리라야 «사건»이 선다.
+ *    관문 수법(pool·curse·charge·add)이 터질 때 소환 셋(raise·ghoul·golem)의 재사용을
+ *    **제 쿨의 이 값 배로 밀어 올린다**(이미 그보다 길면 그대로 둔다).
+ *    **절규(howl)에는 안 붙인다** — 거기 얹으면 갈래가 또 하나가 아니라 같은 하나다.
+ *  ★ **잃음 총량은 한 톨도 안 늘린다** — 소환수는 하나도 안 깎는다(D-26 ④ 가 막는 자리).
+ *  ★ A/B 의 출발값은 **2~4배** 언저리: 소환 쿨이 0.9초 대라 3배면 대략 **2~3초** 를
+ *    못 세운다 — 절규가 통째로 지운 직후의 그 몇 초다.
+ *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
+const RAISECHOKE_OF = () => (globalThis.__RAISECHOKE != null ? +globalThis.__RAISECHOKE : 0);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -1158,6 +1172,13 @@ const flushPoolBite = (pl) => {
  *  둘째 칸이 0 이면 손잡이가 도는 게 아니라 **허공을 태우는 것**이다([[knob-that-does-nothing]]). */
 export const MANA_BURN = { n: 0, s: 0, dry: 0 };
 
+/** ★ **D-30 · 되세우는 손을 잠그는 갈래의 자**(위 RAISECHOKE_OF 문). 세기만 한다.
+ *   · `n` = 잠글 자리가 온 횟수(관문 수법이 터진 횟수) · `s` = 실제로 **늘어난 쿨 초의 합**
+ *   · `blk` = 그 한 방에 **손에 있던 소환을 빼앗은** 횟수(쿨이 1초 아래로 준비돼 있었는데
+ *     1초 위로 밀린 자리) — 이 칸이 0 이면 이미 쿨이던 것을 더 밀었을 뿐, **손은 못 묶은 것**이다
+ *     ([[knob-that-does-nothing]]). */
+export const RAISE_CHOKE = { n: 0, s: 0, blk: 0 };
+
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
 function castOnce(id) {
@@ -1678,6 +1699,15 @@ export function step(dt) {
       if (mb > 0) { const was = S.mp, burn = Math.min(S.mp, mpMaxOf() * mb);
         S.mp -= burn; MANA_BURN.n++; MANA_BURN.s += burn;
         if (was >= 6 && S.mp < 6) MANA_BURN.dry++; } }
+    /* ★ D-30 · **되세우는 손을 잠그는 갈래**(위 RAISECHOKE_OF 문). 기본 0 이면 이 줄은 아무 일도 안 한다. */
+    if (mech !== "howl") { const rc = RAISECHOKE_OF();
+      if (rc > 0) { RAISE_CHOKE.n++; let took = false;
+        for (const rid of ["raise", "ghoul", "golem"]) {
+          const rsk = SKILLS.find(s2 => s2.id === rid); if (!rsk) continue;
+          const was = S.cd[rid] || 0, lock = rsk.cd * cdMul() * raiseHasteMul() * rc;
+          if (lock > was) { S.cd[rid] = lock; RAISE_CHOKE.s += lock - was;
+            if (was < 1) took = true; } }
+        if (took) RAISE_CHOKE.blk++; } }
     /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
        절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
     const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl")
