@@ -403,6 +403,22 @@ const CHAMP_COL   = "#e0b44a";
  *  `floorHp × RAISE_HP(0.42)` 라 0.25 면 대략 **두 번에 하나**를 지운다. */
 const CHAMP_HOWL_OF = () => (globalThis.__CHAMP_HOWL != null ? +globalThis.__CHAMP_HOWL : 0.25);
 
+/** ★ **D-22b · 관문 수법이 «소환수를» 깎을 때 쓰는 축**(2026-08-22).
+ *  지금 `fireMech` 는 주인의 피해(`m.mdmg` → `floorDmg` 1.155^f)로 소환수를 깎는데
+ *  소환수 체력은 시체 주인의 몸(`floorHp × RAISE_HP` · 1.19^f)이라 **깊어질수록
+ *  관문이 통째로 무해해진다** — 20분 씨앗 여섯에서 한 대당 이빨이 **장판 0.2% ·
+ *  저주 3.3%** 였다(절규는 같은 자에서 426% · `tmp/startprobe_0822_d22fix.log`).
+ *  절규를 지을 때 이미 한 번 고친 「깊이에 도는 축」을 **관문 넷에는 안 옮긴 것**이다
+ *  ([[carry-fixes-forward]]).
+ *  ☞ 여기서는 **문만 낸다.** 0 이면 예전과 한 톨도 안 달라지고(기본), 0 보다 크면
+ *    소환수를 깎는 base 만 `floorHp(층) × 이 값` 으로 바뀐다.
+ *    **네크로가 맞는 몫(`hurtNecro`)은 손대지 않는다** — 그 축은 이미 맞다.
+ *  ★ A/B 의 **출발값 0.005** 는 대조군에서 뽑았다: 절규가 `floorHp×0.25` 로 426% 이므로
+ *    한 방 15% 를 노리면 base ≈ `floorHp×0.0088`. 수법마다 붙은 곱(저주 1.7 · 돌진 3.0 ·
+ *    장판은 4.5초 동안 0.85×0.5×dt 라 합이 ≈1.91)을 그대로 두면 0.005 에서
+ *    저주 ≈13% · 장판 ≈17% · 돌진 ≈27% 가 된다. **재기 전에는 안 켠다.** */
+const GATE_MIN_OF = () => (globalThis.__GATE_MIN != null ? +globalThis.__GATE_MIN : 0);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -1567,8 +1583,12 @@ export function step(dt) {
    *  S.dead 가 되면 true 를 돌려준다 — 부르는 쪽이 그 프레임을 접는다. */
   const fireMech = (mech, dmg, col, cvx = 0, cvy = -1) => {
     MECH_FIRE[mech] = (MECH_FIRE[mech] | 0) + 1;          // ★ D-22 · 읽기만 — 터지긴 하는가
+    /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
+       절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
+    const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl") ? floorHp(S.floor) * GATE_MIN_OF() : dmg;
     if (mech === "pool")
-      S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, col });
+      /* `mdmg` 가 **소환수 몫**이다(D-22b) — 네크로 몫(`dmg`)과 갈라 둔다. */
+      S.pools.push({ x: 0, y: 0, r: 92, t: 4.5, dmg: dmg * 0.85, mdmg: mdmgMin * 0.85, col });
     else if (mech === "add") {
       /* 졸개는 **네크로 발밑(75)에서 솟는다.** 둘레(300)나 진 밖(190)에서 걸어오면 군대가
          다 막아 네크로는 12분에 한 번도 안 죽었다(소환사의 위협이 안 산다 — gatelord_probe
@@ -1601,7 +1621,7 @@ export function step(dt) {
     }
     else if (mech === "curse") {
       for (const u of S.minions)
-        if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, dmg * 1.7 * ampMul, u.x, u.y, "curse"); u.weak = 3.0; }
+        if (Math.hypot(u.x, u.y * SQUASH_VIEW) < 200) { hitMinion(u, mdmgMin * 1.7 * ampMul, u.x, u.y, "curse"); u.weak = 3.0; }
       hurtNecro(dmg * 3.8 * ampMul, "curse", 0, -1);
     }
     else if (mech === "howl") {
@@ -1694,7 +1714,10 @@ export function step(dt) {
         m.walked = (m.walked || 0) + sp * dt; m.moving = 0.12;
         m.face = m.cvx < 0 ? -1 : 1; m.dx = m.cvx; m.dy = m.cvy;
         for (const u of S.minions)                          // 길목 소환수도 관통하며 때린다(한 번씩)
-          if (!u.hitByCharge && dist(m, u) < m.r + u.r) { hitMinion(u, m.dmg * 3.0 * ampMul, m.cvx, m.cvy, "charge"); u.hitByCharge = 1; }
+          /* ★ D-22b · 소환수 몫만 «층의 격» 축으로 — 바로 아래 `hurtNecro` 는 안 건드린다. */
+          if (!u.hitByCharge && dist(m, u) < m.r + u.r) {
+            const cb = GATE_MIN_OF() > 0 ? floorHp(S.floor) * GATE_MIN_OF() : m.dmg;
+            hitMinion(u, cb * 3.0 * ampMul, m.cvx, m.cvy, "charge"); u.hitByCharge = 1; }
         if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R + m.r * 0.5) {
           hurtNecro(m.dmg * 3.0 * ampMul, "charge", m.cvx, m.cvy);
           m.mstate = 0; m.mechCd = lord.cd; if (S.dead) return;
@@ -1732,7 +1755,8 @@ export function step(dt) {
     if ((pl.t -= dt) <= 0) { S.pools.splice(i, 1); continue; }
     if (Math.hypot(pl.x, pl.y * SQUASH_VIEW) < pl.r) { hurtNecro(pl.dmg * dt, "pool", 0, -1); if (S.dead) return; }
     for (const u of S.minions)
-      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r) hitMinion(u, pl.dmg * 0.5 * dt, 0, -1, "pool");
+      if (Math.hypot(u.x - pl.x, (u.y - pl.y) * SQUASH_VIEW) < pl.r)
+        hitMinion(u, (pl.mdmg != null ? pl.mdmg : pl.dmg) * 0.5 * dt, 0, -1, "pool");
   }
   if (S.walls) for (let i = S.walls.length - 1; i >= 0; i--) if ((S.walls[i].t -= dt) <= 0) S.walls.splice(i, 1);
   while (S.hurtLog.length && S.t - S.hurtLog[0].t > 5) S.hurtLog.shift();   // 사인 판정은 직전 5초만
