@@ -119,8 +119,8 @@ for (const SEED of SEEDS) {
       잃음누계: Object.fromEntries(B.LOST_KINDS.map(k => [k, B.LOST_BY[k] | 0])),
       깎인몫: Object.fromEntries(B.LOST_KINDS.map(k => [k, Math.round(B.LOST_DMG[k] || 0)])),
       터짐: Object.assign({}, B.MECH_FIRE),
-      이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3)]])),
-      장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3)] : null,
+      이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3), v.o | 0]])),
+      장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3), B.MECH_POOL.over | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -249,34 +249,38 @@ if (deaths.length) {
      · 이빨  = 한 대가 소환수 하나를 **제 체력의 몇 %** 깎았나(평균)
    ★ 절규(howl)가 대조군이다 — floorHp 축이라 깊이에서 안 묽어진다. 나란히 놓고 본다. */
 {
-  const F = {}, Bn = {}, Bs = {};
+  const F = {}, Bn = {}, Bs = {}, Bo = {};
   for (const s2 of SEEDS) {
     for (const [k, v] of Object.entries(fired[s2] || {})) F[k] = (F[k] | 0) + (v | 0);
-    for (const [k, v] of Object.entries(bite[s2] || {})) { Bn[k] = (Bn[k] | 0) + (v[0] | 0); Bs[k] = NUM(Bs[k]) + NUM(v[1]); }
+    for (const [k, v] of Object.entries(bite[s2] || {})) {
+      Bn[k] = (Bn[k] | 0) + (v[0] | 0); Bs[k] = NUM(Bs[k]) + NUM(v[1]); Bo[k] = (Bo[k] | 0) + (v[2] | 0); }
   }
   const KS2 = [...new Set([...Object.keys(F), ...Object.keys(Bn)])];
   if (KS2.length) {
     console.log(`\n── 수법이 터지긴 하는가 · 터지면 이빨이 있는가 (${MIN}분 × 씨앗 ${SEEDS.length}) ──`);
-    console.log(["수법".padStart(8), "터짐".padStart(7), "맞은대수".padStart(9), "한대당 이빨%".padStart(13), "판정".padStart(12)].join(" "));
+    console.log(["수법".padStart(8), "터짐".padStart(7), "맞은대수".padStart(9), "한대당 이빨%".padStart(13),
+                 "넘침%".padStart(7), "판정".padStart(12)].join(" "));
     for (const k of KS2.sort((a, b) => (F[b] | 0) - (F[a] | 0))) {
-      const n = Bn[k] | 0, avg = n ? Bs[k] / n * 100 : 0;
-      /* 100% 를 넘는 값은 **넘치게 때린 것**이다(한 대에 몸의 몇 배). 자르지 않는다 —
-         「두 대면 죽는다」와 「한 대에 네 배로 넘친다」는 다른 사실이고, 뒤엣것은
-         「더 세게」가 이미 남아도는 자리라는 뜻이다. */
+      const n = Bn[k] | 0, avg = n ? Bs[k] / n * 100 : 0, ov = n ? (Bo[k] | 0) / n * 100 : 0;
+      /* ★ D-22d · 「한대당 이빨%」는 **100 에서 끊은 평균**이다(위아래가 없으면 꼬리가
+         평균을 가져간다 — 대조군 절규가 161~524% 로 흔들렸다). 넘치게 때린 대수는
+         버리지 않고 옆 칸 「넘침%」로 따로 낸다: 그 칸이 크면 **「더 세게」가 이미
+         남아도는 자리**라는 뜻이라 손잡이를 더 올릴 값이 없다. */
       const 판정 = !(F[k] | 0) && !n ? "㉠㉡ 안 터짐" : !n ? "㉢ 안 닿음"
-                 : avg < 5 ? "㉢ 이빨없음" : avg > 150 ? "돎(넘침)" : "돎";
+                 : avg < 5 ? "㉢ 이빨없음" : avg >= 10 ? "㉠ 닿음" : "돎";
       console.log([k.padStart(8), String(F[k] | 0).padStart(7), String(n).padStart(9),
-                   (n ? avg.toFixed(1) : "-").padStart(13), 판정.padStart(12)].join(" "));
+                   (n ? avg.toFixed(1) : "-").padStart(13), (n ? ov.toFixed(1) : "-").padStart(7),
+                   판정.padStart(12)].join(" "));
     }
     /* ★ **D-22c · 장판만은 아래 줄을 본다.** 위 표의 pool 칸은 「틱 한 번당」이라 자와 문턱의
        단위가 다르다([[threshold-and-ruler-must-match]]) — 한 장판이 한 소환수를 270번 때리므로
        위 칸의 수는 늘 0.0~0.3 이다(손잡이를 스무 배 올려도 안 움직인다).
        여기 「한 장판당 이빨%」가 ㉠(10% 이상)에 물릴 수다. */
-    let PP = 0, PN = 0, PS = 0;
-    for (const s2 of SEEDS) { const v = poolBite[s2]; if (!v) continue; PP += v[0] | 0; PN += v[1] | 0; PS += NUM(v[2]); }
+    let PP = 0, PN = 0, PS = 0, PO = 0;
+    for (const s2 of SEEDS) { const v = poolBite[s2]; if (!v) continue; PP += v[0] | 0; PN += v[1] | 0; PS += NUM(v[2]); PO += v[3] | 0; }
     if (PP) console.log(`  장판(D-22c) · 깔린 장판 ${PP} · 「장판×소환수」 쌍 ${PN} · ` +
       `**한 장판당 이빨 ${PN ? (PS / PN * 100).toFixed(1) : "-"}%** ` +
-      `(쌍/장판 ${(PN / PP).toFixed(1)}) ← ㉠ 은 이 수로 본다`);
+      `(넘침 ${PN ? (PO / PN * 100).toFixed(1) : "-"}% · 쌍/장판 ${(PN / PP).toFixed(1)}) ← ㉠ 은 이 수로 본다`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.

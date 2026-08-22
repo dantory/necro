@@ -1064,8 +1064,18 @@ function tallyMinionHurt(u, dmg, cause) {
  *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
 export const MECH_FIRE = {}, MECH_BITE = {};
 const tallyMechBite = (cause, dmg, u) => {
-  const b = MECH_BITE[cause] || (MECH_BITE[cause] = { n: 0, s: 0 });
-  b.n++; b.s += dmg / (u.hpMax || 1);
+  const b = MECH_BITE[cause] || (MECH_BITE[cause] = { n: 0, s: 0, o: 0 });
+  /* ★ D-22d · **평균은 100% 에서 끊고, 넘친 것은 따로 센다.**
+     넘겨 때린 몫(overkill)까지 평균에 넣으면 이 수는 평균이 아니라 «제일 센 몇 대»가 된다 —
+     손잡이가 **한 번도 안 닿는** 절규(대조군)가 같은 씨앗 스물넷 위에서 **161~524%** 로
+     흔들렸다(2026-08-22 13:49). 위아래가 없는 수의 평균은 꼬리가 가져간다.
+     끝 조건 ㉠ 이 묻는 것은 「한 대가 소환수 체력의 몇 %를 지웠나」이니 자도 거기서 끊는다
+     ([[threshold-and-ruler-must-match]]).
+     · 그렇다고 「넘쳤다」를 버리지는 않는다 — 「두 대면 죽는다」와 「한 대에 네 배로 넘친다」는
+       다른 사실이고, 뒤엣것은 「더 세게」가 이미 남아도는 자리라는 뜻이다. 그래서 `o` 로
+       **넘친 대수**를 따로 세어 «넘침%» 칸에 내놓는다. 그 칸은 0~100 이라 읽을 수 있다. */
+  const f = dmg / (u.hpMax || 1);
+  b.n++; b.s += Math.min(1, f); if (f > 1) b.o++;
 };
 
 /** ★ **D-22c · 장판만은 «한 장판당» 으로 센다** — `MECH_BITE` 는 `hitMinion` 한 번을 「한 대」로
@@ -1078,10 +1088,11 @@ const tallyMechBite = (cause, dmg, u) => {
  *    · `s` = 그 쌍마다의 «제 체력 대비 누적 몫»의 합 → **`s/pairs` 가 ㉠ 에 물릴 수**다
  *  장판마다 소환수별로 모아 두었다가(`pl.acc`) 그 장판이 꺼질 때 한 번에 넘긴다.
  *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
-export const MECH_POOL = { pools: 0, pairs: 0, s: 0 };
+export const MECH_POOL = { pools: 0, pairs: 0, s: 0, over: 0 };
 const flushPoolBite = (pl) => {
   if (!pl || !pl.acc) return;
-  for (const frac of pl.acc.values()) { MECH_POOL.pairs++; MECH_POOL.s += frac; }
+  /* ★ D-22d · 여기도 100% 에서 끊고 넘친 쌍은 따로 센다(위 tallyMechBite 문). */
+  for (const frac of pl.acc.values()) { MECH_POOL.pairs++; MECH_POOL.s += Math.min(1, frac); if (frac > 1) MECH_POOL.over++; }
   pl.acc = null;
 };
 
