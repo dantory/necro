@@ -505,6 +505,29 @@ const RAISECHOKE_OF = () => (globalThis.__RAISECHOKE != null ? +globalThis.__RAI
  *    **재기 전에는 안 켠다**([[cause-written-in-the-item-is-a-guess]]). */
 const CORPSEBURN_OF = () => (globalThis.__CORPSEBURN != null ? +globalThis.__CORPSEBURN : 0);
 
+/** ★ **D-32 · 다섯째 갈래 — 관문이 «지금 서 있는 군세»를 직접 무너뜨린다**(`__GATEBLAST`, 기본 0).
+ *  D-29(마나)·D-30(쿨)·D-31(시체) 셋이 **같은 이유로** ✗ 로 닫혔다: 무엇을 태우든
+ *  **잃음/분이 100 을 넘는 판에서는 재료도 손도 곧바로 다시 찬다.** 그래서 «되세우기를
+ *  조이는 갈래»는 D-31 에서 통째로 닫았다.
+ *  ☞ 남은 길은 **«잃음 갈래를 늘리는 것»** 하나다 — D-31 표에서도 막타 **절규 58% · 근접 36%**,
+ *    깎은몫은 **절규 91%** 로 잃음이 한 갈래에 다 걸려 있다. 갈래가 하나뿐이면 그 하나가
+ *    만든 «평형»이 곧 판이고(D-26 이 낸 답), 무너짐은 «사건»이 아니라 «상태»로 굳는다.
+ *  ☞ 그래서 여기서 내는 문은 **관문 수법(pool·curse·charge·add)이 터질 때 그 자리(네크로
+ *    발밑) 둘레의 소환수만** `floorHp × 이 값` 만큼 한 번에 무는 것이다(`cause "blast"`).
+ *  ★ **절규(howl)에는 안 붙인다** — 거기 얹으면 갈래가 또 하나가 아니라 같은 하나다
+ *    (D-29·D-30·D-31 과 같은 규칙).
+ *  ★ **이 갈래는 앞선 넷과 달리 «잃음 총량을 늘린다»** — 그것이 노림이다. 대신 D-26 ④ 를
+ *    지켜야 한다: 늘린 만큼 판이 그냥 어려워지기만 하면(최고층이 뚝 떨어지면) 진 것이다.
+ *    관문 수법은 한 판에 **수십 번**만 터지므로(D-31 실측 4분에 8번) 잦기가 아니라 **크기**로
+ *    무는 형태다 — 「사건」이 서려면 그래야 한다.
+ *  ★ A/B 의 출발값은 **0.5 ~ 1.0**: 소환수 밑 체력이 `floorHp × RAISE_HP(0.42)` 라 0.5 는
+ *    「약 한 방」, 1.0 은 「확실히 한 방」(2.4배)이다. **재기 전에는 안 켠다**
+ *    ([[cause-written-in-the-item-is-a-guess]]). */
+const GATEBLAST_OF = () => (globalThis.__GATEBLAST != null ? +globalThis.__GATEBLAST : 0);
+/** 무는 반경. 우두머리 절규(CHAMP_R 190)와 **같은 자**로 둔다 — 갈래 둘이 갈리는 것이
+ *  「크기」가 아니라 「터지는 자리·때」여야 견줄 수 있다. */
+const GATEBLAST_R_OF = () => (globalThis.__GATEBLAST_R != null ? +globalThis.__GATEBLAST_R : CHAMP_R);
+
 const ADD_DMG_OF = () => (globalThis.__ADD_DMG != null ? +globalThis.__ADD_DMG : 3.2);
 const ADD_CAP_OF = () => (typeof globalThis !== "undefined" && globalThis.__ADD_CAP != null)
   ? +globalThis.__ADD_CAP : ADD_CAP_DEF;
@@ -1148,7 +1171,9 @@ export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 
  *  갈래: melee 평지 졸개의 이빨 · add 주인이 부른 졸개 · lord 주인 본인의 손 ·
  *        howl 우두머리의 절규 · curse 저주 · charge 돌진 · pool 장판 · etc 그 밖.
  *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
-export const LOST_KINDS = ["melee", "add", "lord", "howl", "curse", "charge", "pool", "etc"];
+/* ★ D-32 · **"blast" 를 여기 더한다** — 없으면 `tallyMinionHurt` 가 조용히 "etc" 로 넣어
+   새 갈래가 표에서 사라진다([[silent-zero-is-not-an-observation.md]] 의 그 자리). */
+export const LOST_KINDS = ["melee", "add", "lord", "howl", "curse", "charge", "pool", "blast", "etc"];
 export const LOST_BY = {}, LOST_DMG = {};
 for (const k of LOST_KINDS) { LOST_BY[k] = 0; LOST_DMG[k] = 0; }
 /** 소환수가 맞을 때마다 **누가·얼마나**를 적는다. **실제로 깎인 만큼만** 센다 —
@@ -1228,6 +1253,15 @@ export const RAISE_CHOKE = { n: 0, s: 0, blk: 0 };
  *    아래 D-24 표에 새로 붙인 **「못」(그 구간의 시체 못 평균)** 과 **세움/분** — 곧 «몫» 으로 본다.
  *  ★ `dry` 가 0 이면 태우기는 하되 **재료를 못 끊은 것**이다([[knob-that-does-nothing]]). */
 export const CORPSE_BURN = { n: 0, s: 0, dry: 0 };
+
+/** ★ **D-32 · 관문이 군세를 직접 무는 갈래의 자**(위 GATEBLAST_OF 문). 세기만 한다.
+ *   · `n` = 터진 횟수 · `hit` = 그때 실제로 문 소환수 수의 합 · `s` = 깎은 몫의 합
+ *   · `k` = 그 자리에서 **죽은** 소환수 수(막타가 이 갈래인 것)
+ *  ★ 판정은 이 자의 «비율» 이 아니라 **「무엇이 소환수를 죽였나」 표의 막타%** 와
+ *    D-24 표의 **회복초중앙 · 무너짐 판당** 이다([[threshold-and-ruler-must-match]]).
+ *    이 줄은 「손잡이가 도는가」만 본다 — `hit` 이 0 이면 **반경 안에 아무도 없는 것**이고
+ *    (터지는 자리가 틀렸다), `k` 가 0 이면 **이빨이 없는 것**이다([[knob-that-does-nothing]]). */
+export const GATE_BLAST = { n: 0, hit: 0, s: 0, k: 0 };
 
 /** 스킬 — **시체를 쓰는가**가 전부다. 마나만 드는 것과 시체까지 드는 것이 갈려야
  *  "시체가 자원"이 손끝에서 느껴진다. */
@@ -1764,6 +1798,19 @@ export function step(dt) {
         const took2 = burnCorpse(Math.ceil(S.corpses * cb));
         CORPSE_BURN.s += took2;
         if (S.corpses < 3) CORPSE_BURN.dry++; } }
+    /* ★ D-32 · **관문이 «지금 서 있는 군세»를 직접 무는 갈래**(위 GATEBLAST_OF 문).
+       기본 0 이면 이 줄은 아무 일도 안 한다. 터지는 자리는 **네크로 발밑(0,0)** 이다 —
+       pool·curse·add 는 원래 거기서 터지고 charge 도 거기로 달려든다(위 fireMech 문). */
+    if (mech !== "howl") { const gbv = GATEBLAST_OF();
+      if (gbv > 0) { GATE_BLAST.n++;
+        const gr = GATEBLAST_R_OF(), gd = floorHp(S.floor) * gbv * ampMul;
+        for (const u of S.minions) {
+          if (u.hp <= 0) continue;
+          if (Math.hypot(u.x, u.y * SQUASH_VIEW) >= gr) continue;
+          GATE_BLAST.hit++; GATE_BLAST.s += Math.min(u.hp, gd);
+          hitMinion(u, gd, u.x, u.y, "blast");
+          if (u.hp <= 0) GATE_BLAST.k++;
+        } } }
     /* ★ D-22b · **소환수를 깎을 때만** 쓰는 base(위 GATE_MIN_OF 문). 0 이면 dmg 그대로다.
        절규(howl)는 이미 `floorHp` 축으로 들어오므로 여기를 지나지 않는다. */
     const mdmgMin = (GATE_MIN_OF() > 0 && mech !== "howl")

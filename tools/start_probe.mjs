@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -147,6 +147,8 @@ for (const SEED of SEEDS) {
       소환잠금: B.RAISE_CHOKE ? [B.RAISE_CHOKE.n | 0, Math.round(B.RAISE_CHOKE.s), B.RAISE_CHOKE.blk | 0] : null,
       /* ★ D-31 · 바닥의 시체를 태우는 갈래의 자 (자리온횟수, 태운시체합, 못이바닥난횟수) */
       시체태움: B.CORPSE_BURN ? [B.CORPSE_BURN.n | 0, B.CORPSE_BURN.s | 0, B.CORPSE_BURN.dry | 0] : null,
+      /* ★ D-32 · 관문이 군세를 직접 무는 갈래의 자 (터진횟수, 문소환수합, 깎은몫합, 죽인수) */
+      관문폭발: B.GATE_BLAST ? [B.GATE_BLAST.n | 0, B.GATE_BLAST.hit | 0, Math.round(B.GATE_BLAST.s), B.GATE_BLAST.k | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -164,12 +166,13 @@ for (const SEED of SEEDS) {
     if (o.마나태움) manaBurn[SEED] = o.마나태움;             // ★ D-29 · 마지막 점이 총계다
     if (o.소환잠금) raiseChoke[SEED] = o.소환잠금;           // ★ D-30 · 마지막 점이 총계다
     if (o.시체태움) corpseBurn[SEED] = o.시체태움;           // ★ D-31 · 마지막 점이 총계다
+    if (o.관문폭발) gateBlast[SEED] = o.관문폭발;             // ★ D-32 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
     band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫,
                 소환: o.소환누계, 군세: o.군세, 상한: o.상한, 시체: o.시체 });   // ★ D-24 (+ D-31 못)
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계; delete o.마나태움;
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계; delete o.마나태움; delete o.관문폭발;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -331,6 +334,17 @@ if (deaths.length) {
     for (const s2 of SEEDS) { const v = corpseBurn[s2]; if (!v) continue; BN += v[0] | 0; BS += v[1] | 0; BD += v[2] | 0; }
     if (BN) console.log(`  시체태움(D-31) · 자리 ${BN} 번 · 태운 시체 합 ${BS} · **한 번에 ${(BS / BN).toFixed(1)}구** · ` +
       `그 한 방에 못 바닥남(<3) **${(BD / BN * 100).toFixed(1)}%** (${BD}번)`);
+    /* ★ **D-32 · 관문이 «지금 서 있는 군세»를 직접 무는 갈래**(battle.js GATEBLAST_OF).
+       기본 0 이면 이 줄이 아예 안 뜬다. 뜨는데
+         · 「한 번에 문 마리」가 0 이면 → **반경 안에 아무도 없다**(터지는 자리가 틀렸다)
+         · 「죽인 수」가 0 이면      → **이빨이 없다**(값이 소환수 체력에 진다)
+       둘은 고칠 자리가 전혀 다르다([[knob-that-does-nothing]]).
+       ★ 판정은 이 줄이 아니라 위 「무엇이 소환수를 죽였나」의 **막타%** 와 D-24 표의
+         **회복초중앙 · 무너짐 판당** 이다([[threshold-and-ruler-must-match]]). */
+    let GN = 0, GH = 0, GS = 0, GK = 0;
+    for (const s2 of SEEDS) { const v = gateBlast[s2]; if (!v) continue; GN += v[0] | 0; GH += v[1] | 0; GS += NUM(v[2]); GK += v[3] | 0; }
+    if (GN) console.log(`  관문폭발(D-32) · 터짐 ${GN} 번 · **한 번에 ${(GH / GN).toFixed(1)}마리** 뭄 · ` +
+      `깎은 몫 합 ${Math.round(GS)} · 죽인 수 ${GK} (**한 번에 ${(GK / GN).toFixed(1)}마리**)`);
   }
 }
 /* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.
