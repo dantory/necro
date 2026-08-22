@@ -399,8 +399,13 @@ const CHAMP_FROM  = 10;      // 이 층부터 선다(앞 6분은 이미 위험�
  *  그 «나는 것»의 **96%가 절규**다(`tmp/d24_base.log` 「무엇이 소환수를 죽였나」 · 깎은몫
  *  61층+ 97%). 그러니 손잡이는 잃음 쪽이되, **총량을 줄이는 것이 아니라 «모으는 것»**이다 —
  *  같은 양을 드물게·크게 터뜨리면 사이가 차서 «상태»가 «사건»이 된다(D 의 이름 그대로).
- *  기본값은 재기 전까지 **한 톨도 안 바꾼다**(0.16 · 6.0). */
-const CHAMP_P_OF  = () => (globalThis.__CHAMP_P  != null ? +globalThis.__CHAMP_P  : 0.16);  // 졸개 하나가 우두머리일 확률
+ *  ★ **켰다(2026-08-22 18:3x · 팔 A 「드묾」)** — 20분 × 씨앗 열둘 × 두 팔로 재고 골랐다.
+ *  P 0.16 → **0.06** · 절규 0.25 → **0.60**(초당 총량 90% · 곧 총량은 안 줄였다).
+ *  뒤(층 21+) 무너짐이 **판당 14.67 → 21.83(+49%)** 로 늘고, 회복은 되레 **짧아졌다**
+ *  (중앙 16.3 → 10.4초 · 안 돌아옴 262 중 2). 앞(층 1-20)은 안 물렸다(6분 죽음 4.42 → 4.33).
+ *  ✘ **팔 B 「뜸함」(CD 6 → 14초)은 버렸다** — 군세가 0.35~0.45 에 눌러앉아 «사건»이 아니라
+ *  더 나쁜 «상태»가 됐다(61층+ 회복 28.5초 = 기준의 2.5배 · 끝 조건 ② 위반). */
+const CHAMP_P_OF  = () => (globalThis.__CHAMP_P  != null ? +globalThis.__CHAMP_P  : 0.06);  // ★ 0.16 → 0.06 (D-27 팔 A 「드묾」 켰다 · 2026-08-22 18:3x)
 const CHAMP_CD_OF = () => (globalThis.__CHAMP_CD != null ? +globalThis.__CHAMP_CD : 6.0);   // 절규 사이 초
 const CHAMP_HP    = 3.0, CHAMP_DMG = 1.5, CHAMP_SIZE = 1.22;
 const CHAMP_TELL  = 0.9, CHAMP_R = 190;
@@ -408,7 +413,7 @@ const CHAMP_WEAK  = 3.0;
 const CHAMP_COL   = "#e0b44a";
 /** 절규 한 번이 깎는 양 = 그 층 졸개 최대체력의 이만큼. 소환수 밑 체력이
  *  `floorHp × RAISE_HP(0.42)` 라 0.25 면 대략 **두 번에 하나**를 지운다. */
-const CHAMP_HOWL_OF = () => (globalThis.__CHAMP_HOWL != null ? +globalThis.__CHAMP_HOWL : 0.25);
+const CHAMP_HOWL_OF = () => (globalThis.__CHAMP_HOWL != null ? +globalThis.__CHAMP_HOWL : 0.60);  // ★ 0.25 → 0.60 (D-27 · 한 번에 지운다 = 밑 체력의 1.43배)
 
 /** ★ **D-22b · 관문 수법이 «소환수를» 깎을 때 쓰는 축**(2026-08-22).
  *  지금 `fireMech` 는 주인의 피해(`m.mdmg` → `floorDmg` 1.155^f)로 소환수를 깎는데
