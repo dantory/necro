@@ -133,6 +133,12 @@ for (const SEED of SEEDS) {
       터짐: Object.assign({}, B.MECH_FIRE),
       이빨: Object.fromEntries(Object.entries(B.MECH_BITE).map(([k, v]) => [k, [v.n, +v.s.toFixed(3), v.o | 0]])),
       무너짐: (R.wall ? R.wall.ev.map(e => [e.층, e.초, e.회복]) : []),
+      /* ★ D-24 · **왜 «못 채우나»를 깊이별로 센다.** D-23 이 남긴 ㉮ 다 — 뒤에서 군세가
+         상한의 절반에 상시로 머무는데, 그 자리가 「손이 안 나감·마나·시체·재사용·자리참」
+         중 무엇인지는 여태 «죽는 순간의 앞 5초» 로만 봤다(죽음이 없는 구간은 못 본다).
+         RAISE_TALLY 는 판이 갈려도 안 지워지는 누계라, 점마다 실어 바깥에서 빼면 된다. */
+      소환누계: (() => { const T = B.RAISE_TALLY;
+        return { try:T.try, ok:T.ok, cd:T.cd, mana:T.mana, corpse:T.corpse, capfull:T.capfull, merge:T.merge, lost:T.lost }; })(),
       장판자: B.MECH_POOL ? [B.MECH_POOL.pools | 0, B.MECH_POOL.pairs | 0, +B.MECH_POOL.s.toFixed(3), B.MECH_POOL.over | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
@@ -151,8 +157,9 @@ for (const SEED of SEEDS) {
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
-    band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫 });
-    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐;
+    band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫,
+                소환: o.소환누계, 군세: o.군세, 상한: o.상한 });   // ★ D-24
+    delete o.잃음누계; delete o.깎인몫; delete o.터짐; delete o.이빨; delete o.장판자; delete o.무너짐; delete o.소환누계;
     pts.push({ 초: t, ...o });
   }
   rows.push({ SEED, pts });
@@ -384,6 +391,50 @@ if (deaths.length) {
   const front = cells[0].n + cells[1].n, back = all - front;
   console.log(`앞(층 1-20) ${front} · 판당 ${(front / SEEDS.length).toFixed(2)}   |   ` +
               `뒤(층 21+) ${back} · 판당 ${(back / SEEDS.length).toFixed(2)}`);
+}
+
+/* ══ D-24 · **뒤에서 왜 자리를 못 채우나** ══ D-23 이 남긴 ㉮ 다.
+   D-23 이 잰 것: 뒤(층 21+)는 한 번 무너지면 11.6~16.3초를 비운 채 싸우고, 그 사이
+   자리참% 는 10% 뿐이다 — **자리는 남는데 못 채운다.** 그 「못 채움」의 갈래를 깊이별로
+   가른다. 죽음의 앞 5초로만 보던 자를 **판 전체**로 넓힌 것이다(죽음이 없는 구간이
+   오히려 이 항목의 알맹이다 · [[probe-must-walk-the-real-path]]).
+     · 시도/분  = castOnce 가 불린 횟수(손이 나갔나)
+     · 세움/분  = 실제로 선 수
+     · 막힘%    = 시도 중 그 관문에 걸린 몫 — **겹칠 수 있다**(마나도 없고 쿨도 안 돌았으면 둘 다 센다)
+   ★ 판을 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다. */
+{
+  const BANDS = [[1,10],[11,20],[21,40],[41,60],[61,9999]];
+  const KS = ["try","ok","cd","mana","corpse","capfull","merge","lost"];
+  const cells = BANDS.map(() => { const c = { sec:0, rat:[] }; for (const k of KS) c[k] = 0; return c; });
+  for (const SEED of SEEDS) {
+    const ser = band.filter(b => b.SEED === SEED && b.소환);
+    let prev = null;
+    for (const b of ser) {
+      if (prev) {
+        const f = Math.max(prev.층, b.층);                 // 창 안에서 되짚었으면 깊은 쪽에 담는다(D-21 과 같은 결)
+        const i = BANDS.findIndex(([lo,hi]) => f >= lo && f <= hi);
+        if (i >= 0) {
+          cells[i].sec += b.초 - prev.초;
+          for (const k of KS) cells[i][k] += Math.max(0, (b.소환[k]|0) - (prev.소환[k]|0));
+          if (b.상한 > 0) cells[i].rat.push(b.군세 / b.상한);
+        }
+      }
+      prev = b;
+    }
+  }
+  const W = [9,7,9,9,9,9,8,9,9,9];
+  console.log(`\n── 뒤에서 왜 자리를 못 채우나 (D-24 · 씨앗 ${SEEDS.length}) ──`);
+  console.log(["층구간","분","군세/상한","시도/분","세움/분","잃음/분","막힘쿨%","막힘마나%","막힘시체%","막힘자리%"]
+              .map((h,i)=>h.padStart(W[i])).join(" "));
+  for (let i = 0; i < BANDS.length; i++) {
+    const c = cells[i]; if (!c.sec) continue;
+    const mins = c.sec / 60, per = (v) => (v/Math.max(0.01,mins)).toFixed(0);
+    const pc = (v) => (c.try ? (v/c.try*100).toFixed(0) : "-");
+    const rat = c.rat.length ? (c.rat.reduce((a,x)=>a+x,0)/c.rat.length).toFixed(2) : "-";
+    console.log([`${BANDS[i][0]}-${BANDS[i][1]===9999?"":BANDS[i][1]}`, mins.toFixed(1), rat,
+                 per(c.try), per(c.ok), per(c.lost), pc(c.cd), pc(c.mana), pc(c.corpse), pc(c.capfull)]
+                .map((v,j)=>String(v).padStart(W[j])).join(" "));
+  }
 }
 
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
