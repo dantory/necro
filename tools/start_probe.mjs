@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [];
 for (const SEED of SEEDS) {
   const { targetId } = await raw("Target.createTarget", { url: PAGE });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
@@ -126,6 +126,10 @@ for (const SEED of SEEDS) {
     for (const d of (o.죽음기록 || [])) deaths.push({ SEED, ...d });
     delete o.죽음기록;
     lostBy[SEED] = o.잃음누계; lostDmg[SEED] = o.깎인몫;   // 마지막 점의 누계가 그 씨앗의 총계다
+    /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
+       판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
+       (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
+    band.push({ SEED, 초: t, 층: o.층, 누계: o.잃음누계, 몫: o.깎인몫 });
     delete o.잃음누계; delete o.깎인몫;
     pts.push({ 초: t, ...o });
   }
@@ -222,6 +226,64 @@ if (deaths.length) {
                    (nAll ? (tot[k] / nAll * 100).toFixed(0) : "0").padStart(7),
                    String(dmg[k]).padStart(10),
                    (dAll ? (dmg[k] / dAll * 100).toFixed(0) : "0").padStart(8)].join(" "));
+  }
+}
+/* ══ D-21 · **깊이에 따라 가해자가 갈리나** ══ D-20 이 남긴 자리다.
+   6분(층 1~13)에서 melee 90% 가 나왔지만, 뒤쪽(층 40~80)에서도 그런지는 안 봤다.
+   「뒤가 조용한 것」이 ㉠ 졸개가 못 문다 인지 ㉡ 무는데 군대가 안 준다 인지가 여기서 갈린다.
+   점(15초)마다 오는 «누계»를 빼서 그 창의 몫을 구하고, 그 창의 층으로 칸에 담는다.
+   ★ 창 안에서 층이 내려갔으면(죽어 되짚기) **높은 쪽**에 담는다 — 잃음은 깊은 데서 났다. */
+{
+  const BANDS = [[1,10],[11,20],[21,40],[41,60],[61,9999]];
+  const KS = Object.keys(lostBy[SEEDS[0]] || {});
+  const cells = BANDS.map(() => ({ n:{}, d:{}, sec:0 }));
+  for (const c of cells) for (const k of KS) { c.n[k] = 0; c.d[k] = 0; }
+  for (const SEED of SEEDS) {
+    const ser = band.filter(b => b.SEED === SEED);
+    /* 첫 창(0~15초)도 담아야 총계가 D-20 과 «한 톨도» 안 틀린다 — 0 을 앞에 세운다. */
+    let prev = { 초: 0, 층: 1, 누계: {}, 몫: {} };
+    for (const b of ser) {
+      if (prev) {
+        const f = Math.max(prev.층, b.층);
+        const i = BANDS.findIndex(([lo,hi]) => f >= lo && f <= hi);
+        if (i >= 0) {
+          cells[i].sec += b.초 - prev.초;
+          for (const k of KS) {
+            cells[i].n[k] += Math.max(0, (b.누계?.[k] | 0) - (prev.누계?.[k] | 0));
+            cells[i].d[k] += Math.max(0, (b.몫?.[k] | 0) - (prev.몫?.[k] | 0));
+          }
+        }
+      }
+      prev = b;
+    }
+  }
+  const TOP = ["melee","howl","add","lord"];
+  const rest = KS.filter(k => !TOP.includes(k));
+  const hdr = ["층구간","분","잃음","잃음/분", ...TOP.map(k=>k+"%"), "기타%"];
+  const W = [9,7,7,8,7,7,7,7,7];
+  console.log(`\n── 깊이에 따라 가해자가 갈리나 (막타%) ──`);
+  console.log(hdr.map((h,i)=>h.padStart(W[i])).join(" "));
+  for (let i = 0; i < BANDS.length; i++) {
+    const c = cells[i], tot = KS.reduce((a,k)=>a+c.n[k],0);
+    if (!c.sec) continue;
+    const mins = c.sec / 60;
+    const pc = (v) => (tot ? (v/tot*100).toFixed(0) : "-");
+    console.log([`${BANDS[i][0]}-${BANDS[i][1]===9999?"":BANDS[i][1]}`, mins.toFixed(1), String(tot),
+                 (tot/Math.max(0.01,mins)).toFixed(0),
+                 ...TOP.map(k=>pc(c.n[k])), pc(rest.reduce((a,k)=>a+c.n[k],0))]
+                .map((v,j)=>String(v).padStart(W[j])).join(" "));
+  }
+  console.log(`\n── 같은 칸을 «깎은몫%» 로 ──`);
+  console.log(hdr.map((h,i)=>h.padStart(W[i])).join(" "));
+  for (let i = 0; i < BANDS.length; i++) {
+    const c = cells[i], tot = KS.reduce((a,k)=>a+c.d[k],0);
+    if (!c.sec) continue;
+    const mins = c.sec / 60;
+    const pc = (v) => (tot ? (v/tot*100).toFixed(0) : "-");
+    console.log([`${BANDS[i][0]}-${BANDS[i][1]===9999?"":BANDS[i][1]}`, mins.toFixed(1), String(tot),
+                 (tot/Math.max(0.01,mins)).toFixed(0),
+                 ...TOP.map(k=>pc(c.d[k])), pc(rest.reduce((a,k)=>a+c.d[k],0))]
+                .map((v,j)=>String(v).padStart(W[j])).join(" "));
   }
 }
 console.log(`\n씨앗 ${SEEDS.join(",")} · ${MIN}분 · 예외 ${errs.length}`);
