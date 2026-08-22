@@ -394,9 +394,16 @@ export const ADD_CAP_DEF = 4;
      바로 그 구조를 다시 만드는 꼴이다. */
 const CHAMP_ON    = () => (globalThis.__CHAMP != null ? +globalThis.__CHAMP : 1);  // ★ 켰다(2026-08-21 22:4x · ab_champ 끝 조건 셋 다 통과)
 const CHAMP_FROM  = 10;      // 이 층부터 선다(앞 6분은 이미 위험하다 — 건드리지 않는다)
-const CHAMP_P     = 0.16;    // 졸개 하나가 우두머리일 확률
+/** ★ **D-27 · 「드묾」과 「뜸함」을 손잡이로 낸다**(2026-08-22). D-26 이 「소환을 빠르게」
+ *  쪽 문을 다 열고도 순증을 못 늘렸다 — 뒤의 군세 0.6 은 **들고 나는 것이 같은 평형**이고,
+ *  그 «나는 것»의 **96%가 절규**다(`tmp/d24_base.log` 「무엇이 소환수를 죽였나」 · 깎은몫
+ *  61층+ 97%). 그러니 손잡이는 잃음 쪽이되, **총량을 줄이는 것이 아니라 «모으는 것»**이다 —
+ *  같은 양을 드물게·크게 터뜨리면 사이가 차서 «상태»가 «사건»이 된다(D 의 이름 그대로).
+ *  기본값은 재기 전까지 **한 톨도 안 바꾼다**(0.16 · 6.0). */
+const CHAMP_P_OF  = () => (globalThis.__CHAMP_P  != null ? +globalThis.__CHAMP_P  : 0.16);  // 졸개 하나가 우두머리일 확률
+const CHAMP_CD_OF = () => (globalThis.__CHAMP_CD != null ? +globalThis.__CHAMP_CD : 6.0);   // 절규 사이 초
 const CHAMP_HP    = 3.0, CHAMP_DMG = 1.5, CHAMP_SIZE = 1.22;
-const CHAMP_CD    = 6.0, CHAMP_TELL = 0.9, CHAMP_R = 190;
+const CHAMP_TELL  = 0.9, CHAMP_R = 190;
 const CHAMP_WEAK  = 3.0;
 const CHAMP_COL   = "#e0b44a";
 /** 절규 한 번이 깎는 양 = 그 층 졸개 최대체력의 이만큼. 소환수 밑 체력이
@@ -726,7 +733,7 @@ function spawnMob(f, i, n) {
               r: h * footR(), atk: 0, boss: false };
   /* ★ 우두머리(위 CHAMP 문) — **관문 밖에서 군대를 쓸어내는 유일한 자리.**
      난수를 새로 들이지 않는다(검수기가 씨앗을 박으면 여기도 그대로 굳는다). */
-  if (CHAMP_ON() && f >= CHAMP_FROM && Math.random() < CHAMP_P) {
+  if (CHAMP_ON() && f >= CHAMP_FROM && Math.random() < CHAMP_P_OF()) {
     m.champ = 1; m.col = CHAMP_COL;
     m.hp = m.hpMax = Math.round(m.hpMax * CHAMP_HP);
     m.dmg *= CHAMP_DMG;
@@ -1743,7 +1750,7 @@ export function step(dt) {
        **예정대로 터진다.** 위험이 「그놈이 얼마나 사느냐」에 매달리지 않게 하는 자리다.
        ★ 배어 나오는 중(born)에도 시계는 돈다 — 관문 수법 루프와 같은 규칙(바로 아래 문단). */
     if (m.champ && (m.howl -= dt) <= 0) {
-      m.howl = CHAMP_CD;
+      m.howl = CHAMP_CD_OF();
       S.fx.push({ t: CHAMP_TELL, x: m.x, y: m.y, kind: "warn_curse", col: CHAMP_COL, r: CHAMP_R });
       /* cvx·cvy 는 howl 에서 **터질 자리**로 쓴다(돌진의 겨눈 방향 자리를 나눠 쓴다).
          warned:1 — 예고는 방금 띄웠으므로 약속 쪽이 또 띄우지 않는다. */
