@@ -5,6 +5,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
+         deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
          GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
@@ -654,6 +655,9 @@ export function enterFloor(f) {
   for (const p of S.piles) p.fade = PILE_FADE;
 
   S.floor = f;
+  /* ★ D-36 · **여기가 방아쇠다** — 층 21 아래에서는 안 걸린다(앞을 세게 만드는 길이
+     구조적으로 없다). 몸을 옮기기 «전»에 물어야 그 층의 첫 초부터 자리가 좁다. */
+  deepEnter(f);
   /* ★★ **몸도 층을 따라 큰다.** hpMaxOf 에 「그 층 피해 × SURVIVE_HITS」라는 바닥을
      뒀는데(core.js) 아무 일도 안 났다 — `S.hp` 는 **판을 열 때(1층) 한 번만** 정해지고
      그 뒤로 안 컸기 때문이다. 얕은 층에서는 키운 몸이 더 커서 바닥이 안 물리고,
@@ -1439,6 +1443,9 @@ export function step(dt) {
   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문(`__CAPCRUSH` · 기본 0). 자(D-34 절대 자)와
      **같은 식**을 쓰므로 여기서 세는 것은 자가 세는 그 사건이다. 꺼져 있으면 즉시 돌아온다. */
   crushTick(dt, S.minions.length, S.t);
+  /* ★ D-36 · 깊이가 여는 문(`__DEEPCAP` · 기본 0). 무는 자리는 enterFloor 이고
+     여기서는 눌린 초만 흘려보낸다. 꺼져 있으면 즉시 돌아온다. */
+  deepTick(dt);
   /* 최대 체력을 **매 틱 맞춘다.** 예전엔 층을 넘을 때만 갱신해서, 판 안에서 레벨이
      오르면 최대치는 그대로인데 몸만 커져 화면에 **「824/816」** 이 떴다(2026-08-13
      스샷에서 눈으로 잡았다 — 자는 아무 말도 안 했다). 늘어난 만큼은 **채워 준다**
@@ -2375,6 +2382,7 @@ export function newRun() {
   const f0 = startFloor();
   for (const pl of S.pools || []) flushPoolBite(pl);   // ★ D-22c · 판이 갈리며 버려지는 장판도 세어 둔다
   crushReset();                                        // ★ D-35 · 죽음은 무너짐이 아니다 — 통을 비운다(자도 그런다)
+  deepReset();                                         // ★ D-36 · 1층부터 다시 여는 것은 「깊이」가 아니다
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),

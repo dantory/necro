@@ -27,7 +27,7 @@ bws.addEventListener("message", e => { const m = JSON.parse(e.data);
   if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
 await new Promise(r => bws.addEventListener("open", r));
 
-const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {}, capCrush = {};
+const rows = [], deaths = [], lostBy = {}, lostDmg = {}, band = [], fired = {}, bite = {}, poolBite = {}, wall = {}, wallN = {}, manaBurn = {}, raiseChoke = {}, corpseBurn = {}, gateBlast = {}, capCrush = {}, deepCrush = {};
 /* 큰 수를 안전하게 읽는다. «| 0» 은 32비트 부호 있는 정수로 잘라서, 2^31(21.5억)을
    넘는 «깎은몫» 을 음수로 뒤집는다 — 자가 조용히 거짓을 말하는 자리다. */
 const NUM = (v) => Number(v) || 0;
@@ -174,6 +174,8 @@ for (const SEED of SEEDS) {
       관문폭발: B.GATE_BLAST ? [B.GATE_BLAST.n | 0, B.GATE_BLAST.hit | 0, Math.round(B.GATE_BLAST.s), B.GATE_BLAST.k | 0] : null,
       /* ★ D-35 · 무너진 직후 상한이 내려앉는 문의 자 (눌린횟수, 눌린초합, 기준머릿수합) */
       상한눌림: C.CAP_CRUSH ? [C.CAP_CRUSH.n | 0, +C.CAP_CRUSH.sec.toFixed(1), C.CAP_CRUSH.hiSum | 0] : null,
+      /* ★ D-36 · 깊이가 여는 문의 자 (걸린횟수, 눌린초합, 걸린층합) */
+      깊이눌림: C.DEEP_CRUSH ? [C.DEEP_CRUSH.n | 0, +C.DEEP_CRUSH.sec.toFixed(1), C.DEEP_CRUSH.fSum | 0] : null,
       죽음기록: (() => { const d = R.deathLog.slice(R.reported); R.reported = R.deathLog.length; return d; })() });
   })()`;
 
@@ -194,6 +196,7 @@ for (const SEED of SEEDS) {
     if (o.시체태움) corpseBurn[SEED] = o.시체태움;           // ★ D-31 · 마지막 점이 총계다
     if (o.관문폭발) gateBlast[SEED] = o.관문폭발;             // ★ D-32 · 마지막 점이 총계다
     if (o.상한눌림) capCrush[SEED] = o.상한눌림;             // ★ D-35 · 마지막 점이 총계다
+    if (o.깊이눌림) deepCrush[SEED] = o.깊이눌림;             // ★ D-36 · 마지막 점이 총계다
     /* ★ D-21 · **깊이별로 가르려면 누계의 «차이»를 층과 함께 적어 둬야 한다.**
        판 안의 코드는 한 글자도 안 건드린다 — 점마다 오는 누계를 바깥에서 빼기만 한다
        (자가 흐름을 흔들면 D-20 과 견줄 수 없다 · [[seed-the-probe]]). */
@@ -510,6 +513,19 @@ if (deaths.length) {
     if (KN) console.log(`상한눌림(D-35) · 눌림 ${KN} 번 · 눌린 초 합 ${KS.toFixed(0)} ` +
       `(**판당 ${(KS / SEEDS.length).toFixed(0)}초** · 한 번에 ${(KS / KN).toFixed(1)}초) · ` +
       `기준 머릿수 평균 ${(KH / KN).toFixed(1)}`);
+  }
+  /* ★ **D-36 · 깊이가 여는 문**(core.js DEEP_OF). 기본 0 이면 이 줄이 안 뜬다.
+     ★ D-35 줄과 **꼭 같은 자리에** 선다 — 두 갈래는 미는 것(자리)이 같고 방아쇠만
+       다르므로, 같은 꼴로 적어야 「사건 하나에 무슨 일이 났나」를 나란히 견줄 수 있다.
+     ★ 이 줄도 **「문이 도는가」만** 말한다 — 판정은 위 표의 뒤 판당 · 회복초중앙이다.
+     ★ **걸린 층 평균이 21 아래로 내려갈 수 없다** — 그것이 이 갈래의 존재 이유다
+       (앞을 물면 D-29~35 가 진 자리로 되돌아간다). 21 미만이 찍히면 문이 샌 것이다. */
+  {
+    let DN = 0, DS = 0, DF = 0;
+    for (const s2 of SEEDS) { const v = deepCrush[s2]; if (!v) continue; DN += v[0] | 0; DS += NUM(v[1]); DF += v[2] | 0; }
+    if (DN) console.log(`깊이눌림(D-36) · 걸림 ${DN} 번 · 눌린 초 합 ${DS.toFixed(0)} ` +
+      `(**판당 ${(DS / SEEDS.length).toFixed(0)}초** · 한 번에 ${(DS / DN).toFixed(1)}초) · ` +
+      `걸린 층 평균 ${(DF / DN).toFixed(1)}`);
   }
 }
 

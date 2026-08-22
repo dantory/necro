@@ -1824,7 +1824,58 @@ export const crushCapMul = () => {
   return 1 - c * (CAP_CRUSH.t / CRUSH_SEC);
 };
 
-export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul());
+/* ══ D-36 · 방아쇠를 «사건» 이 아니라 «층» 에 건다 ══ (`__DEEPCAP` · 기본 0)
+   D-35 가 남긴 자리다. 여섯 갈래(D-29 마나 · D-30 쿨 · D-31 시체 · D-32 관문폭발 ·
+   D-33 회전율 · D-35 자리)가 다 졌는데, **여섯이 여섯 이유로 진 게 아니다** —
+   여섯 다 방아쇠가 「무너지면 벌한다」였고, 무너짐은 A 팔에서 **앞 70 : 뒤 9**(88%가
+   20층 앞)로 터진다. 그러니 무엇을 벌하든 **열에 아홉을 앞에서 쓴다.** D-35 가
+   ④⑤ 로 진 까닭이 그것이다(죽음 12 → 17 · 최고층 83%).
+   ☞ 그래서 이번엔 **방아쇠를 깊이로 옮긴다.** 층 21 아래에서는 이 문이 **한 번도 안
+     걸린다** — 앞을 세게 만드는 길이 구조적으로 없다(④⑤ 가 수가 아니라 «꼴»로 지켜진다).
+   ★ **미는 것은 D-35 와 같은 «자리»다.** 여섯 갈래 중 회복초중앙을 실제로 늘린 축은
+     그것 하나뿐이었다(18.2 → 38.4 · 2.1배). 읽음 자체는 맞았고 방아쇠만 틀렸다 —
+     그러니 손잡이는 그대로 두고 **거는 자리만** 바꾼다.
+   ★ **왜 상한만 내려도 «무너짐»이 되는가** — D-32 가 잰 대로 군세는 세움/분 134~155 로
+     **4초에 한 번 통째로 갈린다.** 여태 그 회전율이 다섯 갈래를 이겼는데(태우자마자
+     되찼다), 자리를 닫으면 **바로 그 회전율이 군대를 빼 간다**: 죽는 것은 그대로인데
+     설 자리가 없으니 서 있는 수가 몇 초 만에 (1−d) 로 흘러내린다. 이기던 것이 미는 힘이 된다.
+   ★ **서 있던 놈은 안 죽인다**(D-35 와 같다) — 상한은 「세울 수 있는 자리」일 뿐이다.
+     죽이면 그건 학살이지 무너짐이 아니다.
+   ★ **문턱 21 은 자·판정이 쓰는 그 경계와 «같은 수»다**(앞 1-20 / 뒤 21+ ·
+     [[threshold-and-ruler-must-match]]). 다른 수를 쓰면 문이 선 자리와 판정이 읽는
+     자리가 어긋난다.
+   ★ **d = 0 이면 한 톨도 안 바뀐다** — 몫이 정확히 1 이고 통조차 안 돌며
+     `armyCapRaw` 의 `cut === 1` 빠른 길도 그대로 선다. */
+export const DEEP_FLOOR = 21;   // 뒤의 시작 — 자가 「뒤(층 21+)」로 가르는 그 수
+export const DEEP_SEC   = 8;    // 눌려 있는 시간(초) — D-35 와 같게 둬야 두 갈래를 견줄 수 있다
+export const DEEP_DEF   = 0;    // ★ 재기 전까지 0 — 문만 나 있다
+export const DEEP_OF = () => (typeof globalThis !== "undefined" && globalThis.__DEEPCAP != null)
+  ? +globalThis.__DEEPCAP : DEEP_DEF;
+/** 깊이 눌림의 자 — (몇 번 눌렸나, 눌린 초 합, 걸린 층의 합) */
+export const DEEP_CRUSH = { n: 0, sec: 0, t: 0, fSum: 0 };
+/** 판이 새로 서면 눌림을 푼다 — 죽어서 1층부터 다시 여는 것은 「깊이」가 아니다. */
+export const deepReset = () => { DEEP_CRUSH.t = 0; };
+/** **층에 발을 들이는 순간** 한 번. 되짚어 올라온 것도 「그 층에 들어선 것」이라 센다. */
+export const deepEnter = (f) => {
+  if (!DEEP_OF()) return;                        // 기본값은 아무것도 안 한다
+  if ((f | 0) < DEEP_FLOOR) return;              // ★ 앞은 구조적으로 한 번도 안 걸린다
+  DEEP_CRUSH.t = DEEP_SEC; DEEP_CRUSH.n++; DEEP_CRUSH.fSum += f | 0;
+};
+/** 매 틱 한 번 — 눌린 초를 흘려보낸다. */
+export const deepTick = (dt) => {
+  if (!DEEP_OF() || DEEP_CRUSH.t <= 0) return;
+  DEEP_CRUSH.t -= dt; DEEP_CRUSH.sec += dt;
+  if (DEEP_CRUSH.t < 0) DEEP_CRUSH.t = 0;
+};
+/** 눌린 몫 — 들어선 순간이 제일 깊고(1−d) 8초에 걸쳐 **선형으로** 1 로 돌아온다
+ *  (계단이면 8초째에 상한이 통째로 튀어 되세움이 한꺼번에 터진다 · D-35 와 같은 까닭). */
+export const deepCapMul = () => {
+  const d = DEEP_OF();
+  if (!d || DEEP_CRUSH.t <= 0) return 1;         // 정확히 1 — 빠른 길이 그대로 선다
+  return 1 - d * (DEEP_CRUSH.t / DEEP_SEC);
+};
+
+export const armyCap  = () => armyCapRaw(toughCapMul() * crushCapMul() * deepCapMul());
 /* 지배한 놈은 **상한 밖에 선다.** 처음엔 상한 안에 넣었더니 자동 소환이 자리를
    먼저 채워서 90초를 굴려도 한 마리밖에 안 섰다 — 찍고도 안 보이면 없는 것과 같다.
    따로 넷까지 두면 층마다 「이번엔 무엇을 부리나」가 눈에 보인다. */
