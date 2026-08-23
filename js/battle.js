@@ -1189,8 +1189,20 @@ export function cast(id) {
 /** ★ **소환이 왜 «안 섰나»를 센다** — D-18 이 남긴 물음이다. 마나가 33~37 남았는데도
  *  군세가 0.6 인 죽음이 일곱 있었다. 그것이 「마나가 없어 못 세움」인지 「세워도 곧장
  *  지워짐」인지는 고칠 자리가 **정반대**인데, 여태 자에 소환 «시도»가 없어 못 갈랐다.
- *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 는 비트까지 같다). */
-export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 0, merge: 0, lost: 0 };
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 는 비트까지 같다).
+ *
+ *  ★★ D-48 · **이 장부에 구멍이 둘 있었다.** 둘 다 「고칠 자리」를 못 고르게 만드는 구멍이다.
+ *    ㉠ **꽉 참은 아예 안 세어졌다** — auto() 는 상한이 찼으면 소환 사슬을 **통째로 건너뛴다**
+ *       (main.js `armyN() < armyCapEff()` 검사). 그 초에는 cast 가 안 불리니 try 도 안 올랐고,
+ *       그래서 「상한이 벽이다」가 장부에서 **조용한 0** 으로 사라졌다([[silent-zero-is-not-an-observation]]).
+ *       → `capskip` — 시도조차 못 한 그 초를 auto() 가 직접 센다.
+ *    ㉡ **한 초가 여러 관문에 동시에 막힌다** — cd·mana·corpse 를 따로 세면 몫의 합이 100% 를
+ *       넘어 **누구 하나를 지목할 수 없다.** 마나만 풀면 섰을 초인지, 마나를 풀어도 재사용에
+ *       또 막힐 초인지는 고칠 자리가 다르다([[knob-that-does-nothing]]).
+ *       → `soleCd`/`soleMana`/`soleCorpse` = **그 하나만 막은** 초 · `multi` = 둘 이상이 막은 초.
+ *    ★ 더한 것은 세는 칸뿐이다 — 관문의 식도 차례도 한 글자 안 건드렸다. */
+export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 0, merge: 0, lost: 0,
+                             soleCd: 0, soleMana: 0, soleCorpse: 0, multi: 0, capskip: 0 };
 
 /** ★ **무엇이 소환수를 죽이나** — D-19 가 남긴 물음이다. 죽음 25 개 중 23 개가 「세워도
  *  지워짐」이었는데, 지운 «가해자»를 한 번도 안 세어 뒀다. 그것을 모르고 「덜 쓸리게」를
@@ -1307,9 +1319,15 @@ function castOnce(id) {
   const corpseNeed = corpseNeedOf(sk, over);             // ㉡ 초과분은 시체 3배 (+ 군세만큼 오른 값)
   const RT = isRaise(id) ? RAISE_TALLY : null;   // ★ 읽기만 — 아래 관문의 식을 그대로 다시 본다
   if (RT) { RT.try++;
-    if ((S.cd[id] || 0) > 0) RT.cd++;
-    if (S.mp < mpNeed) RT.mana++;
-    if (S.corpses < corpseNeed) RT.corpse++; }
+    const bCd = (S.cd[id] || 0) > 0, bMp = S.mp < mpNeed, bCo = S.corpses < corpseNeed;
+    if (bCd) RT.cd++;
+    if (bMp) RT.mana++;
+    if (bCo) RT.corpse++;
+    /* ★ D-48 · **혼자 막았나, 같이 막았나.** 셋을 따로만 세면 몫의 합이 100% 를 넘어
+       지목이 안 된다 — 「이 하나만 풀면 섰을 초」가 sole*, 「하나 풀어도 또 막힐 초」가 multi 다. */
+    const nb = (bCd ? 1 : 0) + (bMp ? 1 : 0) + (bCo ? 1 : 0);
+    if (nb === 1) { if (bCd) RT.soleCd++; else if (bMp) RT.soleMana++; else RT.soleCorpse++; }
+    else if (nb > 1) RT.multi++; }
   if ((S.cd[id] || 0) > 0 || S.mp < mpNeed || S.corpses < corpseNeed) return false;
   let merging = null, mergeMul = 1;
   if (isRaise(id) && armyN() >= armyCapEff()) {          // 실효 상한까지 꽉 참

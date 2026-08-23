@@ -125,7 +125,14 @@ const RESET = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILL
 const READ = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLAT;
   if(!B) return null;
   const at={}; for(const k of Object.keys(A)) at[k]=A[k].slice();
-  return { 막타:{...B}, 깎은몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])), 죽은자리:at }; })()`;
+  const T=window.__RAISETALLY;
+  return { 막타:{...B}, 깎은몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])), 죽은자리:at,
+           소환장부: T ? {...T} : null }; })()`;
+/* ★ D-48 · **소환 장부도 같은 자에서 읽는다** — 자를 새로 만들지 않는다. 판은 한 톨도 안
+   건드리고(읽기만) 목표층에 닿은 그 자리에서 함께 비운다. 없으면 null 로 남겨 **조용한 0 이
+   안 되게** 한다([[silent-zero-is-not-an-observation]]). */
+const RTRESET = `(()=>{ const T=window.__RAISETALLY; if(!T) return 0;
+  for(const k of Object.keys(T)) T[k]=0; return 1; })()`;
 
 const out = {};
 for (const DOC of DOCS) {
@@ -173,6 +180,7 @@ for (const DOC of DOCS) {
     await ev(`window.S && (window.S.speed = 1)`);
     await wait(300);
     if (!(await ev(RESET))) throw new Error("장부를 못 비웠다");
+    const rtOn = await ev(RTRESET);            // D-48 · 없으면 0 — 아래 출력에서 「장부 없음」으로 드러난다
 
     const hist = [];
     let 마을초 = 0, 앞밖 = false;
@@ -198,8 +206,16 @@ for (const DOC of DOCS) {
       마을초: +마을초.toFixed(1), 표본: 안.length, 적평균: avg("mob"), 군세평균: avg("n"),
       죽음, 깎음: +깎음.toFixed(1), ...r,
     };
+    if (!rtOn) o.소환장부 = null;
     const 폭발 = 폭발갈래.reduce((s, k) => s + (r.막타[k] || 0), 0);
     console.log(`  씨앗 ${SEED}: 층 ${시작층}→${o.끝층}(${ff}초) · 마을초 ${o.마을초} · 적 ${o.적평균} · 군세 ${o.군세평균} · 죽음 ${죽음} · 폭발 ${(폭발 / Math.max(1, 죽음) * 100).toFixed(0)}% · 근접 ${((r.막타["근접"] || 0) / Math.max(1, 죽음) * 100).toFixed(0)}%`);
+    /* ★ D-48 · 한 줄로 같이 찍는다 — 「무엇이 소환을 막았나」. 몫의 분모는 **시도 + 건너뜀**이다
+       (상한이 차서 시도조차 못 한 초를 빼면 상한의 몫이 통째로 사라진다). */
+    { const T = o.소환장부;
+      if (!T) console.log(`    (소환 장부 없음 — window.__RAISETALLY 가 안 붙었다)`);
+      else { const 분모 = Math.max(1, T.try + T.capskip);
+        const p = v => `${(v / 분모 * 100).toFixed(0)}%`;
+        console.log(`    소환 ${T.try + T.capskip}회: 섬 ${p(T.ok)} · 상한 ${p(T.capskip + T.capfull)} · 마나만 ${p(T.soleMana)} · 재사용만 ${p(T.soleCd)} · 시체만 ${p(T.soleCorpse)} · 섞임 ${p(T.multi)} · 지워짐 ${T.lost}`); } }
     if (errs.length) { console.log(`  ⚠ 페이지 예외 ${errs.length}: ${errs[0]}`); errs.length = 0; }
     fs.mkdirSync("tmp", { recursive: true });
     fs.writeFileSync(OUT, JSON.stringify(out, null, 1));

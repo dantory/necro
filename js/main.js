@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
-import { KILL_BY, KILL_DMG, KILL_AT, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { KILL_BY, KILL_DMG, KILL_AT, RAISE_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -1589,6 +1589,11 @@ function auto() {
   /* ㉡㉢ 상한 위(over)·꽉 참(merge) 이 켜지면 상한에 닿아도 소환을 시도한다 — cast() 가
      초과 세우기/머지를 스스로 판단한다(못 하면 side-effect 없이 false 라 이 사슬이 안전).
      둘 다 꺼졌으면 armyCapEff()==cap · CAP_MERGE_OF()≤1 이라 조건이 예전 `armyN() < cap` 과 같다. */
+  /* ★ D-48 · **시도조차 못 한 초를 여기서 센다.** 상한이 차 있으면 아래 사슬을 통째로
+     건너뛰므로 cast 가 안 불리고, 그러면 RAISE_TALLY 에 아무 자국도 안 남는다 —
+     「상한이 벽이다」가 장부에서 조용한 0 으로 사라지던 자리다(battle.js RAISE_TALLY 머리말).
+     세기만 한다 — 아래 조건식은 한 글자도 안 바뀌었다. */
+  if (!(armyN() < armyCapEff() || CAP_MERGE_OF() > 1)) RAISE_TALLY.capskip++;
   if (armyN() < armyCapEff() || CAP_MERGE_OF() > 1) {
     /* 벽 → 몸 → 수 차례로 채우되, 못 세우면(마나·재사용·시체) **다음 결로 샌다** —
        cast 는 못 쓰면 side-effect 없이 false 라(battle.js) 이 한 줄 사슬이 안전하다. */
@@ -2565,6 +2570,9 @@ window.__KILLBY = KILL_BY; window.__KILLDMG = KILL_DMG; window.__KILLAT = KILL_A
 /* ★ D-47 · **켠 문이 정말 박혔는지** 검수기가 눈으로 보는 창구(core.js `docCorpseOf`).
    판은 안 건드린다 — 읽기만 한다. 꺼져 있으면 {novaMul:1, keep:0} 이 그대로 나온다. */
 window.__docCorpse = docCorpseOf;
+/* ★ D-48 · **소환이 왜 안 섰나** 장부(js/battle.js 의 RAISE_TALLY 머리말). 검수용 창구다 —
+   `tools/d46_forks.mjs` 가 편성마다 마나·재사용·시체·상한 중 무엇이 막았는지를 여기서 읽는다. */
+window.__RAISETALLY = RAISE_TALLY;
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다
