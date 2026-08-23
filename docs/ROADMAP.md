@@ -6190,7 +6190,11 @@ Lv.26)를 심고 마을·던전·창을 그대로 찍었다(`tools/look_shots.mj
                 것이다([[floor-far-from-threshold]] 의 결 — 멎음은 손잡이가 아니다).
           · 곁가지로 함께 적는다: **근접 막타 몫**이 어느 편성에서든 **15% 넘게** 오르면
             (D-46 은 넷 다 2~8%) 「군세가 볼거리로만 서 있는가」(㉡)의 답이 같이 나온 것이다.
-        ☐ **아직 안 쟀다 — 값은 재고 나서 정한다.** 지금 켠 것은 없다(`DOC_CORPSE_DEF = 0`).
+        ☐ **재는 중이다(11:35 켬 · c98d8fd).** 자는 `tools/d47_run.sh` — D-46 의
+          `tools/d46_forks.mjs` 를 **그대로** 쓰고 들어가기 전에 `__DOC_CORPSE=1` 한 줄만
+          박는다(`D47_CORPSE`). 안 주면 그 줄이 아예 안 붙어 D-46 이 잰 판과 같다.
+          수는 `tmp/d47_corpse.json` · 로그 `~/.openclaw/workspace/tmp/necro_d47_run.log`.
+          기본은 여전히 꺼짐이다(`DOC_CORPSE_DEF = 0`).
           만진 곳: `DOC_CORPSE`·`DOC_CORPSE_OF`·`docCorpseOf` 신설(core.js) · auto() 의 nova 한 줄(main.js).
 
       ★ **D-45 · ⑤㉡ — 이 게임의 적은 «군대»가 아니라 «시체폭발»이 죽인다.
