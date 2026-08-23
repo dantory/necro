@@ -239,7 +239,8 @@ for (const DOC of DOCS) {
       const a = await ev(`(()=>{const S=window.S||{},M=S.minions||[];
         const hs=M.map(u=>u.hpMax||0), mhp=hs.length?hs.reduce((s,v)=>s+v,0)/hs.length:0;
         return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead,n:M.length,mob:(S.mobs||[]).length,
-                mhp:+mhp.toFixed(1),hhp:+(S.hp||0).toFixed(1),hhpMax:+(S.hpMax||0).toFixed(1)};})()`);
+                mhp:+mhp.toFixed(1),hhp:+(S.hp||0).toFixed(1),hhpMax:+(S.hpMax||0).toFixed(1),
+                t:+(+(S.t||0)).toFixed(3)};})()`);
       if (a) {
         hist.push(a);
         const 밖 = (a.at !== "dungeon" || a.dead);
@@ -298,6 +299,40 @@ for (const DOC of DOCS) {
         던전초: +(셈 * 0.2).toFixed(1), 낮은초3: +(낮3 * 0.2).toFixed(1), 낮은초5: +(낮5 * 0.2).toFixed(1),
         낮은몫3: 몫(낮3), 낮은몫5: 몫(낮5) };
     })();
+    /* ★★★ D-58 · **같은 위험을 «판의 시계»로 다시 잰다 — 옛 자는 그대로 두고 나란히 낸다.**
+       D-57 이 걸린 자리다: 「문 없음 · 씨앗 1,3,5」를 **한 글자도 다르지 않은 명령**으로 한 시간
+       뒤에 다시 돌렸더니 낮은몫5 가 4.2/5.2/3.8 → 5.4/11.2/4.4 로 갈렸다. 까닭은 씨앗이 아니라
+       **자가 벽시계를 센다**는 데 있다 — `js/main.js` 의 tick 은 `dt = min(0.05, …)` 라 판이
+       20fps 아래로 처지면 **판의 시간이 벽시계보다 느리게 흐른다.** 그런데 재는 창은 「200ms 씩
+       500번」, 곧 **벽시계 100초**다. 브라우저가 굼뜬 판은 같은 100초 안에서 «게임을 덜 하고»
+       (D-57 ㋐ 는 예열 ff 75/68/88초 · D-56 ㋐ 는 56/57/66초), 군세를 되세우는 데 **벽시계
+       초를 더 쓴다** → 낮은몫이 저절로 오른다. 손잡이가 아니라 **기계 사정**이 찍힌 것이다.
+       그래서 `S.t`(battle.js step 의 `S.t += dt` · 판의 초)를 표본마다 같이 찍고, 칸마다
+       0.2초를 세는 대신 **그 사이 흐른 판의 초**를 센다. 몫의 분자·분모가 둘 다 판의 시계다.
+        · `게임초` ÷ `벽초` 가 곧 **그 판이 얼마나 제 속도로 돌았나**(1.0 이면 벽시계와 같다).
+          이 수가 팔마다 다르면 그 A/B 는 **손잡이가 아니라 기계를 견준 것**이다.
+       [[silent-zero-is-not-an-observation]] — `t` 가 없던 옛 기록이면 null 로 남긴다. */
+    const 위험g = (() => {
+      if (!hist.length || hist.every(h => h.t == null)) return null;
+      let 앞t = null, 셈 = 0, 낮3 = 0, 낮5 = 0, 영 = 0, 벽 = 0;
+      for (const h of hist) {
+        const t = h.t;
+        /* 죽으면 newRun 이 `S.t` 를 0 으로 되돌린다 — **되돌아간 칸은 그냥 건너뛴다**
+           (음수를 더하면 분모가 줄어 몫이 부풀고, 그대로 더하면 판 하나를 두 번 센다). */
+        const d = (앞t == null || t == null || t < 앞t) ? 0 : Math.min(1, t - 앞t);
+        앞t = t;
+        if (h.at !== "dungeon" || h.dead) continue;   // 옛 자와 **같은 문**을 지난다
+        벽 += 0.2; 셈 += d;
+        if (h.n <= 3) 낮3 += d;
+        if (h.n <= 5) 낮5 += d;
+        if (h.n === 0) 영 += d;
+      }
+      const 몫 = n => (셈 > 0 ? +(n / 셈 * 100).toFixed(1) : null);
+      return { 게임초: +셈.toFixed(1), 벽초: +벽.toFixed(1),
+        제속도: 벽 > 0 ? +(셈 / 벽).toFixed(3) : null,
+        낮은초3: +낮3.toFixed(1), 낮은초5: +낮5.toFixed(1), 군세0초: +영.toFixed(1),
+        낮은몫3: 몫(낮3), 낮은몫5: 몫(낮5) };
+    })();
     const 죽음 = KINDS.reduce((s, k) => s + (r.막타[k] || 0), 0);
     const 깎음 = KINDS.reduce((s, k) => s + (r.깎은몫[k] || 0), 0);
     const o = out[`${DOC}/씨앗${SEED}`] = {
@@ -306,6 +341,7 @@ for (const DOC of DOCS) {
       죽음, 깎음: +깎음.toFixed(1), ...r,
       소환수몸: avg("mhp"), 본인몸: avg("hhp"), 본인몸최대: avg("hhpMax"),   // ★ D-49
       위험,                                                                  // ★ D-54
+      위험g,                                                                 // ★ D-58 · 판의 시계로 잰 같은 값
       /* ★ D-56 · **찍은 표본을 그대로 남긴다.** 한 판이 100초 × 씨앗 셋 × 두 팔 = 28분이라,
          「자를 바꿨으니 다시 재자」가 매번 반값이었다. hist(0.2초 간격 · 판당 500칸)를 json 에
          담아 두면 새 눈금은 **돌리지 않고 되읽어** 낼 수 있다(D-55 는 이게 없어 두 번 돌렸다). */
@@ -343,6 +379,12 @@ for (const DOC of DOCS) {
            한동안 둘 다 보여야 한다(사건 수는 D-56 판정 뒤에 뺀다). */
         console.log(`    위험(초): 던전 ${W.던전초}초 중 군세≤3 ${W.낮은초3}초(${W.낮은몫3 ?? "?"}%)` +
           ` · 군세≤5 ${W.낮은초5}초(${W.낮은몫5 ?? "?"}%)`); } }
+    /* ★★★ D-58 · **판의 시계로 잰 같은 줄** — 위 「위험(초)」 는 벽시계다. 둘이 갈리면
+       그 판은 제 속도로 안 돈 것이고, 그 팔의 A/B 는 손잡이가 아니라 기계를 견준 것이다. */
+    { const G = o.위험g;
+      if (!G) console.log(`    (판시계 없음 — 표본에 t 가 없다)`);
+      else console.log(`    위험(판초): 판 ${G.게임초}초/벽 ${G.벽초}초(제속도 ${G.제속도 ?? "?"})` +
+        ` 중 군세≤3 ${G.낮은초3}초(${G.낮은몫3 ?? "?"}%) · 군세≤5 ${G.낮은초5}초(${G.낮은몫5 ?? "?"}%)`); }
     /* ★ D-57 · **잠금 한 줄** — 문을 켠 팔에서만 뜻이 있다. `blk` 가 0 이면 손잡이가 안 돈 것. */
     if (CHOKE != null) { const C = o.잠금장부;
       if (!C) console.log(`    (잠금 장부 없음 — window.__RAISECHOKEST 가 안 붙었다)`);
