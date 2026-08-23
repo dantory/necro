@@ -2515,7 +2515,22 @@ export const knockOf = (e, dmg) =>
 export const RAISE_HP  = 0.42;   // 시체 주인 최대체력의 이만큼을 체력으로
 export const RAISE_DMG = 0.05;   // 그리고 이만큼을 한 방으로
 /** 시체 하나가 가진 「격」(주인의 최대 체력)으로 세우는 몸. 바닥은 종족 기본값이다. */
-export const raiseHp  = (base, pw) => Math.round(Math.max(base, (pw | 0) * RAISE_HP));
+/* ══ 얕은 층의 소환수 «수명» ══ (V-8 __EARLY_HP) 재고 나서 켠다 — **1 이면 손 안 댐**.
+   V-8 이 잰 것: 1층에서 20초 동안 세운 14 · 지워진 14 · 군세는 내내 **0~3 / 상한 5**.
+   막힌 까닭은 마나 0 · 시체 4 · 꽉참 0 이고 **재사용 42(75%)** 인데, 그 42 는 벽이 아니다 —
+   14/20.2초는 재사용 1.2초가 낼 수 있는 최대(16.8)의 **83%** 다. 곧 손은 거의 쉬지 않았다.
+   버티는 셈이 답을 말한다: 선 군세 ≈ 세우는 속도 × **수명** = 0.7/초 × 2.1초 ≈ 1.5.
+   상한 5 를 채우려면 수명이 **6초**여야 하는데 지금은 2.1초다 — 그래서 상한도 재사용도
+   마나도 아니라 **잃음**이 벽이다(D-26/D-27 이 「다음 손잡이는 잃음 쪽」이라 적어 둔 그 자리).
+   ★ 왜 `RAISE_HASTE` 가 아닌가 — 08-17 에 재서 접었다(H 0.5 는 마나가 대신 벽이 된다).
+     이 자리도 같다: 재사용을 반으로 줄이면 초당 10 마나를 쓰는데 재생이 4.3 이다.
+   ★ 얕은 층에서만 듣는다 — `raiseHp` 의 **바닥값**(종족 기본 26)에만 곱한다. 깊어지면
+     `pw × RAISE_HP` 가 바닥을 넘어서므로 곱이 **저절로 사라진다**(깊은 층은 한 톨도 안 바뀐다).
+     새 축도 새 난수도 안 만든다. */
+export const EARLY_HP_DEF = 1;
+export const EARLY_HP_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HP != null)
+  ? +globalThis.__EARLY_HP : EARLY_HP_DEF;
+export const raiseHp  = (base, pw) => Math.round(Math.max(base * EARLY_HP_OF(), (pw | 0) * RAISE_HP));
 export const raiseDmg = (base, pw) => Math.max(base, (pw | 0) * RAISE_DMG);
 /** 센 시체에서 일어난 놈은 **조금 더 크다** — 숫자를 안 읽어도 눈이 먼저 안다.
  *  최대 +22% 로 막는다(관문 주인 시체가 판을 가리면 안 된다). */
