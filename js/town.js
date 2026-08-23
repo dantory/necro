@@ -17,10 +17,17 @@ import { addGlow, ART, place, decorOf } from "./ground.js";
    ══════════════════════════════════════════════════════════ */
 
 const PLACES = [
-  /* id,      그림,     비율 x,  비율 y,  이름 */
-  ["gate",  "gate",   0.00, -0.55, "던전 입구"],
-  ["shop",  "shop",  -0.62, -0.05, "상인"],
-  ["forge", "forge",  0.62, -0.05, "대장간"],
+  /* id,      그림,       비율 x,  비율 y,  이름 */
+  ["gate",  "gate",     0.00, -0.55, "던전 입구"],
+  ["shop",  "shop",    -0.62, -0.05, "상인"],
+  ["forge", "forge",    0.62, -0.05, "대장간"],
+  /* ★ **웨이포인트**(ROADMAP V-3) — 「지나온 구역을 골라 다시 들어간다」가 되려면
+     그 일이 **마을에 서 있어야** 한다. 여태 그 창은 던전 입구를 눌러야만 나왔고,
+     그래서 「어디로 갈까」가 화면에 한 번도 안 보였다.
+     자리는 건물 셋과 모닥불을 피한 **오른쪽 아래** — 셋이 위·좌·우를 잡고 있어
+     남은 구석이 여기다. 아직 못 여는 동안에도 **세워 둔다**(빛만 없다):
+     보이면 그게 다음 목표가 되고, 안 보이면 열린 줄도 모른다. */
+  ["way",   "waypoint", 0.58,  0.44, "웨이포인트"],
 ];
 const FIRE = [0.00, 0.30];
 
@@ -36,6 +43,7 @@ const FIRE = [0.00, 0.30];
 const GAZE = [
   ["fire",  4.0], ["forge", 1.8], ["fire", 3.2],
   ["shop",  1.9], ["fire",  2.6], ["gate", 1.5],
+  ["fire",  2.2], ["way",   1.4],
 ];
 const AT = { fire: FIRE, ...Object.fromEntries(PLACES.map(([id, , rx, ry]) => [id, [rx, ry]])) };
 const GAZE_CYCLE = GAZE.reduce((s, g) => s + g[1], 0);
@@ -103,9 +111,9 @@ const FRONT = {
 /* ★ 울타리를 뺀다 — 병수님: "마을에 테두리같은건 없애라". 경계를 그리면 그것이
    **테두리**가 되고, 화면이 커질 때마다 「여기가 끝」이 보인다. 마을도 던전과 같이
    **끝없는 맵의 한 조각**이다(js/ground.js drawScatter). */
-const TOWN = ["gate", "shop", "forge", "fire"];
+const TOWN = ["gate", "shop", "forge", "fire", "waypoint"];
 /* 가게마다 사람 하나 — **가게에 사람이 없으면 폐허다.** */
-const NPC_OF = { shop: "merchant", forge: "smith", gate: null };
+const NPC_OF = { shop: "merchant", forge: "smith", gate: null, way: null };
 const NPCS = ["merchant", "smith"];
 const npc = {};
 const art = {};
@@ -124,7 +132,13 @@ export function loadTown(dir = "assets/town") {
       g.imageSmoothingEnabled = false;
       /* ★ 건물만 0.80 이고 소품은 0.72 라 **건물이 혼자 밝아** 떠 보였다 —
          한 화면에 있는 것은 같은 자로 눌러야 한 지역이 된다. */
-      g.filter = "sepia(0.42) saturate(1.05) brightness(0.72)";
+      /* ★ 웨이포인트만 **sepia 를 거의 안 건다.** 이 표의 정체는 «찬 빛»이라
+         다른 것과 같은 세피아를 먹이면 그냥 낡은 돌무더기가 된다 — 마을에서
+         하나만 색이 다른 것이 D2 웨이포인트의 결이다(ground.js DECOR_FILTER 의
+         banner 와 같은 예외 처리). 어둡기(brightness)는 같은 자로 눌러 둔다. */
+      g.filter = n === "waypoint"
+        ? "sepia(0.10) saturate(1.05) brightness(0.74)"
+        : "sepia(0.42) saturate(1.05) brightness(0.72)";
       g.drawImage(im, 0, 0);
       art[n] = c;
       if (--left === 0) ready = true;
@@ -155,7 +169,7 @@ let hits = [];
 export const townHits = () => hits;
 
 /** 마을을 그린다. 반환값은 없고, 누를 수 있는 자리는 townHits() 로 가져간다. */
-export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
+export function drawTown(ctx, w, h, cx, cy, sc, squash, t, wayOn = false) {
   hits = [];
   if (!ready) return;
   const halfW = (w / 2) / sc, halfH = (h / 2) / (sc * squash);
@@ -207,6 +221,11 @@ export function drawTown(ctx, w, h, cx, cy, sc, squash, t) {
        (안 옮기면 창문은 캄캄한데 엉뚱한 벽이 밝다). 현재 그림 기준 발에서 +24, -46. */
     if (id === "forge") addGlow(gx + 24 * sc, gy - 46 * sc * squash, 160 * sc, 1.0);
     if (id === "gate")  addGlow(gx, gy - 70 * sc * squash, 90 * sc, 0.7);
+    /* 웨이포인트는 **열려 있을 때만** 빛난다 — 꺼진 표는 「아직」을 말한다.
+       빛깔도 모닥불색이 아니라 찬 색이다(ground.js addGlow 의 col). 자리는
+       받침 위 새김돌 한가운데(발에서 -34) — 그림을 바꾸면 여기도 같이 옮긴다. */
+    if (id === "way" && wayOn)
+      addGlow(gx, gy - 34 * sc * squash, 120 * sc, 0.95, "120,200,255");
     /* NPC 는 가게 **앞에** 선다 — 사람이 없으면 좌판이 아니라 폐허다. */
     const npcIm = npc[NPC_OF[id]];
     if (npcIm) place(ctx, npcIm, gx + Math.round(28 * sc), gy + Math.round(10 * sc * squash));

@@ -1,5 +1,5 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
- diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -751,7 +751,7 @@ function draw(dt) {
                          set: ["shrub", "shrub", "shrub", "rock", "rock", "rock",
                                "stump", "stump", "boulder", "boulder", "logs", "tree"] } },
                BAND);
-    drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)));
+    drawTown(ctx, w, h, cx, cy, sc, SQUASH, (townT += (dt || 0.016)), diveMax() > 0);
     /* ★ 마을의 불빛은 drawTown 이 자리를 적어 준 **뒤에** 얹어야 그 프레임에 보인다
        (먼저 부르면 한 프레임 늦게, 그것도 소품 밑에 깔린다). */
     drawGlows(ctx, SQUASH);
@@ -2322,20 +2322,82 @@ function drawEnd() {
 
 /* ══ 환생 확인 창 ══ **되돌릴 수 없으므로 먼저 보여 주고 확인을 받는다.** 자동으로
    강제하지 않는다 — 사람이 「환생」을 눌러야 실행된다. 상인·정산과 같은 돌(winFoot·tip). */
-/* ══ 건너뛰기 창 ══ 5층 눈금으로 고른다. **고른 값은 저장**하고, 다음에 열면 그 자리가
-   켜져 있다. 고를 수 있는 위 끝(diveMax)은 최고 깊이보다 두 관문 아래다 — 끝까지
-   건너뛰면 판이 통째로 사라진다. */
+/* ══ 웨이포인트 판 ══ (ROADMAP V-3 · 옛 「건너뛰기 창」)
+   ──────────────────────────────────────────────────────────────
+   여태 이 창은 **층 번호만 스물 몇 개** 늘어놓았다 — 「20층」과 「25층」이 무엇이
+   다른지 화면 어디에도 없으니, 사람은 그냥 **제일 큰 수**를 눌렀다. 고를 것이
+   있는데 고를 «까닭»이 없으면 그건 선택이 아니라 슬라이더다.
+
+   구역이 갈린 뒤로는(G-b) 까닭이 이미 판 안에 있다 — **구역마다 잘 나오는 물건이
+   다르다**(ZONES.bias). 장갑이 필요하면 잿빛 야영터로 되돌아가는 것이 이 창의 뜻이고,
+   그게 D2 의 웨이포인트가 하는 일이다. 그래서 층 목록을 **구역 카드**로 바꾼다:
+   이름·빛깔(tint)·층 범위·거기 서는 적·잘 나오는 슬롯을 한 칸에 담고, 층 눈금은
+   그 안에 칩으로 넣는다.
+
+   ★ **고를 수 있는 폭은 한 톨도 안 줄인다.** 구역 첫 층(z.from)은 5의 배수가 아닌
+     것이 많은데(4·9·16·26), 옛 창은 5눈금만 줬다. 이제 **구역 첫 층 + 그 구역 안의
+     5눈금**을 다 준다 — 늘어난 쪽이다(16층에 서려고 20층을 고를 일이 없어진다).
+   ★ 깊이 200 이면 심연 한 구역에 칩이 서른 개가 된다 — **여섯 개로 자르되 제일
+     깊은 것들을 남긴다**(맨 앞 하나 + 뒤에서 다섯). 지금 고른 칩은 잘려도 되살린다.
+   ★ 아직 못 여는 구역도 **회색으로 보여 준다.** 안 보이면 「더 있다」를 모르고,
+     보이면 그게 다음 목표가 된다(D2 의 회색 웨이포인트가 그 일을 한다). */
+const zoneTo = (i) => (ZONES[i + 1] ? ZONES[i + 1].from - 1 : 0);
+/** 그 구역이 열리는 데 필요한 깊이 — diveMax() 를 거꾸로 푼 것(5눈금 + 두 관문). */
+const zoneNeed = (z) => DIVE_BACK + Math.ceil(z.from / DIVE_STEP) * DIVE_STEP;
+/** 카드 하나가 주는 층 칩들. 값은 「고른 층」(0 = 처음부터). */
+function zoneMarks(z, i, max, cur) {
+  const to = zoneTo(i) || Infinity;
+  const m = [];
+  if (z.from <= max) m.push(z.from);
+  for (let f = Math.ceil(z.from / DIVE_STEP) * DIVE_STEP; f <= Math.min(to, max); f += DIVE_STEP)
+    if (f !== z.from) m.push(f);
+  let out = m.length > 6 ? [m[0], ...m.slice(-5)] : m;
+  const c = cur || 1;                                  // 처음부터(0)는 1층 칩이다
+  if (c >= z.from && c <= to && c <= max && !out.includes(c)) out = [...out, c].sort((a, b) => a - b);
+  return out;
+}
 function drawDive() {
-  const max = diveMax(), cur = diveAt();
-  const opts = [0];
-  for (let f = DIVE_STEP; f <= max; f += DIVE_STEP) opts.push(f);
+  const max = Math.max(1, diveMax()), cur = diveAt();
+  const here = zoneOf(cur || 1).n;                      // 지금 고른 층이 선 구역
+  const cards = ZONES.map((z, i) => {
+    const to = zoneTo(i);
+    const span = to ? (z.from === to ? `${z.from}층` : `${z.from}~${to}층`) : `${z.from}층~`;
+    const tint = z.tint || "#c8aa6e";
+    const head = `<div class="wayHead"><span class="wayN" style="color:${tint}">${z.n}</span>`
+               + `<span class="wayF">${span}</span></div>`;
+    if (z.from > max) {                                 // 아직 안 열린 구역 — 회색으로 남겨 둔다
+      return `<div class="wayZ lock">${head}`
+           + `<div class="wayLock"><b>${zoneNeed(z)}층</b>까지 내려가면 열린다</div></div>`;
+    }
+    const who = [...new Set(z.kinds)].map((k) => MOB_N[k] || k).join(" · ");
+    const drop = Object.entries(z.bias || {}).filter(([, v]) => v > 1)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k]) => `<b>${(GEAR[k] || {}).n || k}</b>`).join(" · ");
+    const chips = zoneMarks(z, i, max, cur).map((f) => {
+      const v = f <= 1 ? 0 : f;                         // 1층은 옛 값 그대로 0(처음부터)
+      return `<button class="btn diveOpt${v === cur ? " on" : ""}" data-dive="${v}">`
+           + `${v ? v + "층" : "처음부터"}</button>`;
+    }).join("");
+    return `<div class="wayZ${z.n === here ? " on" : ""}">${head}`
+         + `<div class="wayWho">${who}</div>`
+         + (drop ? `<div class="wayDrop">잘 나오는 것 ${drop}</div>` : "")
+         + `<div class="wayChips">${chips}</div></div>`;
+  }).join("");
   $("diveBody").innerHTML =
-    `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 고를 수 있는 데까지 <b>${max}층</b></div>` +
-    `<div class="diveGrid">` + opts.map((f) =>
-      `<button class="btn diveOpt${f === cur ? " on" : ""}" data-dive="${f}">${f ? f + "층" : "처음부터"}</button>`
-    ).join("") + `</div>` +
+    `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 표를 세운 데까지 <b>${max}층</b></div>` +
+    `<div class="wayList">${cards}</div>` +
     `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.` +
     ((META.diveSet | 0) ? "" : `<br>고르지 않으면 <b>${max}층</b>부터 시작한다.`) + `</div>`;
+  /* ★ **지금 고른 구역이 보이게 굴려 둔다.** 카드가 일곱 장이라 낮은 창에서는 아래
+     둘셋이 접힌다 — 그런데 기본값은 **제일 깊은 구역**이라(diveAt), 열자마자 보이는
+     것은 늘 1층짜리 「무너진 묘지」였다. 고른 것이 안 보이면 고른 줄도 모르고,
+     누르려면 굴려야 한다(자도 그래서 칸을 못 눌렀다 · dive_qa).
+     목록의 scrollTop 만 만진다 — scrollIntoView 는 창 바깥까지 굴린다. */
+  requestAnimationFrame(() => {
+    const list = $("diveBody").querySelector(".wayList");
+    const on = list && list.querySelector(".wayZ.on");
+    if (on) list.scrollTop = Math.max(0, on.offsetTop - list.offsetTop - 6);
+  });
 }
 function drawReborn() {
   const p = rebirthPreview();
@@ -2571,6 +2633,15 @@ $("stage").addEventListener("click", (e) => {
   /* ★ 건너뛸 수 있게 된 뒤에는 **묻고 나서** 내려간다. 아직 못 고르면 예전 그대로 —
      조건이 안 됐는데 창부터 뜨면 초반이 한 번 더 눌러야 하는 판이 된다. */
   if (id === "gate")  { closeAll(); if (diveMax() > 0) { drawDive(); win("winDive", true); } else toDungeon(); }
+  /* ★ **표를 누르면 어디로 갈지 고른다**(ROADMAP V-3). 아직 안 열렸으면 창을 여는 대신
+     **왜 안 열렸는지**를 마을 로그 한 줄로 말한다 — 눌렀는데 아무 일도 안 일어나면
+     그건 고장으로 읽힌다(누를 수 있는 것은 언제나 무슨 말이든 해야 한다). */
+  if (id === "way") {
+    closeAll();
+    if (diveMax() > 0) { drawDive(); win("winDive", true); }
+    else { S.log.push(`표가 아직 잠들어 있다 — <b>${DIVE_MIN_DEEPEST}층</b>까지 내려가면 깨어난다`); }
+    return;
+  }
   if (id === "shop")  { closeAll(); drawShop();  win("winShop", true); }
   if (id === "forge") { closeAll(); drawForge(); win("winForge", true); }
 });

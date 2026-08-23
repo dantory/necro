@@ -735,7 +735,11 @@ export function place(ctx, cv, gx, gy, shadow = true, kMul = 1) {
 const GLOW_PX = 6;                    // 빛 한 칸(화면 픽셀)
 let glows = [];                       // 이번 프레임에 빛날 자리
 
-export function addGlow(gx, gy, r, warm = 1) { glows.push([gx, gy, r, warm]); }
+/** 빛 하나를 쌓는다. **빛깔은 기본이 모닥불색**이고, 그것 말고 다른 색이 필요한 것은
+ *  지금 웨이포인트 하나뿐이다(V-3 — 찬 빛이 그 표의 정체다). 색을 인자로 받되
+ *  **캐시 열쇠에 함께 넣는다**: 안 넣으면 먼저 구운 주황 타일이 파란 자리에 그대로 얹힌다. */
+export const GLOW_WARM = "255,180,90";
+export function addGlow(gx, gy, r, warm = 1, col = GLOW_WARM) { glows.push([gx, gy, r, warm, col]); }
 
 /** 쌓인 빛을 한 번에 얹는다. **부르는 시점이 중요하다** — addGlow 를 부른 뒤에
  *  불러야 그 프레임에 그려진다(마을은 drawTown 이 끝난 뒤 main 이 부른다). */
@@ -746,8 +750,8 @@ export function addGlow(gx, gy, r, warm = 1) { glows.push([gx, gy, r, warm]); }
    ★ 그림은 **결정적**이다(자리·반지름·따뜻함만으로 정해진다) → **한 번 구워 두고 얹는다.**
      열쇠는 반지름·따뜻함·눌림. 종류가 몇 개뿐이라 캐시가 금세 수렴한다. */
 const glowCache = new Map();
-function glowTile(r, warm, squash) {
-  const key = Math.round(r) + "|" + warm.toFixed(2) + "|" + squash.toFixed(3);
+function glowTile(r, warm, squash, col) {
+  const key = Math.round(r) + "|" + warm.toFixed(2) + "|" + squash.toFixed(3) + "|" + col;
   let c = glowCache.get(key);
   if (c) return c;
   const n = Math.ceil(r / GLOW_PX);
@@ -766,7 +770,7 @@ function glowTile(r, warm, squash) {
       const step = d < 0.28 ? 5 : d < 0.45 ? 4 : d < 0.62 ? 3 : d < 0.78 ? 2 : d < 0.92 ? 1 : 0;
       if (!step) continue;
       const a = [0, 0.022, 0.042, 0.068, 0.10, 0.14][step] * warm;
-      g.fillStyle = `rgba(255,180,90,${a})`;
+      g.fillStyle = `rgba(${col},${a})`;
       g.fillRect(half + ix * GLOW_PX, y0, GLOW_PX, y1 - y0);
     }
   }
@@ -781,8 +785,8 @@ export function drawGlows(ctx, squash) {
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
   /* 구운 것을 얹는다 — 자리를 반올림해 칸 격자가 프레임마다 안 흔들리게. */
-  for (const [gx, gy, r, warm] of glows) {
-    const t = glowTile(r, warm, squash);
+  for (const [gx, gy, r, warm, col] of glows) {
+    const t = glowTile(r, warm, squash, col || GLOW_WARM);
     ctx.drawImage(t.cv, Math.round(gx) - t.half, Math.round(gy) - t.halfY);
   }
   ctx.restore();
