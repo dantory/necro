@@ -304,17 +304,17 @@ export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
 export const ZONES = [
   { from: 1,  n: "무너진 묘지",   tile: "crypt", tint: null,
     kinds: ["fallen"],                        bias: { wand: 2.2, charm: 1.6 } },
-  { from: 4,  n: "썩은 시체 굴",  tile: "crypt", tint: "#8fa07a",
+  { from: 4,  n: "썩은 시체 굴",  tile: "rot",   tint: null,
     kinds: ["fallen", "zombie"],              bias: { robe: 2.2, belt: 1.8 } },
   { from: 9,  n: "뼈의 회랑",     tile: "bone",  tint: "#a4b0bc",
     kinds: ["fallen", "zombie", "skelarch"],  bias: { helm: 2.2, shield: 1.8 } },
   { from: 16, n: "잿빛 야영터",   tile: "camp",  tint: "#a8906c",
     kinds: ["zombie", "skelarch", "brute"],   bias: { glove: 2.2, boots: 1.8 } },
-  { from: 26, n: "어둠의 성소",   tile: "bone",  tint: "#7d7fa8",
+  { from: 26, n: "어둠의 성소",   tile: "sanctum", tint: "#9a92c4",
     kinds: ["skelarch", "brute", "brute"],    bias: { ring: 2.2, ring2: 1.8 } },
-  { from: 40, n: "마른 피의 골",  tile: "camp",  tint: "#a06a62",
+  { from: 40, n: "마른 피의 골",  tile: "blood", tint: "#c9a08e",
     kinds: ["skelarch", "brute", "brute"],    bias: { wand: 2.2, glove: 1.8 } },
-  { from: 60, n: "심연",          tile: "crypt", tint: "#6a72a0",
+  { from: 60, n: "심연",          tile: "abyss", tint: null,
     kinds: ["skelarch", "brute", "brute"],    bias: { charm: 2.2, ring2: 1.8 } },
 ];
 /** 그 층이 선 구역. 표는 얕은 데서 자주 갈리고 깊은 데서 넓다 — 첫 몇 분에

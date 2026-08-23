@@ -51,7 +51,11 @@ export function useFloor(name, tint = null) {
  *  ★ 굽는 김에 **밝기도 올린다.** PixelLab 이 준 crypt 타일은 평균 밝기가 41(255 중)
  *  이라 조명을 곱하면 거의 검정이 된다. 어둠은 조명이 만들어야 하므로 재료는 밝게
  *  둔다 — 그래야 빛 안에서 살아나고 빛 밖에서 잠긴다. */
-export function loadFloor(src, boost = 1.8, name = "crypt") {
+/*  ★★ `sat` 을 밖에서 준다(V-5). 여태 채도는 0.9 로 못 박혀 있었는데, **재질마다
+ *  타고난 채도가 다르다** — 새로 구운 「마른 피의 골」은 원본이 RGB(69,5,32) 라
+ *  평균밝기를 다른 구역과 똑같이 맞춰도 화면에서는 혼자 새빨갰다(최대채널 86 대 42~55).
+ *  평균은 **빨강 하나만 서 있는 색**을 못 본다 — 그러니 밝기 말고 채도도 손잡이여야 한다. */
+export function loadFloor(src, boost = 1.8, name = "crypt", sat = 0.9) {
   const im = new Image();
   LOAD.total++;
   im.onload = () => {
@@ -73,7 +77,7 @@ export function loadFloor(src, boost = 1.8, name = "crypt") {
         c.width = t; c.height = t;
         const g = c.getContext("2d");
         g.imageSmoothingEnabled = false;
-        g.filter = `brightness(${boost * tone}) saturate(0.9)`;
+        g.filter = `brightness(${boost * tone}) saturate(${sat})`;
         g.translate(sx < 0 ? t : 0, sy < 0 ? t : 0);
         g.scale(sx, sy);
         g.drawImage(im, 0, 0);

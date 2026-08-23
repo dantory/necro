@@ -1,8 +1,10 @@
-/* 구역 넷을 **켜서 본다** — 자가 「갈린다」고 해도 화면이 갈렸는지는 눈이 봐야 안다.
+/* 구역을 하나씩 **켜서 본다** — 자가 「갈린다」고 해도 화면이 갈렸는지는 눈이 봐야 안다.
    (ROADMAP G-b · [[play-it-before-measuring-it]])
      node tools/zone_shots.mjs [tmp/zones]     → tmp/zones_f<층>.png 넉 장 + 합성 시트 */
 const OUT = process.argv[2] || "tmp/zones";
-const FLOORS = [2, 12, 20, 45];
+/* ★ V-5 로 바닥 그림이 **일곱 구역 다 달라졌다** — 그러니 넷만 보면 모자란다.
+   구역이 처음 열리는 층을 전부 찍는다(둘째 인자로 바꿀 수 있다). */
+const FLOORS = (process.argv[3] || "1,4,9,16,26,40,60").split(",").map(Number);
 const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
 const ver = await (await fetch(CDP + "/json/version")).json();
 const bws = new WebSocket(ver.webSocketDebuggerUrl);

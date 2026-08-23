@@ -3004,6 +3004,17 @@ loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
    **무늬와 색 기운**(ZONES.tint)이다. */
 loadFloor("assets/floor/bone_tile.png", 0.70, "bone");     // 62 × 0.70 ≈ 43
 loadFloor("assets/floor/camp_tile.png", 0.38, "camp");     // 117 × 0.38 ≈ 44
+/* ★★ 구역 바닥 **넉 장**을 더 굽는다(ROADMAP V-5). 여태 일곱 구역이 타일 셋을 **색만
+   바꿔** 돌려 썼다 — 색 곱하기는 값싸게 「달라 보이게」 하지만 **무늬는 그대로**라
+   4층에서 9층으로 내려가도 발밑의 돌 이음새가 한 톨도 안 바뀐다. 내려가는 맛은
+   색이 아니라 **재질**이 낸다.
+   ★ 밝기를 고르는 자는 **평균이 아니라 최대채널**이다(V-5 에서 두 번 놓쳤다). 평균은
+     RGB(69,5,32) 처럼 **한 채널만 서 있는 색**을 못 본다 — 평균을 맞춰 놓고도 화면에서는
+     혼자 새빨갛다. 일곱 구역의 최대채널을 42~55 에 모으고, 채도가 튀는 것은 sat 로 눌렀다. */
+loadFloor("assets/floor/rot_tile.png",     0.98, "rot",  0.72); // 썩은 시체 굴 4층
+loadFloor("assets/floor/sanctum_tile.png", 0.73, "sanctum"); // 어둠의 성소 26층 · 60 × 0.73 ≈ 44
+loadFloor("assets/floor/blood_tile.png",   0.68, "blood");      // 마른 피의 골 40층
+loadFloor("assets/floor/abyss_tile.png",   0.95, "abyss");      // 심연 60층
 /* ★ 마을 바닥을 **야영지 마른 풀**로 바꾼다(병수님이 준 D2 로그 야영지 화면).
    갈색 흙 한 가지는 「공터」로 읽혔다 — 마른 풀빛이라야 야영지가 된다.
    원본 평균 110 이라 0.70 을 곱해 70 안팎 — 던전(40~60)보다 밝고 눈이 안 시리다. */
