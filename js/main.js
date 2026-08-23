@@ -1,5 +1,5 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
- diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -1640,7 +1640,12 @@ function auto() {
     if (S.corpses >= CORPSE_MAX * 0.85 && S.mobs.some(m => m.boss)) cast("offer");
     if (S.mobs.length >= 5 && S.corpses >= CORPSE_MAX * 0.85) cast("wall");
   }
-  if (S.mobs.length && S.corpses >= CORPSE_MAX * tac.novaCorpse && (!tac.novaBossOnly || boss)) cast("nova");
+  /* ★ D-47 · **편성마다 폭발의 문턱이 다르다**(core.js `__DOC_CORPSE` · 기본 꺼짐).
+     꺼져 있으면 dc = {novaMul:1, keep:0} 이라 이 줄은 예전 식과 **한 톨도 안 다르다**.
+     켜면 해골·구울 편성은 문턱이 높아지고 남길 몫(keep)이 생겨, 그 시체를 auto() **앞줄의
+     소환**이 먼저 가져간다 — 값이 아니라 차례가 답을 만든다. */
+  const dc = docCorpseOf();
+  if (S.mobs.length && S.corpses - dc.keep >= CORPSE_MAX * tac.novaCorpse * dc.novaMul && (!tac.novaBossOnly || boss)) cast("nova");
   if (!globalThis.__NOSINK && S.corpses >= CORPSE_MAX * 0.85 && S.mp < mpMaxOf() * 0.90) cast("burn");
   /* ㉤ **마른 마나에 문을 연다** (__BURN_MANA · 기본 0 = 꺼짐). 위 줄은 「시체가 넘칠 때」만
      연다 — 140 중 119구다. 그래서 마나가 벽인데 시체는 중간(46~72구)인 판에서는 이 출구가

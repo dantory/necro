@@ -73,6 +73,38 @@ export const DOCTRINE = {
   wall:    { n:"골렘 벽",   ico:"◆", d:"두꺼운 벽으로 막는다 — 골렘을 여럿 앞세운다",     wallMin:2, wallMax:5, wallDiv:2.5, body:0.30 },
 };
 export const DOCTRINE_IDS = Object.keys(DOCTRINE);
+
+/* ══ D-47 · **편성마다 시체를 다르게 쓴다**(`__DOC_CORPSE` · 기본 0 = 꺼짐) ══
+   D-46 이 낸 답이 여기 문을 낸 까닭이다 — 편성 넷을 갈아도 죽이는 자는 늘 시체폭발이고
+   (85~95% · 폭 9.8%p), 근접 막타는 넷 다 2~8% 였다. 편성은 **화면에 서 있는 몸의 종류**만
+   바꿀 뿐 «이기는 길»은 하나다. 까닭은 값이 아니라 **문**이다: 시체를 쓰는 길이 auto() 에서
+   한 갈래(폭발 문턱 `tac.novaCorpse`)뿐이라 편성 넷이 **같은 문**으로 들어간다.
+   그래서 값(체력·피해·수)을 만지는 것은 [[knob-that-does-nothing]] 을 하나 더 만드는 일이다.
+   ★ 여기서 갈리는 것은 **시체의 쓰임**이다 — 두 손잡이뿐이고, 둘 다 폭발 쪽에만 건다:
+       novaMul  폭발 문턱에 곱한다(2 면 시체가 두 배 쌓여야 터진다 — 되살리는 데 먼저 쓴다)
+       keep     폭발이 **손대지 않는 시체 수**(이만큼은 늘 소환·벽 몫으로 남는다)
+     소환(raise/ghoul/golem)·저주·burn 의 조건은 **한 톨도 안 건드린다**. 폭발이 늦게 열리면
+     그 시체는 이미 auto() 앞줄의 소환이 가져간다 — 차례가 답을 만든다(ab_mana.sh 의 그 결).
+   ★ **꺼져 있으면 옛 값과 완전히 같다.** 게이트가 0 이면 넷 다 novaMul 1 · keep 0 이라
+     auto() 의 식이 `S.corpses >= CORPSE_MAX*tac.novaCorpse` 로 되돌아간다(RNG 소비도 그대로).
+     값은 재고 나서 정한다([[seed-the-probe]] 의 되돌린 팔 · H-2 와 같은 절차). */
+export const DOC_CORPSE_DEF = 0;
+export const DOC_CORPSE_OF = () => (typeof globalThis !== "undefined" && globalThis.__DOC_CORPSE != null)
+  ? +globalThis.__DOC_CORPSE : DOC_CORPSE_DEF;
+/** 편성별 **시체 쓰임**. 게이트가 꺼져 있으면 넷 다 `{novaMul:1, keep:0}` 이다.
+ *  켜면 편성이 폭발에 기대는 정도가 갈린다 — 해골은 되살리려 아끼고(문턱 두 배 · 여섯 구
+ *  남김), 구울은 물어뜯을 몸을 먼저 세우고, 골렘벽은 백골 벽에 쓸 몫을 크게 남긴다.
+ *  균형은 **기준선**이라 켜도 옛 값 그대로다(A/B 의 대조 팔이 된다). */
+export const DOC_CORPSE = {
+  balance: { novaMul: 1.0, keep: 0 },
+  bone:    { novaMul: 2.0, keep: 6 },
+  flesh:   { novaMul: 1.5, keep: 4 },
+  wall:    { novaMul: 1.0, keep: 8 },
+};
+export const docCorpseOf = () => {
+  if (!(DOC_CORPSE_OF() > 0)) return { novaMul: 1, keep: 0 };
+  return DOC_CORPSE[doctrineId()] || { novaMul: 1, keep: 0 };
+};
 /** 지금 세우는 편성의 **id**. 머리 없는 자(검수기)를 위한 문 — `globalThis.__DOCTRINE`
  *  이 있으면 META 보다 앞선다(gatelordFor 의 `__FORCE_LORD` 와 같은 규칙). 모르는 값이면
  *  기본값으로 떨어진다(옛 저장·오타 방어). */
