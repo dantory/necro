@@ -1035,7 +1035,7 @@ function draw(dt) {
     /* ══ 둘레를 지난 놈 ══ **왜 내가 맞고 있는지**가 화면에 없었다. 사방에서 오는 판이라
        적이 여럿인데, 그중 **본인에게 닿을 놈**과 소환수에 붙들린 놈이 똑같아 보였다.
        진을 지나 안쪽으로 들어온 놈의 발밑만 붉게 물들인다 — 「저기가 뚫렸다」가 읽힌다. */
-    if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && !m.born) {
+    if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && !(m.born > 0)) {
       const rr = hh * 0.30;
       ctx.save();
       ctx.translate(x, y);                                   // 원점 그러데이션(위 radial 캐시)
@@ -1046,7 +1046,7 @@ function draw(dt) {
     /* ══ 우두머리 무리 ══ **평지에서 군대를 쓸어내는 놈**이라 한눈에 갈려야 한다
        (battle.js CHAMP 문). 관문 주인의 붉은 고리와 달리 금빛이고, 발밑에만 두른다 —
        크기(×1.22)만으로는 「좀 큰 졸개」로 읽힌다. */
-    if (m.champ && !m.born) {
+    if (m.champ && !(m.born > 0)) {
       const rr = hh * 0.34;
       ctx.save(); ctx.translate(x, y);
       ctx.globalAlpha = 0.75; ctx.strokeStyle = m.col || "#e0b44a"; ctx.lineWidth = Math.max(1.5, 2 * us);

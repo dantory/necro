@@ -1628,7 +1628,7 @@ export function step(dt) {
      fade 가 다 되면 배열에서 뺀다 — **개수 S.corpses 는 안 건드린다**(enterFloor 의 예외). */
   for (let i = S.piles.length - 1; i >= 0; i--) {
     const p = S.piles[i];
-    if (p.born > 0) p.born -= dt;
+    if (p.born > 0) p.born = Math.max(0, p.born - dt);   // ★ 0 을 지나 음수로 내려가면 «다 배어 나왔다»가 영영 거짓이 된다 (V-12)
     if (p.fade !== undefined && (p.fade -= dt) <= 0) S.piles.splice(i, 1);
   }
   for (let i = S.nums.length - 1; i >= 0; i--) if ((S.nums[i].t -= dt) <= 0) S.nums.splice(i, 1);
@@ -1684,7 +1684,7 @@ export function step(dt) {
      병수님 2026-08-13 "하수인 걷는모션 없이 떠다님". */
   const walkT = (e) => { if (e.moving > 0) { e.moving -= dt; e.moveT = (e.moveT || 0) + dt; } };
   for (const e of S.minions) { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.rise > 0) e.rise -= dt; if (e.weak > 0) e.weak -= dt; }
-  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born -= dt; if (e.wkT > 0) e.wkT -= dt;
+  for (const e of S.mobs)    { walkT(e); if (e.swing > 0) e.swing -= dt; if (e.flinch > 0) e.flinch -= dt; if (e.born > 0) e.born = Math.max(0, e.born - dt); if (e.wkT > 0) e.wkT -= dt;
     /* ★ 주인이 오래 서 있으면 **지친다**(위 TIRE_AT 주석) — 끝나지 않는 싸움을 산수로 막는다. */
     if (e.boss) {
       const at = TIRE_AT_OF();
