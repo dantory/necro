@@ -1,0 +1,201 @@
+/* ══ D-46 ㉠ · 「폭발 92% 는 판의 성질인가, 균형 편성의 성질인가」를 한 수로 가른다 ══
+     node tools/d46_forks.mjs [초=40] [씨앗들=1,3,5] [목표층=21] [편성들=balance,bone,flesh,wall]
+     node tools/d46_forks.mjs judge        ← 판을 다시 안 돌리고 tmp/d46_forks.json 만 다시 판정
+
+   D-45 가 갈라 놓은 것: 층 21 에서 적 483 마리 중 **92% 가 시체폭발의 막타**이고 근접
+   소환수는 5% 뿐이다. 그런데 D-45 는 **「균형」편성 하나만** 돌렸다 — 그것이 이 게임의
+   성질인지 그 편성의 성질인지 아직 모른다([[cause-written-in-the-item-is-a-guess]]).
+   넷 다 폭발로 이긴다면 편성 손잡이가 「누가 죽이나」를 못 바꾼다는 뜻이고(B-1 이 아직
+   열려 있는 그 자리), 갈린다면 D-45 의 한 문장을 편성별로 다시 적어야 한다.
+
+   ★ **자를 새로 만들지 않는다** — D-45 가 판에 붙인 장부(`__KILLBY`/`__KILLDMG`/`__KILLAT`)를
+     그대로 읽고, 안무·씨앗·층·초까지 D-45 와 **같게** 두었다. 바뀌는 것은 한 줄뿐이다:
+     들어가기 전에 `globalThis.__DOCTRINE` 을 박는다(core.js `doctrineId` 가 열어 둔 문).
+     그래서 balance 팔은 D-45 의 수와 **그대로 견줄 수 있다** — 자가 옳은지 먼저 보는 자리다.
+   ★ 사람이 가는 그 길로 간다([[probe-must-walk-the-real-path]]) — rAF 를 안 끊고 게임의
+     빨리감기로 내려가, 목표층에 닿으면 속도를 1 로 되돌리고 **거기서 장부를 비운다.**
+
+   끝 조건 (재기 전에 적는다 · ROADMAP 의 D-46 항목에도 같은 글이 있다)
+     ① **옳은 화면인가** — 판마다 마을에 있던 초 5 이하 · 시작층이 목표층 이상.
+     ② **뜻 있는 표본인가** — **편성마다** 적의 죽음 30 마리 이상([[floor-far-from-threshold]]).
+     ③ **씨앗 셋 × 편성 넷 = 12 판**([[seed-the-probe]]).
+     ④ **가르는 수** ㄱ 편성별 **폭발 막타 몫**(%) · ㄴ 편성별 **근접 막타 몫**(%) ·
+        ㄷ 편성별 **군세 평균**·**죽음 수**(40초에 몇 마리) · ㄹ **"etc" 몫**.
+     ⑤ **판정 갈래** — 문턱은 씨앗 잡음에서 멀게 잡는다(D-45 의 세 씨앗이 90·92·92% 라
+        잡음은 2%p 안쪽이다 · 아래 15%p 는 그 일곱 배).
+        ㉠ **손잡이가 하나뿐이다** — 편성 넷이 다 폭발 몫 **75% 이상**이고 편성 사이
+           **폭(최대-최소) 15%p 미만** → 편성은 「누가 죽이나」를 못 바꾼다. 그러면 92% 는
+           판의 성질이고, 편성을 갈리게 하려면 **편성이 폭발 비중 자체를 갈라야** 한다.
+        ㉡ **편성이 갈린다** — 폭발 몫 폭 **15%p 이상** → 92% 는 「균형」의 성질이다.
+           D-45 의 한 문장을 편성별로 다시 적고, 제일 안 갈리는 편성부터 본다.
+        ㉢ **못 센 것이 있다** — "etc" 몫 20% 넘음 → 판정을 미루고 그 길부터 찾는다.
+        ㉣ **자가 어긋났다** — balance 팔의 폭발 몫이 D-45 의 92% 에서 **10%p 넘게** 벗어남
+           → 값을 읽기 전에 **자를 먼저 의심한다**([[threshold-and-ruler-must-match]]).
+        · 곁가지로 함께 적는다: **죽음 수**가 편성 사이 30% 넘게 갈리면 「편성이 «누가»는
+          못 갈라도 «얼마나 빨리»는 가른다」를 따로 적는다(D 의 물음에 닿는 수다). */
+const CDP = `http://127.0.0.1:${process.env.NECRO_CDP_PORT || "9333"}`;
+const PAGE = "http://127.0.0.1:8774/index.html";
+const SEC = +(process.argv[2] || 40);
+const SEEDS = String(process.argv[3] || "1,3,5").split(",").map(Number);
+const TARGET = +(process.argv[4] || 21);
+const DOCS = String(process.argv[5] || "balance,bone,flesh,wall").split(",");
+const FF = +(process.env.D46_FF || 8);
+const FFCAP = +(process.env.D46_FFCAP || 200);
+const OUT = process.env.D46_OUT || "tmp/d46_forks.json";
+const fs = await import("node:fs");
+const KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
+const 폭발갈래 = ["시체폭발", "넘침", "죽음폭발"];
+const 이름 = { balance: "균형", bone: "해골", flesh: "구울", wall: "골렘벽" };
+const D45_BALANCE = 92;              // D-45 가 같은 자리에서 낸 수(㉣ 가 견줄 기준)
+
+function 편성별(j) {
+  const by = {};
+  for (const [k, o] of Object.entries(j)) {
+    const d = k.split("/")[0];
+    const a = by[d] || (by[d] = { 막타: {}, 깎은몫: {}, 죽음: 0, 깎음: 0, 군세: [], 판: 0, 마을: 0, 얕음: 0 });
+    for (const kk of KINDS) { a.막타[kk] = (a.막타[kk] || 0) + (o.막타[kk] || 0); a.깎은몫[kk] = (a.깎은몫[kk] || 0) + (o.깎은몫[kk] || 0); }
+    a.죽음 += o.죽음; a.깎음 += o.깎음; a.군세.push(o.군세평균); a.판++;
+    if (o.마을초 > 5) a.마을++; if (o.시작층 < TARGET) a.얕음++;
+  }
+  return by;
+}
+function 판정(j) {
+  const by = 편성별(j);
+  const ids = Object.keys(by);
+  if (!ids.length) return "표본 없음 — 판정 못 함";
+  const 흠 = [];
+  const 줄 = [];
+  for (const d of ids) {
+    const a = by[d];
+    if (a.마을) 흠.push(`①${이름[d] || d} 마을초>5 ${a.마을}판`);
+    if (a.얕음) 흠.push(`①${이름[d] || d} 시작층 모자람 ${a.얕음}판`);
+    if (a.죽음 < 30) 흠.push(`②${이름[d] || d} 표본 ${a.죽음}<30`);
+    const 몫 = k => (a.막타[k] || 0) / Math.max(1, a.죽음);
+    a.폭발 = +(폭발갈래.reduce((s, k) => s + 몫(k), 0) * 100).toFixed(1);
+    a.근접 = +(몫("근접") * 100).toFixed(1);
+    a.본인 = +(몫("본인") * 100).toFixed(1);
+    a.etc = +(몫("etc") * 100).toFixed(1);
+    a.군세평균 = +(a.군세.reduce((s, v) => s + v, 0) / Math.max(1, a.군세.length)).toFixed(2);
+    줄.push(`   · ${(이름[d] || d).padEnd(4)} 폭발 ${String(a.폭발).padStart(5)}% · 근접 ${String(a.근접).padStart(4)}% · 본인 ${String(a.본인).padStart(4)}% · 군세 ${String(a.군세평균).padStart(5)} · 죽음 ${a.죽음}`);
+  }
+  const 폭 = Math.max(...ids.map(d => by[d].폭발)) - Math.min(...ids.map(d => by[d].폭발));
+  const 죽max = Math.max(...ids.map(d => by[d].죽음)), 죽min = Math.min(...ids.map(d => by[d].죽음));
+  const 죽폭 = (죽max - 죽min) / Math.max(1, 죽max) * 100;
+  const etc최대 = Math.max(...ids.map(d => by[d].etc));
+  const 갈래 = [];
+  if (etc최대 > 20) 갈래.push(`㉢ 못 센 것이 있다(etc 최대 ${etc최대.toFixed(0)}%)`);
+  if (by.balance && Math.abs(by.balance.폭발 - D45_BALANCE) > 10)
+    갈래.push(`㉣ 자가 어긋났다(균형 ${by.balance.폭발}% · D-45 는 ${D45_BALANCE}%)`);
+  if (폭 >= 15) 갈래.push(`㉡ 편성이 갈린다(폭발 몫 폭 ${폭.toFixed(1)}%p)`);
+  else if (ids.every(d => by[d].폭발 >= 75)) 갈래.push(`㉠ 손잡이가 하나뿐이다(넷 다 ${Math.min(...ids.map(d => by[d].폭발)).toFixed(0)}% 이상 · 폭 ${폭.toFixed(1)}%p)`);
+  const 몸통 = 갈래.length ? 갈래.join(" + ")
+    : `섞였다 — 폭 ${폭.toFixed(1)}%p 인데 넷 다 75% 를 넘지는 않는다`;
+  const 곁 = 죽폭 >= 30 ? `\n곁가지: **편성이 «얼마나 빨리»는 가른다** — 40초 죽음 ${죽min}~${죽max}(폭 ${죽폭.toFixed(0)}%)` : `\n곁가지: 죽음 수는 편성 사이 ${죽폭.toFixed(0)}% 만 갈린다(문턱 30%)`;
+  return (흠.length ? `⚠ ${흠.join(" · ")} → ` : "") + 몸통 + "\n" + 줄.join("\n") + 곁;
+}
+
+if (process.argv[2] === "judge") {
+  const j = JSON.parse(fs.readFileSync(OUT, "utf-8"));
+  console.log(`판정(저장된 수로 다시): ${판정(j)}`); process.exit(0);
+}
+
+const stale = (await (await fetch(CDP + "/json/list")).json())
+  .filter(t => t.type === "page" && t.url.startsWith(PAGE.split("index.html")[0]));
+for (const t of stale) await fetch(`${CDP}/json/close/${t.id}`).catch(() => {});
+const ver = await (await fetch(CDP + "/json/version")).json();
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+let id = 0; const pend = new Map(); const errs = [];
+const raw = (m, p = {}, s) => { const i = ++id; bws.send(JSON.stringify({ id: i, method: m, params: p, sessionId: s })); return new Promise((res, rej) => pend.set(i, { res, rej })); };
+bws.addEventListener("message", e => { const m = JSON.parse(e.data);
+  if (m.id && pend.has(m.id)) { const p = pend.get(m.id); pend.delete(m.id); return m.error ? p.rej(new Error(JSON.stringify(m.error))) : p.res(m.result); }
+  if (m.method === "Runtime.exceptionThrown") errs.push((m.params.exceptionDetails?.exception?.description || "").slice(0, 140)); });
+await new Promise(r => bws.addEventListener("open", r));
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+const RESET = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLAT;
+  if(!B||!D||!A) return 0;
+  for(const k of Object.keys(B)) B[k]=0;
+  for(const k of Object.keys(D)) D[k]=0;
+  for(const k of Object.keys(A)) A[k].length=0;
+  return 1; })()`;
+const READ = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLAT;
+  if(!B) return null;
+  const at={}; for(const k of Object.keys(A)) at[k]=A[k].slice();
+  return { 막타:{...B}, 깎은몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])), 죽은자리:at }; })()`;
+
+const out = {};
+for (const DOC of DOCS) {
+  console.log(`\n╔═══ 편성 ${이름[DOC] || DOC} (${DOC}) ═══╗`);
+  for (const SEED of SEEDS) {
+    const { targetId } = await raw("Target.createTarget", { url: PAGE });
+    const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
+    const S = (m, p) => raw(m, p, sessionId);
+    const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true })).result?.value;
+    await S("Page.enable"); await S("Runtime.enable");
+    await S("Page.addScriptToEvaluateOnNewDocument", { source:
+      `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
+         return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
+       globalThis.__AUTO_TREE = 1;
+       globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` });
+    await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
+    await S("Page.navigate", { url: PAGE }); await wait(1500);
+    await ev(`localStorage.removeItem("necro.meta.v1")`);
+    await S("Page.reload", { ignoreCache: true }); await wait(4500);
+    if (!(await ev(`typeof window.__toDungeon === "function"`))) throw new Error("window.__toDungeon 이 없다");
+    if (!(await ev(`!!window.__KILLBY`))) throw new Error("window.__KILLBY 창구가 없다 — 장부가 안 붙었다");
+    const 실편성 = await ev(`globalThis.__DOCTRINE`);
+    if (실편성 !== DOC) throw new Error(`편성이 안 박혔다 — ${실편성} != ${DOC}`);
+    await ev(`window.__toDungeon()`); await wait(800);
+
+    await ev(`window.S && (window.S.speed = ${FF})`);
+    let ff = 0, 앞at = "dungeon", 내려가다죽음 = 0;
+    for (; ff < FFCAP; ff++) {
+      await wait(1000);
+      const a = await ev(`(()=>{const S=window.S||{};return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead};})()`);
+      if (!a) continue;
+      if (a.at !== "dungeon" || a.dead) {
+        if (앞at === "dungeon") 내려가다죽음++;
+        await ev(`window.__closeWin && window.__closeWin(); window.__toDungeon && window.__toDungeon(); window.S && (window.S.speed = ${FF});`);
+        앞at = a.at; continue; }
+      앞at = "dungeon";
+      if (a.f >= TARGET) break;
+    }
+    const 시작층 = (await ev(`(window.S||{}).floor`)) ?? 0;
+    await ev(`window.S && (window.S.speed = 1)`);
+    await wait(300);
+    if (!(await ev(RESET))) throw new Error("장부를 못 비웠다");
+
+    const hist = [];
+    let 마을초 = 0, 앞밖 = false;
+    for (let i = 0; i < Math.round(SEC / 0.2); i++) {
+      const a = await ev(`(()=>{const S=window.S||{};return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead,n:(S.minions||[]).length,mob:(S.mobs||[]).length};})()`);
+      if (a) {
+        hist.push(a);
+        const 밖 = (a.at !== "dungeon" || a.dead);
+        if (밖) { 마을초 += 0.2; if (!앞밖) await ev(`window.__closeWin && window.__closeWin(); window.__toDungeon && window.__toDungeon();`); }
+        앞밖 = 밖;
+      }
+      await wait(200);
+    }
+    const r = (await ev(READ)) || { 막타: {}, 깎은몫: {}, 죽은자리: {} };
+    await fetch(`${CDP}/json/close/${targetId}`);
+
+    const 안 = hist.filter(h => h.at === "dungeon" && !h.dead);
+    const avg = k => +(안.reduce((s, h) => s + h[k], 0) / Math.max(1, 안.length)).toFixed(2);
+    const 죽음 = KINDS.reduce((s, k) => s + (r.막타[k] || 0), 0);
+    const 깎음 = KINDS.reduce((s, k) => s + (r.깎은몫[k] || 0), 0);
+    const o = out[`${DOC}/씨앗${SEED}`] = {
+      편성: DOC, 씨앗: SEED, 시작층, 끝층: 안.at(-1)?.f ?? 0, ff, 내려가다죽음,
+      마을초: +마을초.toFixed(1), 표본: 안.length, 적평균: avg("mob"), 군세평균: avg("n"),
+      죽음, 깎음: +깎음.toFixed(1), ...r,
+    };
+    const 폭발 = 폭발갈래.reduce((s, k) => s + (r.막타[k] || 0), 0);
+    console.log(`  씨앗 ${SEED}: 층 ${시작층}→${o.끝층}(${ff}초) · 마을초 ${o.마을초} · 적 ${o.적평균} · 군세 ${o.군세평균} · 죽음 ${죽음} · 폭발 ${(폭발 / Math.max(1, 죽음) * 100).toFixed(0)}% · 근접 ${((r.막타["근접"] || 0) / Math.max(1, 죽음) * 100).toFixed(0)}%`);
+    if (errs.length) { console.log(`  ⚠ 페이지 예외 ${errs.length}: ${errs[0]}`); errs.length = 0; }
+    fs.mkdirSync("tmp", { recursive: true });
+    fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
+  }
+}
+console.log(`\n판정: ${판정(out)}`);
+console.log(`(수는 ${OUT})`);
+process.exit(0);
