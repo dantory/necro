@@ -56,6 +56,12 @@ const PURE = process.env.D50_PURE;
    「움직이는 손잡이는 이 상수와 트리뿐」이라 굳혔으므로, 반경을 줄이는 팔은 이 한 수로만 낸다.
    안 주면 이 주입 줄이 **아예 안 붙어** D-46~D-53 이 잰 자와 한 글자도 다르지 않다. */
 const RAD = process.env.D54_RAD;
+/* ★ D-57 · **문 하나를 더 연다**(`D57_CHOKE` · 안 주면 옛 판과 같다).
+   battle.js 의 `__RAISECHOKE` 게이트다 — 관문 수법이 터질 때 소환 셋(raise·ghoul·golem)의
+   재사용을 제 쿨의 이 값 배로 밀어 올린다(D-30 이 낸 문). D-30 은 **사건 수 계열의 자**로
+   ✗ 를 냈는데 D-55/D-56 이 그 계열이 잡음이라 밝혔으므로, 새 자(`낮은몫5`)로 다시 읽는다.
+   안 주면 이 주입 줄이 **아예 안 붙어** D-46~D-56 이 잰 자와 한 글자도 다르지 않다. */
+const CHOKE = process.env.D57_CHOKE;
 const fs = await import("node:fs");
 const KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
 const 폭발갈래 = ["시체폭발", "넘침", "죽음폭발"];
@@ -178,7 +184,8 @@ for (const DOC of DOCS) {
        globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` + (CORPSE == null ? "" :
        `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) + (PURE == null ? "" :
        `\n       globalThis.__ARMY_PURE = ${JSON.stringify(+PURE)};`) + (RAD == null ? "" :
-       `\n       globalThis.__NOVA_RAD = ${JSON.stringify(+RAD)};`) });
+       `\n       globalThis.__NOVA_RAD = ${JSON.stringify(+RAD)};`) + (CHOKE == null ? "" :
+       `\n       globalThis.__RAISECHOKE = ${JSON.stringify(+CHOKE)};`) });
     await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
     await S("Page.navigate", { url: PAGE }); await wait(1500);
     await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -197,6 +204,10 @@ for (const DOC of DOCS) {
     if (RAD != null) { const 실반 = await ev(`globalThis.__NOVA_RAD`);
       if (+실반 !== +RAD) throw new Error(`NOVA_RAD 문이 안 박혔다 — ${실반} != ${RAD}`);
       console.log(`    (문 켬 __NOVA_RAD=${실반} · 기본 180)`); }
+    if (CHOKE != null) { const 실잠 = await ev(`globalThis.__RAISECHOKE`);
+      if (+실잠 !== +CHOKE) throw new Error(`RAISECHOKE 문이 안 박혔다 — ${실잠} != ${CHOKE}`);
+      if (!(await ev(`!!window.__RAISECHOKEST`))) throw new Error("window.__RAISECHOKEST 창구가 없다 — 잠금 장부가 안 붙었다");
+      console.log(`    (문 켬 __RAISECHOKE=${실잠} · 기본 0)`); }
     await ev(`window.__toDungeon()`); await wait(800);
 
     await ev(`window.S && (window.S.speed = ${FF})`);
@@ -239,6 +250,10 @@ for (const DOC of DOCS) {
     }
     const r = (await ev(READ)) || { 막타: {}, 깎은몫: {}, 죽은자리: {} };
     const L = ltOn ? await ev(LTREAD) : null;        // ★ D-49 · 소환수 쪽 장부(없으면 null 로 남는다)
+    /* ★ D-57 · **켠 문이 실제로 손을 묶었나** — D-30 이 낸 잠금 장부를 같이 읽는다.
+       `blk` 가 0 이면 이미 쿨이던 것을 더 민 것뿐이라 손잡이가 안 돈 것이다
+       ([[knob-that-does-nothing]]). 문을 안 켰으면 세 칸 다 0 이 정상이다. */
+    const CK = await ev(`(()=>{const C=window.__RAISECHOKEST; return C?{n:C.n|0,s:+(C.s||0).toFixed(1),blk:C.blk|0}:null;})()`);
     await fetch(`${CDP}/json/close/${targetId}`);
 
     const 안 = hist.filter(h => h.at === "dungeon" && !h.dead);
@@ -296,6 +311,7 @@ for (const DOC of DOCS) {
          담아 두면 새 눈금은 **돌리지 않고 되읽어** 낼 수 있다(D-55 는 이게 없어 두 번 돌렸다). */
       표본기록: hist,
       잃음장부: L,                                                          // ★ D-49
+      잠금장부: CK,                                                        // ★ D-57
     };
     if (!rtOn) o.소환장부 = null;
     const 폭발 = 폭발갈래.reduce((s, k) => s + (r.막타[k] || 0), 0);
@@ -327,6 +343,10 @@ for (const DOC of DOCS) {
            한동안 둘 다 보여야 한다(사건 수는 D-56 판정 뒤에 뺀다). */
         console.log(`    위험(초): 던전 ${W.던전초}초 중 군세≤3 ${W.낮은초3}초(${W.낮은몫3 ?? "?"}%)` +
           ` · 군세≤5 ${W.낮은초5}초(${W.낮은몫5 ?? "?"}%)`); } }
+    /* ★ D-57 · **잠금 한 줄** — 문을 켠 팔에서만 뜻이 있다. `blk` 가 0 이면 손잡이가 안 돈 것. */
+    if (CHOKE != null) { const C = o.잠금장부;
+      if (!C) console.log(`    (잠금 장부 없음 — window.__RAISECHOKEST 가 안 붙었다)`);
+      else console.log(`    잠금(D-57): 자리 ${C.n}회 · 늘린 쿨 ${C.s}초 · 손을 빼앗음 ${C.blk}회`); }
     /* ★ D-48 · 한 줄로 같이 찍는다 — 「무엇이 소환을 막았나」. 몫의 분모는 **시도 + 건너뜀**이다
        (상한이 차서 시도조차 못 한 초를 빼면 상한의 몫이 통째로 사라진다). */
     { const T = o.소환장부;

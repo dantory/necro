@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
-import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -2575,6 +2575,11 @@ window.__docCorpse = docCorpseOf;
 /* ★ D-48 · **소환이 왜 안 섰나** 장부(js/battle.js 의 RAISE_TALLY 머리말). 검수용 창구다 —
    `tools/d46_forks.mjs` 가 편성마다 마나·재사용·시체·상한 중 무엇이 막았는지를 여기서 읽는다. */
 window.__RAISETALLY = RAISE_TALLY;
+/* ★ D-57 · **되세우는 손을 잠근 자국**(js/battle.js 의 RAISE_CHOKE 머리말 · D-30 이 붙였다).
+   `start_probe` 만 보던 것을 `d46_forks` 도 보게 낸 창구다 — 문을 켜 놓고 `blk` 가 0 이면
+   손잡이가 도는 게 아니라 이미 쿨이던 것을 더 민 것뿐이다([[knob-that-does-nothing]]).
+   판은 안 건드린다 — 읽기만 한다. */
+window.__RAISECHOKEST = RAISE_CHOKE;
 /* ★ D-49 · **무엇이 소환수를 죽이나** 장부(js/battle.js 의 LOST_BY 머리말 · D-20 이 붙이고
    D-49 가 횟수 칸을 더했다). 검수용 창구다 — `tools/d46_forks.mjs` 가 갈래별 막타·깎은 몫·
    맞은 횟수와 본인이 맞은 몫을 여기서 읽어 「많이 맞아서」와 「한 방이 커서」를 가른다.
