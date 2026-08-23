@@ -47,12 +47,20 @@ if (OLD) {
              window.__FXQA_OLDKIND = 1;`);
 }
 
-const res = await ev2(`(async()=>{
+/* ★ **자가 못 쟀을 때 조용히 넘어가지 않는다.** 08-24 에 qa_all 이 한 번은 23/25,
+   곧바로 다시 돌리니 25/25 였다 — 터진 자리가 `for (const r of res)` 의
+   `TypeError: res is not iterable` 이었다. `Runtime.evaluate` 가 페이지 안에서 던지면
+   `result.value` 가 **undefined** 로 오는데, 그걸 그대로 순회하니 「자가 고장 난 것」이
+   「게임이 죽었다」로 보였다([[silent-zero-is-not-an-observation]]).
+   빈 배열로 눙치면 다음엔 조용히 「0건 실패 = 통과」를 돌려주므로 **더 나쁘다**.
+   그래서 여기서 멈추고 **「못 쟀다」고 말한 뒤 exit 2** 로 나간다. */
+const IDS = ["raise","ghoul","golem","nova","amp","burn","wall","offer"];
+const rres = await S("Runtime.evaluate", { expression: `(async()=>{
   const B = await import("/js/battle.js"), C = await import("/js/core.js");
   const S = window.S, ART = window.FX_ART || {};
   const old = !!window.__FXQA_OLDKIND;
   S.speed = 0;
-  const IDS = ["raise","ghoul","golem","nova","amp","burn","wall","offer"];
+  const IDS = ${JSON.stringify(IDS)};
   const rows = [];
   for (const id of IDS) {
     /* 판을 매번 새로 세운다 — 앞 스킬의 재사용 대기·마나가 남으면 「안 걸림」이 난다
@@ -86,7 +94,19 @@ const res = await ev2(`(async()=>{
     rows.push({ 스킬: id, 걸림: !!ok, kind: kinds, 벽: walls, 그림: imgs, ...(ok ? {} : { 문: guard }) });
   }
   return rows;
-})()`, true);
+})()`, returnByValue: true, awaitPromise: true });
+const res = rres.result?.value;
+if (!Array.isArray(res) || res.length !== IDS.length) {
+  const why = rres.exceptionDetails
+    ? `판 안에서 터졌다 — ${(rres.exceptionDetails.exception?.description || rres.exceptionDetails.text || "").slice(0, 300)}`
+    : Array.isArray(res)
+      ? `스킬 ${IDS.length} 개를 재야 하는데 ${res.length} 줄만 왔다 — ${res.map(r => r.스킬).join("·") || "(빈 표)"}`
+      : `evaluate 가 배열이 아니라 ${res === undefined ? "undefined" : JSON.stringify(res).slice(0, 200)} 를 돌려줬다`;
+  console.log(JSON.stringify({ 모드: OLD ? "옛 상태(캘리브레이션)" : "지금",
+    판정: "못 쟀다 — 자가 고장 났다(게임 판정이 아니다)", 까닭: why, 콘솔오류: errs }, null, 1));
+  await fetch(`${CDP}/json/close/${targetId}`);
+  process.exit(2);
+}
 
 /* 그림이 진짜 있는가 — 표가 가리키는 파일을 HTTP 로 두들긴다(표만 믿으면 오타를 못 본다). */
 const exists = {};

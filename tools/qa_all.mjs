@@ -169,7 +169,9 @@ function run(r) {
       if (killed)                          { verdict = "DEAD"; why = `${r.secs}s 안에 안 끝났다`; }
       else if (lines < 2)                  { verdict = "DEAD"; why = `아무 말도 안 했다 (${lines}줄)`; }
       else if (r.expect && !r.expect.test(out)) { verdict = "DEAD"; why = `있어야 할 낱말이 없다 ${r.expect}`; }
-      else if (code !== 0)                 { verdict = "FAIL"; why = `exit ${code}`; }
+      /* 자가 「못 쟀다」고 말하고 나가면 그것은 **게임 판정이 아니다** — 그렇게 적어 준다.
+         (08-24 fx_art 이 TypeError 로 터져 「죽음」으로 세어졌던 자리) */
+      else if (code !== 0)                 { verdict = "FAIL"; why = /못 쟀다/.test(out) ? `자가 못 쟀다 (exit ${code}) — 게임 판정이 아니다` : `exit ${code}`; }
       else                                 { verdict = "PASS"; }
       res({ ...r, verdict, why, sec, lines, out });
     });
