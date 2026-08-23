@@ -336,6 +336,19 @@ export const GATE_SEC_DEF = 0;
 const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GATE_SEC != null)
   ? +globalThis.__GATE_SEC : GATE_SEC_DEF;
 
+/** ══ D-49 · **「군대 화력」에 «적이 내 소환수를 때린 몫»이 섞여 있다** ══ 2026-08-23
+ *  적의 근접 한 방이 소환수에게 들어갈 때, 그 한 방이 여태 `hurtMob(tgt, …, "근접")` 로도
+ *  갔다(아래 「예약된 타격」 자리). `hurtMob` 은 **우리 편이 적에게 넣은 화력**을 모으는
+ *  자리다 — `KILL_DMG` 와 `S.dealtAcc` → `S.armyDps`. 그런데 관문 주인의 체력 바닥이
+ *  그 `armyDps` 를 쓴다(`GATE_SEC`, 위 문단) — 즉 **내가 맞을수록 주인이 두꺼워졌다.**
+ *  D-49 가 잰 층 21 에서 소환수가 깎인 몫은 3판 40초에 194,095(초당 1,618)다. 작지 않다.
+ *  ★ 판이 움직이므로 **문으로 낸다** — `ARMY_PURE_DEF = 0` 이면 옛 값과 한 톨도 안 다르다
+ *    ([[seed-the-probe]] 의 되돌린 팔). 1 로 켜면 그 몫이 화력에서 빠진다. 값은 재고 정한다.
+ *  ※ 같은 자리의 **막타 꼬리표**는 세기만 하는 자리라 문 없이 그냥 고쳤다(LOST_BY 머리말). */
+export const ARMY_PURE_DEF = 0;
+const ARMY_PURE_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_PURE != null)
+  ? +globalThis.__ARMY_PURE : ARMY_PURE_DEF;
+
 /* ══ 관문 주인이 **지친다**(D-3) ══ 2026-08-14
    30분 곡선(D-1)에서 조용한 자리는 **늘 같은 한 자리**였다 — 씨앗 7 이 2:03→6:31(268초),
    씨앗 1 이 3:11→6:18(188초). 둘 다 그 사이 **층이 10 에 못 박혀** 있었다. 군대가 한 번
@@ -503,6 +516,8 @@ const RAISECHOKE_OF = () => (globalThis.__RAISECHOKE != null ? +globalThis.__RAI
  *  ★ **잃음 총량은 한 톨도 안 늘린다** — 소환수는 하나도 안 깎는다(D-26 ④ 가 막는 자리).
  *    태우는 것은 **이미 죽어 바닥에 누운 것**뿐이다.
  *  ★ **절규(howl)에는 안 붙인다** — 잃음의 94%가 이미 절규 하나라, 거기 얹으면 갈래가
+ *    ⚠ **그 94% 는 근접을 통째로 버린 자가 낸 수다**(D-49 · 2026-08-23). 같은 판의 날수로는
+ *      절규 **72%** · 근접 24.5% 다 — 이 문장 위에 선 판단(D-27·D-31·D-32)은 다시 재야 한다.
  *    또 하나가 아니라 같은 하나다(D-29·D-30 과 같은 규칙).
  *  ★ A/B 의 출발값은 **0.5~0.8** 언저리: 못이 100 구 언저리에 앉아 있고 한 판에 수법이
  *    수백 번 터지므로, 절반을 태워야 유입(깊은 층)과 겨룰 만하다.
@@ -1630,9 +1645,26 @@ export function step(dt) {
        졸개(add)·주인 본인(lord)은 손잡이가 서로 달라, 한 통에 담으면 「덜 쓸리게」를
        어디에 대야 할지 모른다. 깎기 «전»에 센다. */
     const tgtIsMob = S.mobs.includes(tgt);
-    if (!tgtIsMob) tallyMinionHurt(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1),
-                                   u.cause === "add" ? "add" : (u.boss ? "lord" : "melee"));
-    hurtMob(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1), u.own ? "지배" : "근접");     // 제물로 약해진 관문 주인은 더 크게 맞는다
+    const dd = dmg * (tgt.wkT > 0 ? tgt.wk : 1);                                 // 제물로 약해진 관문 주인은 더 크게 맞는다
+    if (tgtIsMob) hurtMob(tgt, dd, u.own ? "지배" : "근접");
+    else {
+      /* ★★ **D-49 · 소환수가 맞는 한 방이 여태 `hurtMob` 로도 갔다 — 그 한 줄이 둘을 망쳤다.**
+         ㉠ `hurtMob` 이 `m.lastBy = "근접"` 으로 **덮어썼다.** 소환수 막타는 `LOST_BY` 로
+            가는데 "근접" 은 `LOST_KINDS` 에 **없는 이름**이라, `LOST_KINDS` 만 훑는
+            `start_probe` 가 그 통을 **통째로 버렸다.** 그래서 여태 「잃음의 94%가 절규
+            하나」였다 — 같은 판의 날수는 절규 109 · **근접 37** · 장판 5 라 **72%** 다
+            ([[silent-zero-is-not-an-observation]] · 자가 0 을 돌려준 게 아니라 아예 안 셌다).
+            세기만 하는 자리라 **문 없이 고친다** — 이제 꼬리표가 안 덮인다.
+         ㉡ `KILL_DMG`·`S.dealtAcc` 에 **적이 내 편을 때린 몫**이 쌓였다 → `S.armyDps` →
+            관문 주인 체력 바닥(`GATE_SEC`). 이쪽은 판이 움직이므로 위 `ARMY_PURE` 문 뒤에 둔다. */
+      const before = tgt.hp;
+      tallyMinionHurt(tgt, dd, u.cause === "add" ? "add" : (u.boss ? "lord" : "melee"));
+      if (!ARMY_PURE_OF()) {                                   // 문이 닫혀 있으면 **옛 길 그대로** 화력에 얹는다
+        KILL_DMG["근접"] += Math.max(0, Math.min(dd, before));
+        S.dealtAcc = (S.dealtAcc || 0) + dd;
+      }
+      tgt.hp -= dd;
+    }
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
     popNum(tgt.x, tgt.y, dmg, tgtIsMob ? "dmg" : "hurt");
