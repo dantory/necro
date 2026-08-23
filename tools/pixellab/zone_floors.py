@@ -50,6 +50,29 @@ TILESETS = {
                        "puddles, no grass, flat ground with no height"),
     transition_description="the mould thins out into bare wet mud on flat level ground",
   ),
+  # 4층 **다시** — 1차 rot 은 「올리브 초록 곰팡이」를 시켰는데 색상 40°(주황갈색)이 왔다.
+  #   까닭은 주문 안에 **갈색이 같이 있어서**다("over wet dark brown earth") — 바닥 전체를
+  #   덮는 것이 무엇인지 하나만 적어야 그 색이 온다. 갈색은 upper 로만 민다.
+  #   ★ 초록은 tint 로 못 만든다 — 곱하기는 채널을 **깎기만** 하므로 빨강이 센 판을
+  #     초록으로 뒤집으려면 화면 전체가 초록 필터를 쓴 꼴이 된다([[knob-that-does-nothing]]).
+  # ★★ **두 번째도 초록이 안 왔다**(08-24 04:1x · 색상 25°, 1차와 같은 갈색).
+  #   갈색을 주문에서 빼고 부정어를 여섯 개 붙여도 소용없었다 — 꼬리의
+  #   "Diablo 2 dungeon floor texture, grim gothic" 이 색을 갈색·회색으로 끌어당기고,
+  #   **부정어는 안 먹는다**([[pixellab-side-attack-failures]] 와 같은 벽).
+  #   그래서 접었다(구운 것은 tmp/rot2_reject/ 에 둔다). 4층은 이웃과의 색 거리가
+  #   15.6·29.2 로 이미 떨어졌으니 초록은 없어도 된다 — 세 번째 굽기는 안 한다.
+  "rot2": dict(
+    lower_description=("MOSSY GREEN, dull olive and grey green damp moss covering the whole "
+                       f"tile edge to edge, {LIT}, fine even mossy grain, countless tiny "
+                       "green specks and small dark green flecks, uniform all over, "
+                       "all detail small, no single large object, no focal point, no centre, "
+                       "nothing stands out, no bare soil showing, "
+                       "no brown, no orange, no yellow, no tan, no blue, no purple, "
+                       "no bright green, no neon, not colourful"),
+    upper_description=("DARK BROWN WET MUD, desaturated, churned soggy earth, no grass, "
+                       "flat ground with no height"),
+    transition_description="the moss thins out into bare wet mud on flat level ground",
+  ),
   # 26층 — 어둠의 성소. **닦인 검은 대리석**에 새겨진 문양. 사람 손이 닿은 바닥.
   "sanctum": dict(
     lower_description=("POLISHED DARK GREY MARBLE floor tiles, desaturated, "
