@@ -2562,6 +2562,9 @@ window.__rushNow = () => rushOn() && !(S.spawnQ && S.spawnQ.length);   // 뒷정
 /* ★ D-45 · **무엇이 적을 죽이나** 장부(js/battle.js 의 KILL_BY 머리말). 검수용 창구다 —
    `tools/d45_who.mjs` 가 막타 갈래·깎은 몫·죽은 자리를 여기서 읽는다. 판은 안 건드린다. */
 window.__KILLBY = KILL_BY; window.__KILLDMG = KILL_DMG; window.__KILLAT = KILL_AT;
+/* ★ D-47 · **켠 문이 정말 박혔는지** 검수기가 눈으로 보는 창구(core.js `docCorpseOf`).
+   판은 안 건드린다 — 읽기만 한다. 꺼져 있으면 {novaMul:1, keep:0} 이 그대로 나온다. */
+window.__docCorpse = docCorpseOf;
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다

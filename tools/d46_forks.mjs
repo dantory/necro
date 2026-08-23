@@ -42,6 +42,10 @@ const DOCS = String(process.argv[5] || "balance,bone,flesh,wall").split(",");
 const FF = +(process.env.D46_FF || 8);
 const FFCAP = +(process.env.D46_FFCAP || 200);
 const OUT = process.env.D46_OUT || "tmp/d46_forks.json";
+/* ★ D-47 · **같은 자를 그대로 쓰되 문 하나만 연다**(`D47_CORPSE` · 안 주면 옛 판과 같다).
+   core.js 의 `__DOC_CORPSE` 게이트를 들어가기 전에 박는다. 안 주면 아래 주입 줄이
+   **아예 안 붙어** D-46 이 잰 그 자와 한 글자도 다르지 않다 — 그래야 D-46 의 수와 견준다. */
+const CORPSE = process.env.D47_CORPSE;
 const fs = await import("node:fs");
 const KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
 const 폭발갈래 = ["시체폭발", "넘침", "죽음폭발"];
@@ -136,7 +140,8 @@ for (const DOC of DOCS) {
       `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
          return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
        globalThis.__AUTO_TREE = 1;
-       globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` });
+       globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` + (CORPSE == null ? "" :
+       `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) });
     await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
     await S("Page.navigate", { url: PAGE }); await wait(1500);
     await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -145,6 +150,10 @@ for (const DOC of DOCS) {
     if (!(await ev(`!!window.__KILLBY`))) throw new Error("window.__KILLBY 창구가 없다 — 장부가 안 붙었다");
     const 실편성 = await ev(`globalThis.__DOCTRINE`);
     if (실편성 !== DOC) throw new Error(`편성이 안 박혔다 — ${실편성} != ${DOC}`);
+    if (CORPSE != null) { const 실문 = await ev(`globalThis.__DOC_CORPSE`);
+      if (+실문 !== +CORPSE) throw new Error(`시체 문이 안 박혔다 — ${실문} != ${CORPSE}`);
+      const 실값 = await ev(`JSON.stringify(window.__docCorpse ? window.__docCorpse() : null)`);
+      console.log(`    (문 켬 __DOC_CORPSE=${실문} · 이 편성의 시체 쓰임 ${실값})`); }
     await ev(`window.__toDungeon()`); await wait(800);
 
     await ev(`window.S && (window.S.speed = ${FF})`);
