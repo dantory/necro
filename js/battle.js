@@ -342,10 +342,27 @@ const GATE_SEC_OF = () => (typeof globalThis !== "undefined" && globalThis.__GAT
  *  자리다 — `KILL_DMG` 와 `S.dealtAcc` → `S.armyDps`. 그런데 관문 주인의 체력 바닥이
  *  그 `armyDps` 를 쓴다(`GATE_SEC`, 위 문단) — 즉 **내가 맞을수록 주인이 두꺼워졌다.**
  *  D-49 가 잰 층 21 에서 소환수가 깎인 몫은 3판 40초에 194,095(초당 1,618)다. 작지 않다.
- *  ★ 판이 움직이므로 **문으로 낸다** — `ARMY_PURE_DEF = 0` 이면 옛 값과 한 톨도 안 다르다
- *    ([[seed-the-probe]] 의 되돌린 팔). 1 로 켜면 그 몫이 화력에서 빠진다. 값은 재고 정한다.
- *  ※ 같은 자리의 **막타 꼬리표**는 세기만 하는 자리라 문 없이 그냥 고쳤다(LOST_BY 머리말). */
-export const ARMY_PURE_DEF = 0;
+ *  ★ 판이 움직일까 봐 **문으로 냈다**(D-49) — 그리고 **D-51 에서 1 로 박았다.**
+ *  ※ 같은 자리의 **막타 꼬리표**는 세기만 하는 자리라 문 없이 그냥 고쳤다(LOST_BY 머리말).
+ *
+ *  ══ D-51 · **왜 박았나 — 자로는 끝내 못 갈랐고, 가른 것은 코드다** ══ 2026-08-23 15:2x
+ *  D-50 이 A/B 로 재서 「㉡ 문이 판을 움직인다」를 찍었다. 그런데 그 판정의 끝 조건이
+ *  「씨앗 셋 다 한 톨도 안 다름」이었고, **이 자는 그 조건을 원리상 만족할 수 없다** —
+ *  판이 실제 벽시계로 돌기 때문이다(`js/main.js` 의 `dt = (t-last)/1000`). 씨앗은
+ *  `Math.random` 만 고정하지 **틱의 개수·길이는 안 고정한다.**
+ *  그래서 D-51 이 **두 팔을 똑같이 꺼서**(A/A) 바닥을 쟀다 — 판정기는 A/B 때와 **같은
+ *  크기의 차이**를 그대로 다시 찍었다(`tools/d51_floor.mjs`): 일곱 칸 중 다섯이
+ *  바닥의 0.26~1.86 배라 **잡음에 묻혔고**, 솟은 둘(끝층 2.0배 · 막타[시체폭발] 2.8배)도
+ *  씨앗 셋짜리 평균이라 근거로 못 쓴다. **즉 D-50 의 ㉡ 은 문의 효과가 아니라 자의 잡음이다**
+ *  ([[floor-far-from-threshold]] · 바닥을 안 재고 문턱을 세웠다).
+ *  ☞ **가른 것은 코드다.** `S.armyDps` 를 **판**이 읽는 자리는 온 파일에 하나뿐이고
+ *    (아래 관문 주인 체력 `Math.max(floorHp*7, armyDps * GATE_SEC_OF())`), `GATE_SEC_DEF = 0`
+ *    이다. `KILL_DMG` 는 `window.__KILLDMG` 로 검수기만 읽는다. 그러므로 이 문은
+ *    **기본 판에서 산수를 한 톨도 안 바꾸고 장부만 고친다** — 남겨 둘 까닭이 없다.
+ *  ⚠ **다만 `__GATE_SEC` 를 켠 판에서는 판이 움직인다**(`loop_health` 의 `LH_GATESEC`).
+ *    그쪽이 옳은 방향이다 — 여태 **내가 맞을수록 주인이 두꺼워졌다**. 대신 GATE_SEC 을
+ *    켜고 잰 옛 수들은 오염된 `armyDps` 위에 서 있다. 되돌리려면 `__ARMY_PURE=0`. */
+export const ARMY_PURE_DEF = 1;
 const ARMY_PURE_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_PURE != null)
   ? +globalThis.__ARMY_PURE : ARMY_PURE_DEF;
 
