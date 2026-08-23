@@ -126,12 +126,14 @@ const RESET = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILL
   for(const k of Object.keys(B)) B[k]=0;
   for(const k of Object.keys(D)) D[k]=0;
   for(const k of Object.keys(A)) A[k].length=0;
+  const N=window.__TAINT; if(N){ N["\uBAAB"]=0; N["\uD69F\uC218"]=0; }   // ★ D-52 · 오염 장부도 같은 자리에서 비운다
   return 1; })()`;
 const READ = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLAT;
   if(!B) return null;
   const at={}; for(const k of Object.keys(A)) at[k]=A[k].slice();
-  const T=window.__RAISETALLY;
+  const T=window.__RAISETALLY, N=window.__TAINT;
   return { 막타:{...B}, 깎은몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])), 죽은자리:at,
+           오염: N ? { 몫:+N["\uBAAB"].toFixed(1), 횟수:N["\uD69F\uC218"] } : null,
            소환장부: T ? {...T} : null }; })()`;
 /* ★ D-48 · **소환 장부도 같은 자에서 읽는다** — 자를 새로 만들지 않는다. 판은 한 톨도 안
    건드리고(읽기만) 목표층에 닿은 그 자리에서 함께 비운다. 없으면 null 로 남겨 **조용한 0 이
@@ -242,6 +244,15 @@ for (const DOC of DOCS) {
     if (!rtOn) o.소환장부 = null;
     const 폭발 = 폭발갈래.reduce((s, k) => s + (r.막타[k] || 0), 0);
     console.log(`  씨앗 ${SEED}: 층 ${시작층}→${o.끝층}(${ff}초) · 마을초 ${o.마을초} · 적 ${o.적평균} · 군세 ${o.군세평균} · 죽음 ${죽음} · 폭발 ${(폭발 / Math.max(1, 죽음) * 100).toFixed(0)}% · 근접 ${((r.막타["근접"] || 0) / Math.max(1, 죽음) * 100).toFixed(0)}%`);
+    /* ★★ D-52 · **오염을 한 줄로 찍는다 — 두 판을 견주지 않는다.** 「적이 내 편을 때린 몫」이
+       옛 길에서 `KILL_DMG["근접"]` 에 얹히던 그 값이다. 분모는 **깎은 몫 합 + 그 몫** —
+       옛 판에서 화력 장부가 실제로 부풀던 크기가 그대로 이 수다.
+       없으면 null 로 남겨 **조용한 0 이 안 되게** 한다([[silent-zero-is-not-an-observation]]). */
+    { const N = o.오염;
+      if (!N) console.log(`    (오염 장부 없음 — window.__TAINT 가 안 붙었다)`);
+      else console.log(`    오염 ${N.몫.toFixed(0)} (${N.횟수}회) / 깎은몫 ${깎음.toFixed(0)}` +
+        ` → 옛 장부가 부풀던 몫 ${(N.몫 / Math.max(1, N.몫 + 깎음) * 100).toFixed(1)}%` +
+        ` · 근접 ${(o.깎은몫["근접"] || 0).toFixed(0)} → ${((o.깎은몫["근접"] || 0) + N.몫).toFixed(0)}`); }
     /* ★ D-48 · 한 줄로 같이 찍는다 — 「무엇이 소환을 막았나」. 몫의 분모는 **시도 + 건너뜀**이다
        (상한이 차서 시도조차 못 한 초를 빼면 상한의 몫이 통째로 사라진다). */
     { const T = o.소환장부;

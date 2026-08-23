@@ -693,6 +693,16 @@ const DPS_TAU = 4;
 export const KILL_KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
 export const KILL_BY = {}, KILL_DMG = {}, KILL_AT = {};
 for (const k of KILL_KINDS) { KILL_BY[k] = 0; KILL_DMG[k] = 0; KILL_AT[k] = []; }
+/** ★★ **D-52 · «오염»을 한 판 안에서 센다** — D-50 은 이 크기를 «문을 끈 판»과 «켠 판»의
+ *  차로 재려 했고, D-51 이 그 자에 바닥이 3.3%p 나 있어 4.1%p 가 묻힌다는 것을 밝혔다
+ *  ([[floor-far-from-threshold]]). 그런데 이 수는 본디 **두 판을 견줄 필요가 없다** —
+ *  「적이 내 편을 때린 몫」은 그 자리에서 그냥 담으면 되는 수다.
+ *  · `TAINT.몫`   = 옛 길(`ARMY_PURE=0`)이 `KILL_DMG["근접"]` 에 **잘못 얹던 그 값**과
+ *    한 글자도 같은 식으로 담는다(`min(dd, before)`) — 문이 켜져 있어도 **여기는 늘 담는다**.
+ *  · `TAINT.횟수` = 그 자리를 지난 횟수.
+ *  그러면 한 판만 돌려도 **오염% = 몫 / (몫 + KILL_DMG 합)** 이 그대로 나온다.
+ *  ★ 세기만 한다 — 판 산수도 난수도 한 톨 안 건드린다(`ARMY_PURE` 문 «바깥»이다). */
+export const TAINT = { 몫: 0, 횟수: 0 };
 /** 적에게 들어간 피해가 **전부 여기를 지난다**(hurtNecro 의 반대쪽). 여섯 자리에서
  *  제각기 `m.hp -=` 하던 것을 한 길로 모아, 화력을 한 군데서 셀 수 있게 했다.
  *  ★ D-45 · `by` 는 **누가 때렸나**다. 안 주면 "etc" — 빠진 길이 표에서 보인다. */
@@ -1676,6 +1686,9 @@ export function step(dt) {
             관문 주인 체력 바닥(`GATE_SEC`). 이쪽은 판이 움직이므로 위 `ARMY_PURE` 문 뒤에 둔다. */
       const before = tgt.hp;
       tallyMinionHurt(tgt, dd, u.cause === "add" ? "add" : (u.boss ? "lord" : "melee"));
+      /* ★ D-52 · **문과 상관없이 늘 담는다** — 이것이 「오염의 크기」다(위 `TAINT` 머리말).
+         옛 길이 얹던 값과 **같은 식**으로 담아야 «켰으면 얼마였을까» 를 한 판에서 읽는다. */
+      TAINT.몫 += Math.max(0, Math.min(dd, before)); TAINT.횟수++;
       if (!ARMY_PURE_OF()) {                                   // 문이 닫혀 있으면 **옛 길 그대로** 화력에 얹는다
         KILL_DMG["근접"] += Math.max(0, Math.min(dd, before));
         S.dealtAcc = (S.dealtAcc || 0) + dd;
