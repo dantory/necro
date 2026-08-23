@@ -632,13 +632,57 @@ body.in-town #stage{cursor:pointer}
 /* ★ 863 에서만 맞추고 끝내지 않는다 — 1280×800 에서는 아직 세 칸이 잘려 있었다
    ([[carry-fixes-forward]]). 낮은 화면에서는 **곁말부터 뺀다**: 「점수는 모자란다」는
    맛이고 다섯째 칸은 판이다. 칸과 그림은 여기서도 안 줄인다. */
-@media (max-height: 830px){
-  #winTree .frame{padding:6px 22px}
-  #winTree h2{font-size:21px;letter-spacing:4px;margin-bottom:0}
+/* ★ 문턱을 830 → 900 으로 올린다(2026-08-24, V-4b). 저주가 트리로 들어오며 주술 줄기가
+   9칸 → 10칸이 되었고, **병수님 화면 1512×863 이 830 문턱 위에 있어** 넉넉한 쪽 규칙을
+   쓰고 있었다 — 그래서 제일 깊은 칸 셋(영혼 착취·신속·어둠의 지배)이 창 밖으로 밀렸다.
+   863 은 「넉넉한 화면」이 아니다. 잰 값: 속높이 614 대 보이는 높이 480, **넘침 134px**. */
+@media (max-height: 900px){
+  #winTree .frame{padding:5px 22px}
+  /* ★ 글자만 줄여서는 한 픽셀도 안 준다 — `.win h2` 가 **line-height:36px 를 못박아** 둬서
+     20px 글자가 여전히 36px 자리를 먹고 있었다([[knob-that-does-nothing]]). 줄높이를 같이 푼다. */
+  #winTree h2{font-size:20px;letter-spacing:4px;margin-bottom:0;line-height:26px}
   #winTree .wSub{display:none}
-  #winTree .tip{padding:6px 16px}
-  #winTree .tCol h3{padding:2px 0 6px}
-  #winTree .tNode .tn{font-size:12px;line-height:1.1}
+  #winTree #treeWrap{margin-bottom:2px}
+  #winTree .winFoot{margin-top:2px}
+  /* 설명 상자 — **줄 수는 그대로 넷**이고 줄 사이·여백만 줄인다(읽을 것은 안 깎는다) */
+  #winTree .tip{padding:5px 16px}
+  #winTree .tip .tipName{font-size:16px;margin-bottom:0}
+  #winTree .tip .tipKind{margin-bottom:0}
+  #winTree .tip .tipStat{line-height:1.25;margin-top:1px}
+  #winTree .tip .tipBuy{margin-top:4px}
+  #winTree .tCol h3{padding:1px 0 3px}
+  #winTree .tNode .tn{font-size:11px;line-height:1.05}
+  /* 칸 사이 — 칸과 그림은 그대로 두고 **칸에 붙은 여백**만 뗀다 */
+  #winTree .tNode{padding:0 2px 0}
+  #winTree .tTile{margin-bottom:1px}
+  /* 잇는 선 8 → 7. 화살촉이 6px 이라 **6 이 바닥**이고 7 은 그 바로 위 —
+     여기서 9px 을 벌어 863 에 여유를 남긴다(딱 맞으면 이름 한 줄만 접혀도 다시 밀린다). */
+  #winTree .tLink{height:7px}
+}
+/* ★ 더 낮은 화면(1366×768 · 1280×800)에서는 위 규칙으로도 **어둠의 지배 한 칸이 남는다**
+   (768 에서 43px · 800 에서 11px 넘침). 여기서는 장식이 이미 다 깎여 있어 남은 것이
+   칸뿐이다 — **그림을 조금 줄인다.** 863 이상은 안 건드린다([[carry-fixes-forward]]). */
+@media (max-height: 820px){
+  #winTree .tTile{width:34px;height:34px}
+  #winTree .tIco{width:23px;height:23px}
+  #winTree .tNode.big .tTile{width:39px;height:39px}
+  #winTree .tNode.big .tIco{width:27px;height:27px}
+  #winTree .tNode .tn{font-size:10px}
+  #winTree h2{line-height:22px}
+  #winTree .frame{padding:3px 22px}
+  #winTree .tip{padding:3px 16px}
+  #winTree .tip .tipBuy{margin-top:2px}
+  #winTree #treeWrap{margin-bottom:1px}
+  #winTree .winFoot{margin-top:1px}
+}
+/* 제일 낮은 화면(1366×768). 위 두 층을 다 쓰고도 **13px** 이 남아 마지막 칸이 걸렸다 —
+   그림을 한 번 더 줄이는 것 말고 깎을 장식이 없다. 여기까지가 바닥이다. */
+@media (max-height: 780px){
+  #winTree .tTile{width:32px;height:32px}
+  #winTree .tIco{width:22px;height:22px}
+  #winTree .tNode.big .tTile{width:37px;height:37px}
+  #winTree .tNode.big .tIco{width:26px;height:26px}
+  #winTree .tCol h3{padding:0 0 2px}
 }
 
 #treeWrap{position:relative;flex:1 1 auto;min-height:0;margin-bottom:6px}

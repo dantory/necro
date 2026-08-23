@@ -28,6 +28,13 @@ const S = (m, p) => raw(m, p, sessionId); const wait = (ms) => new Promise(r => 
 await S("Page.enable"); await S("Runtime.enable"); await S("Network.enable");
 await S("Network.setCacheDisabled", { cacheDisabled: true });
 await S("Emulation.setDeviceMetricsOverride", { width: W, height: H, deviceScaleFactor: 2, mobile: false });
+/* ★ 2026-08-24: **이 자가 캐시를 재고 있었다.** `Target.createTarget` 이 페이지를 이미
+   띄운 뒤에 `setCacheDisabled` 를 걸어서, 첫 로드는 그대로 브라우저 캐시를 썼다
+   (파이썬 SimpleHTTP 는 `Cache-Control` 을 안 보낸다 → 크롬이 알아서 캐시한다).
+   그래서 hud.css 를 고쳐도 **속높이 614·넘침 134 가 한 글자도 안 변했다** —
+   손잡이가 안 움직인 게 아니라 **자가 어제 것을 보고 있었다**([[knob-that-does-nothing]]).
+   캐시를 끈 뒤 **다시 읽힌다.** */
+await S("Page.reload", { ignoreCache: true });
 await wait(4200);
 
 /* 레벨을 올려 **잠긴 칸까지 다 서게** 한다 — 잠겨서 안 보이는 판은 표본이 아니다 */
