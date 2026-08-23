@@ -46,6 +46,12 @@ const OUT = process.env.D46_OUT || "tmp/d46_forks.json";
    core.js 의 `__DOC_CORPSE` 게이트를 들어가기 전에 박는다. 안 주면 아래 주입 줄이
    **아예 안 붙어** D-46 이 잰 그 자와 한 글자도 다르지 않다 — 그래야 D-46 의 수와 견준다. */
 const CORPSE = process.env.D47_CORPSE;
+/* ★ D-59 · **판을 되풀이되게 만드는 문**(`D59_FIX` · 예 `0.0166667`. 안 주면 옛 판과 같다).
+   벽시계가 판에 스미는 자리 넷을 한꺼번에 막는다 — main.js 의 `__FIXEDDT`(dt 수열) ·
+   `__AUTORETURN`(죽은 뒤 마을에 머무는 초) · `__STOPFLOOR`(재기 시작하는 자리) ·
+   `__gsampleOn`(표본을 판의 초로 뜬다). 켜면 **끝 조건도 게임초**로 바뀐다(SEC 를 게임초로 읽는다).
+   안 주면 이 주입 줄이 **아예 안 붙어** D-46~D-58 이 잰 자와 한 글자도 다르지 않다. */
+const FIX = process.env.D59_FIX;
 /* ★ D-50 · **문 하나를 더 연다**(`D50_PURE` · 안 주면 옛 판과 같다).
    battle.js 의 `__ARMY_PURE` 게이트다 — 켜면 「적이 내 소환수를 때린 몫」이
    `KILL_DMG["근접"]`·`S.dealtAcc` 에서 빠진다. 안 주면 이 주입 줄이 **아예 안 붙어**
@@ -185,7 +191,10 @@ for (const DOC of DOCS) {
        `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) + (PURE == null ? "" :
        `\n       globalThis.__ARMY_PURE = ${JSON.stringify(+PURE)};`) + (RAD == null ? "" :
        `\n       globalThis.__NOVA_RAD = ${JSON.stringify(+RAD)};`) + (CHOKE == null ? "" :
-       `\n       globalThis.__RAISECHOKE = ${JSON.stringify(+CHOKE)};`) });
+       `\n       globalThis.__RAISECHOKE = ${JSON.stringify(+CHOKE)};`) + (FIX == null ? "" :
+       `\n       globalThis.__FIXEDDT = ${JSON.stringify(+FIX)};` +
+       `\n       globalThis.__AUTORETURN = 1;` +
+       `\n       globalThis.__STOPFLOOR = ${JSON.stringify(+TARGET)};`) });
     await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
     await S("Page.navigate", { url: PAGE }); await wait(1500);
     await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -208,10 +217,25 @@ for (const DOC of DOCS) {
       if (+실잠 !== +CHOKE) throw new Error(`RAISECHOKE 문이 안 박혔다 — ${실잠} != ${CHOKE}`);
       if (!(await ev(`!!window.__RAISECHOKEST`))) throw new Error("window.__RAISECHOKEST 창구가 없다 — 잠금 장부가 안 붙었다");
       console.log(`    (문 켬 __RAISECHOKE=${실잠} · 기본 0)`); }
+    if (FIX != null) { const 실못 = await ev(`globalThis.__FIXEDDT`);
+      if (+실못 !== +FIX) throw new Error(`FIXEDDT 문이 안 박혔다 — ${실못} != ${FIX}`);
+      if (!(await ev(`typeof window.__gsampleOn === "function"`))) throw new Error("window.__gsampleOn 창구가 없다 — 판의 초로 뜨는 자가 안 붙었다");
+      console.log(`    (문 켬 __FIXEDDT=${실못} · __AUTORETURN=1 · __STOPFLOOR=${TARGET} · 끝 조건은 게임초)`); }
     await ev(`window.__toDungeon()`); await wait(800);
 
     await ev(`window.S && (window.S.speed = ${FF})`);
     let ff = 0, 앞at = "dungeon", 내려가다죽음 = 0;
+    /* ★ D-59 · 문을 켰으면 **아무것도 안 건드리고** 판이 스스로 멈추길 기다린다 —
+       죽어도 판이 알아서 다시 내려가고(AUTORETURN), 목표 층에 닿으면 그 틱에 얼어붙는다.
+       바깥에서 손을 대는 순간 그 «벽시계 시각»이 판에 스민다. */
+    if (FIX != null) {
+      for (; ff < FFCAP; ff++) {
+        await wait(1000);
+        if (await ev(`!!globalThis.__STOPPED`)) break;
+      }
+      if (ff >= FFCAP) throw new Error(`${TARGET}층에 못 닿았다(FFCAP ${FFCAP})`);
+      내려가다죽음 = (await ev(`(window.META||{}).runs|0`)) || 0;
+    } else
     for (; ff < FFCAP; ff++) {
       await wait(1000);
       const a = await ev(`(()=>{const S=window.S||{};return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead};})()`);
@@ -232,6 +256,28 @@ for (const DOC of DOCS) {
 
     const hist = [];
     let 마을초 = 0, 앞밖 = false;
+    /* ★ D-59 · 문을 켰으면 **판이 제 초를 세어 표본을 뜬다.** 여기서는 「몇 장 찼나」만 본다 —
+       끝 조건이 벽시계 초가 아니라 **게임초**다(주의 ②). 기계가 굼떠 프레임이 처져도
+       재는 «게임 분량»은 똑같다. 다 차면 얼려서 더 안 뜨게 한다. */
+    if (FIX != null) {
+      const need = Math.round(SEC / 0.2);
+      await ev(`window.__gsampleOn(0.2, ${need})`);
+      await ev(`globalThis.__STOPFLOOR = 0; window.S && (window.S.speed = 1);`);   // 한 줄로 — 사이에 프레임이 끼면 다시 얼어붙는다
+      const 벽상한 = Math.max(60, SEC * 4) * 1000;                                  // 굼뜨면 벽시계로는 더 걸린다 — 넉넉히 두되 무한대는 아니게
+      const t0 = Date.now();
+      for (;;) {
+        await wait(500);
+        const n = (await ev(`(window.__GSAMPLE||{buf:[]}).buf.length`)) | 0;
+        if (n >= need) break;
+        if (Date.now() - t0 > 벽상한) throw new Error(`표본이 안 찬다 — ${n}/${need}장 (벽시계 ${Math.round((Date.now()-t0)/1000)}초)`);
+      }
+      await ev(`window.S && (window.S.speed = 0)`);
+      const buf = await ev(`JSON.stringify(window.__gsampleRead())`);
+      for (const h of JSON.parse(buf)) hist.push(h);
+      const W = await ev(`(()=>{const F=window.__FIXEDDTST||{};return {n:F.n|0,s:+(F.s||0).toFixed(1)};})()`);
+      console.log(`    (못박은 틱 ${W.n}장 = 게임 ${W.s}초 · 표본 ${hist.length}장 = 판 ${(hist.length*0.2).toFixed(1)}초)`);
+      if (!W.n) throw new Error("못박은 dt 로 밟은 틱이 0 이다 — 문이 안 걸렸다");
+    } else
     for (let i = 0; i < Math.round(SEC / 0.2); i++) {
       /* ★ D-49 · **몸도 같이 잰다** — 수명 = 몸 ÷ 초당 맞는 양 이라, 맞은 양만 세면
          「많이 맞아서」와 「몸이 얇아서」가 한 수에 뭉친다([[knob-that-does-nothing]]).

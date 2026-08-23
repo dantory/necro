@@ -2728,6 +2728,41 @@ if (qs.get("fps") === "1") {
   document.body.appendChild(fpsEl);
 }
 window.__perfReport = perfReport;                  // 자가 볼 수 있게
+/* ══ ★ D-59 · 판을 «되풀이되게» 만드는 창구 셋 — **검수기 전용이고, 안 켜면 한 톨도 안 달라진다.**
+   D-58 이 못박은 것: 같은 씨앗이 같은 판을 안 준다(한 씨앗이 13.8%p 까지 갈림 · A/A 바닥 3.80%p).
+   벽시계가 판에 스미는 자리가 셋이라 셋을 다 막는다 —
+     ① tick 의 dt 수열(`__FIXEDDT`)          ② 자가 «벽시계 200ms»로 표본을 뜨는 것(`__gsampleOn`)
+     ③ 죽은 뒤 마을에 머무는 «벽시계 초»(`__AUTORETURN`).
+   ①만 막으면 ②③ 이 남아 A/A 바닥이 0 이 안 된다 — 셋이 한 벌이다. */
+const FIXEDDT = { n: 0, s: 0 };            // 증인 — 못박은 dt 로 밟은 틱 수와 그 게임초 합
+window.__FIXEDDTST = FIXEDDT;
+/* 표본을 **판의 초로** 뜬다. 자가 바깥에서 200ms 마다 찍으면 그 시각이 실행마다 어긋나
+   같은 판이라도 다른 수가 나온다([[threshold-and-ruler-must-match]]). 판 안에서 뜨면
+   `every` 게임초마다 «똑같은 자리»가 찍힌다. 안 켜면 every 가 0 이라 이 함수는 즉시 돌아온다. */
+const STOPFLOOR = () => +(globalThis.__STOPFLOOR || 0);
+const GS = { every: 0, buf: [], cap: 20000, next: 0, resets: 0 };
+window.__GSAMPLE = GS;
+window.__gsampleOn = (every = 0.2, cap = 20000) => {
+  GS.every = +every || 0.2; GS.cap = cap | 0; GS.buf.length = 0; GS.next = +(S.t || 0); GS.resets = 0;
+  return { every: GS.every, cap: GS.cap };
+};
+window.__gsampleRead = () => GS.buf;
+function gsample() {
+  if (!GS.every) return;
+  const t = +(S.t || 0);
+  /* 죽으면 newRun 이 S.t 를 0 으로 되돌린다 — 되돌아간 것을 못 보면 다음 표본까지 수십 초를 건너뛴다. */
+  if (t < GS.next - GS.every) { GS.next = t; GS.resets++; }
+  while (t + 1e-9 >= GS.next) {
+    if (GS.buf.length < GS.cap) {
+      const M = S.minions || [];
+      let hs = 0; for (const u of M) hs += u.hpMax || 0;
+      GS.buf.push({ f: S.floor, at: MODE.at, dead: !!S.dead, n: M.length, mob: (S.mobs || []).length,
+                    mhp: +(M.length ? hs / M.length : 0).toFixed(1),
+                    hhp: +(S.hp || 0).toFixed(1), hhpMax: +(S.hpMax || 0).toFixed(1), t: +t.toFixed(3) });
+    }
+    GS.next += GS.every;
+  }
+}
 function loop(t) {
   const j0 = performance.now();
   tick(t);
@@ -2738,7 +2773,10 @@ function loop(t) {
 }
 function tick(t) {
   watchFrame(t);
-  const dt = Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+  /* ★ D-59 · **못박은 dt**(위 창구 ①). 기본 0 이면 예전 그대로 벽시계를 센다. */
+  const fx = +(globalThis.__FIXEDDT || 0);
+  const dt = fx > 0 ? fx : Math.min(0.05, (t - last) / 1000 || 0.016); last = t;
+  if (fx > 0) { FIXEDDT.n++; FIXEDDT.s += fx; }
   /* 다 받기 전에는 **시간도 멈춘다.** 덮어 놓고 뒤에서 싸움이 진행되면, 걷어냈을 때
      이미 벌어진 판을 보게 된다 — 「시작」이 아니라 「중간부터」가 된다. */
   /* ★ 로딩 중에는 **연출 시간도 멈춘다.** 예전엔 draw(dt) 를 그대로 돌려 모닥불이
@@ -2752,9 +2790,16 @@ function tick(t) {
        검수기(corpse_probe · loop_health)는 처음부터 0.35 «게임»초마다 불러 왔으니,
        어긋나 있던 것은 자가 아니라 **진짜 판** 쪽이다 — 자를 판에 맞춘 게 아니라
        판을 자에 맞춘다. S.speed 가 1 인 지금 판은 한 톨도 안 달라진다(같은 차례·같은 난수). */
+    /* ★ D-59 · 창구 ④ — **판 «안»에서 멈춰 선다.** 자가 바깥에서 「21층에 닿았네」를
+       알아채는 데 걸리는 벽시계 초가 실행마다 달라 **재기 시작하는 자리**가 갈렸다.
+       여기서 멈추면 그 자리는 언제나 같은 틱이다(자가 __STOPFLOOR 를 0 으로 돌리고 잇는다).
+       ★ S.speed 는 «몇 걸음을 한 프레임에 몰아 밟나»일 뿐이라, 걸음의 «차례»는 안 바꾼다 —
+         그래서 언제 빨리 감든 판의 자취는 같다. 0 이면 아예 안 밟는다(얼어붙는다). */
+    if (STOPFLOOR() && S.floor >= STOPFLOOR()) { S.speed = 0; globalThis.__STOPPED = 1; }
     for (let i = 0; i < S.speed; i++) {
       step(dt);
       if ((autoT += dt) > 0.35) { autoT = 0; auto(); }
+      gsample();                     // ★ D-59 · 표본은 «판의 초»로 뜬다(위 창구 ②). 안 켜면 즉시 돌아온다.
     }
     /* 죽으면 **마을로 돌아온다.** 예전엔 그 자리에 멈춰 서서 아무 데도 못 갔다 —
        방치형은 죽는 것이 끝이 아니라 **한 바퀴의 끝**이라야 다시 들어갈 마음이 든다. */
@@ -2767,6 +2812,11 @@ function tick(t) {
         : `<b style="color:#8b1a1a">쓰러짐</b> — 마을로 돌아옴`);
       /* 정산 창을 연다 — **closeAll 먼저** 거쳐(상인·상태창과 겹치면 안 된다). */
       closeAll(); drawEnd(); win("winEnd", true);
+      /* ★ D-59 · **그 자리에서 바로 다시 내려간다**(위 창구 ③). 예전엔 자가 바깥에서
+         「마을에 있네」를 보고 __toDungeon 을 불렀는데, 그 «알아채기까지의 벽시계 초»가
+         실행마다 달라 판이 갈렸다. 마을에서는 step 이 안 돌아 판의 시간이 멈춰 있으므로,
+         여기서 바로 내려가는 것은 **판으로 보면 같은 일**이다(S.speed 도 newRun 이 안 지운다). */
+      if (+(globalThis.__AUTORETURN || 0)) { closeAll(); toDungeon(); }
     }
   }
   draw(dt);
