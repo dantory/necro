@@ -567,8 +567,6 @@ function draw(dt) {
   const freeH = Math.max(240, h - panelH);               // 판에 안 가리는 세로
   const MARGIN = 0.05;                                   // 바깥 여백(양쪽 각 5%)
   const scByW = (mapW * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
-  const squash = Math.max(0.56, Math.min(0.86,
-                   (freeH * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * scByW)));
   /* ★★ 병수님: "좌우 화면 넓어졌을때도 고려해라 모바일도 좋은데 PC로 했을때도".
      예전엔 화면이 커진 만큼 **배율만 커졌다**(1440 폭에서 sc 2.07 — 모바일의 세 배).
      그래서 PC 에서는 바닥 타일이 거대해지고 조명 계단이 뭉텅이가 되고, 보이는 넓이는
@@ -597,7 +595,46 @@ function draw(dt) {
        (지금 값에서도 관문 주인은 -18px 로 아슬아슬했다). 관문 주인은 늘 **오른쪽**
        ±23° 에서 서므로(spawnMob 의 a, n=1) 거기엔 안 걸린다. ROADMAP W-2b 에 적어 둔다. */
   const SC_MAX = (globalThis.__SC_MAX != null ? +globalThis.__SC_MAX : 1.90);
-  const sc = Math.min(SC_MAX, scByW, (freeH * (1 - MARGIN * 2)) / (RING_SPAWN * 2 * squash));
+  /* ★★ **W-2b (2026-08-24) — 세로 맞춤에 «몸의 키»를 넣는다.**
+     여태 세로는 **바닥 타원**만 보고 맞췄다(`freeH*0.9 / (RING_SPAWN*2*squash)`).
+     그런데 그림은 발밑에서 **위로** 자란다 — 타원이 꼭 맞으면 머리는 **반드시** 넘친다.
+     W-2 로 배율을 1.05 → 1.90 으로 올리자 그 넘침이 눈에 보일 만큼 커졌다.
+     `tools/w2b_top_probe.mjs 50` 이 잰 고침 전 머리끝(0 이 화면 위끝, 음수면 잘림):
+       1512x863 졸개 -78 · 정예 -103 · **관문주인 -135** · 골렘 -120
+       1512x760 은 -130 · -154 · 주인 -187 · -172 / 1920x1080 은 -52 · -73 · -59 · -76
+       폰 414x896 만 +55 로 멀쩡했다 — 깨지는 것은 늘 넓은 화면이다.
+     ★ **제일 나쁜 것은 둘레 맨 위의 졸개가 아니라 «관문의 주인»이었다.** 주인은 늘
+       오른쪽 ±23° 라 세로로는 덜 오르지만, 키가 149 로 졸개의 두 배가 넘는다.
+       그래서 「제일 높이 오르는 머리끝」은 **자리 하나가 아니라 몇 자리를 대 보고
+       제일 나쁜 것**으로 잡아야 한다([[cause-written-in-the-item-is-a-guess]]).
+     ★ 값을 손으로 고르지 않는다 — 키는 전부 **데이터에서 끌어온다**(MOB_H · MINIONS).
+       새 몸이 늘면 자리도 저절로 따라온다([[carry-fixes-forward]]). */
+  /* ★ **눌림(squash)은 «남는 세로를 채우는 손잡이»다.** 예전 식은 `scByW`(창 폭)로
+     나눴는데, 세로 맞춤에 몸의 키가 들어오자 그 폭 의존이 **배율로 새어 나갔다** —
+     창을 500px 넓히면 배율이 1.76 → 1.86 으로 커져 「맵이 창을 따라 늘어난다」
+     (`arena_qa` ③, 병수님 2026-08-17 「좌우로 무한정 늘어나는거 말고」).
+     그래서 **폭을 아예 안 본다**: 폭·상한이 정한 배율(sc0)에서 그림이 세로를 꼭
+     채우도록 눌림을 **거꾸로 푼다**. 못 채우면(0.56 바닥) 그때 배율이 줄어든다.
+     폰(sc0 0.98)에서는 0.86 상한에 그대로 붙어 예전과 같다. */
+  const RMAX = RING_SPAWN + 50;                       // 등장 둘레의 바깥 (spawnMob 의 rad 상한)
+  const CHAMP_UP = 1.22;                              // 정예 몸집(battle.js CHAMP_SIZE)
+  const BIG_MOB = Math.max(...Object.entries(MOB_H).filter(([k]) => k !== "boss").map(([, v]) => v));
+  const BOSS_H = Math.max(MOB_H.boss, Math.round(BIG_MOB * 2.4));   // battle.js bossH 의 상한
+  const BIG_MIN = Math.max(...Object.values(MINIONS).map(m => m.h || 0)) * CHAMP_UP;
+  /* [세로로 오르는 거리, 그 자리에 서는 몸의 키] — 실제로 그 자리에 서는 것들만.
+     ① 둘레 맨 위의 정예 졸개 ② 관문의 주인(sin23° 만큼만 오른다) ③ 진 바깥의 흙 골렘 */
+  const TOP_CASES = [[RMAX, BIG_MOB * CHAMP_UP], [Math.sin(0.4) * RMAX, BOSS_H],
+                     [RING_HOLD * 1.25, BIG_MIN]];
+  const US_PER_SC = 1.286;                            // 아래 「몸집은 판 배율에 매단다」와 같은 값
+  const VPAD = 6;                                     // 위아래로 남기는 최소 여백(스크린 px)
+  const sc0 = Math.min(SC_MAX, scByW);                // 폭과 상한만 본 배율
+  const room = (freeH - VPAD * 2) / sc0;              // 그 배율에서 쓸 수 있는 세로(판 단위)
+  const squash = Math.max(0.56, Math.min(0.86,
+    Math.min(...TOP_CASES.map(([y, hh]) => (room - hh * US_PER_SC) / (y + RMAX)))));
+  const TOP_K = Math.max(...TOP_CASES.map(([y, hh]) => y * squash + hh * US_PER_SC));
+  const BOT_K = RMAX * squash;                        // 아래쪽은 발이 끝이라 몸의 키가 안 붙는다
+  const scByH = Math.max(0.2, (freeH - VPAD * 2) / (TOP_K + BOT_K));
+  const sc = Math.min(sc0, scByH);
   const SQUASH = squash;
   /* 인물 크기(개체가 든 h)는 스크린 픽셀 고정값이라, 판이 커져도 콩알이었다. 스케일에 비례해 키우되
      서로 겹치지 않게 상한(1.85)·하한(1)을 둔다. 0.44 는 옛 460 판의 대략적 기준 스케일. */
@@ -609,13 +646,16 @@ function draw(dt) {
      FOOT_R 0.40)에서 벗어난다. 그래서 여태 실제로 화면에 서던 비(1.35/1.05 = 1.286)를
      **그대로 상수로 굳혀** 곱한다: 배율을 어떻게 바꾸든 **겹치는 정도는 안 변하고**
      몸과 간격이 같이 커진다. 폰(sc 0.98)에서는 us 1.26 으로 지금과 거의 같다. */
-  const US_PER_SC = 1.286;
   const us = Math.max(1, sc * US_PER_SC);
 
   /* ★★ **가운데는 «보이는 넓이»의 가운데다.** 무대가 화면 전체를 얻은 순간
      `h * 0.5` 는 판(HUD) 뒤로 내려간다 — 인물이 구슬 밑에 숨는다.
      판에 안 가리는 띠(freeH)의 한가운데로 잡는다. */
-  const cx = w / 2, cy = freeH * 0.5;
+  /* ★ W-2b — 가운데는 **타원의 가운데가 아니라 «그림 전체»의 가운데**다.
+     위로 자라는 몸까지 세면 무게중심이 위에 있으므로, 타원을 그만큼 내려 걸어야
+     머리와 발이 둘 다 들어간다. 남는 여유는 위아래로 나눈다. */
+  const cx = w / 2;
+  const cy = (freeH - (TOP_K + BOT_K) * sc) / 2 + TOP_K * sc;
   const px = (x) => cx + x * sc;
   const py = (y) => cy + y * sc * SQUASH;
   /* 검수용 — 마지막으로 그린 판의 실제 기하(반지름·눌림·인물배율). 자(headless)가 화면 대비
