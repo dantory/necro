@@ -46,6 +46,11 @@ const OUT = process.env.D46_OUT || "tmp/d46_forks.json";
    core.js 의 `__DOC_CORPSE` 게이트를 들어가기 전에 박는다. 안 주면 아래 주입 줄이
    **아예 안 붙어** D-46 이 잰 그 자와 한 글자도 다르지 않다 — 그래야 D-46 의 수와 견준다. */
 const CORPSE = process.env.D47_CORPSE;
+/* ★ D-50 · **문 하나를 더 연다**(`D50_PURE` · 안 주면 옛 판과 같다).
+   battle.js 의 `__ARMY_PURE` 게이트다 — 켜면 「적이 내 소환수를 때린 몫」이
+   `KILL_DMG["근접"]`·`S.dealtAcc` 에서 빠진다. 안 주면 이 주입 줄이 **아예 안 붙어**
+   D-46/D-47/D-49 가 잰 자와 한 글자도 다르지 않다. */
+const PURE = process.env.D50_PURE;
 const fs = await import("node:fs");
 const KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
 const 폭발갈래 = ["시체폭발", "넘침", "죽음폭발"];
@@ -162,7 +167,8 @@ for (const DOC of DOCS) {
          return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
        globalThis.__AUTO_TREE = 1;
        globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` + (CORPSE == null ? "" :
-       `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) });
+       `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) + (PURE == null ? "" :
+       `\n       globalThis.__ARMY_PURE = ${JSON.stringify(+PURE)};`) });
     await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
     await S("Page.navigate", { url: PAGE }); await wait(1500);
     await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -175,6 +181,9 @@ for (const DOC of DOCS) {
       if (+실문 !== +CORPSE) throw new Error(`시체 문이 안 박혔다 — ${실문} != ${CORPSE}`);
       const 실값 = await ev(`JSON.stringify(window.__docCorpse ? window.__docCorpse() : null)`);
       console.log(`    (문 켬 __DOC_CORPSE=${실문} · 이 편성의 시체 쓰임 ${실값})`); }
+    if (PURE != null) { const 실순 = await ev(`globalThis.__ARMY_PURE`);
+      if (+실순 !== +PURE) throw new Error(`ARMY_PURE 문이 안 박혔다 — ${실순} != ${PURE}`);
+      console.log(`    (문 켬 __ARMY_PURE=${실순})`); }
     await ev(`window.__toDungeon()`); await wait(800);
 
     await ev(`window.S && (window.S.speed = ${FF})`);
