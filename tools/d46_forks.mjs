@@ -127,13 +127,15 @@ const RESET = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILL
   for(const k of Object.keys(D)) D[k]=0;
   for(const k of Object.keys(A)) A[k].length=0;
   const N=window.__TAINT; if(N){ N["\uBAAB"]=0; N["\uD69F\uC218"]=0; }   // ★ D-52 · 오염 장부도 같은 자리에서 비운다
+  const V=window.__NOVA; if(V){ for(const k of Object.keys(V)) V[k]=0; }        // ★ D-53 · 폭발 장부도 같은 자리에서 비운다
   return 1; })()`;
 const READ = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLAT;
   if(!B) return null;
   const at={}; for(const k of Object.keys(A)) at[k]=A[k].slice();
-  const T=window.__RAISETALLY, N=window.__TAINT;
+  const T=window.__RAISETALLY, N=window.__TAINT, V=window.__NOVA;
   return { 막타:{...B}, 깎은몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])), 죽은자리:at,
            오염: N ? { 몫:+N["\uBAAB"].toFixed(1), 횟수:N["\uD69F\uC218"] } : null,
+           폭발장부: V ? {...V} : null,
            소환장부: T ? {...T} : null }; })()`;
 /* ★ D-48 · **소환 장부도 같은 자에서 읽는다** — 자를 새로 만들지 않는다. 판은 한 톨도 안
    건드리고(읽기만) 목표층에 닿은 그 자리에서 함께 비운다. 없으면 null 로 남겨 **조용한 0 이
@@ -253,6 +255,15 @@ for (const DOC of DOCS) {
       else console.log(`    오염 ${N.몫.toFixed(0)} (${N.횟수}회) / 깎은몫 ${깎음.toFixed(0)}` +
         ` → 옛 장부가 부풀던 몫 ${(N.몫 / Math.max(1, N.몫 + 깎음) * 100).toFixed(1)}%` +
         ` · 근접 ${(o.깎은몫["근접"] || 0).toFixed(0)} → ${((o.깎은몫["근접"] || 0) + N.몫).toFixed(0)}`); }
+    /* ★★ D-53 · **폭발이 판을 얼마나 덮나** — 한 줄로 찍는다. 나타나는 둘레(RING_SPAWN 190)와
+       나란히 놓아야 「앞줄을 지우는 수법」인지 「판을 통째로 지우는 수법」인지가 갈린다.
+       없으면 null 로 남긴다([[silent-zero-is-not-an-observation]]). */
+    { const V = o.폭발장부;
+      if (!V) console.log(`    (폭발 장부 없음 — window.__NOVA 가 안 붙었다)`);
+      else if (!V.n) console.log(`    폭발 0회 — 이 판에서 시체폭발이 한 번도 안 터졌다`);
+      else console.log(`    폭발 ${V.n}회 · 반경 ${(V.rad / V.n).toFixed(0)}(최고 ${V.radMax.toFixed(0)} · 트리배수 ${(V.mul / V.n).toFixed(2)})` +
+        ` · 폭심 ${(V.bd / V.n).toFixed(0)}px · 덮음 ${(V.hit / Math.max(1, V.mobs) * 100).toFixed(0)}%` +
+        ` (${(V.hit / V.n).toFixed(1)}/${(V.mobs / V.n).toFixed(1)}마리) · 둘레(190) 대비 ${((V.rad / V.n) / 190 * 100).toFixed(0)}%`); }
     /* ★ D-48 · 한 줄로 같이 찍는다 — 「무엇이 소환을 막았나」. 몫의 분모는 **시도 + 건너뜀**이다
        (상한이 차서 시도조차 못 한 초를 빼면 상한의 몫이 통째로 사라진다). */
     { const T = o.소환장부;

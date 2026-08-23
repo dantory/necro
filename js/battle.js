@@ -703,6 +703,18 @@ for (const k of KILL_KINDS) { KILL_BY[k] = 0; KILL_DMG[k] = 0; KILL_AT[k] = []; 
  *  그러면 한 판만 돌려도 **오염% = 몫 / (몫 + KILL_DMG 합)** 이 그대로 나온다.
  *  ★ 세기만 한다 — 판 산수도 난수도 한 톨 안 건드린다(`ARMY_PURE` 문 «바깥»이다). */
 export const TAINT = { 몫: 0, 횟수: 0 };
+
+/** ★ **D-53 · 시체폭발이 «판을 얼마나 덮는가» 를 세는 자**(`js/battle.js` nova 자리).
+ *  D-44 가 잰 것: 적은 둘레 190~240 에서 나서 **10px 걸어 보고 178px 자리에서 죽는다** —
+ *  소환수가 닿지도 않는 자리다. D-45/D-46 이 잰 것: 그 자리에서 죽이는 것은 **시체폭발**
+ *  (편성 넷 다 85~95%). 두 수를 나란히 놓으면 짐작 하나가 선다 — 폭발 반경이 `180 *
+ *  novaRadMul() * ≤1.5` 인데 **나타나는 둘레가 190** 이다. 짐작은 재기 전엔 짐작이다
+ *  ([[cause-written-in-the-item-is-a-guess]]) — 그래서 **자리에서 바로 담는다.**
+ *   · `n` 터진 횟수 · `rad` 반경 합 · `radMax` 최고 반경 · `mul` novaRadMul() 합
+ *   · `bd` 폭심이 판 가운데에서 떨어진 거리 합 · `mobs` 터질 때 판에 있던 적 수 합
+ *   · `hit` 그 폭발 하나가 문 적 수 합 (덮음% = hit / mobs)
+ *  **세기만 하는 줄이다** — 판 산수·난수를 한 톨도 안 건드린다. `window.__NOVA` 로 낸다. */
+export const NOVA = { n: 0, rad: 0, radMax: 0, mul: 0, bd: 0, mobs: 0, hit: 0 };
 /** 적에게 들어간 피해가 **전부 여기를 지난다**(hurtNecro 의 반대쪽). 여섯 자리에서
  *  제각기 `m.hp -=` 하던 것을 한 길로 모아, 화력을 한 군데서 셀 수 있게 했다.
  *  ★ D-45 · `by` 는 **누가 때렸나**다. 안 주면 "etc" — 빠진 길이 표에서 보인다. */
@@ -1440,8 +1452,15 @@ function castOnce(id) {
        이펙트가 나와야지". 맞는 말이고, 이 게임의 이야기와도 그게 맞다 —
        시체가 자원이고 그 시체가 터진다. 쓴 자리를 폭심으로 삼는다. */
     const bx = usedAt ? usedAt.x : 0, by = usedAt ? usedAt.y : 0;
+    /* ★ D-53 · **터지기 «전»에 담는다**(위 `NOVA` 머리말) — 판에 몇이 있었고 반경이
+       얼마였나. 아래 고리가 `hit` 을 세므로 몫은 고리 뒤에 더한다. 세기만 한다. */
+    NOVA.n++; NOVA.rad += rad; NOVA.mul += novaRadMul();
+    NOVA.radMax = Math.max(NOVA.radMax, rad);
+    NOVA.bd += Math.hypot(bx, by * SQUASH_VIEW);
+    NOVA.mobs += S.mobs.length;
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
       const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "시체폭발"); hit++; popNum(m.x, m.y, dd, "nova"); }
+    NOVA.hit += hit;
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라

@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
-import { KILL_BY, KILL_DMG, KILL_AT, TAINT, RAISE_TALLY, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -2568,6 +2568,7 @@ window.__rushNow = () => rushOn() && !(S.spawnQ && S.spawnQ.length);   // 뒷정
    `tools/d45_who.mjs` 가 막타 갈래·깎은 몫·죽은 자리를 여기서 읽는다. 판은 안 건드린다. */
 window.__KILLBY = KILL_BY; window.__KILLDMG = KILL_DMG; window.__KILLAT = KILL_AT;
 window.__TAINT = TAINT;                                  // ★ D-52 · 오염 장부(읽기 전용 · 판 산수와 무관)
+window.__NOVA = NOVA;                                    // ★ D-53 · 폭발이 판을 덮는 몫(읽기 전용)
 /* ★ D-47 · **켠 문이 정말 박혔는지** 검수기가 눈으로 보는 창구(core.js `docCorpseOf`).
    판은 안 건드린다 — 읽기만 한다. 꺼져 있으면 {novaMul:1, keep:0} 이 그대로 나온다. */
 window.__docCorpse = docCorpseOf;
