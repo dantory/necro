@@ -83,6 +83,12 @@ ICONS = {
              "it into a small skull below, tall and vertical",
   "haste":   f"{HEX_}, one small bone with two swept-back feathered wings on its sides, tipped "
              "forward, sharp speed streaks trailing behind it, wide and horizontal",
+  # ── V-4 저주 해금 둘 ── 옆 칸(deep = 보라 해골)과 **한눈에 갈려야** 한다. 그래서 둘 다
+  #   해골을 쓰되 «무엇이 일어나는가»를 형태로 말한다: 약화는 부러지는 팔, 쇠약은 굽은 등.
+  "weaken":  f"{HEX_}, a large sickly green skull emblem filling the frame, a cracked bone arm "
+             "snapping in half below it, downward pointing arrows around it, one skull only, not a cross",
+  "decrep":  f"{HEX_}, a large amber skull emblem filling the frame, its jaw sagging and melting "
+             "downward, thick heavy chains hanging off it and pulling it down, one skull only, not a cross",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

@@ -42,6 +42,13 @@ ICONS = {
            "crossing over them like a fence, filling the whole frame, flat front view emblem",
   "offer": f"{TONE}, an ornate chalice made of bone overflowing with blood, "
            "dark red glow pooling around its base",
+  # ── V-4 저주 둘 ── 벨트에서 amp(보라 해골) 옆에 선다. 빛깔과 형태를 **둘 다** 갈라야
+  #   42px 에서 읽힌다: 약화 = 초록 + 부러진 팔 · 쇠약 = 호박빛 + 굽은 등과 사슬.
+  "weaken": f"{TONE}, a skull sigil wreathed in sickly green curse energy, a cracked snapping "
+            "bone arm falling limp beneath it, downward pointing arrows, not a cross",
+  "decrep": f"{TONE}, a large amber skull emblem filling the frame, its jaw sagging and melting "
+            "downward, thick heavy chains hanging off it and pulling it down, drooping and slow, "
+            "one skull only, not a cross",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

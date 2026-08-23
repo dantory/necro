@@ -1267,6 +1267,17 @@ function draw(dt) {
     const grow = art && art.grow ? 0.55 + 0.63 * (1 - Math.max(0, Math.min(1, f.t / (art.life || 0.35)))) : 1;
     const hh = (art ? art.h : 28) * grow;
     const x = px(f.x || 0), y = py(f.y || 0);
+    /* ★ V-4 · **저주가 셋이 되니 그림 한 장으로는 «어느 것»인지가 안 보인다.** 셋 다 같은
+       curse.png 를 쓰되, 걸린 저주의 빛깔로 **발밑 고리**를 같이 깐다(약화 초록 · 쇠약 금빛 ·
+       피해 증폭은 그림 그대로). 그림을 새로 굽기 전까지의 자리표가 아니라, 고리 자체가
+       「판 전체에 걸렸다」를 뜻해서 저주와 결이 맞는다. */
+    if (f.col) {
+      ctx.save();
+      ctx.strokeStyle = f.col; ctx.lineWidth = 3;
+      ctx.globalAlpha *= 0.85;
+      ctx.beginPath(); ctx.ellipse(x, y, hh * 0.62, hh * 0.62 * SQUASH_VIEW_C, 0, 0, 6.284); ctx.stroke();
+      ctx.restore();
+    }
     if (im) { ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
     else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
       ctx.beginPath(); ctx.arc(x, y - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill(); }
@@ -1696,6 +1707,17 @@ function auto() {
        먹느냐는 재 보고 정한 순서다(ab_mana.sh). 표에서 뽑는 건 조건뿐, 자리는 안 옮긴다. */
   const tac = tacticOf(), boss = S.mobs.some(m => m.boss);
   if (S.mobs.length && (!tac.ampCapped || armyN() >= armyCap()) && (!tac.ampBossOnly || boss)) cast("amp");
+  /* ★ V-4 · **저주 둘은 «언제»가 amp 와 다르다.** amp 는 화력이라 늘 걸수록 이득이지만,
+     아래 둘은 **목숨을 사는 저주**다 — 편할 때 걸면 마나만 태우고 정작 위험한 순간에
+     재사용이 돌고 있다. 그래서 「지금 위험한가」를 조건으로 둔다:
+       · 약화 — 몸이 70% 아래로 내려갔거나 관문(보스)일 때. 적이 «주는» 피해를 깎으므로
+         맞고 있을 때가 아니면 아무 일도 안 한다.
+       · 쇠약 — 더 비싸고(22) 더 길게 도니(14초) 더 급할 때만: 몸 50% 아래 또는 보스.
+     둘 다 해금 전에는 SKILLS 에 없어 cast 가 곧장 false 다(castOnce 첫 줄) — 안 찍은
+     판은 이 두 줄이 없는 것과 같다. */
+  const hurtFrac = S.hp / (S.hpMax || 1);
+  if (S.mobs.length && (boss || hurtFrac < 0.70)) cast("weaken");
+  if (S.mobs.length && (boss || hurtFrac < 0.50)) cast("decrep");
   /* ★ **넘치기 직전의 시체는 터뜨린다.** 상한을 두는 것만으로는 「버려진다」가 될 뿐이라
      자원이 되지 않는다 — 남는 몫을 화력으로 바꾸는 자리를 낸다(저주를 마나에 낸 것과 같은
      이치다). **맨 끝에** 둔 것이 중요하다: 소환이 먼저 마나를 가져가고, 군대를 다 세우고도

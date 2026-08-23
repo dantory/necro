@@ -1,7 +1,7 @@
 import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, raiseDmg, raiseScale, dmgMulOf, selfMulOf, minionMulOf, goldMulOf, afText, nameOf, floorDmg, floorHp, floorN, FOOT_R, footR, gearVal, goldFor, hpMaxOf, hpFloorLift, isGate, META, mpRegenOf, SQUASH_VIEW,
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
-         wandMul, ampSecs, ampPower, harvestPct, spiritMp, feastOn,
+         wandMul, ampSecs, ampPower, weakenMul, decrepMul, harvestPct, spiritMp, feastOn,
          FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
@@ -1528,7 +1528,24 @@ function castOnce(id) {
     let cx = 0, cy = 0, n = 0;
     for (const m of S.mobs) { cx += m.x; cy += m.y; n++; }
     S.fx.push({ t: 0.6, x: n ? cx / n : 0, y: n ? cy / n : 0, kind: "curse" });
-    say(`<b style="color:#6a6aff">약화의 저주</b> ${ampSecs()}초 지속`);
+    say(`<b style="color:#6a6aff">피해 증폭</b> ${ampSecs()}초 지속`);
+  }
+  /* ══ V-4 · 저주 둘 ══ 거는 자리는 amp 와 **한 글자도 다르지 않다**(무리의 무게중심에
+     고리 하나 · 지속은 ampSecs). 다른 것은 **무엇을 사느냐**뿐이다.
+     ★ 고리 빛깔을 나눈다 — 셋이 같은 그림이면 「저주가 걸렸다」는 보여도 «어느 저주»인지가
+       안 보인다. 걸린 저주가 셋이나 되는 순간부터는 그게 곧 정보다. */
+  if (id === "weaken" || id === "decrep") {
+    let cx = 0, cy = 0, n = 0;
+    for (const m of S.mobs) { cx += m.x; cy += m.y; n++; }
+    S.fx.push({ t: 0.6, x: n ? cx / n : 0, y: n ? cy / n : 0, kind: "curse",
+                col: id === "weaken" ? "#7ad0a0" : "#c8a04a" });
+    if (id === "weaken") {
+      S.wkn = ampSecs();
+      say(`<b style="color:#7ad0a0">약화</b> ${ampSecs()}초 · 적이 주는 피해 ${Math.round((1 - weakenMul()) * 100)}% 감소`);
+    } else {
+      S.dcp = ampSecs();
+      say(`<b style="color:#c8a04a">쇠약</b> ${ampSecs()}초 · 적이 ${Math.round((1 - decrepMul()) * 100)}% 느려진다`);
+    }
   }
   /* **시전하는 순간을 몸으로 보인다.** 네크로는 안 움직이니 걷기 그림이 없다 — 유일하게
      자세가 바뀌는 때가 스킬을 쓸 때다. 소환수의 휘두름과 같은 길이(SWING_T)의 창을 켜서,
@@ -1752,6 +1769,8 @@ export function step(dt) {
   }
   for (const k in S.cd) if (S.cd[k] > 0) S.cd[k] -= dt;
   if (S.amp > 0) S.amp -= dt;
+  if (S.wkn > 0) S.wkn -= dt;   // V-4 약화
+  if (S.dcp > 0) S.dcp -= dt;   // V-4 쇠약
   /* ── 본인의 뼈를 놓는 칸 ── 소환수·적과 **같은 몫**(IMPACT_AT)이지만 **제 시계**다. */
   if (S.pbolt && (S.pbolt.t -= dt) <= 0) {
     let t = null, td = NECRO_ATK.range;
@@ -1796,6 +1815,10 @@ export function step(dt) {
   }
 
   const ampMul = S.amp > 0 ? ampPower() : 1;
+  /* V-4 · 저주 둘의 곱. **안 걸렸으면 정확히 1** 이라, 해금 전 판은 여기 손대기 전과
+     비트까지 같다(A/B 가 갈리지 않는다). */
+  const wknMul = S.wkn > 0 ? weakenMul() : 1;
+  const dcpMul = S.dcp > 0 ? decrepMul() : 1;
 
   /* ══ 닿았나 ══ **떼어 놓는 자와 닿았다는 자가 같은 자를 써야 한다.**
      ★★ 병수님: "하수인들 공격 못션 안하는데". 재 보니 소환수가 휘두르는 건
@@ -2107,7 +2130,7 @@ export function step(dt) {
         continue;
       }
       if (m.mstate === 2) {                                 // 돌진 — 중앙으로 빠르게
-        const sp = m.spd * 6;
+        const sp = m.spd * 6 * dcpMul;   // V-4 쇠약
         m.x += m.cvx * sp * dt; m.y += m.cvy * sp * dt;
         m.walked = (m.walked || 0) + sp * dt; m.moving = 0.12;
         m.face = m.cvx < 0 ? -1 : 1; m.dx = m.cvx; m.dy = m.cvy;
@@ -2118,7 +2141,7 @@ export function step(dt) {
               ? floorHp(S.floor) * GATE_MIN_OF() * GATE_MUL_OF("charge") : m.dmg;
             hitMinion(u, cb * 3.0 * ampMul, m.cvx, m.cvy, "charge"); u.hitByCharge = 1; }
         if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R + m.r * 0.5) {
-          hurtNecro(m.dmg * 3.0 * ampMul, "charge", m.cvx, m.cvy);
+          hurtNecro(m.dmg * 3.0 * ampMul * wknMul, "charge", m.cvx, m.cvy);   // V-4 약화
           m.mstate = 0; m.mechCd = lord.cd; if (S.dead) return;
         } else if ((m.mtell -= dt) <= 0) { m.mstate = 0; m.mechCd = lord.cd; }
         continue;
@@ -2253,10 +2276,10 @@ export function step(dt) {
     if (tgt && td < m.r + tgt.r + 4) {
       face(m, tgt);                       // 소환수 쪽과 같은 규칙(위 주석)
       if ((m.atk -= dt) > 0) continue;
-      m.atk = MOB_CD; m.swing = SWING_T;
+      m.atk = MOB_CD / dcpMul; m.swing = SWING_T;   // V-4 쇠약 — 굼떠진다(한 방의 세기는 그대로)
       m.sdx = (tgt.x - m.x); m.sdy = (tgt.y - m.y);
       const ml = Math.hypot(m.sdx, m.sdy) || 1; m.sdx /= ml; m.sdy /= ml;
-      m.pending = { tgt, dmg: m.dmg * MOB_CD, heal: false };
+      m.pending = { tgt, dmg: m.dmg * MOB_CD * wknMul, heal: false };   // V-4 약화
       /* ★★ 여기서 불꽃을 **바로** 뿌리고 있었다. 피해는 팔이 뻗는 칸(impactAt)에서
          들어가는데 불꽃만 0.33초 먼저 터진 것이다 — 소환수 쪽에서 고쳤던
          「원인보다 결과가 먼저」가 적 쪽에는 그대로 남아 있었다. 게다가 pending 이
@@ -2271,7 +2294,7 @@ export function step(dt) {
        넘기는 속도 자리만 바꾼다(휘두르는 중 rooted 는 위에서 이미 발이 멎어 손 안 댄다).
        관문 주인(m.boss)은 **뺀다**(a 만 준다) — 여기 속도를 건드리면 돌진 상태머신
        (mstate/mtell)의 몸놀림과 섞여 「예고 없는 돌진」이 된다. 문이 꺼지면 sp=m.spd. */
-    const sp = (rush && !m.boss) ? m.spd * RUSH.spd : m.spd;
+    const sp = ((rush && !m.boss) ? m.spd * RUSH.spd : m.spd) * dcpMul;   // V-4 쇠약
     if (tgt) { if (!rooted) approach(m, tgt.x, tgt.y, (m.r + tgt.r) * touchK(), sp, dt); continue; }
     if (!rooted) approach(m, 0, 0, CORE_R, sp, dt);
     if (Math.hypot(m.x, m.y * SQUASH_VIEW) <= CORE_R) {   // 둘레가 뚫렸다 — 본인이 맞는다
@@ -2282,9 +2305,9 @@ export function step(dt) {
          (m.pending.core), 실제 타격과 죽음 판정은 위 impactAt 루프가 푼다 — 그래야 이
          한 방도 다른 모든 타격과 같은 「원인 → 결과」 순서로 읽힌다. */
       const ml = Math.hypot(m.x, m.y) || 1;
-      m.atk = MOB_CD; m.swing = SWING_T;
+      m.atk = MOB_CD / dcpMul; m.swing = SWING_T;   // V-4 쇠약 — 굼떠진다(한 방의 세기는 그대로)
       m.sdx = -m.x / ml; m.sdy = -m.y / ml;          // 가운데(본인)를 향해 내지른다
-      m.pending = { core: true, dmg: m.dmg * MOB_CD, cause: m.cause };
+      m.pending = { core: true, dmg: m.dmg * MOB_CD * wknMul, cause: m.cause };   // V-4 약화
     }
   }
 
@@ -2558,7 +2581,7 @@ export function newRun() {
     chowl: 0,                           // 이 판에서 우두머리가 지른 절규 수 — 검수기가 「손잡이가 도는가」를 본다
     zone: null,                         // 새 판은 구역도 처음부터 — 안 지우면 enterFloor 가 「같은 구역」으로 보고 바닥을 안 간다
 
-    amp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
+    amp: 0, wkn: 0, dcp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
     dealtAcc: 0, armyDps: 0,           // 「지금 군대가 내는 화력」 — 판이 바뀌면 앞 판 기억을 안 물려받는다
   });
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다

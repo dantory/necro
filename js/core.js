@@ -237,7 +237,15 @@ const ALL_SKILLS = [
   { id:"ghoul", n:"구울 되살리기", ico:"✦", mp:12, cd:2.0, corpse:1, d:"시체 1 → 구울 1", need:"ghoul" },
   { id:"golem", n:"흙 골렘",      ico:"◆", mp:30, cd:6.0, corpse:1, d:"시체 1 → 흙 골렘 1", need:"golem" },
   { id:"nova",  n:"시체 폭발",    ico:"✹", mp:18, cd:2.2, corpse:1, d:"시체 1 → 주위 광역 피해" },
-  { id:"amp",   n:"약화의 저주",  ico:"✜", mp:12, cd:8,   corpse:0, d:"일정 시간 적이 받는 피해 증가" },
+  /* ══ 저주 셋(V-4) ══ D2 네크로의 세 기둥(소환·시체·저주) 중 저주가 여태 **한 줄**이었다.
+     저주 하나로는 「고를 것」이 없다 — 늘 켜 두면 그만이라 손잡이가 아니라 배경이다.
+     셋은 **서로 다른 것을 산다**: amp 는 화력 · weaken 은 목숨 · decrep 은 시간.
+     ★ amp 의 이름을 「약화의 저주」 → 「피해 증폭」 으로 고쳤다. 하는 일이 «적이 받는
+       피해 증가» 인데 이름은 D2 의 Weaken(약화 = 적이 «주는» 피해 감소)을 달고 있었다 —
+       진짜 약화가 옆에 서는 순간 그 이름이 둘을 뒤집는다. */
+  { id:"amp",    n:"피해 증폭", ico:"✜", mp:12, cd:8,  corpse:0, d:"일정 시간 적이 <b>받는</b> 피해 증가" },
+  { id:"weaken", n:"약화",     ico:"✧", mp:14, cd:10, corpse:0, d:"일정 시간 적이 <b>주는</b> 피해 감소", need:"weaken" },
+  { id:"decrep", n:"쇠약",     ico:"◈", mp:22, cd:14, corpse:0, d:"일정 시간 적이 <b>느려지고 굼떠진다</b>", need:"decrep" },
   /* ══ 시체 소비처 셋(2단계 ⑥) ══ 소환·폭발뿐이던 시체를 쓰는 길을 넓힌다. 성격이
      겹치지 않게: burn 은 넘칠 때 마나로, wall 은 길목을 막고, offer 는 관문에서만.
      기술 틀(SKILLS) 안에 넣어 소모/재사용/마나 검사가 cast() 한 자리를 지나게 한다. */
@@ -2242,8 +2250,14 @@ export const TREE = [
   { k:"hex", n:"주 술", nodes:[
     { id:"wand",   n:"뼈 다루기",  max:8, lv:1,  d:"본인 기본 공격력 +12%" },
     { id:"swift",  n:"빠른 손",    max:7, lv:5,  req:"wand",   d:"모든 스킬 재사용 -7%" },
-    { id:"deep",   n:"깊은 저주",  max:6, lv:9,  req:"swift",  d:"저주 지속 +3초 · 증폭 +8%" },
-    { id:"veil",   n:"어둠의 장막", max:6, lv:15, req:"deep",   d:"저주 증폭 +7%" },
+    /* ══ V-4 · **저주가 트리 안에서 갈린다** ══ 여태 주술 줄기는 「저주를 더 세게」만
+       있었지(deep·veil) **저주 자체는 한 종**이었다. 소환 줄기가 종을 여는 칸(ghoul·golem)을
+       가진 것과 견주면 이쪽만 결이 빠져 있었다 — 그래서 같은 자리에 같은 결로 넣는다:
+       **먼저 종이 열리고, 그 다음에 세기가 는다.** deep/veil 은 세 저주에 다 걸린다. */
+    { id:"weaken", n:"약화",      max:1, lv:7,  req:"swift",  d:"<b>약화의 저주</b> 해금 · 적이 주는 피해가 준다", big:1 },
+    { id:"deep",   n:"깊은 저주",  max:6, lv:9,  req:"weaken", d:"저주 지속 +3초 · 증폭 +8%" },
+    { id:"decrep", n:"쇠약",      max:1, lv:13, req:"deep",   d:"<b>쇠약의 저주</b> 해금 · 적이 느려지고 굼떠진다", big:1 },
+    { id:"veil",   n:"어둠의 장막", max:6, lv:15, req:"decrep", d:"저주 증폭 +7%" },
     { id:"spirit", n:"영혼 흡수",  max:5, lv:18, req:"veil",   d:"적 처치 시 마나 +2" },
     /* 주술의 갈래 — 마나로 버티느냐, 손을 더 빨리 놀리느냐. 저주가 축인 빌드라
        둘 다 「더 자주 쓴다」로 가지만 길이 다르다(연료 vs 시계). */
@@ -2484,6 +2498,12 @@ export const cdMul       = () => Math.pow(0.93, rank("swift")) * Math.pow(0.95, 
 export const wandMul     = () => 1 + rank("wand") * 0.12;
 export const ampSecs     = () => 8 + rank("deep") * 3;
 export const ampPower    = () => 1.4 + rank("deep") * 0.08 + rank("veil") * 0.07;   // 저주가 올리는 피해 배수
+/* ★ V-4 · 나머지 두 저주도 **같은 두 노드(deep·veil)에 매단다** — 저주마다 따로 손잡이를
+   달면 「저주를 키운다」가 세 갈래로 흩어져 어느 것도 안 자란다. 대신 방향이 반대다:
+   amp 는 곱이 «커지고», 아래 둘은 곱이 «작아진다»(적이 주는 피해 · 적의 걸음).
+   바닥을 둬서 0 으로는 안 간다 — 무적이 되는 저주는 저주가 아니라 스위치다. */
+export const weakenMul   = () => Math.max(0.45, 0.72 - rank("deep") * 0.02 - rank("veil") * 0.02);  // 적이 «주는» 피해 배수
+export const decrepMul   = () => Math.max(0.50, 0.70 - rank("deep") * 0.015 - rank("veil") * 0.015); // 적의 걸음·손놀림 배수
 export const harvestPct  = () => rank("harvest") * 0.12 + rank("glut") * 0.09 + afSum("corpse") / 100 + gearVal("belt");   // 허리띠 = 시체 획득
 /** 경험치 배수 — 옵션 xp. 곱해지는 자리는 battle.js 의 xpGain 하나뿐이다. */
 export const xpMul       = () => 1 + afSum("xp") / 100 + gearVal("ring2");   // 반지 ② = 경험치
