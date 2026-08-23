@@ -46,11 +46,12 @@ const j = JSON.parse(fs.readFileSync(SRC, "utf8"));
 const by = {};
 for (const [k, o] of Object.entries(j)) {
   const d = o.편성 || k.split("/")[0];
-  const a = by[d] || (by[d] = { T: {}, 군세: [], 판: 0, 마을: 0, 얕음: 0, 없음: 0 });
+  const a = by[d] || (by[d] = { T: {}, 군세: [], 판: 0, 마을: 0, 얕음: 0, 없음: 0, 초: 0 });
   a.판++;
   if ((o.마을초 ?? 0) > 5) a.마을++;
   if ((o.시작층 ?? 0) < 21) a.얕음++;
   a.군세.push(o.군세평균 ?? 0);
+  a.초 += o.ff ?? 0;                                  // ★ 세움/지워짐을 «초당» 으로 보려면 잰 시간이 있어야 한다
   const T = o.소환장부;
   if (!T) { a.없음++; continue; }
   for (const [kk, v] of Object.entries(T)) a.T[kk] = (a.T[kk] || 0) + v;
@@ -72,7 +73,8 @@ for (const [d, a] of Object.entries(by)) {
   줄.push({ d, n, 기회,
     상한: p((T.capskip || 0) + (T.capfull || 0)), 마나만: p(T.soleMana), 재사용만: p(T.soleCd),
     시체만: p(T.soleCorpse), 섞임: p(T.multi), 섬: p(T.ok), 머지: p(T.merge), 지워짐: T.lost || 0,
-    군세: +(a.군세.reduce((s, v) => s + v, 0) / Math.max(1, a.군세.length)).toFixed(2) });
+    군세: +(a.군세.reduce((s, v) => s + v, 0) / Math.max(1, a.군세.length)).toFixed(2),
+    _ok: T.ok || 0, _merge: T.merge || 0, _lost: T.lost || 0, _sec: Math.max(1, a.초) });
 }
 
 /* ★ 머지도 같이 찍는다 — 「선 것」의 한 갈래인데 표에서 빠지면 조용한 0 이 된다
@@ -83,17 +85,39 @@ for (const r of 줄)
 
 const 평 = k => +(줄.reduce((s, r) => s + r[k], 0) / Math.max(1, 줄.length)).toFixed(1);
 const 몫 = { 상한: 평("상한"), 마나만: 평("마나만"), 재사용만: 평("재사용만"), 시체만: 평("시체만") };
+
+/* ★★ D-48 · **문턱 옆에 «바닥»을 나란히 둔다.** 처음 이 자는 「㉢ 재사용이 벽 77.3%」 를 찍었는데,
+   그 수는 눈금이 아니라 상수였다([[floor-far-from-threshold]]). auto() 는 AUTO_EVERY(0.35초)마다
+   도는데 raise 재사용은 RAISE_CD(1.2초)라, **아무 문제가 없어도** 폴링 3.43회당 1회만 설 수 있어
+   그 초의 70.8% 가 「재사용 중」으로 세어진다. 끝 조건에 적은 문턱은 50% — **바닥보다 낮았다.**
+   ㉢ 은 재기 전에 이미 정해져 있었던 것이다.
+   상한·마나·시체 쪽은 바닥이 0 이라(아무 일 없으면 0회) 문턱 50% 가 그대로 유효하다. */
+const AUTO_EVERY = 0.35, RAISE_CD = 1.2;
+const 재사용바닥 = +((1 - AUTO_EVERY / RAISE_CD) * 100).toFixed(1);   // 폴링 중 「재사용 중」인 몫
+const 재사용문턱 = Math.max(50, 재사용바닥 + 10);                      // 바닥 위 10%p 는 넘어야 신호다
+console.log(`\n자의 바닥: 재사용만 은 아무 일이 없어도 ${재사용바닥}% 가 나온다` +
+            ` (auto ${AUTO_EVERY}초 · raise 재사용 ${RAISE_CD}초) → 이 갈래의 실효 문턱 ${재사용문턱}%`);
 const 군세평 = 평("군세"), 섬 = 평("섬");
 let 판정;
 if (흠.length) 판정 = `판정 미룸 — 끝 조건이 깨졌다: ${흠.join(" · ")}`;
 else if (몫.상한 >= 50) 판정 = `㉠ 상한이 벽이다 (${몫.상한}%) — 손잡이는 armyCap·머지·초과 세우기`;
 else if (몫.마나만 >= 50) 판정 = `㉡ 마나가 벽이다 (${몫.마나만}%) — 손잡이는 마나 회복·소환 값·차례`;
-else if (몫.재사용만 >= 50) 판정 = `㉢ 재사용이 벽이다 (${몫.재사용만}%) — 손잡이는 재사용 초·raiseHaste`;
+else if (몫.재사용만 >= 재사용문턱) 판정 = `㉢ 재사용이 벽이다 (${몫.재사용만}% · 바닥 ${재사용바닥}%) — 손잡이는 재사용 초·raiseHaste`;
 else if (몫.시체만 >= 50) 판정 = `㉣ 시체가 벽이다 (${몫.시체만}%) — D-47 의 keep 이 되레 굶겼다`;
 else if (섬 >= 50 && 군세평 <= 13) 판정 = `㉥ 안 막힌다 (섬 ${섬}% · 군세 ${군세평}) — 벽은 «세우기»가 아니라 «지워짐»이다`;
 else { const [k, v] = Object.entries(몫).sort((a, b) => b[1] - a[1])[0];
   판정 = `㉤ 섞였다 — 제일 큰 것은 ${k} ${v}% (문턱 50%) · 섞임 ${평("섞임")}% · 하나만 풀어선 안 선다`; }
 console.log(`\n판정: ${판정}`);
+if (몫.재사용만 >= 50 && 몫.재사용만 < 재사용문턱)
+  console.log(`곁가지: 재사용만 ${몫.재사용만}% 는 절반을 넘었지만 **바닥 ${재사용바닥}% 위 ${(몫.재사용만 - 재사용바닥).toFixed(1)}%p** 라 신호가 아니다`);
+
+/* ★★ D-48 의 진짜 신호 — **세우는 속도와 지워지는 속도.** 군세 ≈ 세움속도 × 수명 이라,
+   막힌 관문을 못 찾았다면 벽은 «세우기» 가 아니라 «수명» 이다. */
+console.log("\n│ 편성   │ 세움/초 │ 지워짐/초 │ 군세 │ 수명 │");
+for (const r of 줄) {
+  const 세움 = (r._ok + r._merge) / r._sec, 지움 = r._lost / r._sec;
+  console.log(`│ ${r.n.padEnd(5, " ")} │ ${세움.toFixed(2)} │ ${지움.toFixed(2)} │ ${r.군세} │ ${(r.군세 / 지움).toFixed(1)}초 │`);
+}
 
 const 균형 = 줄.find(r => r.d === "balance");
 if (균형) for (const r of 줄) if (KEEP[r.d] > 0)
