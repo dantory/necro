@@ -217,13 +217,36 @@ export function swingGain(base) {
  *    walk/attack → assets/<base>/<state>/<dir>/<frameIdx>.png
  *  프레임이 아직 안 왔으면 idle 한 장으로 폴백, idle 도 없으면 false 를 돌려
  *  부르는 쪽이 색 덩어리를 그리게 한다. */
-export function drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h) {
+/* ══ 갈래로 물들인 프레임 ══ (2026-08-24 · V-7 · core.js `MOB_CLAN`)
+   `ctx.filter` 는 그릴 때마다 다시 도는 셈이라, 한 프레임에 열넷을 그리면 그만큼 값이 든다.
+   (그림 × 갈래) 는 많아야 (8방향 + 걷기 48 + 공격 48) × 두 갈래뿐이니 **한 번 만들어 두고 쓴다**
+   — 시체 얼룩(main.js `corpseArt`)과 같은 수법이다.
+   ★ 아직 안 온 그림은 **굳히지 않는다** — null 을 캐시에 박아 두면 그림이 온 뒤에도 영영 안 나온다
+     (그 자리에도 같은 주의가 적혀 있다). */
+const FILTERED = new Map();
+function filtered(im, path, filter) {
+  const key = path + "|" + filter;
+  const hit = FILTERED.get(key);
+  if (hit) return hit;
+  if (!im.width || !im.height) return im;          // 아직 안 왔다 — 이번 판만 원본으로 그린다
+  const c = document.createElement("canvas");
+  c.width = im.width; c.height = im.height;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.filter = filter;
+  g.drawImage(im, 0, 0);
+  FILTERED.set(key, c);
+  return c;
+}
+
+export function drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h, filter) {
   const path = state === "idle"
     ? `assets/${base}/${dir}.png`
     : `assets/${base}/${state}/${dir}/${frameIdx}.png`;
-  let im = img(path);
-  if (!im && state !== "idle") im = img(`assets/${base}/${dir}.png`);   // 프레임 없으면 idle 로
+  let im = img(path), used = path;
+  if (!im && state !== "idle") { used = `assets/${base}/${dir}.png`; im = img(used); }   // 프레임 없으면 idle 로
   if (!im) return false;                                                // idle 도 없으면 폴백은 호출자가
+  if (filter) im = filtered(im, used, filter);
 
   ctx.imageSmoothingEnabled = false;        // 픽셀아트 — 뭉개지 않는다
   const w = h * (im.width / im.height);     // 가로세로비 유지

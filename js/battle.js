@@ -2,7 +2,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, weakenMul, decrepMul, harvestPct, spiritMp, feastOn,
-         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N,
+         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N, clanIdx, mobName,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
          deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
@@ -815,6 +815,7 @@ function popSpawn() {
   if (q.boss) {
     const lord = gatelordFor(q.f);
     m.boss = true; m.kind = "boss"; m.lord = lord;
+    m.vr = 0;              // 관문의 주인은 갈래를 안 탄다 — 하나뿐인 놈이라 물들일 까닭이 없다
     /* 수법 상태: mechCd 는 다음 수법까지, mstate/mtell 은 돌진 상태머신(0 대기·1 예고·2 돌진).
        ★ **첫 예고는 서는 즉시 튼다**(예전 cd×0.6 = 1.7초 뒤). 깊은 관문의 주인은 한 번에
          0.8 초밖에 못 사는데 첫 수법까지 3.3초(born 0.8 + 1.7 + tell 0.8)가 필요해
@@ -905,6 +906,10 @@ function spawnMob(f, i, n) {
               hp: floorHp(f), hpMax: floorHp(f),
               dmg: floorDmg(f), spd: 22 + Math.random() * 10,
               r: h * footR(), atk: 0, boss: false };
+  /* ★ 갈래(V-7 · core.js `MOB_CLAN`) — **난수를 새로 들이지 않는다.** 여기서 Math.random()
+     을 한 번 더 당기면 씨앗을 박은 검수기의 판이 통째로 갈린다(바로 아래 우두머리 판정에
+     붙은 주의와 같은 몫이다). id·층에서 흩어 뽑으므로 같은 씨앗이면 갈래도 같다. */
+  m.vr = clanIdx(m.id, f);
   /* ★ 우두머리(위 CHAMP 문) — **관문 밖에서 군대를 쓸어내는 유일한 자리.**
      난수를 새로 들이지 않는다(검수기가 씨앗을 박으면 여기도 그대로 굳는다). */
   if (CHAMP_ON() && f >= CHAMP_FROM && Math.random() < CHAMP_P_OF()) {
@@ -2445,7 +2450,7 @@ export function step(dt) {
                           올라오므로 「죽었다가 내 편으로 섰다」가 한 동작으로 읽힌다. */
                        rise: RISE_T });
       S.fx.push({ t: RISE_T, x: m.x, y: m.y, kind: "rise" });
-      say(`<b style="color:#a06ad0">${MOB_N[m.kind] || "시체"}</b> 지배 · 아군 합류`);
+      say(`<b style="color:#a06ad0">${mobName(m)}</b> 지배 · 아군 합류`);
     } else addCorpse(m.x, m.y, m.boss ? "large" : (m.h >= 58 ? "large" : "small"), 1, m.hpMax);
     /* 트리 — **시체 수확**은 시체를, **영혼 흡수**는 마나를 더 준다. 둘 다
        「죽였다」에 붙는 보상이라 판을 보고 있을 이유가 된다. */
