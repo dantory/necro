@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -1708,8 +1708,13 @@ const syncReborn = () =>
 
 /** 등급 색 — D2 의 규칙 그대로. */
 const TIER_CLS = ["t0", "t1", "t2", "t3", "t4"];
-/** 이름 색 — 유니크는 등급 색(t0~t4) 대신 **고유 색(uniq)** 하나로 한눈에 다르게 보인다. */
-const clsOf = (it) => (it && it.uid) ? "uniq" : TIER_CLS[(it && it.tier) | 0];
+/** ★ 이름 색 = **희귀도**다(2026-08-23 · V-2). 등급은 15층이면 꼭대기라 그 뒤로 주운 것이
+ *  전부 같은 빛깔이었다 — D2 처럼 «옵션이 몇 개 붙었나»로 가른다:
+ *  흰(r0 일반) · 파랑(r1 매직) · 노랑(r2 희귀) · 주황(uniq). 등급 숫자는 칸 배지에 남는다. */
+const RAR_CLS = { norm:"r0", magic:"r1", rare:"r2", uniq:"uniq" };
+const clsOf = (it) => RAR_CLS[rarityOf(it)];
+/** 툴팁 첫 줄에 붙는 말 — 색만으로는 처음 보는 사람이 못 읽는다. */
+const rarWord = (it) => RARITY[rarityOf(it)].n;
 /** 유니크면 규칙 한 줄(d) — 「이게 나오면 판이 달라진다」를 말로 보인다. */
 const ruleHtml = (it) => { const u = uniqOf(it); return u ? `<div class="tipRule">${u.d}</div>` : ""; };
 
@@ -1771,7 +1776,7 @@ function drawShop() {
   const fmt = (v) => gearShow(k, v);
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
   $("shopTip").innerHTML =
-    `<div class="tipName ${clsOf(it)}">${nameOf(it)}</div>
+    `<div class="tipName ${clsOf(it)}">${nameOf(it)} <span class="rarTag">${rarWord(it)}</span></div>
      <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${bagUsed()}/${BAG_MAX}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t] * ilMul(it?.il))}</b></div>` +
     (it?.il > 0 ? `<div class="tipNote sm">${it.il}층에서 나온 것 · 깊이 <b>×${ilMul(it.il).toFixed(2)}</b></div>` : "") +
@@ -1876,7 +1881,7 @@ let statSel = null;                           // 고른 칸 — {src:"eq",k} 또
 const gearCell = (it, attr, sel, plus = 0) => {
   const n = it.af.length, uq = !!it.uid;
   return `<div class="cell rar-${clsOf(it)}${sel ? " sel" : ""}${uq ? " uniq" : ""}" ${attr}>
-    <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
+    <i class="gear-${it.k}"></i><span class="q ${uq ? "uniq" : TIER_CLS[it.tier]}">${uq ? "★" : it.tier}</span>
     ${plus ? `<span class="plusBadge">+${plus}</span>` : ""}
     ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
 };
@@ -1966,7 +1971,7 @@ const statTipHtml = (sel = statSel, { pinned = true } = {}) => {
   const g = GEAR[it.k];
   const fmt = (v) => gearShow(it.k, v);
   const pl = sel.src === "eq" ? (META.plus[it.k] | 0) : 0;
-  return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""}</div>
+  return `<div class="tipName ${clsOf(it)}">${nameOf(it)}${pl ? ` <span class="plus">+${pl}</span>` : ""} <span class="rarTag">${rarWord(it)}</span></div>
     <div class="tipKind">${g.n} · 점수 ${Math.round(scoreOf(it))}${sel.src === "eq" ? " · 낀 것" : ""}</div>
     <div class="tipStat">${g.d} <b>${fmt(g.val[it.tier] * ilMul(it.il))}</b></div>` +
     /* 물건 레벨 — 「같은 등급인데 왜 더 좋지?」의 답이 이 한 줄이다(깊이가 곱한다). */

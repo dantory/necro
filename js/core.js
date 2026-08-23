@@ -937,6 +937,14 @@ for (const u of UNIQUE) UNIQ_BY_ID[u.id] = u;
 /** 이 물건이 유니크인가 — **uid 하나로 표식한다.** 저장이 uid 를 들고 오면 gearOk 가
  *  아는 것만 통과시킨다(모르는 uid 는 옛 유니크·오타라 걸러진다). */
 export const isUnique = (it) => !!(it && it.uid);
+/* ══ 희귀도 ══ (2026-08-23 · ROADMAP V-2 · 병수님 「며칠 작업한 게 티가 안 난다」)
+   여태 이름 빛깔은 **등급(tier)** 이었다 — 그런데 등급은 15층이면 꼭대기라, 그 뒤로는
+   주운 것이 전부 같은 빛깔이다. D2 가 실제로 색으로 가르는 것은 등급이 아니라
+   **몇 개의 옵션이 붙었나**다: 흰(없음) · 파랑(하나=매직) · 노랑(둘 이상=레어) · 금(유니크).
+   그래서 빛깔의 뜻을 옮긴다 — 등급 숫자는 칸의 배지에 그대로 남는다(축이 둘 다 산다). */
+export const RARITY = { norm:{ n:"일반", c:0 }, magic:{ n:"마법", c:1 }, rare:{ n:"희귀", c:2 }, uniq:{ n:"유니크", c:3 } };
+export const rarityOf = (it) => !it ? "norm"
+  : it.uid ? "uniq" : (it.af && it.af.length >= 2) ? "rare" : (it.af && it.af.length === 1) ? "magic" : "norm";
 export const uniqOf   = (it) => (it && it.uid) ? (UNIQ_BY_ID[it.uid] || null) : null;
 /** **저절로 껴도 되는 물건인가** (D-4). 평범한 전리품은 늘 그렇고, 유니크는 `up`
  *  (위로만 — 손해 보는 자리가 없는 것) 셋만 그렇다. `gate`·`lonely` 는 **주고받기**라
@@ -1095,22 +1103,22 @@ export const digCost = () => Math.round(60 * Math.pow(DIG_BASE, Math.max(1, META
    좋은 옵션 셋(≈90)이 **한 등급(100)보다 살짝 모자라게** 맞췄다. 그래야 등급이
    여전히 뼈대이고, 옵션은 **같은 등급끼리를 가르는** 눈금이 된다. */
 export const AFFIX = {
-  dmg:  { n:"본인 피해",   u:"%",   pre:"잔혹한", w:0.9,  r:[6, 18],   p:1 },
-  mdmg: { n:"소환수 피해", u:"%",   pre:"호령하는", w:0.75, r:[8, 22],   p:1 },
-  hp:   { n:"최대 체력",   u:"",    pre:"단단한", w:0.15, r:[30, 90],  p:1 },
-  mp:   { n:"마나 회복",   u:"/초", pre:"흐르는", w:11,   r:[0.5, 1.6],p:1 },
-  gold: { n:"금 획득",     u:"%",   pre:"탐욕스런", w:0.5,  r:[10, 30],  p:0.9 },
+  dmg:  { n:"본인 피해",   u:"%",   pre:"잔혹한", suf:"학살", w:0.9,  r:[6, 18],   p:1 },
+  mdmg: { n:"소환수 피해", u:"%",   pre:"호령하는", suf:"군단", w:0.75, r:[8, 22],   p:1 },
+  hp:   { n:"최대 체력",   u:"",    pre:"단단한", suf:"성채", w:0.15, r:[30, 90],  p:1 },
+  mp:   { n:"마나 회복",   u:"/초", pre:"흐르는", suf:"샘", w:11,   r:[0.5, 1.6],p:1 },
+  gold: { n:"금 획득",     u:"%",   pre:"탐욕스런", suf:"탐욕", w:0.5,  r:[10, 30],  p:0.9 },
   /* 군세 +1 은 판이 눈에 띄게 바뀌므로 **드물게**, 그리고 등급이 올라도 1 그대로(flat). */
-  army: { n:"군세 상한",   u:"",    pre:"거느리는", w:38,   r:[1, 1],    p:0.28, flat:true },
+  army: { n:"군세 상한",   u:"",    pre:"거느리는", suf:"군세", w:38,   r:[1, 1],    p:0.28, flat:true },
   /* ══ 넷을 더 연다 ══ (병수님 2026-08-16 「아이템이 너무 종류가 별로 없는듯?」)
      여섯이면 3등급 이상에서 **거의 다 나와** 두 물건이 같아 보인다 — 옵션 셋을 뽑는데
      고를 것이 여섯뿐이면 조합이 20가지고, 그중 좋은 것 몇 개로 수렴한다. 열이면 120가지다.
      ★ 새 축은 **이미 곱해지는 자리 하나씩**에만 건다 — 흩뿌리면 어디서 세는지 못 찾는다.
        corpse→처치 시 시체 · nova→시체 폭발 피해 · cd→재사용 · xp→경험치. */
-  corpse: { n:"시체 획득", u:"%",   pre:"거두는",   w:0.6, r:[8, 25],  p:0.8 },
-  nova:   { n:"폭발 피해", u:"%",   pre:"터뜨리는", w:0.5, r:[12, 35], p:0.7 },
-  cd:     { n:"재사용 감소", u:"%", pre:"서두르는", w:1.4, r:[5, 14],  p:0.6 },
-  xp:     { n:"경험치",    u:"%",   pre:"깨우치는", w:0.55, r:[10, 28], p:0.6 },
+  corpse: { n:"시체 획득", u:"%",   pre:"거두는", suf:"수확",   w:0.6, r:[8, 25],  p:0.8 },
+  nova:   { n:"폭발 피해", u:"%",   pre:"터뜨리는", suf:"파열", w:0.5, r:[12, 35], p:0.7 },
+  cd:     { n:"재사용 감소", u:"%", pre:"서두르는", suf:"질풍", w:1.4, r:[5, 14],  p:0.6 },
+  xp:     { n:"경험치",    u:"%",   pre:"깨우치는", suf:"깨달음", w:0.55, r:[10, 28], p:0.6 },
 };
 const AF_KEYS = Object.keys(AFFIX);
 const afMul = (tier, il) => (0.6 + 0.35 * tier) * ilMul(il);   // 1등급 0.95 → 4등급 2.0, 여기에 깊이(il)가 곱해진다
@@ -1156,8 +1164,12 @@ export function nameOf(it) {
   if (it.uid) return UNIQ_BY_ID[it.uid]?.n || GEAR[it.k].tiers[it.tier];
   const base = gearFace(it.k, it.tier, it.v);
   if (!it.af.length) return base;
-  const top = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v))[0];
-  return `${AFFIX[top.id].pre} ${base}`;
+  /* ★ 레어(옵션 둘 이상)는 **앞뒤 두 낱말**을 받는다 — D2 의 레어가 그렇고,
+     이름만 보고도 「이건 노란 것」이 읽힌다(빛깔이 안 보이는 자리에서도). */
+  const srt = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v));
+  if (srt.length >= 2 && AFFIX[srt[1].id].suf)
+    return `${AFFIX[srt[0].id].pre} ${base}의 ${AFFIX[srt[1].id].suf}`;
+  return `${AFFIX[srt[0].id].pre} ${base}`;
 }
 export const afText = (a) =>
   `${AFFIX[a.id].n} +${a.v}${AFFIX[a.id].u}`;

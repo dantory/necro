@@ -399,6 +399,18 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 /* ★★ **등급 색이 디아블로의 얼굴이다.** 흰(일반) · 파랑(매직) · 노랑(레어) ·
    금갈(유니크) · 초록(세트). 화면 톤에서 파랑을 뺐지만 **여기서는 넣는다** —
    이 색들은 「분위기」가 아니라 **약속**이라, 바꾸면 못 알아본다. */
+/* ★★ **희귀도 색**(2026-08-23 · V-2) — 이름·바닥 글자·가방 칸 테두리가 이걸 읽는다.
+   흰(일반) · 파랑(매직=옵션 하나) · 노랑(희귀=둘 이상) · 주황(유니크).
+   값은 등급 변수(--t0~--t2)를 그대로 빌려 쓴다 — 화면의 색 약속이 둘로 갈리면 안 된다. */
+.r0{color:var(--t0)}
+.r1{color:var(--t1)}
+.r2{color:var(--t2)}
+.cell.rar-r0{--ring:var(--t0)}
+.cell.rar-r1{--ring:var(--t1)}
+.cell.rar-r2{--ring:var(--t2)}
+.cell.rar-uniq{--ring:#ff8c1a}
+/* 툴팁 첫 줄 꼬리표 — 색만으로는 처음 보는 사람이 못 읽으므로 말로도 적는다. */
+.rarTag{font-size:10px;color:#8b8172;letter-spacing:-.2px;vertical-align:middle}
 .t0{color:var(--t0)}
 .t1{color:var(--t1)}
 .t2{color:var(--t2)}

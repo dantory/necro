@@ -1622,7 +1622,9 @@ export function step(dt) {
     d.x -= (d.x / dd) * sp * dt; d.y -= (d.y / dd) * sp * dt;
     if (dd < 16) {
       const r = takeDrop(d);
-      const g = GEAR[d.k], nm = nameOf(d), nc = d.uid ? "uniq" : "t" + d.tier;
+      const g = GEAR[d.k], nm = nameOf(d);
+      /* ★ 바닥에 뜨는 글자도 «희귀도» 색으로 — 주울 값어치를 색으로 먼저 안다(V-2). */
+      const nc = d.uid ? "uniq" : (d.af && d.af.length >= 2) ? "r2" : (d.af && d.af.length === 1) ? "r1" : "r0";
       S.loot.push({ k: d.k, tier: d.tier, af: d.af || [], worn: r.worn, gold: r.gold, bagged: r.bagged, n: nm, slot: g.n, ref: r.ref, uid: d.uid });
       /* 붙은 것을 **로그에 적는다** — 안 적으면 「같은 4등급인데 왜 갈아 끼웠지」가
          화면 어디에도 없어서, 랜덤 옵션을 넣고도 없는 것과 같아진다. */
