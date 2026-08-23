@@ -1,6 +1,6 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf } from "./core.js";
-import { TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { KILL_BY, KILL_DMG, KILL_AT, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
@@ -2554,6 +2554,9 @@ window.__toDungeon = toDungeon;
 window.__gripMul = gripMul;                 // 지금 붙잡는 둘레에 곱하는 몫(문 꺼짐이면 1)
 window.__GRIPST  = GRIP;                    // 문의 자 — hi · mul · 문 초(sec) · 몫의 초가중 합(mulSum)
 window.__rushNow = () => rushOn() && !(S.spawnQ && S.spawnQ.length);   // 뒷정리면 상한이 풀린다(lim=1e9)
+/* ★ D-45 · **무엇이 적을 죽이나** 장부(js/battle.js 의 KILL_BY 머리말). 검수용 창구다 —
+   `tools/d45_who.mjs` 가 막타 갈래·깎은 몫·죽은 자리를 여기서 읽는다. 판은 안 건드린다. */
+window.__KILLBY = KILL_BY; window.__KILLDMG = KILL_DMG; window.__KILLAT = KILL_AT;
 window.__die = die;      // 검수용 — 정산 화면(tools/run_end.mjs)이 판을 강제로 끝내 스냅샷을 연다
 window.__rebirth = rebirth; window.__canRebirth = canRebirth;   // 검수용 — rebirth_qa.mjs 가 회차를 넘긴다
 window.__MODE = MODE; window.__LASTRUN = LASTRUN;   // 검수용 — 마을/던전 상태와 이번 판 스냅샷을 읽는다

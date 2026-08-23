@@ -646,7 +646,30 @@ const MECH_HIT = { curse: 3.8, charge: 3.0, pool: 0.85, add: 1, howl: 0 };  // h
 const DPS_TAU = 4;
 /** 적에게 들어간 피해가 **전부 여기를 지난다**(hurtNecro 의 반대쪽). 여섯 자리에서
  *  제각기 `m.hp -=` 하던 것을 한 길로 모아, 화력을 한 군데서 셀 수 있게 했다. */
-export function hurtMob(m, dd) { m.hp -= dd; S.dealtAcc = (S.dealtAcc || 0) + dd; }
+/** ★ **D-45 · 무엇이 «적»을 죽이나** — D-44 가 남긴 물음이다. 적 434 마리가 소환수의
+ *  닿는 거리(24px)의 두 배가 넘는 178px 자리에서 죽었는데, **죽인 주체를 한 번도 안
+ *  세어 뒀다.** 그것을 모르고 사거리·둘레를 만지면 또 안 도는 손잡이가 된다
+ *  ([[knob-that-does-nothing]]). D-20 의 `LOST_BY`/`LOST_DMG`(소환수 쪽)와 같은 결이다.
+ *  · `KILL_BY`  = **막타**를 넣은 갈래별 죽음 수
+ *  · `KILL_DMG` = 그 갈래가 적에게서 **실제로 깎아낸 몫**(합) — 막타만 세면 「오래 갈아
+ *    놓고 남이 마무리한」 가해자를 놓친다. 둘을 같이 봐야 갈린다.
+ *  · `KILL_AT`  = 갈래별 **죽은 자리**(원점에서 px) — 「어디서」와 「누가」를 잇는다.
+ *  갈래: 본인 뼈 던지기(NECRO_ATK) · 근접 소환수의 한 방 · 지배당한 적 ·
+ *        시체폭발 · 넘침(유니크 overflow) · 죽음폭발(유니크 blast) · etc 그 밖.
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다).
+ *  ★ 빠뜨린 피해원은 **"etc" 로 드러난다**([[silent-zero-is-not-an-observation]]). */
+export const KILL_KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
+export const KILL_BY = {}, KILL_DMG = {}, KILL_AT = {};
+for (const k of KILL_KINDS) { KILL_BY[k] = 0; KILL_DMG[k] = 0; KILL_AT[k] = []; }
+/** 적에게 들어간 피해가 **전부 여기를 지난다**(hurtNecro 의 반대쪽). 여섯 자리에서
+ *  제각기 `m.hp -=` 하던 것을 한 길로 모아, 화력을 한 군데서 셀 수 있게 했다.
+ *  ★ D-45 · `by` 는 **누가 때렸나**다. 안 주면 "etc" — 빠진 길이 표에서 보인다. */
+export function hurtMob(m, dd, by) {
+  const k = KILL_DMG[by] != null ? by : "etc";
+  KILL_DMG[k] += Math.max(0, Math.min(dd, m.hp));   // **실제로 깎인 만큼만** (넘치게 때린 막타가 몫을 부풀리면 「누가 갈고 있었나」가 뒤집힌다)
+  m.lastBy = k;
+  m.hp -= dd; S.dealtAcc = (S.dealtAcc || 0) + dd;
+}
 
 export function enterFloor(f) {
   /* ── 앞 층 시체 그림을 걷는다 ── ②는 「개수 S.corpses 와 그림 S.piles 는
@@ -1346,7 +1369,7 @@ function castOnce(id) {
        시체가 자원이고 그 시체가 터진다. 쓴 자리를 폭심으로 삼는다. */
     const bx = usedAt ? usedAt.x : 0, by = usedAt ? usedAt.y : 0;
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
-      const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); hit++; popNum(m.x, m.y, dd, "nova"); }
+      const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "시체폭발"); hit++; popNum(m.x, m.y, dd, "nova"); }
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
     /* ★ 치유만으로는 **화면에서 아무 일도 안 일어난다** — 체력바가 조금 차는 게 전부라
@@ -1579,7 +1602,7 @@ export function step(dt) {
     const tgtIsMob = S.mobs.includes(tgt);
     if (!tgtIsMob) tallyMinionHurt(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1),
                                    u.cause === "add" ? "add" : (u.boss ? "lord" : "melee"));
-    hurtMob(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1));     // 제물로 약해진 관문 주인은 더 크게 맞는다
+    hurtMob(tgt, dmg * (tgt.wkT > 0 ? tgt.wk : 1), u.own ? "지배" : "근접");     // 제물로 약해진 관문 주인은 더 크게 맞는다
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
     popNum(tgt.x, tgt.y, dmg, tgtIsMob ? "dmg" : "hurt");
@@ -1625,7 +1648,7 @@ export function step(dt) {
       let bx = 0, by = 0, bd = 1e9;
       for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
       const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
-      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "넘침"); popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
       S.overflow = 0;
     }
@@ -1742,7 +1765,7 @@ export function step(dt) {
     for (const m of S.mobs) if (Math.hypot(m.x - b.x, m.y - b.y) < m.r * 0.7) { hit = m; break; }
     if (hit) {
       const bd = b.dmg * ampMul * (hit.wkT > 0 ? hit.wk : 1);
-      hurtMob(hit, bd);
+      hurtMob(hit, bd, "본인");
       popNum(hit.x, hit.y, bd, "dmg");
       hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, bd);
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
@@ -2248,6 +2271,10 @@ export function step(dt) {
       for (let k = 0; k < m.vow; k++)
         S.pendMech.push({ t: m.lord.tell + k * m.lord.cd, warnT: m.lord.tell, mech: m.lord.mech,
                           dmg: m.dmg, col: m.lord.col, cvx: mcx, cvy: mcy, vow: 1 });
+    /* ★ D-45 · **막타 갈래와 죽은 자리를 적는다**(위 KILL_BY 머리말). 세기만 한다. */
+    { const kk = KILL_BY[m.lastBy] != null ? m.lastBy : "etc";
+      KILL_BY[kk]++;
+      if (KILL_AT[kk].length < 4000) KILL_AT[kk].push(+Math.hypot(m.x, m.y * SQUASH_VIEW).toFixed(1)); }   // 상한 — 긴 판에서 장부가 부풀지 않게
     S.mobs.splice(i, 1);
     S.killed++;
     /* ── 떨어뜨린다 ── 확률은 **층당 기대값**에서 뽑는다(마릿수가 늘어도 총량이 안 는다).
@@ -2311,7 +2338,7 @@ export function step(dt) {
        된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
     if (hasUnique("blast") && dead.dmg) {
       const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
-      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd); popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "죽음폭발"); popNum(m.x, m.y, dd, "nova"); }
       S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
     }
   }
