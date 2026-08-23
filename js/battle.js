@@ -879,6 +879,7 @@ export const DEATHLOG = [];
  *  그 자리의 안무 그대로 옮겼다. */
 export function hurtNecro(dmg, cause, dx = 0, dy = 0) {
   if (dmg <= 0 || S.dead) return;
+  HERO_TALLY.hits++; HERO_TALLY.dmg += Math.max(0, Math.min(dmg, S.hp));   // ★ D-49 · 읽기만 — 어그로를 가르는 짝
   S.hp -= dmg;
   popNum(0, 0, dmg, "core");
   S.hurt = 0.18;
@@ -1216,14 +1217,25 @@ export const RAISE_TALLY = { try: 0, ok: 0, cd: 0, mana: 0, corpse: 0, capfull: 
 /* ★ D-32 · **"blast" 를 여기 더한다** — 없으면 `tallyMinionHurt` 가 조용히 "etc" 로 넣어
    새 갈래가 표에서 사라진다([[silent-zero-is-not-an-observation.md]] 의 그 자리). */
 export const LOST_KINDS = ["melee", "add", "lord", "howl", "curse", "charge", "pool", "blast", "etc"];
-export const LOST_BY = {}, LOST_DMG = {};
-for (const k of LOST_KINDS) { LOST_BY[k] = 0; LOST_DMG[k] = 0; }
+export const LOST_BY = {}, LOST_DMG = {}, LOST_HITS = {};
+for (const k of LOST_KINDS) { LOST_BY[k] = 0; LOST_DMG[k] = 0; LOST_HITS[k] = 0; }
+/** ★ **D-49 · 「소환수가 왜 13초 만에 죽나」** — D-48 이 남긴 ☞ 다. 군세가 10~12 에 머무는 것은
+ *  못 세워서가 아니라 **세운 것이 13초 만에 죽어서**였다(세움 0.99/초 · 지워짐 0.91/초).
+ *  수명 = 몸 ÷ 초당 맞는 양 이라, 고칠 자리를 가르려면 **분자와 분모를 따로** 봐야 한다:
+ *  · `LOST_HITS` = 갈래별 **맞은 횟수**. `LOST_DMG`(깎인 몫)와 나누면 **한 방의 크기**가 나오고,
+ *    소환수 몸(hpMax)으로 나누면 **「몇 대 버티나」** 가 된다 — 사람 쪽 자(H-2 의 9대)와 같은 눈금이다.
+ *    횟수를 안 세면 「많이 맞아서」와 「한 방이 커서」가 한 수에 뭉쳐 손잡이가 안 갈린다.
+ *  · `HERO_TALLY` = 네크로 본인이 맞은 횟수·몫. 소환수 쪽 합과 견주면 **어그로**가 보인다
+ *    (S.hurtLog 는 직전 5초만 남아 창을 통째로 못 센다 — 그래서 누계를 따로 둔다).
+ *  ★ 세기만 한다 — 난수도 흐름도 한 톨 안 건드린다(A/B 가 비트까지 같아야 한다). */
+export const HERO_TALLY = { hits: 0, dmg: 0 };
 /** 소환수가 맞을 때마다 **누가·얼마나**를 적는다. **실제로 깎인 만큼만** 센다 —
  *  넘치게 때린 마지막 한 방이 그 갈래의 몫을 부풀리면 「누가 갈고 있었나」가 뒤집힌다.
  *  (깎기 «전»에 불러야 u.hp 가 남은 몸이다.) */
 function tallyMinionHurt(u, dmg, cause) {
   const k = LOST_DMG[cause] != null ? cause : "etc";
   LOST_DMG[k] += Math.max(0, Math.min(dmg, u.hp));
+  LOST_HITS[k]++;                                     // ★ D-49 · 한 방의 «크기»를 알려면 횟수도 세야 한다
   u.lastBy = k;
 }
 

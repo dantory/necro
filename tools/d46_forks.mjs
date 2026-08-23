@@ -133,6 +133,20 @@ const READ = `(()=>{ const B=window.__KILLBY,D=window.__KILLDMG,A=window.__KILLA
    안 되게** 한다([[silent-zero-is-not-an-observation]]). */
 const RTRESET = `(()=>{ const T=window.__RAISETALLY; if(!T) return 0;
   for(const k of Object.keys(T)) T[k]=0; return 1; })()`;
+/* ★ D-49 · **소환수 쪽 장부도 같은 자에서 읽는다**(js/battle.js `LOST_BY` 머리말 · D-20 이
+   붙이고 D-49 가 «맞은 횟수»와 «본인 몫» 칸을 더했다). 여기서도 판은 한 톨도 안 건드린다.
+   없으면 null 로 남겨 **조용한 0 이 안 되게** 한다([[silent-zero-is-not-an-observation]]). */
+const LTRESET = `(()=>{ const B=window.__LOSTBY,D=window.__LOSTDMG,H=window.__LOSTHITS,E=window.__HEROTALLY;
+  if(!B||!D||!H||!E) return 0;
+  for(const k of Object.keys(B)) B[k]=0;
+  for(const k of Object.keys(D)) D[k]=0;
+  for(const k of Object.keys(H)) H[k]=0;
+  E.hits=0; E.dmg=0; return 1; })()`;
+const LTREAD = `(()=>{ const B=window.__LOSTBY,D=window.__LOSTDMG,H=window.__LOSTHITS,E=window.__HEROTALLY;
+  if(!B) return null;
+  return { 잃음막타:{...B},
+           잃음몫:Object.fromEntries(Object.entries(D).map(([k,v])=>[k,+v.toFixed(1)])),
+           잃음횟수:{...H}, 본인:{맞은수:E.hits, 맞은몫:+E.dmg.toFixed(1)} }; })()`;
 
 const out = {};
 for (const DOC of DOCS) {
@@ -181,11 +195,18 @@ for (const DOC of DOCS) {
     await wait(300);
     if (!(await ev(RESET))) throw new Error("장부를 못 비웠다");
     const rtOn = await ev(RTRESET);            // D-48 · 없으면 0 — 아래 출력에서 「장부 없음」으로 드러난다
+    const ltOn = await ev(LTRESET);            // D-49 · 같은 결 — 소환수 쪽 장부
 
     const hist = [];
     let 마을초 = 0, 앞밖 = false;
     for (let i = 0; i < Math.round(SEC / 0.2); i++) {
-      const a = await ev(`(()=>{const S=window.S||{};return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead,n:(S.minions||[]).length,mob:(S.mobs||[]).length};})()`);
+      /* ★ D-49 · **몸도 같이 잰다** — 수명 = 몸 ÷ 초당 맞는 양 이라, 맞은 양만 세면
+         「많이 맞아서」와 「몸이 얇아서」가 한 수에 뭉친다([[knob-that-does-nothing]]).
+         소환수 hpMax 평균(mhp)과 네크로의 몸(hhp/hhpMax)을 0.2초마다 같이 찍는다. */
+      const a = await ev(`(()=>{const S=window.S||{},M=S.minions||[];
+        const hs=M.map(u=>u.hpMax||0), mhp=hs.length?hs.reduce((s,v)=>s+v,0)/hs.length:0;
+        return {f:S.floor,at:(window.MODE||{}).at,dead:!!S.dead,n:M.length,mob:(S.mobs||[]).length,
+                mhp:+mhp.toFixed(1),hhp:+(S.hp||0).toFixed(1),hhpMax:+(S.hpMax||0).toFixed(1)};})()`);
       if (a) {
         hist.push(a);
         const 밖 = (a.at !== "dungeon" || a.dead);
@@ -195,6 +216,7 @@ for (const DOC of DOCS) {
       await wait(200);
     }
     const r = (await ev(READ)) || { 막타: {}, 깎은몫: {}, 죽은자리: {} };
+    const L = ltOn ? await ev(LTREAD) : null;        // ★ D-49 · 소환수 쪽 장부(없으면 null 로 남는다)
     await fetch(`${CDP}/json/close/${targetId}`);
 
     const 안 = hist.filter(h => h.at === "dungeon" && !h.dead);
@@ -205,6 +227,8 @@ for (const DOC of DOCS) {
       편성: DOC, 씨앗: SEED, 시작층, 끝층: 안.at(-1)?.f ?? 0, ff, 내려가다죽음,
       마을초: +마을초.toFixed(1), 표본: 안.length, 적평균: avg("mob"), 군세평균: avg("n"),
       죽음, 깎음: +깎음.toFixed(1), ...r,
+      소환수몸: avg("mhp"), 본인몸: avg("hhp"), 본인몸최대: avg("hhpMax"),   // ★ D-49
+      잃음장부: L,                                                          // ★ D-49
     };
     if (!rtOn) o.소환장부 = null;
     const 폭발 = 폭발갈래.reduce((s, k) => s + (r.막타[k] || 0), 0);
@@ -216,6 +240,16 @@ for (const DOC of DOCS) {
       else { const 분모 = Math.max(1, T.try + T.capskip);
         const p = v => `${(v / 분모 * 100).toFixed(0)}%`;
         console.log(`    소환 ${T.try + T.capskip}회: 섬 ${p(T.ok)} · 상한 ${p(T.capskip + T.capfull)} · 마나만 ${p(T.soleMana)} · 재사용만 ${p(T.soleCd)} · 시체만 ${p(T.soleCorpse)} · 섞임 ${p(T.multi)} · 지워짐 ${T.lost}`); } }
+    /* ★ D-49 · 한 줄로 같이 찍는다 — 「소환수가 무엇에 얼마나 맞고, 몇 대 버티나」. */
+    { const L2 = o.잃음장부;
+      if (!L2) console.log(`    (소환수 장부 없음 — window.__LOSTBY 가 안 붙었다)`);
+      else { const 총맞음 = Object.values(L2.잃음몫).reduce((s, v) => s + v, 0);
+        const 총횟수 = Object.values(L2.잃음횟수).reduce((s, v) => s + v, 0);
+        const 죽은수 = Object.values(L2.잃음막타).reduce((s, v) => s + v, 0);
+        const 한방 = 총맞음 / Math.max(1, 총횟수);
+        console.log(`    소환수 죽음 ${죽은수} · 맞음 ${총횟수}회 ${총맞음.toFixed(0)} · 한 방 ${한방.toFixed(1)}` +
+          ` · 몸 ${o.소환수몸} (${(o.소환수몸 / Math.max(0.01, 한방)).toFixed(1)}대) · 본인 ${L2.본인.맞은수}회 ${L2.본인.맞은몫.toFixed(0)}` +
+          ` · 소환수 몫 ${(총맞음 / Math.max(1, 총맞음 + L2.본인.맞은몫) * 100).toFixed(0)}%`); } }
     if (errs.length) { console.log(`  ⚠ 페이지 예외 ${errs.length}: ${errs[0]}`); errs.length = 0; }
     fs.mkdirSync("tmp", { recursive: true });
     fs.writeFileSync(OUT, JSON.stringify(out, null, 1));
