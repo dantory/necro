@@ -231,7 +231,11 @@ export function groundCacheKey(w, h, cx, cy, sc, squash, scatter, band) {
           band ? Math.round(band.x0) + "," + Math.round(band.w) : "-",
           floorReady, decorReady, wanted, tintCol || "-", tiles.length,
           scatter ? [scatter.clear, scatter.density, scatter.decal,
-                     scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-"].join("|");
+                     scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-",
+          /* ★ 자가 **구워 둔 어제 것을 재는** 것을 막는다(V-4c 가 겪은 그 결). 손잡이를
+             바꿔 놓고 재면 캐시가 옛 그림을 그대로 돌려줘 「아무것도 안 변했다」가 된다.
+             굽기를 다시 시키려면 `__gbust` 를 올린다. 평소엔 undefined 라 열쇠가 안 변한다. */
+          globalThis.__gbust || 0].join("|");
 }
 /** 전장 바닥 한 판. **타일 → 빛** 순서로 얹는다. */
 export function drawGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band) {
@@ -863,6 +867,10 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
        투명 여백만큼 뜬다(병수님: "둥둥 떠잇네"). */
     const px2 = cx + wxw * sc, py2 = cy + wyw * sc * squash;
     place(ctx, im, px2, py2);
+    /* ★ 자(2026-08-24 V-10) — **놓인 소품을 그 자리와 함께** 센다. 총 개수만 세면
+       「가운데는 빽빽하고 위아래 띠는 통째로 빈」 얼룩이 안 보인다(08-12 야영지에서
+       겪은 그 결). 켤 때만 센다 — 끄면 배열이 아예 안 자란다. */
+    if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name]);
     // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
     if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
     /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
@@ -892,6 +900,17 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
          모닥불) 가까이는 빽빽하고 멀어지면 비어야 「여기가 마을」이 생긴다.
          멀리까지 아예 0 으로 두지는 않는다 — 들판에도 바위 한둘은 있어야 자연스럽다. */
       let dens = density, rolls = 1, from = set;
+      /* ★★★ **V-10 (2026-08-24) — 「칸마다 여러 번 굴린다」를 던전에도 옮긴다.**
+         08-12 에 야영지에서 배운 것이 바로 아래 `if (anchors.length)` 안에만 들어갔다:
+         「CELL 이 165 라 화면 끝 띠에 칸이 넷밖에 안 걸린다 — 넷 중 하나 걸릴 확률을
+         쓰면 그 띠는 거의 언제나 통째로 빈다. 확률을 낮춘 게 아니라 아예 없앤 것이다.」
+         **던전에는 앵커가 없어서 그 else 에도 못 닿는다** — 여태 `rolls 1 · dens 34`,
+         곧 칸당 0.34 개다. 그래서 1512 폭 화면이 「소품 열 몇 개 뿌린 주차장」으로 읽힌다.
+         같은 벽이고 같은 처방이다([[carry-fixes-forward]]).
+         ★ 값은 눈으로 골랐다 — `tools/v10_dens_sheet.mjs` 가 네 후보를 같은 씨앗으로
+           찍어 붙인다. 손잡이는 A/B 를 위해 밖에서도 돌린다. */
+      const SCAT_ROLLS = (globalThis.__SCAT_ROLLS != null ? +globalThis.__SCAT_ROLLS : 3);
+      const SCAT_DENS  = (globalThis.__SCAT_DENS  != null ? +globalThis.__SCAT_DENS  : null);
       if (anchors.length) {
         const d = nearAnchor(gx * CELL, gy * CELL);
         // ★ 여기 디버그 문장(DBG 주석 뒤의 `dens = 95;`)이 남아 **게임이 통째로 안 떴다**
@@ -932,7 +951,7 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
            바깥은 들풀과 돌이 흩어진 들판이 된다. 「비었다」와 「들판」은 다르다. */
         else if (wild) { from = wild.set; dens = wild.dens || 60; rolls = wild.rolls; }
         else dens = density * 0.45;
-      }
+      } else { rolls = SCAT_ROLLS; dens = SCAT_DENS != null ? SCAT_DENS : density; }
       /* 굴림마다 **다른 씨앗**이 필요하다 — 같은 rnd 를 다시 쓰면 같은 자리에 같은
          것을 겹쳐 놓는다(그래도 화면은 안 바뀌고 그리기만 두 번 한다). */
       for (let k = 0; k < rolls; k++) {
