@@ -44,7 +44,7 @@ for (const SEED of SEEDS) {
     .map(kv => { const [k, v] = kv.split("="); return `globalThis.${k.trim()} = ${v.trim()};`; }).join(" ");
   const seedSrc = `Math.random = (() => { let s = (${SEED} >>> 0) || 1;
      return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
-     globalThis.__AUTO_TREE = 1; ${knobs}`;
+     ${process.env.NECRO_NOTREE ? '' : 'globalThis.__AUTO_TREE = 1;'} ${knobs}`;
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc });
   await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: PAGE });

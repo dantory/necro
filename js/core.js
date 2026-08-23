@@ -1592,7 +1592,7 @@ const hpGrow = () => bodyHp() / bodyBase();
      0.2 → **0.04** · 그런데 3분 **층은 4.33 → 5.33(옛의 123%)** 이고 마나마름 30 → 31%
      로 **한 자리에 머물지 않는다** — 위험이 늘었을 뿐 «멎음»이 아니다.
      7 은 넘어간다(층 54% · 마나마름 42% · 죽음 3.67) — H-1 의 상한 3 과 같은 멎음이다. */
-export const EARLY_HITS_DEF = 9;
+export const EARLY_HITS_DEF = 14;
 const EARLY_HITS_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HITS != null)
   ? +globalThis.__EARLY_HITS : EARLY_HITS_DEF;
 /* ══ 깊은 층에는 «내가 만든 몸»이 없다 ══ (2026-08-22 · ROADMAP D ㉠·㉡ · `6872185`)
@@ -1729,7 +1729,7 @@ export const minionDmgMul = () => dmgMulOf() * minionMulOf();
      **멎음**이다([[floor-far-from-threshold]] 의 반대편). 그래서 **0.25** 로 낮춘다:
      1층 상한 4 → 12층에 6. 위험은 생기고(최저 체력비 0.51 → **0.20** · 죽음 0 → 1.3)
      판은 계속 굴러간다. */
-export const ARMY_WALL_DEF = 0.25;
+export const ARMY_WALL_DEF = 0.35;
 const ARMY_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_WALL != null)
   ? +globalThis.__ARMY_WALL : ARMY_WALL_DEF;
 /* ══ 자라는 축의 «시작»과 «걸음» ══ 벽을 걷어도 시작이 3 이면 첫 층에 벌써 절반이다.
