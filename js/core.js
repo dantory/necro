@@ -2527,7 +2527,13 @@ export const RAISE_DMG = 0.05;   // 그리고 이만큼을 한 방으로
    ★ 얕은 층에서만 듣는다 — `raiseHp` 의 **바닥값**(종족 기본 26)에만 곱한다. 깊어지면
      `pw × RAISE_HP` 가 바닥을 넘어서므로 곱이 **저절로 사라진다**(깊은 층은 한 톨도 안 바뀐다).
      새 축도 새 난수도 안 만든다. */
-export const EARLY_HP_DEF = 1;
+/* ★ 재고 켰다 (08-24 05:3x · `tools/ab_earlysurv.sh` 8판 × 45초 × 세 팔).
+     1(안 켬) → 죽음 **3/8 (38%)** · 체력비 최저 9 9 9 43 89 77 31 9 · 닿은 층 2 1 1 2 2 2 2 1
+     **1.6**   → 죽음 **0/8**      · 체력비 최저 100 100 100 100 100 **57** 100 100 · 층 전부 2
+     2.2       → 죽음 0/8          · 체력비 최저 81 밑으로 안 감 · 층 2 2 2 2 **3** 2 2 2
+   미리 적어 둔 끝 조건 넷을 1.6 과 2.2 가 다 넘었고, **작은 쪽을 골랐다** — 2.2 는 제일 나쁜
+   판도 81% 라 위험이 사라진다. 1.6 은 여덟 판 중 하나가 57% 까지 깎이므로 «아슬함»이 남는다. */
+export const EARLY_HP_DEF = 1.6;
 export const EARLY_HP_OF = () => (typeof globalThis !== "undefined" && globalThis.__EARLY_HP != null)
   ? +globalThis.__EARLY_HP : EARLY_HP_DEF;
 export const raiseHp  = (base, pw) => Math.round(Math.max(base * EARLY_HP_OF(), (pw | 0) * RAISE_HP));
