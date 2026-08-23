@@ -51,6 +51,11 @@ const CORPSE = process.env.D47_CORPSE;
    `KILL_DMG["근접"]`·`S.dealtAcc` 에서 빠진다. 안 주면 이 주입 줄이 **아예 안 붙어**
    D-46/D-47/D-49 가 잰 자와 한 글자도 다르지 않다. */
 const PURE = process.env.D50_PURE;
+/* ★ D-54 · **문 하나를 더 연다**(`D54_RAD` · 안 주면 옛 판과 같다).
+   battle.js 의 `__NOVA_RAD` 게이트다 — 시체폭발 반경의 밑값(기본 180). D-53b 가
+   「움직이는 손잡이는 이 상수와 트리뿐」이라 굳혔으므로, 반경을 줄이는 팔은 이 한 수로만 낸다.
+   안 주면 이 주입 줄이 **아예 안 붙어** D-46~D-53 이 잰 자와 한 글자도 다르지 않다. */
+const RAD = process.env.D54_RAD;
 const fs = await import("node:fs");
 const KINDS = ["본인", "근접", "지배", "시체폭발", "넘침", "죽음폭발", "etc"];
 const 폭발갈래 = ["시체폭발", "넘침", "죽음폭발"];
@@ -172,7 +177,8 @@ for (const DOC of DOCS) {
        globalThis.__AUTO_TREE = 1;
        globalThis.__DOCTRINE = ${JSON.stringify(DOC)};` + (CORPSE == null ? "" :
        `\n       globalThis.__DOC_CORPSE = ${JSON.stringify(+CORPSE)};`) + (PURE == null ? "" :
-       `\n       globalThis.__ARMY_PURE = ${JSON.stringify(+PURE)};`) });
+       `\n       globalThis.__ARMY_PURE = ${JSON.stringify(+PURE)};`) + (RAD == null ? "" :
+       `\n       globalThis.__NOVA_RAD = ${JSON.stringify(+RAD)};`) });
     await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 1, mobile: false });
     await S("Page.navigate", { url: PAGE }); await wait(1500);
     await ev(`localStorage.removeItem("necro.meta.v1")`);
@@ -188,6 +194,9 @@ for (const DOC of DOCS) {
     if (PURE != null) { const 실순 = await ev(`globalThis.__ARMY_PURE`);
       if (+실순 !== +PURE) throw new Error(`ARMY_PURE 문이 안 박혔다 — ${실순} != ${PURE}`);
       console.log(`    (문 켬 __ARMY_PURE=${실순})`); }
+    if (RAD != null) { const 실반 = await ev(`globalThis.__NOVA_RAD`);
+      if (+실반 !== +RAD) throw new Error(`NOVA_RAD 문이 안 박혔다 — ${실반} != ${RAD}`);
+      console.log(`    (문 켬 __NOVA_RAD=${실반} · 기본 180)`); }
     await ev(`window.__toDungeon()`); await wait(800);
 
     await ev(`window.S && (window.S.speed = ${FF})`);
@@ -234,6 +243,30 @@ for (const DOC of DOCS) {
 
     const 안 = hist.filter(h => h.at === "dungeon" && !h.dead);
     const avg = k => +(안.reduce((s, h) => s + h[k], 0) / Math.max(1, 안.length)).toFixed(2);
+    /* ★★ D-54 · **위험을 센다 — 판을 한 톨도 안 건드리고 이미 찍어 둔 hist 만 되읽는다.**
+       D 가 물은 것은 「뒤 4분의 3 에 위험이 없다」이고, 죽음의 사진은 늘 «군세 0~3 · 마나 0» 이었다.
+       그러니 위험은 **죽음**만이 아니라 **군대가 무너진 사건**으로도 세야 한다 —
+       무너짐이 사건이 안 되는 것이 곧 D 의 병이다. 셋을 따로 낸다:
+        · `판중죽음` = 재는 동안 산 채에서 죽은 채로 넘어간 횟수 (0 이면 「위험 없음」)
+        · `무너짐`   = 군세가 3 아래로 떨어진 «사건» 수 (한 번 붙으면 4 이상으로 돌아와야 다시 센다)
+        · `군세바닥`·`군세0초` = 그 무너짐이 얼마나 깊고 길었나
+       [[silent-zero-is-not-an-observation]] — hist 가 비면 null 로 남겨 조용한 0 을 막는다. */
+    const 위험 = (() => {
+      if (!hist.length) return null;
+      let 판중죽음 = 0, 앞죽 = false, 무너짐 = 0, 앞무 = false, 군세0 = 0, 바닥 = Infinity;
+      for (const h of hist) {
+        const 죽 = !!h.dead;
+        if (죽 && !앞죽) 판중죽음++;
+        앞죽 = 죽;
+        if (h.at !== "dungeon" || 죽) { 앞무 = false; continue; }   // 마을/죽음 구간은 군세를 안 센다
+        바닥 = Math.min(바닥, h.n);
+        if (h.n === 0) 군세0 += 0.2;
+        const 무 = h.n <= 3;
+        if (무 && !앞무) 무너짐++;
+        앞무 = 무;
+      }
+      return { 판중죽음, 무너짐, 군세바닥: Number.isFinite(바닥) ? 바닥 : null, 군세0초: +군세0.toFixed(1) };
+    })();
     const 죽음 = KINDS.reduce((s, k) => s + (r.막타[k] || 0), 0);
     const 깎음 = KINDS.reduce((s, k) => s + (r.깎은몫[k] || 0), 0);
     const o = out[`${DOC}/씨앗${SEED}`] = {
@@ -241,6 +274,7 @@ for (const DOC of DOCS) {
       마을초: +마을초.toFixed(1), 표본: 안.length, 적평균: avg("mob"), 군세평균: avg("n"),
       죽음, 깎음: +깎음.toFixed(1), ...r,
       소환수몸: avg("mhp"), 본인몸: avg("hhp"), 본인몸최대: avg("hhpMax"),   // ★ D-49
+      위험,                                                                  // ★ D-54
       잃음장부: L,                                                          // ★ D-49
     };
     if (!rtOn) o.소환장부 = null;
@@ -264,6 +298,11 @@ for (const DOC of DOCS) {
       else console.log(`    폭발 ${V.n}회 · 반경 ${(V.rad / V.n).toFixed(0)}(최고 ${V.radMax.toFixed(0)} · 트리배수 ${(V.mul / V.n).toFixed(2)})` +
         ` · 폭심 ${(V.bd / V.n).toFixed(0)}px · 덮음 ${(V.hit / Math.max(1, V.mobs) * 100).toFixed(0)}%` +
         ` (${(V.hit / V.n).toFixed(1)}/${(V.mobs / V.n).toFixed(1)}마리) · 둘레(190) 대비 ${((V.rad / V.n) / 190 * 100).toFixed(0)}%`); }
+    /* ★★ D-54 · **위험 한 줄** — 반경을 줄인 팔과 견줄 자리다(위 `위험` 머리말). */
+    { const W = o.위험;
+      if (!W) console.log(`    (위험 장부 없음 — hist 가 비었다)`);
+      else console.log(`    위험: 판중죽음 ${W.판중죽음}회 · 무너짐(군세≤3) ${W.무너짐}회` +
+        ` · 군세바닥 ${W.군세바닥} · 군세0 ${W.군세0초}초 · 죽어서 밖 ${o.마을초}초`); }
     /* ★ D-48 · 한 줄로 같이 찍는다 — 「무엇이 소환을 막았나」. 몫의 분모는 **시도 + 건너뜀**이다
        (상한이 차서 시도조차 못 한 초를 빼면 상한의 몫이 통째로 사라진다). */
     { const T = o.소환장부;

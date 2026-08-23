@@ -366,6 +366,18 @@ export const ARMY_PURE_DEF = 1;
 const ARMY_PURE_OF = () => (typeof globalThis !== "undefined" && globalThis.__ARMY_PURE != null)
   ? +globalThis.__ARMY_PURE : ARMY_PURE_DEF;
 
+/* ══ D-54 · **시체폭발 반경의 «문»** ══ 2026-08-23
+ *  D-53b 가 자로 굳혔다: 반경은 판을 **98.5~99.6%** 덮고(둘레 190 대비 152~178%),
+ *  움직이는 손잡이는 **상수 180** 과 트리 두 급뿐이다(`min(1.5, …gulp…)` 항은 471번의
+ *  폭발에서 **한 번도** 천장 아래로 안 내려갔다 · [[knob-that-does-nothing]]).
+ *  ☞ 그래서 A/B 로 물을 것은 하나다 — **반경을 줄이면 뒤 4분의 3 에 위험이 돌아오는가**
+ *    (D 의 물음). 지금은 한 입에 판이 통째로 지워져 「군대가 무너지는 사건」이 안 생긴다.
+ *  ★ **값은 안 고친다** — 기본이 180 이라 문을 안 열면 옛 판과 **한 톨도 안 다르다**
+ *    ([[equilibrium-pushes-back]] · 재기 전에 값을 만지지 않는다). `__NOVA_RAD` 로 연다. */
+export const NOVA_RAD_DEF = 180;
+const NOVA_RAD_OF = () => (typeof globalThis !== "undefined" && globalThis.__NOVA_RAD != null)
+  ? +globalThis.__NOVA_RAD : NOVA_RAD_DEF;
+
 /* ══ 관문 주인이 **지친다**(D-3) ══ 2026-08-14
    30분 곡선(D-1)에서 조용한 자리는 **늘 같은 한 자리**였다 — 씨앗 7 이 2:03→6:31(268초),
    씨앗 1 이 3:11→6:18(188초). 둘 다 그 사이 **층이 10 에 못 박혀** 있었다. 군대가 한 번
@@ -1444,7 +1456,7 @@ function castOnce(id) {
        같은 기울기로 올리면 한 입에 판이 통째로 지워져 층이 그냥 흘러간다. */
     const gmul = 1 + (gulp - 1) * 0.6;
     const dmg = 30 * Math.pow(1.14, S.floor) * dmgMulOf() * selfMulOf() * novaDmgMul() * gmul;
-    const rad = 180 * novaRadMul() * Math.min(1.5, 1 + (gulp - 1) * 0.04);
+    const rad = NOVA_RAD_OF() * novaRadMul() * Math.min(1.5, 1 + (gulp - 1) * 0.04);
     let hit = 0;
     /* ★★ **터지는 것은 시체다.** 예전엔 그림도 피해도 **본인 자리(0,0)** 에서 냈다 —
        쓴 시체의 자리(usedAt)를 이미 구해 놓고 소환에만 쓰고 있었다.
