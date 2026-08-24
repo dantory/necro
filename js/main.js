@@ -2212,9 +2212,12 @@ addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore(
  *  ★ 남는 높이를 **셈으로 맞히지 않는다** — 「여섯 줄 + 제목」으로 어림잡았더니 6px 이
  *    남아 그대로 잘렸다(제목 여백·판 사이가 셈에 안 들어온다). 한 칸 줄일 때마다
  *    **실제로 넘치는지 다시 읽는다**(scrollHeight). 보통 첫 판에 끝난다. */
-function fitDoll() {
+function fitDoll() { fitDollBag(); fitDollStat(); }
+
+/** 가방창 안에 선 인물(도킹 안 한 좁은 창) — 넘침이 **가방 쪽**이면 안 깎는다. */
+function fitDollBag() {
   const body = $("bagBody"), doll = body && body.querySelector(".pdoll");
-  if (!doll || !body.clientHeight) return;      // 창이 닫혀 있으면 잴 것이 없다
+  if (!doll || !body.clientHeight || !doll.offsetHeight) return;  // 닫혔거나 CSS 가 감췄으면 잴 것이 없다
   const eq = doll.parentElement, bag = eq.nextElementSibling;
   for (let s = 46; ; s--) {
     doll.style.setProperty("--pdS", s + "px");
@@ -2223,6 +2226,28 @@ function fitDoll() {
     if (body.scrollHeight <= body.clientHeight) break;      // 다 들어갔다
     /* 넘치는 것이 **가방 쪽**이면 돌을 줄여도 소용없다 — 애먼 것을 깎지 않는다. */
     if (bag && eq.offsetHeight <= bag.offsetHeight) break;
+  }
+}
+
+/** ══ 도킹한 「능력치」 패널의 인물 ══ (V-24 · 2026-08-24)
+ *  ★ **자가 애먼 것을 재고 있었다.** `fitDoll` 은 `#bagBody` 의 인물만 되짚었는데,
+ *    도킹(`body.charOpen`)하면 인물은 `#statBody` 로 오고 가방 쪽 것은 CSS 가 감춘다
+ *    (`#winBag .sSec.eq{display:none}`). 그래서 **보이는 인물에는 --pdS 가 한 번도 안
+ *    붙었고**, CSS 기본값 46px 으로 서서 틀(476px)의 78%를 먹었다 — 능력치 일곱 줄 중
+ *    두 줄만 남았다([[knob-that-does-nothing]] · 손잡이는 있는데 딴 데를 돌리고 있었다).
+ *  ★ 끝 조건이 가방 쪽과 **다르다**: 여기서 다 들어가야 하는 것은 창 전체가 아니라
+ *    **수치판**이다. 그 아래 ⑦ 일지는 431px 라 무엇을 깎아도 안 들어가고, 원래
+ *    굴려 보는 목록이다. 창 이름이 「능력치」이므로 **능력치가 먼저 보여야** 한다. */
+function fitDollStat() {
+  const body = $("statBody"), doll = body && body.querySelector(".pdoll");
+  if (!doll || !body.clientHeight) return;
+  const nums = body.querySelector(".sStat:not(.jList)");
+  for (let s = 46; ; s--) {
+    doll.style.setProperty("--pdS", s + "px");
+    doll.style.setProperty("--pdG", (s >= 44 ? 8 : 6) + "px");
+    if (s <= 30) break;                                     // 가방 쪽과 같은 바닥 — 더 줄면 칸이 안 읽힌다
+    if (!nums) { if (body.scrollHeight <= body.clientHeight) break; else continue; }
+    if (nums.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom + 0.5) break;
   }
 }
 
@@ -2236,6 +2261,9 @@ function drawStat() {
   const docked = document.body.classList.contains("charOpen");
   $("statBody").innerHTML = (docked ? dollHtml() : "") + statNumbers() + questListHtml();
   $("statGold").textContent = (META.gold | 0).toLocaleString();
+  /* ★ 다시 그리면 인라인 --pdS 가 같이 날아간다 — 여기서 되짚어야 레벨업·강화 뒤에도
+     인물이 46px 으로 되돌아가지 않는다(V-24). */
+  fitDollStat();
   markMore($("statBody"));
   ftipReflow();                  /* 도킹하면 인물이 이 창에 산다 — 붙박인 상자를 새 칸에 다시 붙인다(⑦) */
 }

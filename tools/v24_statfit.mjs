@@ -27,14 +27,18 @@ await ev("window.__toDungeon && window.__toDungeon()");
 await wait(Number(process.env.V24_SEC || 90) * 1000);
 await ev(`window.__openWin("bag")`); await wait(800);
 const r = await ev(`(() => {
-  const body = document.getElementById("statBody"); const bb = body.getBoundingClientRect();
+  const body = document.getElementById("statBody"); const bb0 = body.getBoundingClientRect();
+  /* ★ 밑자락 34px 은 「더 있다」 그늘(.wScroll::after)이 **덮는다** — 상자는 틀 안인데
+     글자는 안 보인다. 그늘을 뺀 자리가 사람이 읽는 자리다([[threshold-and-ruler-must-match]]). */
+  const shade = body.classList.contains("more") ? 34 : 0;
+  const bb = { top: bb0.top, bottom: bb0.bottom - shade, height: bb0.height - shade };
   const rows = [...body.querySelectorAll(".sStat:not(.jList) .tipStat")];
   const vis = rows.filter(e => { const b = e.getBoundingClientRect(); return b.top >= bb.top - 0.5 && b.bottom <= bb.bottom + 0.5; });
   const doll = body.querySelector(".pdoll"); const db = doll ? doll.getBoundingClientRect() : null;
   const sl = body.querySelector(".sStat:not(.jList)"); const sb = sl ? sl.getBoundingClientRect() : null;
   const seen = sb ? Math.max(0, Math.min(bb.bottom, sb.bottom) - Math.max(bb.top, sb.top)) : 0;
   return { 줄수: rows.length, 온전히보임: vis.length,
-    틀높이: Math.round(bb.height), 속높이: Math.round(body.scrollHeight),
+    틀높이: Math.round(bb.height), 그늘: shade, 속높이: Math.round(body.scrollHeight),
     인물높이: db ? Math.round(db.height) : 0, 수치판높이: sb ? Math.round(sb.height) : 0,
     수치판보인몫: sb ? +(seen / sb.height * 100).toFixed(1) : 0,
     인물이먹은몫: db ? +(db.height / bb.height * 100).toFixed(1) : 0,
