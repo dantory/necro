@@ -183,6 +183,17 @@ function menuLayout() {
      ★ 그림이 아직 안 구워졌을 수 있다 — 그때는 `onerror` 로 그림만 숨고 **글자가 대신
        선다**(빈 네모를 세우지 않는다 · 벨트 칸과 같은 규칙). */
   const ART = { hName: "stat", hBag: "bag", hLv: "tree", hDoctrine: "doctrine", hTactic: "tactic" };
+  /* ★★ **이름을 칸 안에 적는다**(2026-08-24 · V-29). 여태 「이름은 툴팁이 말한다」였는데,
+     이 띠는 창을 여는 **유일한 길**이라 그 말이 제일 안 통하는 자리였다 — 툴팁은
+     마우스를 **얹어야** 뜨고, 얹어야 뜨는 이름은 「무엇이 있는지 모르는 사람」에게는
+     없는 것과 같다. 상인 「사기」(V-27) · 편성 칸(V-28)에서 이미 두 번 고친 결을
+     정작 **띠 자신에게는 안 옮기고 있었다**([[carry-fixes-forward]]).
+     ★ 그림은 **안 뺀다** — 병수님이 「아이콘 형태로」라 하신 것 그대로다. 그림 위 ·
+       이름 아래로 나눈다(V-28 의 칸과 같은 결).
+     ★ **키는 한 톨도 안 키운다.** 이 띠의 윗금은 `overlayTop` 이 읽어 무대 높이를
+       정하는 값이라(V-16 이 88px 을 두고 싸운 그 자리), 1px 만 커져도 싸우는 자리가
+       그만큼 준다. 그래서 늘리는 것은 **폭**이고, 세로는 그림을 34 → 28 로 줄여 낸다. */
+  const NAME = { hName: "능력치", hBag: "가방", hLv: "스킬", hDoctrine: "편성", hTactic: "운용" };
   for (const id of ["hName", "hBag", "hLv", "hDoctrine", "hTactic"]) {
     const el = $(id); if (!el) continue;
     if (!el.querySelector(".mIco")) {
@@ -192,6 +203,13 @@ function menuLayout() {
       img.onerror = () => { img.remove(); el.classList.add("noArt"); };
       img.onload = () => el.classList.add("hasArt");
       el.prepend(img);
+    }
+    /* 이름 조각. `pointer-events:none` 은 CSS 가 준다 — 이름 위를 눌러도 단추가 받는다
+       (그러지 않으면 여는 길이 이름 자리에서만 죽는다 · `v29_menuname` 이 그것을 잰다). */
+    if (!globalThis.__NOMENUNAME && !el.querySelector(".mNm")) {
+      const nm = document.createElement("span");
+      nm.className = "mNm"; nm.textContent = NAME[id] || "";
+      el.appendChild(nm);
     }
     slot.appendChild(el);
   }
