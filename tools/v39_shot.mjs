@@ -1,0 +1,25 @@
+/* V-39 보고 그림 — 성능모드를 켠 채 판을 통째로 한 장. node tools/v39_shot.mjs <out.png> */
+const CDP = `http://127.0.0.1:${process.env.NECRO_CDP_PORT || "9333"}`;
+const OUT = process.argv[2] || "tmp/v39_after.png";
+const fs = await import("node:fs");
+const ver = await (await fetch(CDP + "/json/version")).json();
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+let id = 0; const pend = new Map();
+const raw = (m, p = {}, s) => { const i = ++id; bws.send(JSON.stringify({ id: i, method: m, params: p, sessionId: s })); return new Promise((res, rej) => pend.set(i, { res, rej })); };
+bws.addEventListener("message", ev => { const m = JSON.parse(ev.data);
+  if (m.id && pend.has(m.id)) { const p = pend.get(m.id); pend.delete(m.id); return m.error ? p.rej(new Error(JSON.stringify(m.error))) : p.res(m.result); } });
+await new Promise(r => bws.addEventListener("open", r));
+const { targetId } = await raw("Target.createTarget", { url: "http://127.0.0.1:8774/index.html?perf=1" });
+const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
+const S = (m, p) => raw(m, p, sessionId);
+await S("Page.enable"); await S("Runtime.enable");
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true })).result?.value;
+await S("Page.reload", { ignoreCache: true }); await wait(3200);
+await ev("window.__toDungeon && window.__toDungeon()"); await wait(4000);
+const s = await S("Page.captureScreenshot", { format: "png" });
+fs.writeFileSync(OUT, Buffer.from(s.data, "base64"));
+console.log(OUT + "  (image-rendering: " + await ev(`getComputedStyle(document.getElementById("stage")).imageRendering`) + " · 층 " + await ev("window.__S&&window.__S.floor") + ")");
+await fetch(`${CDP}/json/close/${targetId}`);
+process.exit(0);

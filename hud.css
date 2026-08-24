@@ -188,7 +188,11 @@
 /* ★ D4 의 경험치 띠는 **실낱같이 가늘다** — 굵으면 그것이 볼거리가 되어 스킬바와
    다툰다. 늘 보되 안 읽어도 되는 값이라 가늘어도 된다. */
 .mid .xp{position:relative;height:7px;background:#0a0806;box-shadow:inset 0 0 6px #000}
-.mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+/* ★ 여기도 픽셀로 (2026-08-25, V-39 · [[carry-fixes-forward]]). 띠·칸의 테두리는
+   뒷그림을 **CSS px 그대로** 잡는데(frame.js `cv.width = clientWidth`) 화면은 dpr 2 라
+   두 배로 늘어난다 — `auto` 면 1px 짜리 금이 반투명 2px 로 번진다. */
+.mid .xp canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;
+  image-rendering:pixelated}
 .mid .xpFill{position:absolute;left:0;top:0;bottom:0;width:0;transition:width .3s;
   background:
     /* 칸 나눔을 26px 로 박으면 폭에 따라 칸 수가 들쭉날쭉해진다. **10%씩 열 칸**으로
@@ -220,7 +224,8 @@
 .slot{flex:1 1 0;max-width:52px;aspect-ratio:1;position:relative;cursor:pointer;
   background:none;border:none;box-shadow:none;
   display:flex;align-items:center;justify-content:center}
-.slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;
+  image-rendering:pixelated}
 /* ★ **단축키 숫자는 언제나 맨 위다.** 예전엔 셋이 같은 z-index 1 이었는데 `.cd`(쿨다운
    막대)가 HTML 에서 뒤에 있어 **숫자를 덮었다** — 1번 칸은 재사용이 1.2초라 12초 중
    **6초 넘게 숫자가 사라져 있었다**(v21_slotdim: 단축키 가림 51.3%). */

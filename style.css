@@ -93,8 +93,15 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--ink);
    ★ 무대가 키를 얻으면 **판 한가운데도 같이 내려간다** — 인물이 판 밑으로 숨는다.
      그래서 `main.js` 의 `cy` 가 판 높이를 뺀 자리를 가운데로 잡는다.
      「자리를 바꿀 땐 식도 같이 바꾼다」(오늘 두 번째다). */
+/* ★ 늘릴 때도 **픽셀로** (2026-08-25, V-39). 성능모드가 켜지면 `dpr` 이 1.35 로 내려가
+   뒷그림이 화면보다 작아진다 — 그때 브라우저가 **부드럽게** 늘리면 획마다 반투명 띠가
+   생겨 판 전체가 1.48 배로 번진다. 창틀·구슬·아이콘·벨트는 전부 `pixelated` 이 붙어
+   있는데 **판만 빠져 있었다**([[carry-fixes-forward]]). 성능모드는 긴 프레임이 쌓이면
+   저절로 켜지므로(main.js) 무거운 층에 들어간 순간 판이 뿌예질 수 있다 — 「렉」과 같은
+   자리다. 자: `node tools/v39_stagepix.mjs` (중간색 5.44% → 0.47%). */
 #stage{position:fixed;left:0;top:0;
   width:100vw; height:100%;
+  image-rendering:pixelated;
   background:#0a0806;display:block}
 /* 무대 둘레 — 어두운 돌바닥 결. 판이 가운데 서고 둘레가 가라앉는다(D2 의 앉음새). */
 body{background:#050403 radial-gradient(ellipse at 50% 40%, #14100b 0%, #050403 70%)}
