@@ -27,6 +27,10 @@
   "attack": 6,
   "walk": 6
  },
+ "mob/shaman": {
+  "attack": 6,
+  "walk": 6
+ },
  "mob/skelarch": {
   "attack": 5,
   "walk": 6

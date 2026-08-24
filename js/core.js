@@ -169,10 +169,13 @@ export const NECRO_ATK = {
   dmg: (lv) => 10 + lv * 1.5,
 };
 
-export const MOB_H = { fallen: 44, zombie: 50, skelarch: 50, brute: 62, boss: 104 };
+/** ★ V-15: `shaman` 을 56 으로 둔다 — 타락자(44)보다 **한 뼘 크다.** 이 수는 난이도가
+ *  아니라 **실루엣**이다. 웅크린 단검잡이 옆에 지팡이 든 키 큰 몸이 서야 「두 종이 있다」가
+ *  한눈에 읽힌다(같은 키면 색만 갈린 V-7 의 되풀이다). */
+export const MOB_H = { fallen: 44, shaman: 56, zombie: 50, skelarch: 50, brute: 62, boss: 104 };
 /** 적 이름 — 「어둠의 지배」로 내 편이 되면 로그에 이름이 뜬다. 그때까지는
  *  화면에 이름이 나올 일이 없어서 없었다. */
-export const MOB_N = { fallen: "타락자", zombie: "좀비", skelarch: "해골 궁수", brute: "괴물", boss: "층의 주인" };
+export const MOB_N = { fallen: "타락자", shaman: "타락자 주술사", zombie: "좀비", skelarch: "해골 궁수", brute: "괴물", boss: "층의 주인" };
 
 /* ══ 무리는 **한 놈이 아니다** ══ (2026-08-24 · V-7)
    1~3층은 `kinds: ["fallen"]` 하나뿐이라 **처음 1~2분이 통째로 똑같은 붉은 놈 열넷**이었다.
@@ -340,9 +343,9 @@ export const goldFor   = (f) => Math.round(6 * Math.pow(1.12, f - 1));
      한 번 곱하는 것이라 매 프레임 값이 아니다(ground.js `useFloor`). */
 export const ZONES = [
   { from: 1,  n: "무너진 묘지",   tile: "crypt", tint: null,
-    kinds: ["fallen"],                        bias: { wand: 2.2, charm: 1.6 } },
+    kinds: ["fallen", "fallen", "shaman"],     bias: { wand: 2.2, charm: 1.6 } },
   { from: 4,  n: "썩은 시체 굴",  tile: "rot",   tint: null,
-    kinds: ["fallen", "zombie"],              bias: { robe: 2.2, belt: 1.8 } },
+    kinds: ["fallen", "shaman", "zombie"],     bias: { robe: 2.2, belt: 1.8 } },
   { from: 9,  n: "뼈의 회랑",     tile: "bone",  tint: "#93a6c6",
     kinds: ["fallen", "zombie", "skelarch"],  bias: { helm: 2.2, shield: 1.8 } },
   { from: 16, n: "잿빛 야영터",   tile: "camp",  tint: "#b4884e",

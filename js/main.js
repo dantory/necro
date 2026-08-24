@@ -3027,7 +3027,7 @@ function tick(t) {
    못 받아도 preload 는 그대로 돈다(옛 방식으로 되돌아간다). */
 await loadManifest();
 preload(["char/necro", "minion/skel", "minion/ghoul", "minion/golem",
-         "mob/fallen", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
+         "mob/fallen", "mob/shaman", "mob/zombie", "mob/skelarch", "mob/brute", "mob/boss"]);
 /* ★ 조명을 걷었으니 **바닥 밝기가 그대로 화면 밝기**다. 던전은 어둡게(1.55),
    마을은 원본이 이미 밝아 오히려 낮춘다(0.72) — 어둠은 조명이 아니라 여기서 만든다. */
 loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
