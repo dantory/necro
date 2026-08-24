@@ -11,7 +11,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
-         questNote, registerQuestToast, autoSpend, spLeft } from "./core.js";
+         questNote, registerQuestToast, autoSpend, spLeft, CORPSE_BANK_MAX } from "./core.js";
 
 /* ══ 전장은 **원형**이다 ══
    병수님: "내 캐릭터는 중앙에 있고, 사방에서 적군이 리스폰되었으면."
@@ -1036,6 +1036,11 @@ const PILE_MAX = 140;
  *  성립하려면 모자랄 때가 있어야 한다). 넘치는 몫은 세지 않는다 — 대신 넘치기 전에
  *  화력으로 바꿀 길을 낸다(main.js auto 의 시체 폭발). */
 export const CORPSE_MAX = PILE_MAX;
+/* ★ **창고 상한과 갈리면 여기서 운다.** 오프라인 창고(core.js CORPSE_BANK_MAX)는 core 에
+   있고 이 상한은 여기 있다 — core 는 battle 을 못 부르므로 값을 두 번 적을 수밖에 없다.
+   두 벌로 적힌 값은 언젠가 갈린다([[seam-not-values]]). 갈리는 순간 콘솔에 뜨게 못을 박는다. */
+if (CORPSE_BANK_MAX !== CORPSE_MAX)
+  console.error(`시체 상한이 갈렸다 — battle.CORPSE_MAX=${CORPSE_MAX} 대 core.CORPSE_BANK_MAX=${CORPSE_BANK_MAX}`);
 /** **환전** — 쌓인 만큼 크게 터진다. 재 보니 배수구(문턱을 낮춰 자주 터뜨리기)로는
  *  못 뺐다: 폭발이 한 번에 한 구를 먹으니 재사용 2.2초 = **분당 27 구**가 천장인데
  *  깊은 층의 유입이 그걸 넘어 시체가 140 에 붙박였다(문턱 1/5·문턱 없음 둘 다).
@@ -2640,7 +2645,12 @@ export function newRun() {
   Object.assign(S, {
     floor: f0, t: 0, running: true, dead: false,
     hp: hpMaxOf(), hpMax: hpMaxOf(), mp: mpMaxOf(), mpMax: mpMaxOf(),
-    corpses: 3 + (META.corpses | 0),   // 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다
+    /* 첫 시체 셋 + 오프라인 창고 — 비웠던 만큼 군대를 앞세우고 내려간다.
+       ★ **상한 안에서.** 예전엔 창고를 상한 밖에서 그대로 부어 다섯 시간 비운 판이
+         11,040 구로 시작했다(그림은 26 장) — HUD 가 「시체 11041/140」을 붉게 달고
+         90초를 굴려도 상한 아래로 안 내려온다. 창고는 이제 한 짐(CORPSE_BANK_MAX)까지만
+         차지만, 셋을 더하면 넘길 수 있으니 **여기서도** 자른다. */
+    corpses: Math.min(3 + (META.corpses | 0), CORPSE_MAX),
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], pendMech: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다

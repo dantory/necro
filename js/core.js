@@ -777,6 +777,14 @@ export function questNote(tag, n = 1) {
    유해 배수(relicMul)는 금·시체 획득의 그 규칙과 **일관되게 여기 한 곳에서만** 곱한다. */
 export const OFFLINE_CAP_MIN = 480;    // 상한 — 8시간(480분)까지만 쌓인다
 export const OFFLINE_EFF = 0.5;        // 효율 — 지켜보는 것의 절반
+/** **창고에 질 수 있는 시체는 한 짐뿐이다.** 금은 쌓이는 자원이라 시간에 비례해도 되지만
+ *  시체는 **판 안에서만 쓰는 상한 있는 자원**이다(battle.js CORPSE_MAX). 시간에 비례해
+ *  쌓아 두면 다섯 시간만 비워도 만 구가 판에 실려 상한이 통째로 뜻을 잃는다 —
+ *  「자원이 넘치면 그 자원으로 하는 선택이 사라진다」고 CORPSE_MAX 에 못 박아 둔 그 병을
+ *  **창고라는 다른 문으로** 다시 들인 셈이었다([[carry-fixes-forward]]).
+ *  ★ battle.js 의 CORPSE_MAX 와 **같은 값**이라야 한다 — 둘이 갈리면 battle.js 가 운다
+ *    (core 는 battle 을 못 부른다 · 거꾸로만 부른다). */
+export const CORPSE_BANK_MAX = 140;
 /** 분당 금 — 최근 실력의 한 층 금 수입(goldFor)에 매단다. 결정적(난수 없음). */
 export const offlineGoldPerMin   = (meta) => goldFor(Math.max(1, meta.deepest | 0));
 /** 분당 시체 — 그 깊이 한 층의 마릿수(floorN)만큼. 결정적. */
@@ -801,7 +809,13 @@ export function applyOffline(now, since = META.lastSeen) {
   META.lastSeen = Math.max(+META.lastSeen || 0, now);
   if (g.min < 1) { saveMeta(); return null; }
   META.gold += g.gold;
-  META.corpses = (META.corpses | 0) + g.corpses;
+  /* 창고는 **한 짐까지**만 받는다. 번 것(g.corpses)과 실제로 실린 것(g.corpsesIn)을
+     따로 돌려줘 패널이 **거짓말을 안 하게** 한다 — 「+11,100」이라 적고 140 만 지고
+     내려가면 그 창은 없는 수를 약속하는 것이다. */
+  const c0 = META.corpses | 0;
+  META.corpses = Math.min(c0 + g.corpses, CORPSE_BANK_MAX);
+  g.corpsesIn = META.corpses - c0;
+  g.corpseFull = g.corpsesIn < g.corpses;
   saveMeta();
   return g;
 }

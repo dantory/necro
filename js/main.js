@@ -2709,7 +2709,8 @@ function drawOffline(off) {
     `<div class="tip">
        <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
        <div class="tipStat">금 <b class="t3">+${off.gold.toLocaleString()}</b></div>
-       <div class="tipStat">시체 <b class="t3">+${off.corpses.toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
+       <div class="tipStat">시체 <b class="t3">+${(off.corpsesIn ?? off.corpses).toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
+       ${off.corpseFull ? `<div class="tipStat dim">시체는 <b>한 짐</b>까지만 지고 간다 — ${off.corpses.toLocaleString()}구를 벌었다</div>` : ""}
        ${off.capped ? `<div class="tipStat dim">8시간까지만 쌓입니다</div>` : ""}
      </div>`;
   $("offGold").textContent = (META.gold | 0).toLocaleString();
