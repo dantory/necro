@@ -2014,14 +2014,16 @@ function drawShop() {
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
     ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +
     (nx !== null ? `<div class="tipNote sm">상인이 파는 것엔 <b>옵션이 없다</b> — 붙은 건 던전에서</div>` : "") +
+    /* ★ 등급 점(`tipPips`)을 **값·단추보다 먼저** 적는다 — 단추가 칸 아래에 붙박이므로
+       (hud.css `.win .tip .tipBuy`) 뒤에 오는 것은 그 밑에 깔려 안 보인다. */
+    `<div class="tipPips">${Array.from({ length: max }, (_, i) =>
+        `<i class="pip${i < t ? " on" : ""}"></i>`).join("")}</div>` +
     (nx === null
       ? `<div class="tipNote">최고 등급 · 더 살 것 없음</div>`
       : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
          <div class="tipStat up">${g.d} <b>${fmt(g.val[nx])}</b></div>
          <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
-           <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`) +
-    `<div class="tipPips">${Array.from({ length: max }, (_, i) =>
-        `<i class="pip${i < t ? " on" : ""}"></i>`).join("")}</div>`;
+           <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`);
 }
 
 let forgePick = "hp";
