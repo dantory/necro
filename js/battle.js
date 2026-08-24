@@ -1148,6 +1148,44 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
     if (S.piles.length > PILE_MAX) S.piles.shift();
   }
 }
+/** ══ 창고에서 **지고 내려온** 시체를 판에 부린다 ══ (V-43b)
+ *  V-43 을 닫고 나니 셈은 104 인데 **눕힌 그림이 5** 였다 — 창고 몫은 `addCorpse` 를
+ *  안 거치고 `newRun` 이 `S.corpses` 에 바로 얹었기 때문이다. 위 ★ 규칙(「개수와 그림이
+ *  어긋나면 안 된다」)이 못 박은 바로 그 어긋남인데, 그 규칙을 지키려고 `addCorpse` 를
+ *  부를 수는 없다 — 그 문은 **「여기서 방금 죽었다」는 자리**를 받는 문이라
+ *  ① 환생 배수(relicMul)가 이미 정산된 창고 몫에 **한 번 더** 걸리고
+ *  ② 부릴 자리가 없다(한 점에 다 쏟으면 발밑에 탑이 선다).
+ *  그래서 문을 하나 더 내되 **셈과 그림을 반드시 같이** 움직인다 — 규칙의 뜻은
+ *  「문이 둘뿐」이 아니라 「둘이 따로 놀지 않는다」다.
+ *  ★ **발밑에는 안 쌓는다.** 들어서자마자 제자리에 시체 더미가 솟으면 「지고 왔다」가
+ *    아니라 「여기서 무슨 일이 있었다」로 읽힌다. 싸움이 붙을 둘레(CORE_R 밖 ~ 진 자리
+ *    언저리)에 **넓이가 고르게** 흩는다 — 반지름을 그냥 고르면 가운데로 몰리므로
+ *    제곱근을 쓴다.
+ *  ★ 이미 식은 것들이라 갓 죽은 시체보다 **어둡게** 눕고(dim), 스르르 나타나지도
+ *    않는다(born 0) — 판이 열리는 순간 이미 거기 있던 것이다. */
+export function layCarried(n) {
+  S.corpses = 0; S.piles.length = 0;
+  /* ★ 켜서 보고 고쳤다 — 처음엔 진 자리(RING_HOLD)까지만 흩었더니 **한가운데 무더기**로
+     엉겨 「바닥에 널렸다」가 아니라 「쌓아 놨다」로 읽혔다. 적이 나오는 둘레까지 넓힌다. */
+  const r0 = CORE_R * 1.7, r1 = RING_SPAWN * 1.05;
+  const hp = floorHp(S.floor);
+  for (let i = 0; i < n; i++) {
+    if (S.corpses < CORPSE_MAX) S.corpses++;
+    const a = Math.random() * 6.2832;
+    const r = Math.sqrt(r0 * r0 + Math.random() * (r1 * r1 - r0 * r0));
+    /* 세로는 **안 누른다** — p.y 는 눌리기 전 좌표고 누르는 일은 그리는 쪽(py)이 한다. */
+    S.piles.push({ x: Math.cos(a) * r, y: Math.sin(a) * r,
+      /* ★ 큰 것(해골 무더기)·활짝 편 뼈대는 낱장이 커서 몇 장만 겹쳐도 덩어리가 된다 —
+         **작은 것을 주로** 깐다(널린 것은 널려 보여야 한다). */
+      sort: Math.random() < 0.10 ? "large" : (Math.random() < 0.68 ? "small" : "bones"),
+      pw: hp, t: 0, born: 0, rot: Math.random() * 6.2832,
+      flip: Math.random() < 0.5 ? -1 : 1,
+      sc: 0.85 + Math.random() * 0.30,
+      tint: (Math.random() * CORPSE_TINT.length) | 0,
+      dim: 0.44 + Math.random() * 0.30 });
+    if (S.piles.length > PILE_MAX) S.piles.shift();
+  }
+}
 /** 시체 n 구를 쓴다. **쓴 자리**를 돌려준다(거기서 소환수가 일어서게) */
 /** ══ 터진 뼛조각 ══ 쓴 시체 수만큼 조금 더 많이 튄다.
  *  값은 판을 **안 건드린다**(피해 없음) — 그림만이라 A/B 로 잰 밸런스가 그대로 유효하다.
@@ -2650,7 +2688,10 @@ export function newRun() {
          11,040 구로 시작했다(그림은 26 장) — HUD 가 「시체 11041/140」을 붉게 달고
          90초를 굴려도 상한 아래로 안 내려온다. 창고는 이제 한 짐(CORPSE_BANK_MAX)까지만
          차지만, 셋을 더하면 넘길 수 있으니 **여기서도** 자른다. */
-    corpses: Math.min(3 + (META.corpses | 0), CORPSE_MAX),
+    /* ★ 여기서는 **비운다** — 셈만 얹으면 그림이 안 따라온다(V-43b).
+       아래 enterFloor 뒤에 `layCarried` 가 셈과 그림을 함께 세운다
+       (enterFloor 가 앞 층 그림을 걷으므로 그보다 «먼저» 눕히면 지워진다). */
+    corpses: 0,
     minions: [], mobs: [], fx: [], bolts: [], piles: [], falling: [], nums: [], pools: [], pendMech: [], hurtLog: [], walls: [],
     drops: [], loot: [], cd: {}, log: [], killed: 0, deepest: f0, summoned: 0, used: 0,
     uniqCtr: 0, overflow: 0, qrun: {},   // ⑦ 일지의 연속 조건(관문 다섯 등)은 판마다 리셋된다
@@ -2660,9 +2701,11 @@ export function newRun() {
     amp: 0, wkn: 0, dcp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
     dealtAcc: 0, armyDps: 0,           // 「지금 군대가 내는 화력」 — 판이 바뀌면 앞 판 기억을 안 물려받는다
   });
+  const carried = Math.min(3 + (META.corpses | 0), CORPSE_MAX);   // 첫 시체 셋 + 창고 — 상한 안에서
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다
   sayReset();
   runGold0 = META.gold; runLv0 = META.lv; runXp = 0; runFloor0 = f0;
   corpseCarry = 0;
   enterFloor(f0);
+  layCarried(carried);   // ★ V-43b · 지고 내려온 몫을 **판에 눕힌다**(셈과 그림을 함께)
 }

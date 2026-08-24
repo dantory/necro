@@ -127,6 +127,27 @@ async function domCheck(metaObj) {
     `on=${b.on} off=${JSON.stringify(b.off)} 가진금=${b.gold}`);
 }
 
+/* ── V-43b · 지고 내려온 시체가 **판에 눕는가** ──
+   V-43 을 닫고 재니 셈 116 대 그림 19 였다 — 창고 몫은 `addCorpse` 를 안 거치므로
+   `S.piles` 에 한 장도 안 눕는다. `layCarried` 가 셈과 그림을 함께 세우는지 본다.
+   ★ **판이 열리는 그 프레임**에서만 성립한다(시간이 흐르면 폭발이 먹어 치운다) —
+     던전에 넣고 곧바로 멈춰서(S.running=false) 잰다. */
+{
+  await domCheck({ gold: 1000, corpses: 0, deepest: 30, relics: 0, lv: 20, xp: 0, lastSeen: Date.now() - 5 * HOUR });
+  const c = JSON.parse(await evalp(`(async()=>{ window.__closeAll && window.__closeAll();
+    window.__toDungeon(); const S = window.__S; S.running = false;
+    const B = await import("/js/battle.js");
+    return JSON.stringify({ 셈: S.corpses, 그림: S.piles.length, 상한: B.CORPSE_MAX,
+      발밑: S.piles.filter(p => Math.hypot(p.x, p.y) < B.CORE_R * 1.5).length,
+      밖: S.piles.filter(p => Math.hypot(p.x, p.y) > B.RING_SPAWN * 1.1).length }); })()`));
+  push("V-43b · 지고 내려온 시체가 셈만큼 판에 눕는다",
+    c.셈 > 100 && c.그림 === c.셈 && c.셈 <= c.상한,
+    `셈=${c.셈} 그림=${c.그림} 상한=${c.상한}`);
+  push("V-43b · 발밑에 쌓지 않고 판 안에 흩는다",
+    c.발밑 === 0 && c.밖 === 0,
+    `발밑=${c.발밑} 판밖=${c.밖}`);
+}
+
 let fail = 0;
 for (const [name, ok, detail] of results) {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  ‹" + detail + "›"}`);
