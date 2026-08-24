@@ -824,8 +824,15 @@ body.in-town #stage{cursor:pointer}
    ★ 왜 배경이 아니라 `::before` 인가 — 칸의 테는 `border-image ... fill` 이라 **그림이
      배경을 덮는다.** background 를 밝게 해도 한 픽셀도 안 보인다(그렇게 한 번 헛손질했다).
      `::before` 는 테 그림 **위**, 아이콘 **아래**에 깔린다(첫 자식이므로). */
-.tIco{opacity:.28;filter:grayscale(1) brightness(.72)}          /* 잠김 — 기본값 */
-.tNode.open .tIco{opacity:.8;filter:grayscale(.35) brightness(.92)}
+/* ★★ **「눌린다」와 「사라진다」는 다르다**(2026-08-25 · V-33). 위 줄이 스스로
+   「사라지진 않는다 — 앞날이 보여야 계획을 세운다」고 적어 놓고, 값은 사라지게
+   두고 있었다. 자로 재니(그림을 껐다 켜서 뺀 잉크) **잠긴 칸 4.7 · 찍은 칸 30.1** —
+   16% 다. 칸 스물여섯 중 스물이 잠김이라 트리 전체가 「검은 네모」로 읽혔다.
+   칸 바탕이 거의 검정(#1c150e→#0d0906)이라 **어두운 그림은 기댈 데가 없다** —
+   그래서 투명도만이 아니라 **밝기**를 같이 올린다. 흑백은 그대로 둔다(상태는
+   여전히 «색이 있나»로 읽힌다). 사다리는 xlock < 잠김 < 열림 < 찍음 순서. */
+.tIco{opacity:.55;filter:grayscale(1) brightness(1.02) contrast(1.06)}  /* 잠김 — 기본값 */
+.tNode.open .tIco{opacity:.96;filter:grayscale(.3) brightness(1.14)}
 .tNode.some .tIco,.tNode.full .tIco{opacity:1;filter:brightness(1.08)}
 .tNode.open .tn{color:#c3ae86}
 .tNode.some .tn{color:#c8aa6e}
@@ -867,7 +874,7 @@ body.in-town #stage{cursor:pointer}
 /* 갈래에서 **닫힌** 칸 — 잠김(회색)보다 더 눌러 두고, 되돌릴 수 없음을 빗금으로 말한다.
    ★ 그림을 지우지는 않는다. 무엇을 포기했는지가 보여야 다음 판의 계획이 선다. */
 .tNode.xlock{cursor:default}
-.tNode.xlock .tIco{opacity:.16;filter:grayscale(1) brightness(.55)}
+.tNode.xlock .tIco{opacity:.34;filter:grayscale(1) brightness(.85)}
 .tNode.xlock .tn{color:#4f4638;text-decoration:line-through}
 .tNode.xlock .tTile::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(135deg,transparent 46%,#6b2b2bcc 48%,#6b2b2bcc 52%,transparent 54%)}
