@@ -5,6 +5,15 @@
     python3 tools/pixellab/rebuild.py animate    # 다 익은 것에 걷기·공격 걸기
     python3 tools/pixellab/rebuild.py collect    # 받아서 assets/ 에 풀기
     python3 tools/pixellab/rebuild.py all        # 위 셋을 끝까지 (detached 로 돌릴 것)
+    python3 tools/pixellab/rebuild.py all --only mob/shaman   # **한 종만** 손댄다
+
+**★ 새 종을 구울 때는 반드시 `--only` 를 쓴다.** (2026-08-24, V-15b)
+주술사 하나를 구우려고 인자 없이 돌렸더니 **10종을 통째로 다시 수거**해
+`minion/ghoul`(웅크린 시체 → 주황 옷 입은 작은 해골)과 `mob/skelarch`(붉은 활이 사라짐)를
+갈아엎었다. 커밋 전에 눈으로 봐서 겨우 막았다. 그래서 자물쇠를 둘 달았다:
+  ① `--only a,b` 로 손댈 종을 **직접 고른다** — 안 고른 종은 세 단계 모두 건너뛴다.
+  ② 고르지 않았어도, **assets/ 에 이미 여덟 방향이 다 서 있는 종은 수거하지 않는다.**
+     덮으려면 `--force` 를 붙이거나 그 종을 `--only` 로 직접 이름을 대야 한다.
 
 **왜 다시 만드는가.** 우리가 map_object 로 구운 옆모습 한 장은 애니메이션이 안 된다.
 `create_character` 에 그 그림을 참조로 넣어도 PixelLab 은 그것을 움직이는 게 아니라
@@ -100,8 +109,9 @@ def save(st):
 
 
 # ══ 1. 캐릭터를 줄 세운다 ══
-def do_create(st):
-    for key, (desc, size, _, _) in CHARS.items():
+def do_create(st, targets=None):
+    for key in (targets or list(CHARS)):
+        desc, size, _, _ = CHARS[key]
         if st.get(key, {}).get("id"):
             print(f"이미 있음 {key}"); continue
         try:
@@ -131,9 +141,10 @@ def char_done(cid):
 
 
 # ══ 2. 걷기·공격을 건다 ══ **다 익은 것부터 바로**. 한 종류가 늦어도 나머지는 간다.
-def do_animate(st, rounds=40):
+def do_animate(st, targets=None, rounds=40):
+    targets = targets or list(CHARS)
     for rnd in range(rounds):
-        left = [k for k in CHARS if st.get(k, {}).get("id") and not st[k].get("anim_done")]
+        left = [k for k in targets if st.get(k, {}).get("id") and not st[k].get("anim_done")]
         if not left: break
         for key in left:
             cid = st[key]["id"]
@@ -163,7 +174,7 @@ def do_animate(st, rounds=40):
                 time.sleep(1.5)
             if st[key].get("walk_q") and st[key].get("attack_q"):
                 st[key]["anim_done"] = True; save(st)
-        if [k for k in CHARS if st.get(k, {}).get("id") and not st[k].get("anim_done")]:
+        if [k for k in targets if st.get(k, {}).get("id") and not st[k].get("anim_done")]:
             print(f"— {rnd+1}회차, 아직 안 익은 것 있음. 45초 뒤 다시", flush=True)
             time.sleep(45)
 
@@ -214,10 +225,24 @@ def complete(key):
     return True
 
 
-def do_collect(st, rounds=60):
+def do_collect(st, targets=None, named=(), force=False, rounds=60):
+    """★ **이미 assets/ 에 여덟 방향이 다 선 종은 건드리지 않는다.** (V-15b)
+       `collected` 표식만 보고 판단하면 안 된다 — 그 표식은 state.json 에 있고,
+       assets/ 는 디스크에 있다. 둘이 어긋나면(표식만 지워지면) 멀쩡한 그림을 덮어쓴다.
+       **디스크를 센다.** 덮으려면 `--force` 이거나 `--only` 로 이름을 직접 대야 한다."""
+    targets = targets or list(CHARS)
     a = auth()
+
+    def locked(k):
+        return complete(k) and not force and k not in named
+
+    for k in targets:
+        if locked(k):
+            print(f"잠김 {k} — assets/ 에 이미 다 서 있다. 덮으려면 --only {k} 또는 --force",
+                  flush=True)
     for rnd in range(rounds):
-        left = [k for k in CHARS if st.get(k, {}).get("anim_done") and not st[k].get("collected")]
+        left = [k for k in targets if st.get(k, {}).get("anim_done")
+                and not st[k].get("collected") and not locked(k)]
         if not left and rnd > 0: break
         for key in left:
             cid = st[key]["id"]
@@ -236,19 +261,35 @@ def do_collect(st, rounds=60):
                 print(f"대기 {key} — 아직 덜 익음(받은 프레임 {frm})", flush=True); continue
             st[key]["collected"] = {"rot": rot, "frames": frm}; save(st)
             print(f"받음 {key}  회전 {rot} · 프레임 {frm}", flush=True)
-        if [k for k in CHARS if st.get(k, {}).get("anim_done") and not st[k].get("collected")]:
+        if [k for k in targets if st.get(k, {}).get("anim_done")
+               and not st[k].get("collected") and not locked(k)]:
             print(f"— 수거 {rnd+1}회차, 남음. 45초 뒤 다시", flush=True)
             time.sleep(45)
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
+    argv = sys.argv[1:]
+    cmd = argv[0] if argv and not argv[0].startswith("-") else "all"
+    FORCE = "--force" in argv
+    only = []
+    for i, a in enumerate(argv):
+        if a == "--only" and i + 1 < len(argv):
+            only = [x.strip() for x in argv[i + 1].split(",") if x.strip()]
+        elif a.startswith("--only="):
+            only = [x.strip() for x in a.split("=", 1)[1].split(",") if x.strip()]
+    bad = [k for k in only if k not in CHARS]
+    if bad:
+        print(f"그런 종이 없다: {bad}\n고를 수 있는 것: {list(CHARS)}"); sys.exit(2)
+    TARGETS = only or list(CHARS)
+    print(f"손댈 종 {len(TARGETS)}/{len(CHARS)}: {TARGETS}"
+          + ("  (--force: 이미 선 것도 덮는다)" if FORCE else ""), flush=True)
+
     st = load()
-    if cmd in ("create", "all"):   do_create(st)
-    if cmd in ("animate", "all"):  do_animate(st)
-    if cmd in ("collect", "all"):  do_collect(st)
-    got = [k for k in CHARS if st.get(k, {}).get("collected")]
-    print(f"══ 끝 — {len(got)}/{len(CHARS)} 종", flush=True)
-    for k in CHARS:
+    if cmd in ("create", "all"):   do_create(st, TARGETS)
+    if cmd in ("animate", "all"):  do_animate(st, TARGETS)
+    if cmd in ("collect", "all"):  do_collect(st, TARGETS, only, FORCE)
+    got = [k for k in TARGETS if st.get(k, {}).get("collected")]
+    print(f"══ 끝 — {len(got)}/{len(TARGETS)} 종", flush=True)
+    for k in TARGETS:
         c = st.get(k, {}).get("collected")
         print(f"  {'✓' if c else '✗'} {k}" + (f"  회전{c['rot']} 프레임{c['frames']}" if c else ""))
