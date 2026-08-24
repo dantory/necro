@@ -52,6 +52,12 @@ CHARS = {
   "mob/fallen":   (f"{MOB}, a small hunched imp-like fallen demon with a crude curved dagger, "
                    "pointed ears, red skin", 40,
                    "walking-6-frames", "cross-punch"),
+  # 주술사 — V-15. 웅크린 단검잡이(fallen)와 **실루엣으로** 갈려야 하므로 키를 키우고
+  # 지팡이를 들린다. 공격도 cross-punch 가 아니라 fireball 이라 동작까지 갈린다.
+  "mob/shaman":   (f"{MOB}, a tall fallen shaman demon standing upright in a ragged red robe, "
+                   "wooden skull-topped staff held high with a small flame at its tip, "
+                   "bone mask over the face, thin and lanky", 48,
+                   "walking-6-frames", "fireball"),
   "mob/zombie":   (f"{MOB}, a shambling rotted zombie with torn flesh and dangling arms, "
                    "grey green skin", 48,
                    "walking-6-frames", "cross-punch"),
