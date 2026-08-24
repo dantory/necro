@@ -89,7 +89,7 @@ const $$ = (id) => _nodes[id] || (_nodes[id] = $(id));
 const setTxt  = (el, v) => { if (el && el.__t !== v) { el.__t = v; el.textContent = v; } };
 const setHTML = (el, v) => { if (el && el.__h !== v) { el.__h = v; el.innerHTML  = v; } };
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor, useLayout } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, setTownHover, townBreath, townGaze, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -1535,8 +1535,14 @@ function beltState() {
  *    tile·tint 가 들어 있다). 그래서 **바뀐 순간에만** 부른다 — 매 프레임 부르면
  *    화면 전체를 매 프레임 다시 칠하는 꼴이 된다(그 값은 rtd 에서 한 번 치렀다).
  *  ★ 마을에서는 안 부른다 — hud() 의 이 갈래가 던전일 때만 도는 자리다. */
-let _zone = null;
+let _zone = null, _lfloor = null;
 function syncZone() {
+  /* ★ **방은 구역이 아니라 «층»마다 바뀐다**(V-17). 구역 바닥은 다섯 층에 한 번
+     갈리는데, 소품 배치까지 거기 묶어 두면 한 구역을 지나는 내내 같은 방이다 —
+     실제로 1층과 2층이 픽셀 단위로 같았다. 배치 씨앗만 층에서 뽑는다(싸다: 바닥
+     캐시가 층이 바뀔 때 한 번 다시 구워지고, 그 값은 이미 구역이 갈릴 때 치르던 것이다). */
+  const f = S.floor | 0;
+  if (_lfloor !== f) { _lfloor = f; useLayout(f); }
   const z = zoneOf(S.floor | 0);
   if (_zone === z.n) return;
   _zone = z.n;
@@ -1545,7 +1551,7 @@ function syncZone() {
 }
 /** 마을로 나가면 구역 기억을 지운다 — 안 지우면 다시 내려왔을 때 같은 구역으로 보고
  *  마을 흙바닥(useFloor("town"))을 그대로 깔고 있는다. */
-export const zoneForget = () => { _zone = null; };
+export const zoneForget = () => { _zone = null; _lfloor = null; };
 
 let _depthV = 0;
 function setDepth(txt, v = 0) {
@@ -2745,6 +2751,7 @@ $("stage").addEventListener("mouseleave", () => { setTownHover(null); $("stage")
 export function toTown(why) {
   MODE.at = "town";
   useFloor("town");      // 마을은 흙길
+  useLayout(0);          // 마을 배치는 앵커(상인·대장간)에 맞춰 놓은 것이라 안 옮긴다
   zoneForget();          // 다시 내려올 때 구역 바닥을 새로 깔게(안 지우면 흙길이 남는다)
   document.body.classList.add("in-town");
   /* ★ **마을은 쉬는 곳이다 — 몸을 추스른다.**(병수님 2026-08-17 19:59

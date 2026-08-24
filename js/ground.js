@@ -38,6 +38,25 @@ let wanted = "crypt";
 let tintCol = null;
 const TINT_A = 0.34;      // 색이 「필터를 끼운 것」으로 보이기 시작하는 선 바로 아래
 
+/* ══ 층마다 다른 방 ══ (2026-08-24 · V-17)
+   바닥·얼룩·소품은 전부 **칸 좌표를 섞은 값**(hash2)으로 정해진다. 그런데 이 판은
+   **화면이 안 움직인다**(cx·cy 고정) — 그래서 층을 내려가도 hash2 에 들어가는 수가
+   똑같아 **1층과 2층이 픽셀 단위로 같은 방**이었다. 기둥도 화로도 상자도 그 자리다.
+   ★ 새 에셋도 새 배치 규칙도 필요 없다 — **같은 무늬밭의 다른 자리를 보면 된다.**
+     칸 좌표에 층마다 다른 정수를 더해 「카메라가 저 멀리로 옮겨 간 것」처럼 만든다.
+     소품 규칙(밀도·굴림·판 뒤 비우기)은 그대로라 새 결함이 생길 자리가 없다.
+   ★ 마을은 0 이다 — 마을 배치는 앵커(상인·대장간)에 맞춰 놓은 것이라 움직이면 안 된다. */
+let layoutOX = 0, layoutOY = 0;
+export function useLayout(seed) {
+  const n = (seed | 0);
+  if (!n) { layoutOX = layoutOY = 0; return; }
+  /* 두 축을 **서로 다른 소수**로 흩어 놓는다 — 같은 수를 쓰면 층이 대각선으로만
+     밀려 「같은 방을 비스듬히 본 것」이 된다. 범위는 ±4000 칸(660k 월드) 로 넉넉하다. */
+  const h = hash2(n * 2654435761, n * 40503 + 977);
+  layoutOX = ((h >>> 3) % 8000) - 4000;
+  layoutOY = ((h >>> 17) % 8000) - 4000;
+}
+
 export function useFloor(name, tint = null) {
   wanted = name; tintCol = tint || null;
   if (tileSets[name]) { tiles = tileSets[name]; floorReady = true; }
@@ -230,6 +249,7 @@ export function groundCacheKey(w, h, cx, cy, sc, squash, scatter, band) {
   return [w, h, Math.round(cx), Math.round(cy), sc.toFixed(3), squash.toFixed(3),
           band ? Math.round(band.x0) + "," + Math.round(band.w) : "-",
           floorReady, decorReady, wanted, tintCol || "-", tiles.length,
+          layoutOX + ":" + layoutOY,        // ★ 층마다 다른 방(V-17) — 빼면 캐시가 옛 방을 돌려준다
           scatter ? [scatter.clear, scatter.density, scatter.decal,
                      scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-",
           /* ★ 자가 **구워 둔 어제 것을 재는** 것을 막는다(V-4c 가 겪은 그 결). 손잡이를
@@ -299,8 +319,9 @@ export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band
            재질은 3:7 로 흙이 적게(참고 화면의 초록 29% 는 그 반대지만, 우리는
            소품이 어두워서 흙이 많으면 화면이 통째로 진창이 된다). */
         const mats = Math.max(1, Math.floor(tiles.length / 12));
-        const mat = mats > 1 && (hash2(gx >> 3, gy >> 3) % 10) < 4 ? 1 : 0;
-        ctx.drawImage(tiles[mat * 12 + (hash2(gx >> 2, gy >> 2) % 3) * 4 + (hash2(gx, gy) % 4)], x, y);
+        const hx = gx + layoutOX, hy = gy + layoutOY;                     // ← 층마다 다른 자리
+        const mat = mats > 1 && (hash2(hx >> 3, hy >> 3) % 10) < 4 ? 1 : 0;
+        ctx.drawImage(tiles[mat * 12 + (hash2(hx >> 2, hy >> 2) % 3) * 4 + (hash2(hx, hy) % 4)], x, y);
       }
 
     /* ②' 얼룩 — **격자를 가로질러** 놓이는 것들. 타일을 아무리 늘려도 경계는 남는데,
@@ -465,7 +486,7 @@ function drawDecals(ctx, cx, cy, sc, squash, w, h, mul = 1) {
   ctx.globalAlpha = 0.85;          // 바닥에 **스며든** 것이라 완전 불투명이면 스티커가 된다
   for (let gy = gy0; gy <= gy1; gy++) {
     for (let gx = gx0; gx <= gx1; gx++) {
-      const hsh = hash2(gx * 7 + 13, gy * 11 + 5);
+      const hsh = hash2((gx + layoutOX) * 7 + 13, (gy + layoutOY) * 11 + 5);
       if ((hsh % 100) >= 42 * mul) continue;            // 칸 열에 넷 정도만(mul 로 조절)
       /* ★ 소품과 **똑같은 부호 버그**가 여기에도 있었다(drawScatter 의 `>>>` 주석 참고).
          얼룩도 절반이 안 그려졌고, 크기(23)는 음수가 되어 0.4~0.8 배로 쪼그라들었다.
@@ -915,7 +936,7 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
   /* **뒤에 있는 것부터** 그린다(y 가 작은 칸부터) — 안 그러면 위쪽 소품이 아래쪽을 덮는다. */
   for (let gy = gy0; gy <= gy1; gy++) {
     for (let gx = gx0; gx <= gx1; gx++) {
-      const rnd = hash2(gx, gy);
+      const rnd = hash2(gx + layoutOX, gy + layoutOY);
       /* ★★ 균일하게 뿌리면 「물건이 고르게 흩어진 들판」이 된다(병수님: "하나의 지역처럼
          보이냐? 뭔가 어설픈데"). 야영지는 **무리를 짓는다** — 앵커(입구·상인·대장간·
          모닥불) 가까이는 빽빽하고 멀어지면 비어야 「여기가 마을」이 생긴다.
@@ -976,7 +997,7 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       /* 굴림마다 **다른 씨앗**이 필요하다 — 같은 rnd 를 다시 쓰면 같은 자리에 같은
          것을 겹쳐 놓는다(그래도 화면은 안 바뀌고 그리기만 두 번 한다). */
       for (let k = 0; k < rolls; k++) {
-        const r2 = k === 0 ? rnd : hash2(gx * 31 + k * 7717, gy * 17 + k * 6311);
+        const r2 = k === 0 ? rnd : hash2((gx + layoutOX) * 31 + k * 7717, (gy + layoutOY) * 17 + k * 6311);
         if (r2 % 100 >= dens) continue;                      // 대부분의 칸은 빈 채로 둔다
         put(r2, gx, gy, from);
       }
