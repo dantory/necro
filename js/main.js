@@ -99,7 +99,7 @@ const $$ = (id) => _nodes[id] || (_nodes[id] = $(id));
 const setTxt  = (el, v) => { if (el && el.__t !== v) { el.__t = v; el.textContent = v; } };
 const setHTML = (el, v) => { if (el && el.__h !== v) { el.__h = v; el.innerHTML  = v; } };
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, setAnchors, useFloor, useLayout } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, pxDashEllipse, pxDashLine, setAnchors, useFloor, useLayout } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, setTownHover, townBreath, townGaze, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -1317,18 +1317,30 @@ function draw(dt) {
       const ex = px((f.x || 0) + (f.tx || 0)), ey = py((f.y || 0) + (f.ty || 0));
       const blink = 0.35 + 0.4 * Math.abs(Math.sin(f.t * 12));
       ctx.save(); ctx.globalAlpha = blink;
-      ctx.strokeStyle = f.col || "#d0702c"; ctx.lineWidth = 3 * us; ctx.setLineDash([8 * us, 6 * us]);
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke();
-      ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      if (vecDash()) {                                   // 자를 위한 옛 꼴(매끈한 벡터)
+        ctx.strokeStyle = f.col || "#d0702c"; ctx.lineWidth = 3 * us; ctx.setLineDash([8 * us, 6 * us]);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(ex, ey); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        ctx.fillStyle = f.col || "#d0702c";
+        pxDashLine(ctx, x, y, ex, ey, 3 * us, { on: 3, off: 2 });
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
       continue;
     }
     if (f.kind === "warn_pool" || f.kind === "warn_curse" || f.kind === "warn_add") {
       const x = px(f.x || 0), y = py(f.y || 0), rr = (f.r || 80) * us;
       const blink = 0.3 + 0.35 * Math.abs(Math.sin(f.t * 12));
       ctx.save(); ctx.globalAlpha = blink;
-      ctx.strokeStyle = f.col || "#c8aa6e"; ctx.lineWidth = 2.5 * us; ctx.setLineDash([7 * us, 5 * us]);
-      ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke();
-      ctx.restore(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+      if (vecDash()) {                                   // 자를 위한 옛 꼴(매끈한 벡터)
+        ctx.strokeStyle = f.col || "#c8aa6e"; ctx.lineWidth = 2.5 * us; ctx.setLineDash([7 * us, 5 * us]);
+        ctx.beginPath(); ctx.ellipse(x, y, rr, rr * SQUASH, 0, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]);
+      } else {
+        /* ★ **예고는 바닥에 그린 자국이다** — 획을 픽셀로 찍어야 스프라이트와 한 결이 된다.
+           고리가 넓어 점이 성기면 「선」으로 안 읽히므로 세 찍고 둘 비운다. */
+        ctx.fillStyle = f.col || "#c8aa6e";
+        pxDashEllipse(ctx, x, y, rr, rr * SQUASH, 2.5 * us, { on: 3, off: 2 });
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
       continue;
     }
     if (f.kind === "bossring") {
@@ -2108,6 +2120,10 @@ const pickDoor = () => document.body.classList.contains("noPickName");
  *  글리프로 되돌아간다. 「그림이 얼마나 나타나나」를 **고치기 전 값과 나란히** 재려면
  *  옛 꼴을 그 자리에서 다시 세울 수 있어야 한다(V-34 의 `__DIGICO` 와 같은 결). */
 const pickGlyph = () => typeof globalThis !== "undefined" && globalThis.__PICKGLYPH === 1;
+/** 자를 위한 **문** — `__VECDASH` 가 켜져 있으면 예고 점선이 V-38 **전**의 매끈한
+ *  `setLineDash` 로 되돌아간다. 「획이 얼마나 픽셀인가」를 고치기 전 값과 나란히 재려면
+ *  옛 꼴을 그 자리에서 다시 세울 수 있어야 한다(V-37 의 `__PICKGLYPH` 와 같은 결). */
+const vecDash = () => typeof globalThis !== "undefined" && globalThis.__VECDASH === 1;
 const pickIco = (kind, id, ico) => pickGlyph()
   ? `<span class="lvl">${ico}</span>` : `<i class="pk-${kind}-${id}"></i>`;
 

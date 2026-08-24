@@ -1005,14 +1005,44 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
   }
 }
 
-/** 소환수가 진을 치는 둘레. **점선도 픽셀로** — 캔버스 setLineDash 는 매끈하다. */
+/** ══ 점선은 **픽셀로 찍는다** ══ 캔버스 `setLineDash` 는 매끈한 벡터 선이라, 판에서
+ *  이것만 픽셀아트가 아니다(가장자리가 반투명하게 번진다). 정수 자리에 정수 크기의
+ *  네모를 찍으면 스프라이트와 같은 결이 된다.
+ *  ★ 여기 하나에서만 만든다 — 진 둘레(drawHoldRing)와 관문·우두머리의 **예고 고리**가
+ *    같은 몸을 쓴다. 예전엔 둘레만 픽셀이고 예고는 벡터였다([[carry-fixes-forward]]).
+ *  @param dot  점 한 개의 한 변(스크린 px). 스프라이트 배율(us)에 매달아 넘긴다.
+ *  @param step 각도 걸음(rad). 안 주면 **둘레 길이 ÷ dot** 으로 잡아 점이 이어 붙는다.
+ *  @param on/off 점 `on` 개를 찍고 `off` 개를 비운다 = 점선의 결. */
+export function pxDashEllipse(ctx, cx, cy, rx, ry, dot = 2, { step, on = 2, off = 1 } = {}) {
+  const d = Math.max(1, Math.round(dot));
+  if (step == null) {                                 // 라마누잔 둘레 근사 → 점이 맞물릴 걸음
+    const a = Math.abs(rx), b = Math.abs(ry);
+    const peri = Math.PI * (3 * (a + b) - Math.sqrt(Math.max(0, (3 * a + b) * (a + 3 * b))));
+    step = 6.283185 / Math.max(8, Math.round(peri / d));
+  }
+  const per = on + off;
+  for (let a = 0, k = 0; a < 6.283185; a += step, k++) {
+    if (k % per >= on) continue;                      // 비우는 칸
+    ctx.fillRect(Math.round(cx + Math.cos(a) * rx), Math.round(cy + Math.sin(a) * ry), d, d);
+  }
+}
+
+/** 같은 결의 **곧은** 점선(돌진 겨냥선). 길이를 dot 으로 나눠 찍는다. */
+export function pxDashLine(ctx, x0, y0, x1, y1, dot = 2, { on = 2, off = 1 } = {}) {
+  const d = Math.max(1, Math.round(dot));
+  const len = Math.hypot(x1 - x0, y1 - y0);
+  const n = Math.max(1, Math.round(len / d));
+  const per = on + off;
+  for (let k = 0; k <= n; k++) {
+    if (k % per >= on) continue;
+    const t = k / n;
+    ctx.fillRect(Math.round(x0 + (x1 - x0) * t), Math.round(y0 + (y1 - y0) * t), d, d);
+  }
+}
+
+/** 소환수가 진을 치는 둘레. **점선도 픽셀로** — 캔버스 setLineDash 는 매끈하다.
+ *  걸음(0.14)·점 크기(2)·결(2찍고 1비움)은 여태 화면에 서던 값 그대로다. */
 export function drawHoldRing(ctx, cx, cy, r, squash) {
   ctx.fillStyle = "rgba(200,170,110,.22)";
-  const step = 0.14;
-  for (let a = 0, k = 0; a < 6.284; a += step, k++) {
-    if (k % 3 === 2) continue;                       // 세 칸에 한 칸씩 비운다 = 점선
-    const x = Math.round(cx + Math.cos(a) * r);
-    const y = Math.round(cy + Math.sin(a) * r * squash);
-    ctx.fillRect(x, y, 2, 2);                        // 점 하나가 2x2 — 1px 은 안 보인다
-  }
+  pxDashEllipse(ctx, cx, cy, r, r * squash, 2, { step: 0.14, on: 2, off: 1 });
 }
