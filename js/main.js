@@ -1176,7 +1176,7 @@ function draw(dt) {
        그어져 둘 다 못 읽었다. 이제 **제 몸 높이 위**에서 시작한다(popNum 이 unitH 를
        실어 보낸다). 바 꼭대기는 머리끝 위 6 인데 캔버스 위 여백(headFrac)이 그보다
        두꺼울 수 있으므로, 여백이 0 이어도 안 닿게 **+8** 을 둔다. */
-    const lift = n.h ? n.h + 8 + 16 * p : 16 + 30 * p;
+    const lift = n.h ? n.h + 13 + 16 * p : 16 + 30 * p;
     const x = Math.round(px(n.x) + n.vx * p * us), y = Math.round(py(n.y) - lift * us);
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
