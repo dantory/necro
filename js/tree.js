@@ -115,6 +115,9 @@ export function markSp() {
   const el = $("spDot"); if (!el) return;
   el.classList.toggle("on", n > 0);
   el.textContent = n > 0 ? n : "";
+  /* ★ 배지만으로는 눈이 안 간다 — 점수가 기다리는 동안 **칸 자체가 숨쉰다**(hud.css .spWait).
+     켜고 끄는 자리를 여기 하나로 둔다: 배지와 숨이 어긋나면 「다 찍었는데 아직 빛난다」가 된다. */
+  $("hLv")?.classList.toggle("spWait", n > 0);
 }
 
 document.addEventListener("click", (e) => {

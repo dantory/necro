@@ -1438,6 +1438,29 @@ body.charOpen #statBody .jList{ grid-template-columns:1fr }
 #hudMenu #hDoctrine.hasArt, #hudMenu #hTactic.hasArt{font-size:0}
 /* 스킬 칸의 「Lv.37」은 **값**이라 그림이 못 대신한다 — 모서리에 작게 남긴다. */
 #hudMenu #hLv.hasArt #hLvT{font-size:11px;position:absolute;bottom:0;right:2px;color:#c8aa6e}
+/* ══ 안 쓴 스킬 점수 ══ (2026-08-24 · V-22)
+   ★★ **위 한 줄(`font-size:0`)이 안에 있던 배지까지 0 으로 만들고 있었다.** `#spDot` 은
+     `#hLv` 의 자식이라 그 0 을 물려받아, 그리는 자리가 **8×0** 이었다 — 남은 점수가
+     1 이든 12 든 칸이 **픽셀 하나까지 같았다**(`tools/v22_spdot.mjs`).
+     레벨업을 알리는 것은 로그 한 줄뿐인데 그건 몇 초면 흘러간다. 그 뒤로는 찍을 것이
+     생긴 줄 알 길이 없어, **저주 나무가 통째로 안 쓰인다.**
+   ★ 「글자를 그림이 대신한다」는 **이름**에만 맞는 말이다 — 배지는 **값**이라 그림이
+     못 대신한다(`#hLvT` 와 같은 결). 그러니 제 글자 크기를 되찾아 준다.
+   ★★ id 셋(`#hudMenu #hLv #spDot`)으로 적어야 위 `#hudMenu #hLv.hasArt`(2,1,0)를 이긴다 —
+     이 파일이 세 번 배운 그 규칙이다.
+   ★ 자리는 **왼위**다. 「Lv.13」이 오른아래에 있으니 둘이 안 다툰다. 칸이 `overflow:hidden`
+     이라 밖으로 못 나간다 — 안쪽에 붙인다. */
+#hudMenu #hLv #spDot.on{
+  position:absolute;top:1px;left:1px;margin:0;z-index:3;
+  min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;
+  font-size:11px;line-height:15px;text-align:center;font-style:normal;
+  background:#8a2b1e;color:#ffd9a0;border-radius:2px;
+  box-shadow:inset 0 0 0 1px #c8aa6e, 0 1px 2px #000}
+/* ★ 배지 하나는 **가만히 있으면 장식으로 읽힌다.** 점수가 기다리는 동안 칸을 숨쉬게 해
+     눈이 한 번은 그리로 가게 한다 — 다 찍으면 곧바로 멎는다(`markSp` 가 끈다).
+     숨은 **테두리 빛**으로만 쉰다: 칸을 움직이면 벨트 전체가 흔들려 보인다. */
+#hudMenu #hLv.spWait{border-color:var(--gold);animation:spWait 1.7s ease-in-out infinite}
+@keyframes spWait{0%,100%{box-shadow:0 0 0 0 #c8aa6e00}50%{box-shadow:0 0 7px 1px #c8aa6e70}}
 /* 마을에서만 쓰는 둘은 던전에서 **자리째** 빠진다 — 눌리지도 않는 칸이 서 있으면 거짓말이다. */
 body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{display:flex}
 
