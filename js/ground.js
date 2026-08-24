@@ -553,7 +553,18 @@ function drawDecals(ctx, cx, cy, sc, squash, w, h, mul = 1) {
    낫다(조각이 늘어도 손댈 곳은 여기 하나다). */
 /* wall 은 이제 안 쓴다 — **벽이 곧 테두리**라서 뺐다. 파일은 남겨 둔다(방을 다시
    만들 일이 생기면 쓴다). */
-const DECOR = ["pillar", "coffin", "bones", "brazier", "rubble"];
+/* ★★ V-41 — **다섯 장이 화면에서 넷씩 되풀이되고 있었다.** 바닥 타일에는 이미
+   고친 결함인데(loadFloor 의 「뒤집기 넷 × 밝기 셋」) 소품 쪽으로 안 옮겼다
+   ([[carry-fixes-forward]]). 소품은 **뒤집을 수가 없다** — place() 가 「빛은 왼쪽
+   위에서 온다」를 못 박고 그림자를 오른쪽 아래로 던지므로, 좌우로 뒤집으면 그 한
+   장만 빛이 거꾸로 든다. 그래서 **종류를 늘리고**(넷을 구웠다) 뒤집기 대신
+   **밝기·크기**를 흔든다. 새 넷은 실루엣이 기존 다섯과 안 겹치는 것으로 골랐다:
+     · column2 — **누운** 기둥(선 기둥과 가로세로가 뒤바뀐다)
+     · bones2  — 흩어진 뼈대 한 구(해골더미는 뭉친 덩어리다)
+     · urn     — 유골 항아리(화로와 달리 **불이 없다**)
+     · statue  — 목 없는 두건 석상 */
+const DECOR = ["pillar", "coffin", "bones", "brazier", "rubble",
+               "column2", "bones2", "urn", "statue"];
 /* ★ 마을에 관·뼈무더기를 뿌린 것이 잘못이었다(병수님: "쓸데 없는 무덤 같은거 없애라").
    **관이 굴러다니는 곳은 마을이 아니라 공동묘지다.** 마을에는 마을 것을 둔다. */
 const TOWN_DECOR = ["barrel", "crate", "cart", "well", "sacks"];
@@ -596,8 +607,30 @@ const CAMP_DECOR = ["wall_a", "wall_b", "logs", "shrub", "rock", "torch", "shed"
 /** 싸움터 한가운데는 비운다 — 소품이 싸움을 가리면 판이 안 읽힌다. */
 const RING_HOLD_CLEAR = 190;
 const decor = {};
+/** 이름 → **같은 그림의 밝기 변형 셋.** 던전 소품(DECOR)에만 있다 — 마을·야영지
+ *  소품은 앵커에 맞춰 손으로 놓은 것이라 흔들면 안 된다.
+ *  ★ 매 프레임 `ctx.filter` 를 거는 것은 비싸다(loadFloor 머리말) — **한 번 구워 둔다.** */
+const decorVars = {};
 /** 조각 한 장을 이름으로 꺼낸다 — 건물 **앞에** 덧놓을 때 쓴다(js/town.js). */
 export const decorOf = (n) => decor[n];
+
+/** 밝기만 흔든 사본 셋. 폭은 ±6% 다 — 바닥 타일에서 배운 대로(±12% 는 체커보드가
+ *  되고 ±3% 는 안 보인다), 소품은 배경보다 대비가 세서 이 폭이 「같은 돌인데 다른
+ *  조각」으로 읽히는 자리다. */
+function toneVars(base) {
+  const out = [];
+  for (const t of [0.94, 1.0, 1.07]) {
+    if (t === 1.0) { out.push(base); continue; }
+    const c = document.createElement("canvas");
+    c.width = base.width; c.height = base.height;
+    const g = c.getContext("2d");
+    g.imageSmoothingEnabled = false;
+    g.filter = `brightness(${t})`;
+    g.drawImage(base, 0, 0);
+    out.push(c);
+  }
+  return out;
+}
 let decorLeft = DECOR.length, decorReady = false;
 
 /* ★ **표식은 눈에 띄어야 표식이다.** 야영지의 색보정(sepia .42 / brightness .72)은
@@ -637,6 +670,7 @@ export function loadDecor(dir = "assets/decor") {
       g.filter = "sepia(0.42) saturate(1.15) brightness(0.92)";
       g.drawImage(im, 0, 0);
       decor[n] = c;
+      decorVars[n] = toneVars(c);
       if (--decorLeft === 0) decorReady = true;
       LOAD.done++;
     };
@@ -673,7 +707,10 @@ const CELL = 165;                      // 칸 하나의 월드 크기
 const HUD_KEEP = 220, HUD_FADE = 80;
 /* ★ 화로를 일곱에 하나만 뿌렸더니 **한 화면에 한두 개**뿐이라 던전이 여전히 캄캄했다.
    불이 곧 조명이니 **불의 밀도가 곧 밝기**다 — 둘로 늘린다. */
-const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "brazier", "rubble"];
+/* ★ V-41 — 다섯에서 아홉으로. 화로는 **불이 곧 조명**이라 몫을 지킨다(3/13 ≈ 23%,
+   전에는 2/7 ≈ 29%). 석상은 키가 커서 자주 서면 숲이 되므로 한 몫만 준다. */
+const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "brazier", "rubble",
+                 "column2", "bones2", "urn", "statue", "brazier", "column2"];
 
 /* ══ 접지 ══ 병수님: "던전입구/상인/대장간 같은거또 둥둥 떠잇네".
    ★★ **캐릭터에는 이미 고쳤던 것을 소품·건물에는 안 옮겼다.** PixelLab 이 준 그림은
@@ -924,7 +961,15 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
      `dens` 를 아무리 올려도 절반은 그대로 샜을 것이다. */
   const put = (rnd, gx, gy, from) => {
     const name = from[(rnd >>> 7) % from.length];
-    const im = decor[name]; if (!im) return;
+    /* ★ V-41 — **같은 그림이 넷씩 서 있던 것**을 흔든다. 뽑는 자리는 이름(>>>7)·
+       x(>>>11)·y(>>>17)·판뒤(>>>23)가 이미 쓰고 있으니 **안 쓰는 비트**에서 꺼낸다.
+       밝기는 미리 구운 셋 중 하나, 크기는 ±12% 셋 중 하나다.
+       ★ 좌우 뒤집기는 **안 쓴다** — place() 의 「빛은 왼쪽 위에서 온다」가 깨진다. */
+    const vs = decorVars[name];
+    const vi = vs ? (rnd >>> 2) % vs.length : 0;
+    const im = vs ? vs[vi] : decor[name]; if (!im) return;
+    const sizeI = vs ? (rnd >>> 27) % 3 : 1;
+    const kJit = [0.88, 1.0, 1.13][sizeI];
     /* 칸 한가운데에 딱 놓으면 **격자가 보인다.** 칸 안에서 흔들어 놓는다. */
     const wxw = gx * CELL + ((rnd >>> 11) % CELL) - CELL / 2;
     const wyw = gy * CELL + ((rnd >>> 17) % CELL) - CELL / 2;
@@ -946,13 +991,13 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
       const t = (py2 - (h - HUD_KEEP - HUD_FADE)) / HUD_FADE;   // 0 위 → 1 아래
       if (t >= 1 || ((rnd >>> 23) & 255) < t * 255) return;
     }
-    place(ctx, im, px2, py2);
+    place(ctx, im, px2, py2, true, kJit);
     /* ★ 자(2026-08-24 V-10) — **놓인 소품을 그 자리와 함께** 센다. 총 개수만 세면
        「가운데는 빽빽하고 위아래 띠는 통째로 빈」 얼룩이 안 보인다(08-12 야영지에서
        겪은 그 결). 켤 때만 센다 — 끄면 배열이 아예 안 자란다. */
-    if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name]);
+    if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name, vi * 3 + sizeI]);
     // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
-    if (name === "brazier") addGlow(px2, py2 - 12 * ART.s, 190 * sc, 1.05);
+    if (name === "brazier") addGlow(px2, py2 - 12 * ART.s * kJit, 190 * sc * kJit, 1.05);
     /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
        고여 「바닥이 밝고 불은 캄캄한」 그림이 된다. 높이는 눈대중이 아니라
        **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).

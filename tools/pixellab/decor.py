@@ -20,6 +20,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 MCP  = os.path.join(HERE, "mcp_call.py")
 OUT  = os.path.join(ROOT, "assets", "decor")
+# ★ **살아 있는 그림을 바로 덮지 않는다**(V-15b — rebuild.py 가 좋은 것을 갈아엎었다).
+#   `--out=tmp/decorbake` 로 딴 곳에 받아 **보고 재고 나서** 옮긴다.
+#   (V-36b 가 icons.py 에 낸 손잡이를 여기로 옮긴다 · [[carry-fixes-forward]])
+for _a in sys.argv[1:]:
+    if _a.startswith("--out="):
+        OUT = os.path.abspath(os.path.join(ROOT, _a[6:]))
 
 TONE = ("MEDIUM GREY STONE AND BONE, desaturated, moderate contrast, evenly lit, "
         "no vignette, no shadows baked in, "
@@ -46,6 +52,26 @@ PARTS = {
               "glowing inside, upright, no big flame, no light rays", 48, 64),
   "rubble": (f"{TONE}, {ONE}, a low heap of broken stone rubble and dust on the ground, "
              "seen from above at an angle, flat and scattered", 64, 40),
+  # ── V-41 ── 다섯 장이 되풀이되는 것을 아홉으로 늘린다. **실루엣이 갈리는 것**만 고른다.
+  #   ★ 낱말이 생김새를 정한다(V-36b·V-37): 「column」 은 세우는 낱말이라 눕히려면
+  #     **누운 것의 생김새**를 말해야 한다 — 「쓰러진 나무처럼」.
+  "column2": (f"{TONE}, {ONE}, a toppled stone column lying flat on the ground like a felled "
+              "tree trunk, broken apart into three round drum segments that lie end to end "
+              "with gaps between them, seen from above at an angle, long and low, horizontal",
+              96, 48),
+  #   ★ 「skeleton」 하나만 쓰면 서 있는 해골이 온다 — **누워 흩어진 것**임을 말한다.
+  "bones2": (f"{TONE}, {ONE}, a single human skeleton sprawled flat on its back on the ground, "
+             "ribcage open, arms flung out to the sides, skull turned aside, seen from above "
+             "at an angle, spread wide and flat", 64, 48),
+  #   ★ 항아리는 **불이 없다** — 화로와 갈리는 자리가 그것이다.
+  "urn": (f"{TONE}, {ONE}, a cracked stone burial urn standing upright on the ground, "
+          "round wide belly, narrow neck, heavy chipped lid tilted on top, "
+          "dark empty crack down one side, cold and unlit", 48, 64),
+  #   ★ 석상은 기둥과 키가 같아 **머리 없는 사람 모양**이라야 갈린다.
+  "statue": (f"{TONE}, {ONE}, a weathered stone statue of a hooded mourning figure standing "
+             "on a square plinth, the head broken off leaving a jagged stump at the neck, "
+             "robes carved in deep folds, arms crossed over the chest, vertical, full body",
+             64, 128),
 }
 
 # ★★ **허용값은 도구마다 다르다.** create_topdown_tileset 은 "highly detailed" 를
