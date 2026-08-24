@@ -531,6 +531,25 @@ function necroSigil(ctx, x, gy, hh, t, squash, us, opt = {}) {
    비스듬히 본다). y 를 눌러(SQUASH) 바닥을 눕히고, 그림은 세워서 세운 채로 얹는다 —
    흔히 쓰는 2.5D 다. 그리는 순서는 **y 가 작은 것부터**라야 앞의 것이 뒤를 가린다. */
 
+/* **무대 위로 겹쳐 있는 것들의 맨 윗금**(V-16 · 2026-08-24). 판(HUD)의 키만 빼면
+   로그 띠·메뉴 줄이 셈에서 빠져, 거기 서는 몸이 허리에서 잘린다.
+   `draw` 는 매 프레임 도는 자리라 **모양이 바뀔 때만** 다시 잰다(창 크기·판 키).
+   창이 떠 있는 동안 로그는 `display:none` 이라 키가 0 이 되는데, 그때 띠가 늘어나면
+   **가방을 열 때마다 무대가 출렁인다** — 그래서 마지막으로 잰 값을 그대로 쓴다. */
+let _ovKey = "", _ovTop = 0;
+function overlayTop(h, panelH) {
+  const key = h + "x" + panelH;
+  if (key === _ovKey && _ovTop > 0) return _ovTop;
+  let top = h - panelH;
+  for (const id of ["log", "hudMenu"]) {
+    const el = document.getElementById(id); if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.height > 0 && r.top > 0) top = Math.min(top, r.top);
+  }
+  if (top > 0 && top < h - panelH) { _ovKey = key; _ovTop = top; }
+  return _ovTop > 0 ? _ovTop : (h - panelH);
+}
+
 function draw(dt) {
   const w = cvW, h = cvH;   /* ← fit() 이 재 둔 값. 여기서 읽으면 매 프레임 레이아웃이 강제된다 */
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -565,7 +584,14 @@ function draw(dt) {
   const mapW = Math.min(w, MAP_MAX);
   const panelH = parseFloat(getComputedStyle(document.documentElement)
                    .getPropertyValue("--panelH")) || 184;
-  const freeH = Math.max(240, h - panelH);               // 판에 안 가리는 세로
+  /* ★★ **「빈 띠」는 판(HUD)만이 아니다** (V-16 · 2026-08-24). `h - panelH` 로 잡으면
+     657 이 나오는데, 그 안에 **무대 위로 겹쳐 있는 것이 둘 더** 있다 — `#log`(z 15)와
+     `#hudMenu`(z 29). 1512×863 에서 로그의 윗금이 **569** 라, 셈한 띠의 아래 88px 은
+     실제로는 가려진 자리였다. 나타나는 둘레의 밑이 626 이니 거기 서는 몸은
+     **허리 아래가 통째로 로그 밑으로 들어갔다**(`tmp/v16_crop.png`).
+     그래서 띠의 끝을 **겹치는 것의 맨 윗금**으로 잡는다 — 재는 자리와 보이는 자리를
+     맞춘다([[threshold-and-ruler-must-match]]). */
+  const freeH = Math.max(240, Math.min(h - panelH, overlayTop(h, panelH)));
   const MARGIN = 0.05;                                   // 바깥 여백(양쪽 각 5%)
   const scByW = (mapW * (1 - MARGIN * 2)) / (RING_SPAWN * 2);
   /* ★★ 병수님: "좌우 화면 넓어졌을때도 고려해라 모바일도 좋은데 PC로 했을때도".
@@ -653,7 +679,11 @@ function draw(dt) {
   const VPAD = 6;                                     // 위아래로 남기는 최소 여백(스크린 px)
   const sc0 = Math.min(SC_MAX, scByW);                // 폭과 상한만 본 배율
   const room = (freeH - VPAD * 2) / sc0;              // 그 배율에서 쓸 수 있는 세로(판 단위)
-  const squash = Math.max(0.56, Math.min(0.86,
+  /* ★ 바닥을 0.56 → **0.50** 으로 내린다(V-16). 위에서 세로를 88px 뺐는데 눌림이
+     바닥에 붙어 있으면 그 손해가 **그대로 배율로** 넘어가 싸움이 작아진다. 폭은
+     아직 한참 남아 있으므로(scByW 2.795 대 sc 1.81) 타원을 더 눕혀 되받는다 —
+     디아블로의 시점도 세로가 가로의 절반쯤이다. */
+  const squash = Math.max(0.50, Math.min(0.86,
     Math.min(...TOP_CASES.map(([y, hh]) => (room - hh * US_PER_SC) / (y + BOT_R)))));
   const TOP_K = Math.max(...TOP_CASES.map(([y, hh]) => y * squash + hh * US_PER_SC));
   const BOT_K = BOT_R * squash;                       // 아래쪽은 발이 끝이라 몸의 키가 안 붙는다
