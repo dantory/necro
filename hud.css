@@ -1074,8 +1074,18 @@ body.in-town #hTactic{ display:inline-block; }
   font-size:10px;line-height:1;right:1px;bottom:0}
 .pd-charm .cell .afd, .pd-ring .cell .afd, .pd-ring2 .cell .afd, .pd-belt .cell .afd{
   font-size:8px;left:2px;bottom:1px}
-/* 빈 슬롯은 어느 자리인지만 흐린 그림으로 남긴다(상점 빈 칸엔 그림이 없다). */
-.sSec.eq .cell.empty i{opacity:.24}
+/* ★ **빈 칸이 «칸으로» 읽혀야 한다** — 여기 있던 `opacity:.24` 는 「어느 자리인지만
+   흐리게」였는데, 재 보니 **빈 칸의 테두리 또렷함 15.9 대 빈 바닥 13.0 = 1.23배**로
+   사실상 안 그려진 것과 같았다(V-31 · `tools/v31_slotring.mjs`). 열 칸 가운데 **일곱이
+   사라져** 장비 자리가 몇 개인지·어디가 비었는지를 못 읽었다.
+   ★ 자리를 더 만들지 않고 **대비만 올린다**(화면이 이미 꽉 차 있다 — V-23·V-25 의 결).
+     테두리 #2a2016(42,32,22) → #6b5636 은 낀 칸의 등급 테두리보다는 여전히 어둡다:
+     「칸이 있다」만 말하고 「좋은 것이 끼워졌다」는 여전히 등급 빛깔이 말한다. */
+.pdSlot .cell.empty{background:linear-gradient(#1d1209 0 40%,#120b07 40%);
+  box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #6b5636}
+.pdSlot .cell.empty i{opacity:.5}
+/* 상점 좌판·가방의 빈 칸은 격자로 늘어서 있어 이미 읽힌다 — 건드리지 않는다. */
+.sSec.eq .cell.empty i{opacity:.5}
 /* 합친 수치 — 툴팁과 같은 검은 판, 같은 .tipStat 줄(이름은 왼쪽·값은 오른쪽). */
 .sStat{margin-top:2px;background:#000000d9;box-shadow:inset 0 0 0 1px #3e3324;padding:11px 14px}
 .sStat .tipStat{display:flex;align-items:center;gap:8px;margin:2px 0}
