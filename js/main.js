@@ -44,6 +44,16 @@ const mul = (v) => "×" + (v < 10   ? v.toFixed(2)
                         : v < 1000 ? String(Math.round(v))
                         :            num(v));
 
+/** ══ 캔버스 글자는 **9 의 배수**로만 ══
+ *  Galmuri9 는 **9px 격자**의 픽셀 글꼴이라, 그 배수를 벗어난 크기로 그리면 획이
+ *  뭉개진다 — style.css 와 hud.css 는 이미 그 규칙을 지키는데(18=9×2) **판 위에
+ *  그리는 글자만 안 옮겨져 있었다**(2026-08-24 V-18). 떠오르는 피해 숫자가
+ *  `round(13 * us)` = 22px 로 나와, 몸 위에 얹힌 「6」이 글자가 아니라 **흙빛 덩어리**로
+ *  읽혔다. 가까운 배수로 물려서 획이 픽셀에 딱 떨어지게 한다.
+ *  ★ 캔버스에 Galmuri9 을 새로 쓰는 자리는 **반드시 이 자를 거친다**. */
+const G9 = 9;
+const g9 = (px) => Math.max(G9, Math.round(px / G9) * G9);
+
 /* 구슬 안 숫자가 **테를 밟지 않게** 맞춘다. 글꼴 폭은 짐작하지 말고 canvas 로 잰다. */
 const _mm = document.createElement("canvas").getContext("2d");
 /* ★ 픽셀 글꼴은 글자마다 폭이 다르다(`1` 이 좁다) — 제일 넓은 숫자와 단위를 한 번 재 둔다. */
@@ -1152,10 +1162,12 @@ function draw(dt) {
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
   for (const n of S.nums) {
     const p = 1 - Math.max(0, n.t) / 0.9;                 // 0 → 1
-    const x = px(n.x) + n.vx * p * us, y = py(n.y) - (16 + 30 * p) * us;
+    /* ★ 픽셀 글꼴은 **정수 자리**에 놓여야 획이 안 번진다 — 소수 자리에 그리면
+       9 의 배수로 맞춘 크기도 소용이 없다(같은 V-18). */
+    const x = Math.round(px(n.x) + n.vx * p * us), y = Math.round(py(n.y) - (16 + 30 * p) * us);
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
-    const size = Math.round(base * us);
+    const size = g9(base * us);                       // ★ 9 의 배수로 물린다(위 g9)
     /* ★ 50층이면 피해가 **398123**(여섯 자리)로 찍혀 스프라이트를 통째로 가렸다.
        구슬은 이미 k/M 로 줄여 적는데(`num()`) 떠오르는 숫자만 날것이라 **자가 둘**이었다 —
        같은 자로 맞춘다. 숫자가 불어나는 맛은 자릿수가 아니라 **단위가 바뀌는 데**서 온다. */
@@ -1163,7 +1175,9 @@ function draw(dt) {
     ctx.save();
     ctx.globalAlpha = p < 0.12 ? p / 0.12 : Math.max(0, 1 - (p - 0.12) / 0.88);
     ctx.font = `${size}px "Galmuri9", monospace`;
-    ctx.lineWidth = Math.max(2, us * 2); ctx.strokeStyle = bg; ctx.lineJoin = "round";
+    /* ★ 외곽선이 **획만큼 굵으면** 「6」의 구멍이 메워져 덩어리가 된다 — 22px 글자에
+       3.4px 테를 둘렀던 것이 흙빛 블록의 나머지 절반이다. 글자 크기에 매달되 정수로. */
+    ctx.lineWidth = Math.max(2, Math.round(size / 9)); ctx.strokeStyle = bg; ctx.lineJoin = "round";
     ctx.strokeText(txt, x, y); ctx.fillStyle = fg; ctx.fillText(txt, x, y);
     ctx.restore();
   }
@@ -1426,7 +1440,9 @@ function drawArrive(w, h) {
   const topY = h * 0.15 + yoff;
 
   if (a.gate) {
-    const big = Math.round(28 * k), sub = Math.round(12 * k);
+    /* ★ 아랫줄은 **본문 글자보다 작아지지 않게** 바닥을 둔다 — 세로 화면(k=1)에서
+       g9(12) 은 9px 이라 본문(18=9×2)의 절반이 된다. */
+    const big = g9(28 * k), sub = g9(Math.max(18, 12 * k));
     const padX = 20 * k, padY = 12 * k, gap = 7 * k;
     const l1 = `${a.f}층`, l2 = "관문 · 층의 주인";
     ctx.font = `${big}px "Galmuri9", monospace`; const wbig = ctx.measureText(l1).width;
@@ -1446,7 +1462,7 @@ function drawArrive(w, h) {
     ctx.font = `${sub}px "Galmuri9", monospace`; ctx.fillStyle = "#c8aa6e";
     ctx.strokeText(l2, cx, y2); ctx.fillText(l2, cx, y2);
   } else {
-    const big = Math.round(30 * k), txt = `${a.f}층`;
+    const big = g9(30 * k), txt = `${a.f}층`;
     ctx.font = `${big}px "Galmuri9", monospace`;
     ctx.strokeStyle = "#160f04"; ctx.lineWidth = Math.max(2, 2.4 * k);
     ctx.fillStyle = "#c8aa6e";
