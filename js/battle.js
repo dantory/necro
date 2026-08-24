@@ -949,8 +949,38 @@ const NUM_MAX = 44;
  *    **수가 불어나는 맛**이 절반이라 그 편이 오히려 맞다. 피해값은 한 톨도 안 바뀐다,
  *    바뀌는 것은 **몇 개로 나눠 보여 주는가**뿐이다. */
 const NUM_MERGE_R = 18;                     // 세계 단위 — 이보다 가까우면 «같은 몸»으로 본다
+/** ★★ V-26: V-23 이 고친 것의 **반대쪽**이다. V-23 은 「한 몸을 여럿이 때린다」를
+ *  반경 18 로 묶었는데, 장판 한 방(시체폭발·죽음폭발·넘침)은 **스무 몸에 흩어져** 떨어져
+ *  그 반경에 하나도 안 걸린다. 17층 그림에서 **똑같은 「35k」가 열여섯 개** 떠 무대
+ *  위쪽 절반을 덮었다 — 실측 그려진 숫자의 **62.4%가 같은 순간 같은 글자**였다
+ *  (`tools/v26_numflood.mjs`).
+ *  ★ 흩어진 자리를 손볼 길은 없다 — 자리는 **맞은 몸이 정한다.** 그래서 V-23 과 같은
+ *    결로 **합친다: 한 방은 한 번만 말한다.** 아래 `blow()` 로 감싼 동안 뜨는 숫자는
+ *    반경을 안 보고 **같은 묶음이면 무조건** 한 글자에 더해지고, 자리는 맞은 몸들의
+ *    한가운데로 옮겨 간다. 「35k」 열여섯 대신 「560k」 하나가 터진 자리에 선다 —
+ *    이 장르는 **수가 불어나는 맛**이 절반이라 그 편이 오히려 맞다.
+ *  ★ 피해값은 한 톨도 안 바뀐다. 바뀌는 것은 **몇 개로 나눠 보여 주는가**뿐이다.
+ *  ★ 겹쳐 부를 수 있다(장판이 죽음을 부르고 그 죽음이 또 터진다) — 앞의 묶음을
+ *    되돌려 놓으므로 **안쪽 폭발은 제 묶음**을 받는다. */
+let NUM_GS = 0, NUM_G = 0;
+export function blow(fn) {
+  if (globalThis.__NOBLOW) return fn();          // 자가 «고치기 전»을 재는 문
+  const prev = NUM_G; NUM_G = ++NUM_GS;
+  try { return fn(); } finally { NUM_G = prev; }
+}
 export function popNum(x, y, v, kind, h = 0) {
   if (v < 1) return;
+  if (NUM_G) {
+    for (const o of S.nums) if (o.g === NUM_G) {
+      o.v += Math.round(v); o.n = (o.n || 1) + 1;
+      /* ★ 자리는 **처음 맞은 몸 위에 그대로 둔다.** 한가운데로 옮겨 봤다가 접었다 —
+         한가운데는 **아무 몸도 아닌 자리**라 이웃의 체력바 위에 올라앉는다
+         (V-20 자로 바를 덮은 숫자 2.0% → 3.4%). 실제 몸의 머리 위는 제 바 아래라
+         안 다툰다. 어디서 터졌는지는 폭발 그림(`S.fx` nova)이 이미 말한다. */
+      o.h = Math.max(o.h, h); o.t = Math.max(o.t, 0.45);
+      return;
+    }
+  }
   /* 거의 다 사라진 것(수명 1/5 남음)은 이미 비켰다고 본다 */
   let host = null;
   for (const o of S.nums) if (o.t > 0.2 && o.kind === kind
@@ -959,7 +989,7 @@ export function popNum(x, y, v, kind, h = 0) {
   /* 합칠 때 **수명을 반쯤 되돌린다** — 사그라들던 글자에 더하면 보탠 몫이 안 보인다.
      되돌리는 값을 0.9(새것)로 두면 뭇매 맞는 몸 위에서 숫자가 **영영 안 사라진다.** */
   if (host) { host.v += Math.round(v); host.t = Math.max(host.t, 0.45); return; }
-  S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9, h,
+  S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9, h, g: NUM_G, n: 1,
                 vx: (Math.random() - 0.5) * 16, seed: Math.random() });
   if (S.nums.length > NUM_MAX) S.nums.shift();
 }
@@ -1500,8 +1530,10 @@ function castOnce(id) {
     NOVA.radMax = Math.max(NOVA.radMax, rad);
     NOVA.bd += Math.hypot(bx, by * SQUASH_VIEW);
     NOVA.mobs += S.mobs.length;
+    blow(() => {                                  // ★ V-26 — 한 방은 한 번만 말한다
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
       const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "시체폭발"); hit++; popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
+    });
     NOVA.hit += hit;
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
@@ -1822,7 +1854,9 @@ export function step(dt) {
       let bx = 0, by = 0, bd = 1e9;
       for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
       const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
+      blow(() => {                                // ★ V-26
       for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "넘침"); popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
+      });
       S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
       S.overflow = 0;
     }
@@ -2516,7 +2550,9 @@ export function step(dt) {
        된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
     if (hasUnique("blast") && dead.dmg) {
       const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
+      blow(() => {                                // ★ V-26
       for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "죽음폭발"); popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
+      });
       S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
     }
   }

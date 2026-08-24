@@ -1234,7 +1234,9 @@ function draw(dt) {
     ctx.lineWidth = Math.max(2, Math.round(size / 9)); ctx.strokeStyle = bg; ctx.lineJoin = "round";
     ctx.strokeText(txt, x, y); ctx.fillStyle = fg; ctx.fillText(txt, x, y);
     if (window.__RECTS) { const w = ctx.measureText(txt).width;
-      window.__RECTS.nums.push([Math.round(x - w / 2), y - size, Math.round(w), size]); }
+      /* ★ V-26: 뒤에 **글자와 묶음 표**를 붙인다 — 자가 「같은 수가 몇 개나 동시에
+         떠 있나」를 세려면 네모만으로는 못 센다. */
+      window.__RECTS.nums.push([Math.round(x - w / 2), y - size, Math.round(w), size, txt, n.g | 0]); }
     ctx.restore();
   }
 

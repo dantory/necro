@@ -23,6 +23,8 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
 await S("Page.navigate", { url: PAGE }); await wait(1500);
 await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v1")` });
 await S("Page.reload", { ignoreCache: true }); await wait(4500);
+/* ★ V-26 의 문 — `BLOW=0` 이면 「한 방을 한 글자로 모으기」를 끄고 잰다(전/후 견줌용) */
+if (process.env.BLOW === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOBLOW = 1" });
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(1200);
 /* 틀마다 겹침을 세는 감시자를 페이지 안에 심는다 — 밖에서 폴링하면 틀을 건너뛴다 */
