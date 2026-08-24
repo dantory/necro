@@ -221,17 +221,31 @@
   background:none;border:none;box-shadow:none;
   display:flex;align-items:center;justify-content:center}
 .slot canvas.fr{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
-.slot > i, .slot .k, .slot .cd{z-index:1}
+/* ★ **단축키 숫자는 언제나 맨 위다.** 예전엔 셋이 같은 z-index 1 이었는데 `.cd`(쿨다운
+   막대)가 HTML 에서 뒤에 있어 **숫자를 덮었다** — 1번 칸은 재사용이 1.2초라 12초 중
+   **6초 넘게 숫자가 사라져 있었다**(v21_slotdim: 단축키 가림 51.3%). */
+.slot > i, .slot .cd{z-index:1}
+.slot .k{z-index:2}
 .slot:active{filter:brightness(1.25)}
 .slot > i{position:absolute;inset:5px;background:center/contain no-repeat;
   image-rendering:pixelated}
-.slot .k{position:absolute;right:4px;bottom:0;font-size:18px;color:#6b5f4e}
-.slot .cd{position:absolute;left:0;right:0;bottom:0;background:#000000bb}
+.slot .k{position:absolute;right:4px;bottom:0;font-size:18px;color:#6b5f4e;
+  text-shadow:0 0 3px #000,0 1px 0 #000}
+/* ★ 쿨다운은 **가림막이 아니라 «차오르는 그림자»** 다. `#000000bb`(73% 불투명)는
+   아이콘을 통째로 지워 칸이 「고장난 검은 네모」로 읽혔다 — 그 칸이 하필 처음 2분
+   동안 거의 유일하게 쓰는 기술이다. 40% 로 낮추고 **윗금에 촛빛 한 줄**을 둬서
+   「가려졌다」가 아니라 「내려오는 중」으로 읽히게 한다(움직이는 것이 보여야 기다림이
+   기다림으로 읽힌다). */
+.slot .cd{position:absolute;left:0;right:0;bottom:0;pointer-events:none;
+  background:linear-gradient(to top,#04030266 0%,#040302a6 calc(100% - 2px),#c9a34acc 100%)}
 .slot.on{animation:slotBreath 2.4s ease-in-out infinite}
 /* **쓸 수 있다**를 숨결로 알린다. 깜빡이면 시끄러우니 2.4초에 한 번, 아주 옅게. */
 @keyframes slotBreath{0%,100%{filter:none} 50%{filter:brightness(1.18)}}
-.slot.off > i{filter:grayscale(.85) brightness(.45)}
-.slot.off .k{color:#4a4034}
+/* ★ **못 쓴다**를 알리되 **안 보이게** 하지는 않는다. `grayscale(.85) brightness(.45)`
+   는 아이콘을 흙빛 얼룩으로 만드는데, 1번 칸은 12초 중 **10초를 그 상태로 있었다**
+   (v21_slotdim: 회색 85.0%). 늘 그 꼴이면 그건 「상태」가 아니라 「생김새」다. */
+.slot.off > i{filter:grayscale(.5) brightness(.74)}
+.slot.off .k{color:#5a5044}
 
 /* ── 로그 ── 판 위에 얹지 않고 **전장 아래쪽에 글자만** 띄운다.
    상자를 두면 그것이 또 하나의 볼거리가 되어 판과 눈을 다툰다.

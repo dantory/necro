@@ -41,6 +41,10 @@ await S("Runtime.evaluate", { expression: `(() => {
       const h = cd ? parseFloat(cd.style.height) || 0 : 0;   // %
       const off = el.classList.contains('off');
       p.n++; p.cov += h;
+      /* ★ 이 자는 **상태**를 센다(막대가 얼마나 찼나 · off 인가) — 「읽히는가」가 아니다.
+         V-21 뒤로 단축키는 z-index 2 라 **막대가 아무리 차도 안 가려진다**;
+         이 수는 그때부터 「막대가 숫자 높이를 지났다」는 뜻일 뿐이다.
+         읽히는지는 그림에서 재는 `tools/v21_slotshot.mjs` 가 본다. */
       if (h >= KEYFRAC * 100) p.keyHid++;
       if (off) p.off++;
       if (h >= 60 && off) p.dead++;    // 검은 막대가 아이콘까지 먹고 회색까지 겹친 «죽은 네모»
@@ -54,7 +58,7 @@ const d = JSON.parse(out);
 const names = { raise:"해골", ghoul:"구울", golem:"골렘", nova:"시폭", amp:"증폭", weaken:"약화", decrep:"쇠약", burn:"태움", wall:"뼈벽", offer:"제물" };
 console.log(`틀 ${d.n} · ${SEC}초`);
 for (const k in d.per) { const p = d.per[k];
-  console.log(`  ${(names[k]||k).padEnd(4)} 덮인몫 평균 ${(p.cov/p.n).toFixed(1)}% · 단축키가림 ${(100*p.keyHid/p.n).toFixed(1)}% · 회색 ${(100*p.off/p.n).toFixed(1)}% · 죽은네모 ${(100*p.dead/p.n).toFixed(1)}%`); }
+  console.log(`  ${(names[k]||k).padEnd(4)} 덮인몫 평균 ${(p.cov/p.n).toFixed(1)}% · 막대가숫자높이넘음 ${(100*p.keyHid/p.n).toFixed(1)}% · 회색 ${(100*p.off/p.n).toFixed(1)}% · 죽은네모 ${(100*p.dead/p.n).toFixed(1)}%`); }
 console.log(`콘솔오류 ${errs.length}`);
 await raw("Target.closeTarget", { targetId });
 bws.close(); process.exit(errs.length ? 0 : 0);
