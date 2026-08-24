@@ -29,7 +29,15 @@ const shot = async (out) => { const s = await S("Page.captureScreenshot", { form
 const ev = async (e) => (await S("Runtime.evaluate", { expression: e, returnByValue: true })).result?.value;
 
 /* 중반 세이브를 심는다 — 갓 시작한 판이 아니라 **몇 시간 논 사람**의 화면을 본다. */
-const meta = { gold: 182400, lv: 26, xp: 0, deepest: 52, runs: 6,
+/* ★★ 2026-08-24 — **이 자가 12~19층에 못 닿던 까닭은 판이 아니라 «심는 세이브»였다.**
+     `deepest: 52` 를 심어 놓고 건너뛰기 문(`DIVE_DEF_DEF = 1`)이 기본으로 열려 있으니
+     `diveAt()` 가 `diveMax() = floor((52-10)/5)*5 = 40` 을 골라 **40층에서 시작**했다.
+     12~19층은 판이 지나가지도 않는 자리라 표본이 0 이었던 것이고, 「우두머리를 못 봤다」는
+     것은 판정이 아니라 **자가 엉뚱한 데를 보고 있었다**는 뜻이다([[silent-zero-is-not-an-observation]]).
+     그래서 **「10층부터를 고른 사람」을 흉내낸다** — `diveSet: 1` 로 사람이 고른 값이
+     이기게 하고 `dive: 10` 으로 시작 자리를 12~19 바로 아래에 둔다. 캐릭터의 힘(lv·장비)은
+     그대로 두어 「몇 시간 논 사람이 12~19층을 지나는 화면」이 된다. */
+const meta = { gold: 182400, lv: 26, xp: 0, deepest: 52, runs: 6, dive: 10, diveSet: 1,
   up: { hp: 8, mp: 6, dmg: 9, army: 5 }, plus: { wand: 6, robe: 4, charm: 5 },
   equip: { wand: { k: "wand", tier: 3, af: [{ id: "dmg", v: 22 }, { id: "mp", v: 1.4 }] },
            robe: { k: "robe", tier: 3, af: [{ id: "hp", v: 88 }] },
@@ -57,17 +65,38 @@ const peek = async () => {
   const st = await ev(`(() => { const S = window.__S; if (!S) return null;
     let 산 = 0, 선 = 0;
     for (const m of (S.mobs || [])) if (m.champ) { 산++; if (!(m.born > 0)) 선++; }
-    return { f: S.floor, 산, 선, tell: (S.fx||[]).some(f => f.kind === "warn_curse"), howl: S.chowl|0 }; })()`);
+    /* ★ 2026-08-24 — **발밑 금빛 고리는 «몸키×0.34» 라 전체 화면에서 몇 픽셀이다.**
+       V-14 가 「그림으로 확인」이라 했으니 화면 좌표까지 같이 내어 **그 자리를 오려 찍는다.**
+       셈은 화면과 같은 자를 쓴다(js/main.js:683 의 px/py · window.__geo). */
+    const g = window.__geo || {};
+    let 자리 = null;
+    for (const m of (S.mobs || [])) if (m.champ && !(m.born > 0)) {
+      자리 = { sx: g.cx + m.x * g.sc, sy: g.cy + m.y * g.sc * g.squash, hh: (m.hh || 0) }; break; }
+    return { f: S.floor, 산, 선, 자리, at: (window.__MODE||{}).at,
+             tell: (S.fx||[]).some(f => f.kind === "warn_curse"), howl: S.chowl|0 }; })()`);
   if (st === null) throw new Error("window.__S 를 못 읽었다 — 자가 고장났다(이름을 확인할 것)");
   return st;
 };
-let ok = 0, best = null, 표본 = 0, 잡힘 = 0, 보임 = 0;
+let ok = 0, best = null, 표본 = 0, 잡힘 = 0, 보임 = 0, 죽음 = 0; const seen = {};
 for (let i = 0; i < 700; i++) {
   const st = await peek();
   if (st.f >= 12 && st.f <= 19) { 표본++; if (st.산) 잡힘++; if (st.선) 보임++; }
   /* ★ **찍는 것은 그 순간에 찍는다.** 세는 일을 뒤에 붙이면서 찍기를 루프 밖으로
      미뤘더니 54층 화면이 찍혔다(표본은 12~19층인데). 자리가 맞을 때 바로 누른다. */
-  if (!best && st.f >= 12 && st.f <= 19 && st.선 && st.tell) { best = st; ok = 1; await shot("tmp/champ_shot.png"); }
+  if (!best && st.f >= 12 && st.f <= 19 && st.선 && st.tell) { best = st; ok = 1; await shot("tmp/champ_shot.png");
+    /* 전체 화면 다음에 **오린 것**도 한 장 — 고리가 몇 픽셀이라 전체로는 판정이 안 된다. */
+    if (st.자리) { const W = 300, H = 220;
+      const s2 = await S("Page.captureScreenshot", { format: "png",
+        clip: { x: Math.max(0, st.자리.sx - W / 2), y: Math.max(0, st.자리.sy - H * 0.62), width: W, height: H, scale: 3 } });
+      fs.writeFileSync("tmp/champ_crop.png", Buffer.from(s2.data, "base64")); console.log("wrote tmp/champ_crop.png", JSON.stringify(st.자리)); } }
+  seen[st.f] = (seen[st.f] || 0) + 1;
+  /* ★★ 2026-08-24 — **이 자는 죽은 것을 못 봤다.** 심은 사람이 10층에서 22초 만에
+     쓰러지자 「정산」 창이 뜬 채 마을에 서 있었는데, `S.floor` 는 10 에 얼어붙은 채라
+     자는 **210초 동안 같은 수를 700번 세고** 「12~19층에 못 닿았다」로 끝냈다.
+     한 판이 12층에 닿는다는 보장은 애초에 없다([[same-seed-is-not-same-run]]) —
+     그러니 **죽으면 창을 닫고 다시 내려간다.** 아니면 표본은 판마다 0 이거나 78 이다. */
+  if (st.at !== "dungeon") { 죽음++; await ev(`window.__closeAll && window.__closeAll()`);
+    await ev(`window.__toDungeon()`); await wait(600); continue; }
   if (표본 >= 120) break;
   await wait(300);
 }
@@ -75,5 +104,6 @@ if (표본) console.log(`실시간 판 · 12~19층 표본 ${표본}(0.3초마다
 else console.log("12~19층에 못 닿았다 — 표본 0(판정 불가)");
 console.log("찍는 순간 —", JSON.stringify(best), "· ok", ok);
 if (!ok) { await shot("tmp/champ_shot.png"); console.log("(자리를 못 잡아 마지막 화면을 찍었다 — 판정용 아님)"); }
+console.log("층 머문 표본 —", JSON.stringify(seen), "· 다시 내려간 횟수", 죽음);
 console.log("errs", errs);
 process.exit(0);
