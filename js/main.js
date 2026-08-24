@@ -2088,8 +2088,11 @@ function drawForge() {
     `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
      <div class="tipKind">대장간</div>
      <div class="tipStat">${u.d}</div>
-     <div class="tipStat up">지금 · 체력 <b>${hpMaxOf()}</b> · 마나 <b>${mpMaxOf()}</b>
-       · 군세 <b>${armyCap()}</b></div>
+     <!-- ★ 값은 **능력치 창과 같은 자**(num)로 적는다 — 여기만 날것이라 마나가
+          「307.79999999999995」로 떴다(mpMaxOf 는 장비값이 섞여 정수가 아니다).
+          같은 값이 창마다 달라 보이면 그건 두 수가 된다(core.js num 의 주석과 같은 결). -->
+     <div class="tipStat up">지금 · 체력 <b>${num(hpMaxOf())}</b> · 마나 <b>${num(mpMaxOf())}</b>
+       · 군세 <b>${num(armyCap())}</b></div>
      <div class="tipStat">재련 · ${GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`).join(" · ")}</div>
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
@@ -2101,6 +2104,12 @@ function drawForge() {
  *  옛 모습으로 그린다(V-28 전). 고치기 전과 후를 **같은 자**로 재려면 이것이 있어야 한다
  *  — 상인 창의 `body.noSticky`(V-27)와 같은 결이다. 사람이 켜는 길에는 안 붙는다. */
 const pickDoor = () => document.body.classList.contains("noPickName");
+/** 자를 위한 **문** — `__PICKGLYPH` 가 켜져 있으면 고르는 칸이 V-37 **전**의 유니코드
+ *  글리프로 되돌아간다. 「그림이 얼마나 나타나나」를 **고치기 전 값과 나란히** 재려면
+ *  옛 꼴을 그 자리에서 다시 세울 수 있어야 한다(V-34 의 `__DIGICO` 와 같은 결). */
+const pickGlyph = () => typeof globalThis !== "undefined" && globalThis.__PICKGLYPH === 1;
+const pickIco = (kind, id, ico) => pickGlyph()
+  ? `<span class="lvl">${ico}</span>` : `<i class="pk-${kind}-${id}"></i>`;
 
 /** 편성 — **군대의 결을 고른다.** 상인·대장간과 같은 격자+툴팁이되, 사는 것이 아니라
  *  고르는 것이라 값이 없고 즉시 적용된다(확인 창 없음 · 되돌릴 수 있다). 지금 고른 것은
@@ -2110,7 +2119,10 @@ function drawDoctrine() {
   const cur = doctrineId(), cap = armyCap(), door = pickDoor();
   $("docGrid").innerHTML = DOCTRINE_IDS.map((id) => {
     const d = DOCTRINE[id];
-    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-doc="${id}"><span class="lvl">${d.ico}</span>` +
+    /* ★ 칸의 그림은 **픽셀아트**다(assets/ui/pick) — 여기 있던 유니코드 글리프(⚖ ☠ ✦ ◆)는
+       판에서 유일하게 시스템 폰트가 그리는 칸이었고, ✦ 와 ◆ 는 모양만으로 못 갈랐다
+       (V-34 가 상인 좌판에서 고친 그것을 이 창에 안 옮겼다 · V-37). */
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-doc="${id}">${pickIco("doc", id, d.ico)}` +
            (door ? "" : `<span class="cn">${d.n}</span>`) + `</div>`;
   }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length)) : "");
 
@@ -2131,7 +2143,8 @@ function drawTactic() {
   const cur = tacticId(), door = pickDoor();
   $("tacGrid").innerHTML = TACTIC_IDS.map((id) => {
     const t = TACTIC[id];
-    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-tac="${id}"><span class="lvl">${t.ico}</span>` +
+    /* 편성 창과 같은 결 — 글리프(☯ ⚑ ⬢ ✷) 를 픽셀 그림으로 갈았다(V-37). */
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-tac="${id}">${pickIco("tac", id, t.ico)}` +
            (door ? "" : `<span class="cn">${t.n}</span>`) + `</div>`;
   }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - TACTIC_IDS.length)) : "");
 

@@ -59,6 +59,40 @@ ICONS = {
   "decrep": f"{TONE}, a large amber skull emblem filling the frame, its jaw sagging and melting "
             "downward, thick heavy chains hanging off it and pulling it down, drooping and slow, "
             "one skull only, not a cross",
+  # ── V-37 편성 넷 ── 「편성」 창의 네 칸이 유니코드 글리프(⚖ ☠ ✦ ◆)였다 — V-34 가
+  #   상인 좌판에서 고친 그 결함을 이 창에 **안 옮겼다**([[carry-fixes-forward]]).
+  #   넷은 «어떤 몸을 세우나» 를 뜻하므로 **빛깔과 형태를 둘 다** 갈라야 42px 에서 읽힌다:
+  #   균형 = 금빛 저울 · 해골 = 흰 두개골 무리 · 구울 = 초록 살 · 골렘 = 잿빛 돌.
+  #   ★ 「wall」·「structure」 는 판을 세우는 낱말이라 받침판이 딸려 온다 — 「emblem … seen
+  #     straight from the front, floating in empty space」 로 민다([[sprite-brings-its-own-ground]]).
+  "doc_balance": f"{TONE}, a golden balance scale with two bone pans hanging level, the beam is a "
+                 "thigh bone, seen straight from the front, filling the whole square frame",
+  # ★ **해골·구울·골렘 셋은 굽지 않았다 — 이미 있는 것을 쓴다.** 1차로 구워 보니
+  #   「heraldic emblem of many skulls」 는 **문장 방패**(액자 딸림)로, 「ghoul head」 와
+  #   「stone golem head」 는 **둘 다 해골**로 나와 서로 안 갈렸다. 그런데 이 셋은 판에
+  #   이미 제 그림이 있다 — `assets/ui/icon/{raise,ghoul,golem}.png`(뿔 해골 · 피에서
+  #   솟는 손 · 돌주먹). **같은 것은 같은 그림으로 말한다** — 편성 창은 그 셋을 그대로
+  #   가리킨다(hud.css `.pk-doc-*`). 새로 구우면 같은 유닛이 창마다 달라 보인다.
+  # ── V-37 운용 넷 ── 「운용」 창의 네 칸도 글리프(☯ ⚑ ⬢ ✷)였다. 넷은 «언제 쓰나» 라
+  #   시간·문·넘침·쉼없음을 각각 한 눈에 갈라야 한다.
+  "tac_steady":  f"{TONE}, an hourglass carved from bone with dark red sand running evenly through "
+                 "it, gold caps top and bottom, seen straight from the front, filling the frame",
+  # ★ 1차: 「heraldic emblem of a … gate」 는 **문을 통째로 버리고** 작은 뿔 해골만 그렸다
+  #   (「emblem」 이 「문장 하나」로 읽힌다 — V-36b 의 「emblem → 나무 액자」와 같은 결).
+  #   문장이라는 낱말을 빼고 **돌문 자체의 생김새**를 말한다.
+  "tac_gate":    f"{TONE}, a tall stone gateway arch with two thick carved pillars and a heavy "
+                 "black iron portcullis lowered across the opening, a horned skull carved on the "
+                 "keystone at the top of the arch, seen straight from the front like a flat "
+                 "carving, the arch fills the whole square frame from corner to corner",
+  "tac_hoard":   f"{TONE}, a wide stone urn overflowing with bone white skulls spilling over the "
+                 "rim and tumbling down both sides, heaped far above the brim, seen straight from "
+                 "the front, filling the whole square frame",
+  # ★ 1차: 「a bone wand held upright」 는 **횃불**로 나왔다(막대 + 끝의 불 = 횃불이다).
+  #   물건을 들려 놓으면 물건이 주인공이 된다 — 「늘」은 물건이 아니라 **쉼 없는 움직임**이라
+  #   소용돌이로 말한다(모래시계·돌문·항아리와도 형태가 안 겹친다).
+  "tac_always":  f"{TONE}, a swirling vortex of crimson and violet curse energy filling the whole "
+                 "square frame corner to corner, small screaming skulls caught spinning around in "
+                 "the swirl, endless relentless motion, seen straight from the front",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

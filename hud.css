@@ -1627,6 +1627,30 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;
 .cell.pick.sel .cn{ color:var(--gold); text-shadow:0 0 6px #c8aa6e55 }
 .cell.pick:hover .cn{ color:#d8c9a8 }
 /* 낮은 창에서는 칸을 한 뼘 줄인다 — 이름은 그대로 둔다(이름이 이 칸의 뜻이다) */
-@media (max-height:800px){ .cell.pick{ height:78px } .cell.pick .lvl{ font-size:28px; inset:4px 0 28px 0 } }
+@media (max-height:800px){ .cell.pick{ height:78px } .cell.pick .lvl{ font-size:28px; inset:4px 0 28px 0 }
+  .cell.pick i{ inset:4px 0 28px 0 } }
+
+/* ══ V-37 · 고르는 칸의 그림 ══ 여기 있던 것은 **유니코드 글리프 여덟 개**(⚖ ☠ ✦ ◆ ·
+   ☯ ⚑ ⬢ ✷)였다 — 판에서 시스템 폰트가 그리는 칸은 이 둘뿐이었고, ✦(구울)와 ◆(골렘),
+   ⬢(넘칠 때만)와 ✷(늘)은 **모양만으로 서로 안 갈렸다**. 자리는 `.lvl` 이 서던 그 상자를
+   그대로 쓴다(위 6px · 아래 30px = 이름 자리를 비운다).
+   ★ 고른 것과 아닌 것은 **빛깔이 아니라 밝기**로 가른다 — 픽셀 그림은 글자처럼 색을
+     못 바꾼다(벨트의 「죽은 칸」과 같은 결 · V-36). */
+/* ★ 안 고른 칸을 **너무 죽였다**(처음 값 .62) — 자가 잡았다: 구울(어두운 핏빛 손)이
+   잉크 3.3 까지 떨어져 벨트의 진짜 그림(10.8~19.2) 근처에도 못 갔다. 고른 것은
+   **금테와 금빛 이름**이 이미 말해 주므로 그림까지 죽일 까닭이 없다. */
+.cell.pick i{ inset:6px 0 30px 0; filter:brightness(.86) saturate(.92) }
+.cell.pick:hover i{ filter:brightness(1) saturate(1) }
+.cell.pick.sel i{ filter:none }
+.cell i.pk-doc-balance{ background-image:url("assets/ui/pick/doc_balance.png") }
+/* ★ 해골·구울·골렘은 **판에 이미 있는 그 그림**을 그대로 가리킨다 — 같은 유닛이
+   벨트와 편성 창에서 달라 보이면 그건 두 가지가 된다(새로 구운 것은 버렸다 · V-37). */
+.cell i.pk-doc-bone   { background-image:url("assets/ui/icon/raise.png") }
+.cell i.pk-doc-flesh  { background-image:url("assets/ui/icon/ghoul.png") }
+.cell i.pk-doc-wall   { background-image:url("assets/ui/icon/golem.png") }
+.cell i.pk-tac-steady { background-image:url("assets/ui/pick/tac_steady.png") }
+.cell i.pk-tac-gate   { background-image:url("assets/ui/pick/tac_gate.png") }
+.cell i.pk-tac-hoard  { background-image:url("assets/ui/pick/tac_hoard.png") }
+.cell i.pk-tac-always { background-image:url("assets/ui/pick/tac_always.png") }
 /* 문 — `body.noPickName` 은 V-28 전을 그대로 되살린다(자를 위한 것) */
 body.noPickName #docGrid, body.noPickName #tacGrid{ grid-template-columns:repeat(6,1fr) }
