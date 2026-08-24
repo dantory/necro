@@ -340,7 +340,11 @@ export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band
      자리마다 네 변형 중 하나를 고르는데, **좌표로 정한다**(난수가 아니다) —
      난수면 매 프레임 무늬가 바뀌어 바닥이 끓는다. */
   if (wangTiles && wang && wanted === "town" && drawWang(ctx, w, h, cx, cy, sc, squash)) {
-    drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1);
+    /* ★ V-42 — 얼룩은 **띠 안에서만**. 아래 타일 갈래는 이미 `withBand` 로 묶여 있는데
+       마을(왕타일) 갈래만 빠져 있어 띠 바깥 맨땅에도 웅덩이·자국이 찍혔다. 여태
+       안 보인 것은 그 자리를 **두 겹으로 덮고 있었기** 때문이고, 덮개를 걷으니 드러났다. */
+    withBand(ctx, band, w, h, () =>
+      drawDecals(ctx, cx, cy, sc, squash, w, h, (scatter && scatter.decal) || 1));
   } else if (floorReady) {
     const t = tiles[0].width;
     ctx.imageSmoothingEnabled = false;
@@ -406,11 +410,15 @@ export function paintGround(ctx, w, h, cx, cy, radius, squash, sc, scatter, band
       const near = from === 0 ? x1 : x0;                  // 띠에 닿는 쪽
       const g = ctx.createLinearGradient(near, 0, near + (from === 0 ? -F : F), 0);
       g.addColorStop(0, DIM + "00"); g.addColorStop(1, DIM + "8c");
+      /* ★★ V-42 — **번짐 너머를 한 번 더 덮지 않는다.** 예전엔 이 뒤에
+         「번짐 너머(띠에서 F 이상)는 고르게 가라앉힌 채로 둔다」며 `DIM+"8c"` 를
+         **평평하게 한 번 더** 칠했다. 그런데 캔버스 그라디언트는 **끝 색을 그 너머까지
+         물고 늘어진다** — 이미 8c 인 자리에 8c 를 또 얹은 것이라 알파가 0.55 에서
+         0.80 으로 뛰고, 덮개가 시작되는 바로 그 x 에 **딱 떨어지는 세로줄**이 생겼다.
+         바로 위 주석이 금지한 그 선(「이음매는 선이 아니라 번짐이다」)을
+         **가라앉힘 자신이 긋고 있었다.** 마을에서 24/24 줄 · 낙차 16(x=56·1456).
+         그라디언트 한 번이면 번짐과 그 너머가 **한 붓으로** 끝난다. */
       ctx.fillStyle = g; ctx.fillRect(x0, 0, x1 - x0, h);
-      /* 번짐 너머(띠에서 F 이상 떨어진 곳)는 고르게 가라앉힌 채로 둔다 */
-      const flatX0 = from === 0 ? x0 : Math.min(x1, x0 + F);
-      const flatX1 = from === 0 ? Math.max(x0, x1 - F) : x1;
-      if (flatX1 - flatX0 > 0) { ctx.fillStyle = DIM + "8c"; ctx.fillRect(flatX0, 0, flatX1 - flatX0, h); }
     }
     ctx.restore();
   }
