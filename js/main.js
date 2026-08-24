@@ -911,10 +911,24 @@ function draw(dt) {
      1 이면 바 아랫자락이 머리끝을 **2px 물어** 「이 몸의 것」이 되고, 머리는 거의 안 가린다. */
   const BAR_LIFT  = globalThis.__BARLIFT  != null ? +globalThis.__BARLIFT  : 1;
   const BAR_STACK = globalThis.__BARSTACK != null ? +globalThis.__BARSTACK : 1;   // 0 = 옛 방식(안 내림)
+  /* ══ V-44 — **빈 칸이 불투명해서 다친 놈일수록 새까매졌다.** ══════════════════
+     열셋이 한 자리에 서면 눈에 먼저 드는 것이 몸이 아니라 **검은 막대 열셋**이다.
+     빈 칸(`#1a1410`)이 불투명한 탓에 반쯤 깎인 놈은 「붉은 조각 + 긴 검은 막대」로
+     그려진다 — 즉 **다칠수록 화면이 검어진다.** 뜻은 거꾸로여야 한다(다친 것은
+     붉은 쪽이 말한다). 그래서 빈 칸을 **비치는 어둠**으로 내린다.
+     ★ **테는 그대로 불투명하게 둔다** — 테가 없으면 「이만큼 «중에» 이만큼」이
+       사라져 남은 몫을 못 읽는다(어두운 바닥 위에서 빈 칸이 통째로 증발한다).
+       테는 1px 고리라 넓이가 빈 칸의 3분의 1이고, 잉크의 대부분은 빈 칸이다.
+     ★ **폭도 몸에 맞춘다**(0.9 → 0.78) — 바가 몸보다 넓으면 제 임자를 넘어간다.
+     ★ `__BAROLD` 는 자가 **옛 그림으로 되돌려** 같은 판을 두 번 재는 문이다
+       (`__NECRO_STILL` 과 같은 결). 고친 뒤에만 재면 그 자가 무엇을 잡는지 모른다. */
+  const BAR_OLD   = !!globalThis.__BAROLD;
+  const BAR_WFRAC = BAR_OLD ? 0.9 : (globalThis.__BARWF != null ? +globalThis.__BARWF : 0.78);
+  const BAR_DIMA  = BAR_OLD ? 1   : (globalThis.__BARDIM != null ? +globalThis.__BARDIM : 0.42);
   const barAt = (base, x, y, hh, pct, col) => {
     const fm = footMetrics(base);
     const headY = y - hh * (1 - (fm ? fm.headFrac : 0)) + (fm ? hh * fm.footFrac : 0);
-    const wdt = Math.max(14, hh * (fm ? fm.bodyWidthFrac : 0.5) * 0.9);
+    const wdt = Math.max(BAR_OLD ? 14 : 11, hh * (fm ? fm.bodyWidthFrac : 0.5) * BAR_WFRAC);
     const h = Math.max(3, Math.round(3 * us));
     /* 띄운 틈 — `__BARLIFT` 로 열어 두고 자로 골랐다(아래 표) */
     let top = Math.round(headY - BAR_LIFT * us);
@@ -930,13 +944,29 @@ function draw(dt) {
       top += step;
     }
     placedBars.push([x0, top - 1, w0, h + 2]);
-    ctx.fillStyle = "#000c"; ctx.fillRect(Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2);
-    ctx.fillStyle = "#1a1410"; ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt), h);
+    const bw = Math.round(wdt), bx = Math.round(x - wdt / 2), fw = Math.round(bw * Math.max(0, Math.min(1, pct)));
+    /* ★★ **테가 «테»가 아니라 판때기였다.** 옛 코드는 `#000c` 를 바 전체에 꽉 채우고
+       그 위에 빈 칸을 덮었다 — 그래서 빈 칸만 비치게 만들어도 **밑에 깔린 검정이
+       그대로 비친다**(처음 고쳤을 때 잉크가 안 줄어든 까닭이 이것이다. 자도 테를
+       고리 넓이로 세고 있어 그림과 갈렸다 — [[threshold-and-ruler-must-match]]).
+       이제 테는 **1px 고리 넷**으로만 두른다. 옛 그림은 판때기 그대로 둔다. */
+    ctx.fillStyle = "#000c";
+    if (BAR_OLD) ctx.fillRect(bx - 1, top - 1, bw + 2, h + 2);
+    else { ctx.fillRect(bx - 1, top - 1, bw + 2, 1); ctx.fillRect(bx - 1, top + h, bw + 2, 1);
+           ctx.fillRect(bx - 1, top, 1, h);         ctx.fillRect(bx + bw, top, 1, h); }
+    /* 빈 칸 — 옛것은 불투명(`#1a1410`), 지금은 **비치는 어둠**. 채운 몫 아래는
+       어차피 색이 덮으므로 **빈 자리에만** 칠한다(겹칠하면 잉크가 두 번 든다). */
+    if (fw < bw) { ctx.fillStyle = BAR_OLD ? "#1a1410" : `rgba(12,8,6,${BAR_DIMA})`;
+                   ctx.fillRect(bx + fw, top, bw - fw, h); }
     ctx.fillStyle = col;
-    ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt * Math.max(0, Math.min(1, pct))), h);
+    ctx.fillRect(bx, top, fw, h);
     /* ★ V-20 자 — **그리는 자리에서 바로 모은다.** 바깥에서 식을 다시 쓰면 판정이
        그림과 갈린다([[threshold-and-ruler-must-match]]). 기본은 꺼져 있다. */
-    if (window.__RECTS) window.__RECTS.bars.push([Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2, x, y]);
+    /* ★ V-44 자 — **그린 잉크를 그리는 자리에서 센다.** 「화소 × 불투명도」라
+       옛 그림과 새 그림을 **같은 눈금**으로 잰다(테 0.8 + 빈 칸 alpha). */
+    if (window.__RECTS) window.__RECTS.bars.push([bx - 1, top - 1, bw + 2, h + 2, x, y,
+      (BAR_OLD ? (bw + 2) * (h + 2) : (bw + 2) * (h + 2) - bw * h) * 0.8
+      + (bw - fw) * h * (BAR_OLD ? 1 : BAR_DIMA)]);
   };
 
   /* ══ 내 편 표시 ══ **이 게임은 아군과 적이 같은 종족이다.**
