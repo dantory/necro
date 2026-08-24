@@ -1002,9 +1002,12 @@ body.in-town #hTactic{ display:inline-block; }
             color:#a8cdf2; letter-spacing:-1px;
             text-shadow:0 0 4px #2a5f96, 0 1px 0 #000; }
 .log .afl{ font-style:normal; font-size:10px; color:#8fb6e0; opacity:.9; }
-/* 무덤 파기 칸 — 그림 대신 글리프 하나(에셋을 새로 굽지 않는다). 상인 좌판의 .cell 규격 그대로. */
-.cell .digIco{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-               font-size:24px; color:#c8aa6e; text-shadow:0 1px 2px #000; }
+/* 무덤 파기 칸 — **다른 칸과 같은 그림**이다(V-34, 2026-08-25).
+   예전엔 「그림 대신 글리프 하나(에셋을 새로 굽지 않는다)」였는데, 그 한 줄이 좌판에서
+   제일 안 보이는 칸을 만들었다 — 자로 재니 잉크가 살 것 열 칸의 14% 였다.
+   이제는 `assets/ui/gear/grave.png` 를 `.cell i` 규격 그대로 쓴다(inset:6px · pixelated).
+   그림은 **삽이 꽂힌 무덤**이다 — 「무덤」만 그리면 바닥의 시체와 헷갈려서 삽이 「판다」를 말한다. */
+.cell i.gear-grave{ background-image:url("assets/ui/gear/grave.png") }
 .cell.dig{ background:linear-gradient(#1a0f0a, #120a07); }
 .tipDig{ margin-top:12px; padding-top:9px; border-top:1px solid #2a1c12; color:#9d907a; font-size:12px; }
 

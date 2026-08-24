@@ -2010,9 +2010,14 @@ function drawShop() {
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   }).join("") +
     /* 파는 것 옆에 **금을 쓰는 자리** 하나 — 무덤을 파 전리품을 뽑는다(반복 구매).
-       칸의 등급 배지는 지금 깊이에서 나올 수 있는 최고 등급(dropTierCap). */
+       칸의 등급 배지는 지금 깊이에서 나올 수 있는 최고 등급(dropTierCap).
+       ★ V-34 — 여기만 **유니코드 글리프**(⚰ · 24px)였다. 옆 열 칸이 다 픽셀아트라
+         시스템 폰트가 그린 그 한 글자는 칸 안에서 「가늘고 흰 조각」으로 나왔다.
+         자로 재니 잉크가 살 것 열 칸의 **14%**(2.1 대 14.8). 좌판에서 제일 안 보이는
+         것이 하필 **금을 쓰는 자리**였다. 띠 아이콘 때 이미 배운 것과 같은 자리다
+         (belt() 위 ★ 주석) — 그때 고친 규칙을 여기로 안 옮겼다. */
     `<div class="cell dig${shopPick === "dig" ? " sel" : ""}" data-pick="dig">
-      <span class="digIco">⚰</span>
+      <i class="gear-grave"></i>
       <span class="q ${TIER_CLS[dropTierCap(META.deepest)]}">${dropTierCap(META.deepest)}</span>
     </div>` +
     '<div class="cell empty"></div>'.repeat((4 - (GEAR_KEYS.length + 1) % 4) % 4);

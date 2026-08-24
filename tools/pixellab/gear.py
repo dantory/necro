@@ -46,6 +46,14 @@ PARTS = {
             "plates and iron buckles, side view", 64, 64),
   "ring2": (f"{TONE}, {ONE}, a ring: a black iron band set with a small dark red stone, "
             "lying flat facing the viewer, no skull", 64, 64),
+  # 08-25 V-34 — 상인 좌판의 **열한째 칸**(무덤 파기)만 그림이 없었다. 유니코드 「⚰」
+  # 하나를 24px 로 넣어 뒀는데, 시스템 폰트가 그린 그 글리프는 칸 안에서 **가늘고 흰
+  # 조각**으로 나온다(옆 열 칸은 다 픽셀아트). 살 것 열 개 옆에서 「금을 쓰는 자리」가
+  # 제일 안 보였다. 같은 결(뼈·검은 쇠·바랜 금 · 한 물건 · 정면)로 한 장 굽는다.
+  # 삽을 **꽂아** 둔다 — 「무덤」만 그리면 시체 그림과 헷갈리고, 삽이 「판다」를 말한다.
+  "grave": (f"{TONE}, {ONE}, a grave: a mound of dark earth with a cracked weathered "
+            "stone grave marker standing in it and an iron shovel stuck upright in the "
+            "dirt beside the marker, front view", 64, 64),
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading",
           "detail": "high detail"}
