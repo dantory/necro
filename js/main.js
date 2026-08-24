@@ -1578,7 +1578,11 @@ function belt() {
      옛 노드는 버려지므로 여기서 같이 갈아 끼운다. */
   beltEls = SKILLS.map((s) => {
     const el = $("belt").querySelector(`[data-sk="${s.id}"]`);
-    return el && { s, el, cd: el.querySelector("[data-cd]"), h: -1, cw: 0, ch: 0 };
+    /* ★ `ok: null` = **아직 한 번도 안 정했다.** beltState 가 「바뀔 때만」 손대는데
+       그 견줌을 `classList` 로 하면 **처음부터 못 쓰는 칸**이 영영 안 죽는다(V-36) —
+       갓 만든 칸에는 `on` 도 `off` 도 없어서 `contains("on") !== false` 가 거짓이다.
+       여기 적어 두는 이 값은 첫 판정이 「못 씀」이어도 `null !== false` 라 반드시 한 번 지나간다. */
+    return el && { s, el, cd: el.querySelector("[data-cd]"), h: -1, cw: 0, ch: 0, ok: null };
   }).filter(Boolean);
   /* 칸은 화면 폭 따라 30~68px 로 변한다 — 크기가 바뀌면 다시 그린다.
      ★ 그때 잰 크기를 **적어 둔다.** beltState 가 다시 그릴 때마다 `clientWidth` 를
@@ -1605,7 +1609,14 @@ function beltState() {
   for (const b of beltEls) {
     const { s, el } = b;
     const ok = (S.cd[s.id] || 0) <= 0 && S.mp >= mpCost(s) && S.corpses >= corpseNeedOf(s, false);
-    if (el.classList.contains("on") !== ok) {          // **바뀔 때만** 다시 그린다
+    /* ★★ V-36 — **견줌은 `classList` 가 아니라 «내가 마지막에 정한 값»으로.** 예전엔
+       `el.classList.contains("on") !== ok` 였는데, 칸을 갓 만들면 `on` 도 `off` 도 없어
+       첫 판정이 「못 씀」인 칸은 `false !== false` 로 걸러져 **`off` 가 한 번도 안 붙었다.**
+       처음 켠 사람의 벨트에서 시체 스킬 셋(태우기·백골 벽·제물)이 22초 내내 그 꼴이었다 —
+       금테가 살아 있어 **쓸 수 있는 칸으로 보였다.** `ok: null` 로 시작하니 첫 프레임에
+       반드시 한 번 지나간다(그 뒤로는 값이 바뀔 때만 — 아낀 것은 그대로다). */
+    if (b.ok !== ok) {                                 // **바뀔 때만** 다시 그린다
+      b.ok = ok;
       el.classList.toggle("on", ok);
       el.classList.toggle("off", !ok);
       const cv = el.querySelector("canvas.fr");
