@@ -622,18 +622,41 @@ function draw(dt) {
   const BIG_MOB = Math.max(...Object.entries(MOB_H).filter(([k]) => k !== "boss").map(([, v]) => v));
   const BOSS_H = Math.max(MOB_H.boss, Math.round(BIG_MOB * 2.4));   // battle.js bossH 의 상한
   const BIG_MIN = Math.max(...Object.values(MINIONS).map(m => m.h || 0)) * CHAMP_UP;
+  /* ★★ **V-13 (2026-08-24) — 세로 맞춤이 «아무도 안 서는 띠»를 재고 있었다.**
+     여태 세로는 **등장 둘레의 바깥**(RMAX 240)을 기준으로 맞췄다. 그런데 적은 거기
+     **잠깐 나타났다 전부 안으로 들어와** 버티는 둘레(RING_HOLD 150) 언저리에서 싸운다 —
+     즉 세로 예산의 한참을 **평생 아무도 안 서는 띠**에 쓰고 있었다.
+     그 대가로 배율이 W-2 에서 **눈으로 고른 상한 1.90** 에서 1.70 으로 깎여 있었다
+     (1512×863). 그래서 「싸움이 텅 빈 돌바닥 한가운데 손톱만 한 덩어리」로 보였다
+     (`tools/v12_crowd_probe.mjs` 1층 20초: 덩어리 379×266 · 넓이몫 14.3%).
+     ★ 자리 잡은 것들의 바깥은 **골렘 자리**(RING_HOLD*1.25)다 — 거기를 기준으로 잰다.
+       둘레를 도는 적도 RING_HOLD*1.15 안쪽으로 묶여 있다(battle.js 의 rad 상한).
+     ★ 다만 **나타나는 순간의 자리(RMAX)는 버리지 않고** 위쪽 경우에 그대로 남긴다 —
+       재 보니 그 경우는 안 걸린다(골렘 쪽이 더 높이 오른다). 공짜로 안전하다.
+     ★ 싸움 규칙(둘레·마중·겹침)은 손대지 않는다 — D 계열은 잠겼다. 바뀌는 것은 **배율뿐**이다. */
+  const R_REST = RING_HOLD * 1.25;                    // 자리 잡은 것들의 바깥 (흙 골렘 자리)
+  /* 아래쪽은 **아래 판(HUD) 뒤로 발이 숨어서는 안 된다** — 위와 달리 어둠이 아니라
+     판이라, 나타나는 순간도 보여야 한다. 그래서 아래만 등장 둘레를 절반쯤 센다. */
+  const BOT_R = (R_REST + RMAX) / 2;
   /* [세로로 오르는 거리, 그 자리에 서는 몸의 키] — 실제로 그 자리에 서는 것들만.
-     ① 둘레 맨 위의 정예 졸개 ② 관문의 주인(sin23° 만큼만 오른다) ③ 진 바깥의 흙 골렘 */
-  const TOP_CASES = [[RMAX, BIG_MOB * CHAMP_UP], [Math.sin(0.4) * RMAX, BOSS_H],
-                     [RING_HOLD * 1.25, BIG_MIN]];
+     ① 진 둘레 맨 위의 정예 졸개 ② 진 바깥의 흙 골렘 ③ **막 나타난 정예 졸개**(등장 둘레, 잠깐)
+     ★ **관문의 주인은 «관문 층에서만» 센다.** 키가 149 로 졸개의 두 배가 넘어
+       세로 예산의 **절반 이상**을 혼자 먹는데, 다섯 층 중 넷에는 **아예 없다**
+       (`isGate(f) = f%5===0` · battle.js 772 이 관문에서만 세운다).
+       여태는 없는 놈의 자리를 1층에서도 비워 두고 있었다([[floor-erases-the-ramp]] 의 결).
+       층이 바뀔 때만 값이 갈리므로 판이 도중에 흔들릴 일은 없다.
+     ★ 주인만은 **등장 둘레(RMAX)** 로 잰다 — 나타나는 순간이 제일 높이 오르고
+       (`w2b_top_probe` 가 재는 자리도 거기다) 그때 머리가 잘리면 바로 보인다. */
+  const TOP_CASES = [[R_REST, BIG_MOB * CHAMP_UP], [R_REST, BIG_MIN], [RMAX, BIG_MOB * CHAMP_UP]];
+  if (MODE.at !== "town" && isGate(S.floor | 0)) TOP_CASES.push([Math.sin(0.4) * RMAX, BOSS_H]);
   const US_PER_SC = 1.286;                            // 아래 「몸집은 판 배율에 매단다」와 같은 값
   const VPAD = 6;                                     // 위아래로 남기는 최소 여백(스크린 px)
   const sc0 = Math.min(SC_MAX, scByW);                // 폭과 상한만 본 배율
   const room = (freeH - VPAD * 2) / sc0;              // 그 배율에서 쓸 수 있는 세로(판 단위)
   const squash = Math.max(0.56, Math.min(0.86,
-    Math.min(...TOP_CASES.map(([y, hh]) => (room - hh * US_PER_SC) / (y + RMAX)))));
+    Math.min(...TOP_CASES.map(([y, hh]) => (room - hh * US_PER_SC) / (y + BOT_R)))));
   const TOP_K = Math.max(...TOP_CASES.map(([y, hh]) => y * squash + hh * US_PER_SC));
-  const BOT_K = RMAX * squash;                        // 아래쪽은 발이 끝이라 몸의 키가 안 붙는다
+  const BOT_K = BOT_R * squash;                       // 아래쪽은 발이 끝이라 몸의 키가 안 붙는다
   const scByH = Math.max(0.2, (freeH - VPAD * 2) / (TOP_K + BOT_K));
   const sc = Math.min(sc0, scByH);
   const SQUASH = squash;
