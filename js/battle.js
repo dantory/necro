@@ -2,7 +2,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          MINIONS, MOB_H, mpMaxOf, NECRO_ATK, S, saveMeta, SKILLS, xpNeed,
          isRaise, MINION_OF, minionHpMul, novaDmgMul, xpMul, novaRadMul, mpCostMul, mpCost, cdMul,
          wandMul, ampSecs, ampPower, weakenMul, decrepMul, harvestPct, spiritMp, feastOn,
-         FEED_MAX, feedMul, dominatePct, thrallCap, armyN, thrallN, MOB_N, clanIdx, mobName,
+         FEED_MAX, feedMul, unitH, dominatePct, thrallCap, armyN, thrallN, MOB_N, clanIdx, mobName,
          armyCapEff, CAP_MERGE_OF, MERGE_MAX, SLOT_YIELD_OF, RAISE_BATCH_OF, raiseHasteMul,
          crushTick, crushReset, CAP_CRUSH,   /* ★ D-35 · 무너진 직후 상한이 내려앉는 문 */
          deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
@@ -932,9 +932,12 @@ function spawnMob(f, i, n) {
    ★ 개수를 반드시 막는다. rtd 에서 떠오르는 글자를 안 막았다가 DOM 이 수천 개로
      불어나 판이 기어간 적이 있다(여긴 캔버스라 훨씬 싸지만 규칙은 같다). */
 const NUM_MAX = 44;
-export function popNum(x, y, v, kind) {
+/** `h` 는 **띄울 몸의 높이**(세계 단위 · core 의 unitH). 없으면 0 — 본인(core)처럼
+ *  몸에 매이지 않은 숫자다. 이걸 안 주면 숫자가 **발밑 기준**으로 떠서 몸을 타고 올라가
+ *  마지막에 체력바와 겹친다(V-20). */
+export function popNum(x, y, v, kind, h = 0) {
   if (v < 1) return;
-  S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9,
+  S.nums.push({ x, y, v: Math.round(v), kind, t: 0.9, h,
                 vx: (Math.random() - 0.5) * 16, seed: Math.random() });
   if (S.nums.length > NUM_MAX) S.nums.shift();
 }
@@ -1476,7 +1479,7 @@ function castOnce(id) {
     NOVA.bd += Math.hypot(bx, by * SQUASH_VIEW);
     NOVA.mobs += S.mobs.length;
     for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < rad) {
-      const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "시체폭발"); hit++; popNum(m.x, m.y, dd, "nova"); }
+      const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "시체폭발"); hit++; popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
     NOVA.hit += hit;
     /* 시체 잔치(트리) — 터진 시체가 **소환수를 먹인다.** 폭발이 공격이자 회복이 되면
        시체 하나를 어디에 쓸지가 매번 다른 답이 된다. */
@@ -1486,7 +1489,7 @@ function castOnce(id) {
     if (feastOn()) for (const e of S.minions) {
       /* 먹인 만큼 **초록 숫자**로 — 폭발이 회복이기도 하다는 걸 체력바만으로는 못 읽는다.
          소환수 한 기당 하나만 뜬다(전원이라 한꺼번에 여럿이지만 상한 44 가 받아 낸다). */
-      const g = Math.min(e.hpMax - e.hp, dmg * 0.4); e.hp += g; popNum(e.x, e.y, g, "heal");
+      const g = Math.min(e.hpMax - e.hp, dmg * 0.4); e.hp += g; popNum(e.x, e.y, g, "heal", unitH(e, 40));
       if ((e.fed | 0) < FEED_MAX) {
         e.fed = (e.fed | 0) + 1;
         questNote("feast", e.fed);             // ⑦ 한 소환수를 여덟 번 먹이면 「시체 잔치」(max 로 최고 먹인 수를 본다)
@@ -1752,7 +1755,7 @@ export function step(dt) {
     }
     /* 맞은 쪽이 적이면 흰 숫자, 내 편이면 붉은 숫자 — **누가 아픈지**가 색으로 갈린다.
        (S.mobs 에 있으면 적이다. own 인 지배 소환수는 minions 에 있으므로 아군으로 샌다) */
-    popNum(tgt.x, tgt.y, dmg, tgtIsMob ? "dmg" : "hurt");
+    popNum(tgt.x, tgt.y, dmg, tgtIsMob ? "dmg" : "hurt", unitH(tgt, tgtIsMob ? 48 : 40));
     tgt.flinch = 0.18;                                   // 맞은 놈은 움찔하고 밀린다
     tgt.kx = u.sdx; tgt.ky = u.sdy;
     /* ★ **얼마나** 밀리는지는 한 방이 제 몸에서 차지하는 몫이 정한다(core 의 knockOf).
@@ -1760,7 +1763,7 @@ export function step(dt) {
     tgt.knock = knockOf(tgt, dmg);
     /* 구울의 흡혈 — **회복도 숫자로 보인다**(초록, 앞에 +). 실제로 찬 만큼만 띄운다:
        가득 찬 구울이 문 것을 큰 숫자로 띄우면 거짓말이 된다. */
-    if (heal) { const g = Math.min(u.hpMax - u.hp, dmg * 0.35); u.hp += g; popNum(u.x, u.y, g, "heal"); }
+    if (heal) { const g = Math.min(u.hpMax - u.hp, dmg * 0.35); u.hp += g; popNum(u.x, u.y, g, "heal", unitH(u, 40)); }
     /* 불꽃은 **닿는 자리**에 — 맞은 놈의 한가운데가 아니라 둘 사이 경계다.
        가운데에 찍으면 몸에 파묻혀 안 보인다. */
     S.fx.push({ t: 0.12, kind: "hit",
@@ -1797,7 +1800,7 @@ export function step(dt) {
       let bx = 0, by = 0, bd = 1e9;
       for (const m of S.mobs) { const d = Math.hypot(m.x, m.y * SQUASH_VIEW); if (d < bd) { bd = d; bx = m.x; by = m.y; } }
       const dmg = S.overflow * OVF_MUL * Math.pow(1.13, S.floor) * selfMulOf();
-      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "넘침"); popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - bx, (m.y - by) * SQUASH_VIEW) < OVF_R) { const dd = dmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "넘침"); popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
       S.fx.push({ t: 0.3, x: bx, y: by, kind: "nova", rad: OVF_R });
       S.overflow = 0;
     }
@@ -1919,7 +1922,7 @@ export function step(dt) {
     if (hit) {
       const bd = b.dmg * ampMul * (hit.wkT > 0 ? hit.wk : 1);
       hurtMob(hit, bd, "본인");
-      popNum(hit.x, hit.y, bd, "dmg");
+      popNum(hit.x, hit.y, bd, "dmg", unitH(hit, 48));
       hit.flinch = 0.18; hit.kx = b.dx; hit.ky = b.dy; hit.knock = knockOf(hit, bd);
       S.fx.push({ t: 0.12, x: hit.x, y: hit.y, kind: "hit" });
       S.bolts.splice(i, 1); continue;
@@ -1962,7 +1965,7 @@ export function step(dt) {
     if (dmg <= 0 || !u || u.hp <= 0) return;
     tallyMinionHurt(u, dmg, cause);                       // ★ D-20 · 읽기만 — 깎기 전에 센다
     tallyMechBite(cause, dmg, u);                         // ★ D-22 · 읽기만 — 이빨이 있는가
-    u.hp -= dmg; popNum(u.x, u.y, dmg, "hurt");
+    u.hp -= dmg; popNum(u.x, u.y, dmg, "hurt", unitH(u, 40));
     u.flinch = 0.18; const l = Math.hypot(dx, dy) || 1; u.kx = dx / l; u.ky = dy / l;
     u.knock = knockOf(u, dmg);
     S.fx.push({ t: 0.12, kind: "hit", x: u.x, y: u.y });
@@ -2491,7 +2494,7 @@ export function step(dt) {
        된다. 피해는 그 소환수 한 방(dead.dmg)에 매어 깊이·빌드를 따라 자란다. */
     if (hasUnique("blast") && dead.dmg) {
       const bdmg = dead.dmg * dmgMulOf() * minionMulOf() * BLAST_MUL;
-      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "죽음폭발"); popNum(m.x, m.y, dd, "nova"); }
+      for (const m of S.mobs) if (Math.hypot(m.x - dead.x, (m.y - dead.y) * SQUASH_VIEW) < BLAST_R) { const dd = bdmg * (m.wkT > 0 ? m.wk : 1); hurtMob(m, dd, "죽음폭발"); popNum(m.x, m.y, dd, "nova", unitH(m, 48)); }
       S.fx.push({ t: 0.3, x: dead.x, y: dead.y, kind: "nova", rad: BLAST_R });
     }
   }

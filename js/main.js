@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -852,6 +852,7 @@ function draw(dt) {
      ★ 소품이 늘면 **빛도 는다**(화로·횃불이 addGlow 를 부른다) — 어두워서 비어 보이던
        위쪽 띠가 같이 채워진다. 틀 값은 그대로 8.3ms(중앙값) · p95 8.6→8.8 로
        A/A 흔들림 안이다(`/tmp/v10_perf.mjs`, 1x34 와 3x50 을 번갈아 두 번씩). */
+  if (window.__RECTS) { window.__RECTS.bars = []; window.__RECTS.nums = []; window.__RECTS.frames++; }
   drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 50 }, BAND);
   /* 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다.
      ★ **진과 함께 밀려 나간다**(battle.js 「진이 적 쪽으로 기운다」). 그림만 본인 자리에
@@ -875,6 +876,9 @@ function draw(dt) {
     ctx.fillStyle = "#1a1410"; ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt), h);
     ctx.fillStyle = col;
     ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt * Math.max(0, Math.min(1, pct))), h);
+    /* ★ V-20 자 — **그리는 자리에서 바로 모은다.** 바깥에서 식을 다시 쓰면 판정이
+       그림과 갈린다([[threshold-and-ruler-must-match]]). 기본은 꺼져 있다. */
+    if (window.__RECTS) window.__RECTS.bars.push([Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2]);
   };
 
   /* ══ 내 편 표시 ══ **이 게임은 아군과 적이 같은 종족이다.**
@@ -1078,7 +1082,7 @@ function draw(dt) {
       /* 먹어서 커진 만큼 **그림도 커진다** — 셈만 커지면 병수님 눈엔 아무 일도 안 난다.
          지배한 놈은 원래 적의 그림을 그대로 쓴다(u.art) — 「저 브루트가 내 편이다」가
          한눈에 읽히는 게 이 노드의 전부다. */
-      const u = it.u, hh = (u.h || 40) * us * feedMul(u) * (1 + 0.06 * (u.mg | 0)), x = px(u.x), y = py(u.y);
+      const u = it.u, hh = unitH(u, 40) * us, x = px(u.x), y = py(u.y);
       /* ★ 지배한 놈은 **적과 그림이 똑같다** — 화면만 보면 내 편인지 알 수가 없다
          (첫 판을 찍어 보고 알았다: 붉은 타락자가 사방에 섞여 누가 누군지 안 읽혔다).
          발밑에 보라 테를 둘러 「이건 내 것」을 그림 없이 말한다. */
@@ -1166,7 +1170,14 @@ function draw(dt) {
     const p = 1 - Math.max(0, n.t) / 0.9;                 // 0 → 1
     /* ★ 픽셀 글꼴은 **정수 자리**에 놓여야 획이 안 번진다 — 소수 자리에 그리면
        9 의 배수로 맞춘 크기도 소용이 없다(같은 V-18). */
-    const x = Math.round(px(n.x) + n.vx * p * us), y = Math.round(py(n.y) - (16 + 30 * p) * us);
+    /* ★★ V-20: 숫자가 **발밑 기준**으로 떠서 몸을 타고 올라가고 있었다(16→46 세계단위).
+       몸이 48 이면 머리끝이 그 사이라, 숫자는 **수명 내내 몸 위에 얹혀** 있다가 끝에서
+       체력바(머리끝 +6)와 정확히 겹쳤다 — 첫 판 그림에서 「12」가 붉은 바를 가로질러
+       그어져 둘 다 못 읽었다. 이제 **제 몸 높이 위**에서 시작한다(popNum 이 unitH 를
+       실어 보낸다). 바 꼭대기는 머리끝 위 6 인데 캔버스 위 여백(headFrac)이 그보다
+       두꺼울 수 있으므로, 여백이 0 이어도 안 닿게 **+8** 을 둔다. */
+    const lift = n.h ? n.h + 8 + 16 * p : 16 + 30 * p;
+    const x = Math.round(px(n.x) + n.vx * p * us), y = Math.round(py(n.y) - lift * us);
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
     const size = g9(base * us);                       // ★ 9 의 배수로 물린다(위 g9)
@@ -1185,6 +1196,8 @@ function draw(dt) {
        3.4px 테를 둘렀던 것이 흙빛 블록의 나머지 절반이다. 글자 크기에 매달되 정수로. */
     ctx.lineWidth = Math.max(2, Math.round(size / 9)); ctx.strokeStyle = bg; ctx.lineJoin = "round";
     ctx.strokeText(txt, x, y); ctx.fillStyle = fg; ctx.fillText(txt, x, y);
+    if (window.__RECTS) { const w = ctx.measureText(txt).width;
+      window.__RECTS.nums.push([Math.round(x - w / 2), y - size, Math.round(w), size]); }
     ctx.restore();
   }
 

@@ -2583,6 +2583,11 @@ export const feastOn     = () => rank("feast") > 0;
 export const FEED_MAX   = 8;                    // 여덟 번까지만 먹는다(끝없이 크면 화면을 덮는다)
 export const feedStep   = 0.05;                 // 한 번에 몸 +5% (여덟이면 +40%)
 export const feedMul    = (u) => 1 + Math.min(FEED_MAX, u.fed | 0) * feedStep;
+/** 몸이 판에서 차지하는 **높이**(세계 단위 · us 를 곱하면 화면 픽셀).
+ *  그림·체력바·떠오르는 숫자가 **같은 자를 봐야** 서로 안 겹친다 — 예전엔 main.js 의
+ *  그리는 자리에만 있어서 battle.js 의 숫자가 몸 높이를 모른 채 발밑 기준으로 떴다.
+ *  적은 fed·mg 가 없어 곱이 1 이므로 소환수와 같은 식을 쓴다(기본 높이만 다르다). */
+export const unitH      = (e, dh = 44) => (e.h || dh) * feedMul(e) * (1 + 0.06 * (e.mg | 0));
 export const dominatePct = () => rank("dark") ? 0.30 : 0;
 
 syncSkills();
