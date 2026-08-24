@@ -2060,16 +2060,22 @@ function drawForge() {
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/** 자를 위한 **문** — `body.noPickName` 이 붙어 있으면 칸이 이름을 안 대고 빈 칸을 채우던
+ *  옛 모습으로 그린다(V-28 전). 고치기 전과 후를 **같은 자**로 재려면 이것이 있어야 한다
+ *  — 상인 창의 `body.noSticky`(V-27)와 같은 결이다. 사람이 켜는 길에는 안 붙는다. */
+const pickDoor = () => document.body.classList.contains("noPickName");
+
 /** 편성 — **군대의 결을 고른다.** 상인·대장간과 같은 격자+툴팁이되, 사는 것이 아니라
  *  고르는 것이라 값이 없고 즉시 적용된다(확인 창 없음 · 되돌릴 수 있다). 지금 고른 것은
  *  칸의 금테(.sel)와 발치(docNow)로 보이고, 툴팁은 그 편성이 이번 상한에서 세우는
  *  벽·몸·수를 그대로 계산해 보여 준다(doctrineWants — auto() 가 읽는 바로 그 함수). */
 function drawDoctrine() {
-  const cur = doctrineId(), cap = armyCap();
+  const cur = doctrineId(), cap = armyCap(), door = pickDoor();
   $("docGrid").innerHTML = DOCTRINE_IDS.map((id) => {
     const d = DOCTRINE[id];
-    return `<div class="cell${id === cur ? " sel" : ""}" data-doc="${id}"><span class="lvl">${d.ico}</span></div>`;
-  }).join("") + '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length));
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-doc="${id}"><span class="lvl">${d.ico}</span>` +
+           (door ? "" : `<span class="cn">${d.n}</span>`) + `</div>`;
+  }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length)) : "");
 
   const d = DOCTRINE[cur], w = doctrineWants(cap);
   $("docNow").textContent = d.n;
@@ -2085,11 +2091,12 @@ function drawDoctrine() {
  *  auto() 의 폭발·저주 조건(core.js TACTIC)이다. 툴팁은 그 운용이 폭발·저주를 어느 문턱에서
  *  쓰는지를 사람 말로 풀어 보여 준다(편성이 벽·몸·수를 계산해 보여 주는 것과 같은 결). */
 function drawTactic() {
-  const cur = tacticId();
+  const cur = tacticId(), door = pickDoor();
   $("tacGrid").innerHTML = TACTIC_IDS.map((id) => {
     const t = TACTIC[id];
-    return `<div class="cell${id === cur ? " sel" : ""}" data-tac="${id}"><span class="lvl">${t.ico}</span></div>`;
-  }).join("") + '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - TACTIC_IDS.length));
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-tac="${id}"><span class="lvl">${t.ico}</span>` +
+           (door ? "" : `<span class="cn">${t.n}</span>`) + `</div>`;
+  }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - TACTIC_IDS.length)) : "");
 
   const t = TACTIC[cur];
   const nova = `시체 ${Math.round(t.novaCorpse * 100)}% 이상${t.novaBossOnly ? " · 보스 있을 때만" : ""}`;
