@@ -148,6 +148,30 @@ async function domCheck(metaObj) {
     `발밑=${c.발밑} 판밖=${c.밖}`);
 }
 
+/* ── V-43c · **층을 넘어도** 셈과 그림이 붙어 있는가 ──
+   `enterFloor` 는 앞 층 그림에만 fade 를 걸고 개수는 안 건드린다(뜻이 있는 예외).
+   그래서 V-43b 를 넣은 뒤에도 **층을 내려갈 때마다** 다시 갈렸다(셈 105 대 그림 10).
+   잠기는 연출을 두고 **다 잠긴 뒤에**(PILE_FADE + 여유) 모자란 만큼 다시 눕는지 본다. */
+{
+  await domCheck({ gold: 1000, corpses: 0, deepest: 30, relics: 0, lv: 20, xp: 0, lastSeen: Date.now() - 5 * HOUR });
+  const d = JSON.parse(await evalp(`(async()=>{ window.__closeAll && window.__closeAll();
+    window.__toDungeon(); const B = await import("/js/battle.js"); const S = window.__S;
+    await new Promise(r => setTimeout(r, 900));
+    const 전 = S.corpses;
+    B.enterFloor(S.floor + 1);
+    await new Promise(r => setTimeout(r, 2200));       // PILE_FADE(1.0) 가 다 잠기고도 남게
+    S.running = false;
+    return JSON.stringify({ 전, 셈: S.corpses, 그림: S.piles.length, 층: S.floor,
+      발밑: S.piles.filter(p => Math.hypot(p.x, p.y) < B.CORE_R * 1.5).length }); })()`));
+  /* ★ 발밑은 **0 이 아니라 몇 개까지** 봐준다 — 다시 눕히는 문은 CORE_R×1.7 밖에서
+     시작하므로 한 톨도 안 두지만, 잠기는 2초 동안 **발밑에서 실제로 죽는 적**이 있다
+     (판이 돌고 있으니 당연하다). 다시 눕히기가 발밑에 쏟는다면 그 수는 한둘이 아니라
+     수십이라, 5 와 「전부」 사이는 충분히 멀다([[floor-far-from-threshold]]). */
+  push("V-43c · 층을 넘어도 셈만큼 판에 누워 있다",
+    d.셈 > 60 && d.그림 === d.셈 && d.발밑 <= 5,
+    `전=${d.전} 셈=${d.셈} 그림=${d.그림} 발밑=${d.발밑} 층=${d.층}`);
+}
+
 let fail = 0;
 for (const [name, ok, detail] of results) {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  ‹" + detail + "›"}`);

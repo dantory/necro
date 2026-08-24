@@ -744,6 +744,14 @@ export function enterFloor(f) {
      「내려왔다」가 깨진다. 그래서 개수는 한 톨도 안 건드리고(가진 시체 수는 그대로),
      판 위 그림에만 fade 를 걸어 어둠에 잠기게 지운다(step 이 다 잠기면 배열에서 뺀다). */
   for (const p of S.piles) p.fade = PILE_FADE;
+  /* ── 그런데 **지고 내려온 시체는 다시 눕힌다** ── (V-43c)
+     위 예외는 「앞 층 시체가 새 판에 깔려 있으면 안 된다」까지가 뜻이었는데, 개수를
+     안 건드리는 바람에 **셈 138 대 그림 23** 이 됐다 — 140 구를 지고 2층에 섰는데
+     바닥이 비어 HUD 가 거짓말을 한다(V-43b 가 판 첫머리에서 고친 그 어긋남이,
+     층을 넘을 때마다 **다시** 벌어졌다). 고른 길은 ② — **잠기는 연출은 그대로 두고,
+     다 잠긴 뒤에** 새 층 바닥에 다시 흩는다. 여기서 바로 눕히면 위 fade 가 같이
+     걸려 1초 뒤에 통째로 지워지므로, 시각만 적어 두고 step 이 때가 되면 부른다. */
+  S.relayT = S.corpses > 0 ? PILE_FADE : 0;   // 판 첫머리(newRun)는 셈이 0 이라 안 걸린다 — 거기선 layCarried 가 바로 눕힌다
 
   S.floor = f;
   /* ★ D-36 · **여기가 방아쇠다** — 층 21 아래에서는 안 걸린다(앞을 세게 만드는 길이
@@ -1165,12 +1173,18 @@ export function addCorpse(x, y, sort, n = 1, pw = 0) {
  *    않는다(born 0) — 판이 열리는 순간 이미 거기 있던 것이다. */
 export function layCarried(n) {
   S.corpses = 0; S.piles.length = 0;
+  for (let i = 0; i < n; i++) if (S.corpses < CORPSE_MAX) S.corpses++;
+  scatterPiles(S.corpses, 0);
+}
+/** 시체 n 구를 **판에 흩어 눕힌다** — 셈(S.corpses)은 **안 건드린다.**
+ *  `layCarried`(판 첫머리)와 `relayCarried`(층을 넘은 뒤)가 같은 그림을 쓰라고 뽑아 뒀다.
+ *  born: 0 이면 「이미 거기 있던 것」, CORPSE_FADE 면 어둠이 걷히며 **배어 나온다**. */
+function scatterPiles(n, born) {
   /* ★ 켜서 보고 고쳤다 — 처음엔 진 자리(RING_HOLD)까지만 흩었더니 **한가운데 무더기**로
      엉겨 「바닥에 널렸다」가 아니라 「쌓아 놨다」로 읽혔다. 적이 나오는 둘레까지 넓힌다. */
   const r0 = CORE_R * 1.7, r1 = RING_SPAWN * 1.05;
   const hp = floorHp(S.floor);
   for (let i = 0; i < n; i++) {
-    if (S.corpses < CORPSE_MAX) S.corpses++;
     const a = Math.random() * 6.2832;
     const r = Math.sqrt(r0 * r0 + Math.random() * (r1 * r1 - r0 * r0));
     /* 세로는 **안 누른다** — p.y 는 눌리기 전 좌표고 누르는 일은 그리는 쪽(py)이 한다. */
@@ -1178,7 +1192,7 @@ export function layCarried(n) {
       /* ★ 큰 것(해골 무더기)·활짝 편 뼈대는 낱장이 커서 몇 장만 겹쳐도 덩어리가 된다 —
          **작은 것을 주로** 깐다(널린 것은 널려 보여야 한다). */
       sort: Math.random() < 0.10 ? "large" : (Math.random() < 0.68 ? "small" : "bones"),
-      pw: hp, t: 0, born: 0, rot: Math.random() * 6.2832,
+      pw: hp, t: 0, born, rot: Math.random() * 6.2832,
       flip: Math.random() < 0.5 ? -1 : 1,
       sc: 0.85 + Math.random() * 0.30,
       tint: (Math.random() * CORPSE_TINT.length) | 0,
@@ -1730,6 +1744,15 @@ export function step(dt) {
     const p = S.piles[i];
     if (p.born > 0) p.born = Math.max(0, p.born - dt);   // ★ 0 을 지나 음수로 내려가면 «다 배어 나왔다»가 영영 거짓이 된다 (V-12)
     if (p.fade !== undefined && (p.fade -= dt) <= 0) S.piles.splice(i, 1);
+  }
+  /* ★ V-43c · 앞 층 그림이 **다 잠긴 뒤에** 지고 내려온 몫을 새 층 바닥에 다시 눕힌다.
+     셈은 이미 맞으니 **모자란 만큼만** 채운다 — 잠기는 1초 사이에 새로 죽은 것들은
+     이미 제 그림을 갖고 있고, 소환수가 써 버린 몫은 셈에서도 빠졌다.
+     ★ born 을 줘서 **배어 나오게** 한다(판 첫머리와 달리 여기는 어둠이 걷히는 중이라
+       그냥 튀어나오면 「방금 생겼다」로 읽힌다). */
+  if (S.relayT > 0 && (S.relayT -= dt) <= 0) {
+    S.relayT = 0;
+    scatterPiles(Math.max(0, Math.min(S.corpses, CORPSE_MAX) - S.piles.length), CORPSE_FADE);
   }
   for (let i = S.nums.length - 1; i >= 0; i--) if ((S.nums[i].t -= dt) <= 0) S.nums.splice(i, 1);
   /* ── 전리품이 본인에게 온다 ── **방치형이므로 주우러 가지 않는다.** 잠깐 놓여
@@ -2700,6 +2723,7 @@ export function newRun() {
 
     amp: 0, wkn: 0, dcp: 0, pswing: 0, pcast: 0, pbolt: null, natk: 0, hurt: 0, hkx: 0, hky: 0, arrive: null, shake: 0,
     dealtAcc: 0, armyDps: 0,           // 「지금 군대가 내는 화력」 — 판이 바뀌면 앞 판 기억을 안 물려받는다
+    relayT: 0,                         // V-43c · 새 판은 layCarried 가 바로 눕히므로 다시 눕힐 빚이 없다
   });
   const carried = Math.min(3 + (META.corpses | 0), CORPSE_MAX);   // 첫 시체 셋 + 창고 — 상한 안에서
   META.corpses = 0;   // 창고를 판에 실었으니 비운다 — 안 그러면 판마다 같은 시체를 또 준다
