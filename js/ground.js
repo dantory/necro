@@ -213,24 +213,62 @@ function dirtAt(vx, vy, wx, wy) {
   return blob ? edge < 86 : edge < 7;
 }
 
-/** Wang 바닥을 깐다. 못 쓰면 false 를 돌려주고 기존 타일 방식으로 넘어간다. */
+/** 꼭짓점 재질에서 **낱개 섬**을 지운다.
+ *  ★ 꼭짓점을 하나씩 따로 뽑으면 소금·후추가 남는다. 풀 한 칸이 흙 한복판에 혼자
+ *    있으면 Wang 타일 넉 장이 둥근 모서리를 맞대어 **둥근 초록 네모**가 되고,
+ *    그건 지형이 아니라 **스티커**로 읽힌다(2026-08-25 마을에서 35 덩이).
+ *  ★ 이미 겪은 결함이다 — `dirtAt` 은 「들판에 3% 로 흙을 흩뿌렸더니 낱개 네모가
+ *    쓰레기처럼 남았다」고 적고 **흙 쪽만** 막아 두었다. 반대쪽(흙 위의 풀)에는
+ *    그 고침이 안 옮겨져 있었다([[carry-fixes-forward]]).
+ *  ★ 미는 법: 이웃 넷 중 **셋 이상이 다르면** 이웃을 따른다. 두 번 민다 —
+ *    한 번이면 셋이 줄지어 있을 때 가운데 한 칸이 살아남아 섬이 다시 생긴다.
+ *    한 칸짜리 튀어나옴만 깎이므로 길 가장자리의 너덜너덜함은 남는다. */
+function deIsland(mat, cols, rows, passes = 2) {
+  for (let p = 0; p < passes; p++) {
+    const src = mat.slice();
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const me = src[j * cols + i];
+        let diff = 0, n = 0;
+        if (i > 0)        { n++; if (src[j * cols + i - 1] !== me) diff++; }
+        if (i < cols - 1) { n++; if (src[j * cols + i + 1] !== me) diff++; }
+        if (j > 0)        { n++; if (src[(j - 1) * cols + i] !== me) diff++; }
+        if (j < rows - 1) { n++; if (src[(j + 1) * cols + i] !== me) diff++; }
+        if (n >= 3 && diff >= 3) mat[j * cols + i] = me ? 0 : 1;
+      }
+    }
+  }
+  return mat;
+}
+
+/** Wang 바닥을 깐다. 못 쓰면 false 를 돌려주고 기존 타일 방식으로 넘어간다.
+ *  ★ 꼭짓점 재질을 **먼저 한 판 다 뽑아 두고** 섬을 지운 뒤에 깐다. 예전에는
+ *    칸마다 네 꼭짓점을 그 자리에서 뽑아 이웃을 볼 수가 없었다(같은 꼭짓점을
+ *    네 번씩 뽑기도 했다 — 이제 한 번이다). */
 function drawWang(ctx, w, h, cx, cy, sc, squash) {
   if (!wang || !wangTiles) return false;
   const t = wangTiles[0].width;
   ctx.imageSmoothingEnabled = false;
   const ox = Math.floor(cx) % t - t, oy = Math.floor(cy) % t - t;
-  for (let y = oy, gy = 0; y < h + t; y += t, gy++) {
-    for (let x = ox, gx = 0; x < w + t; x += t, gx++) {
-      /* 꼭짓점의 **월드 좌표** — 앵커와 같은 자에서 재야 길이 목적지에 닿는다. */
-      const w0x = (x - cx) / sc, w0y = (y - cy) / (sc * squash);
-      const w1x = (x + t - cx) / sc, w1y = (y + t - cy) / (sc * squash);
-      const key = (dirtAt(gx, gy, w0x, w0y) ? "1" : "0") +
-                  (dirtAt(gx + 1, gy, w1x, w0y) ? "1" : "0") +
-                  (dirtAt(gx, gy + 1, w0x, w1y) ? "1" : "0") +
-                  (dirtAt(gx + 1, gy + 1, w1x, w1y) ? "1" : "0");
+  const cw = Math.ceil((w + t - ox) / t), ch = Math.ceil((h + t - oy) / t);
+  const cols = cw + 1, rows = ch + 1;           // 칸이 cw×ch 면 꼭짓점은 하나씩 더
+  const mat = new Uint8Array(cols * rows);
+  for (let j = 0; j < rows; j++) {
+    /* 꼭짓점의 **월드 좌표** — 앵커와 같은 자에서 재야 길이 목적지에 닿는다. */
+    const wy = (oy + j * t - cy) / (sc * squash);
+    for (let i = 0; i < cols; i++) {
+      const wx = (ox + i * t - cx) / sc;
+      mat[j * cols + i] = dirtAt(i, j, wx, wy) ? 1 : 0;
+    }
+  }
+  deIsland(mat, cols, rows);
+  for (let gy = 0; gy < ch; gy++) {
+    for (let gx = 0; gx < cw; gx++) {
+      const key = mat[gy * cols + gx] + "" + mat[gy * cols + gx + 1] + "" +
+                  mat[(gy + 1) * cols + gx] + "" + mat[(gy + 1) * cols + gx + 1];
       const pos = wang[key];
       if (!pos) continue;
-      ctx.drawImage(wangTiles[pos[1] * 4 + pos[0]], x, y);
+      ctx.drawImage(wangTiles[pos[1] * 4 + pos[0]], ox + gx * t, oy + gy * t);
     }
   }
   return true;
