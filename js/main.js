@@ -463,6 +463,14 @@ function drawOne(base, x, gy, h, fallback, e) {
   }
   /* 갈래(V-7) — 적만 vr 을 달고 온다. 아군·마을 사람은 undefined 라 원본 그대로다. */
   const drew = drawSprite8(ctx, base, dir, state, frameIdx, x, gy, h, e && e.vr ? clanOf(e).f : null);
+  /* ★ V-25 자 — **몸 네모도 그리는 자리에서 모은다**(바 네모와 같은 규칙).
+     바가 「제 몸 위」에 있는지 「남의 몸 위」에 있는지는 몸의 자리를 알아야 갈린다.
+     식은 barAt 과 **같은 것**을 쓴다(머리끝·몸 폭) — 밖에서 다시 쓰면 갈린다. */
+  if (window.__RECTS && window.__RECTS.bodies) {
+    const bw = h * (fm ? fm.bodyWidthFrac : 0.5);
+    const hy = gy - h * (1 - (fm ? fm.headFrac : 0)) + (fm ? h * fm.footFrac : 0);
+    window.__RECTS.bodies.push([Math.round(x - bw / 2), Math.round(hy), Math.round(bw), Math.round(gy - hy), x, gy]);
+  }
   ctx.restore();
   if (!drew) {
     // 그림이 아직 하나도 없으면 색 덩어리로 — 판이 멈추지 않게(기존 폴백 그대로)
@@ -852,7 +860,7 @@ function draw(dt) {
      ★ 소품이 늘면 **빛도 는다**(화로·횃불이 addGlow 를 부른다) — 어두워서 비어 보이던
        위쪽 띠가 같이 채워진다. 틀 값은 그대로 8.3ms(중앙값) · p95 8.6→8.8 로
        A/A 흔들림 안이다(`/tmp/v10_perf.mjs`, 1x34 와 3x50 을 번갈아 두 번씩). */
-  if (window.__RECTS) { window.__RECTS.bars = []; window.__RECTS.nums = []; window.__RECTS.frames++; }
+  if (window.__RECTS) { window.__RECTS.bars = []; window.__RECTS.nums = []; window.__RECTS.bodies = []; window.__RECTS.frames++; }
   drawGround(ctx, w, h, cx, cy, 0, SQUASH, sc, { clear: 190, density: 50 }, BAND);
   /* 소환수가 진을 치는 둘레 — 여기가 뚫리면 본인이 맞는다는 걸 화면이 말해 준다.
      ★ **진과 함께 밀려 나간다**(battle.js 「진이 적 쪽으로 기운다」). 그림만 본인 자리에
@@ -866,19 +874,48 @@ function draw(dt) {
      있어서(종마다 6~20%) 바가 몸에서 한참 떠올라 있었다. 여럿이 섞이면 어느 바가
      누구 것인지 못 읽는다(허공에 막대만 떠 있는 것으로 보인다).
      이제 알파로 잰 **진짜 머리끝** 바로 위에 놓고, 폭도 **몸 폭**에 맞춘다. */
+  /* ★★ V-25 — **붐비면 바가 임자를 잃는다.** 위 규칙(머리끝 위 6px)은 몸이 하나일 때
+     맞는 말인데, 사방에서 몰려오는 판에서는 그 6px 자리에 **뒷줄 몸의 가슴팍**이 있다.
+     자로 재니(45초 · `tools/v25_barmix.mjs`) 바의 **69.9%가 남의 몸 위**에 얹혀 있고,
+     **23.2%는 주인이 8할 넘게 가려져** 화면에는 임자 없는 막대만 남는다.
+     ★ 고치는 결은 V-23(숫자)에서 배운 것 그대로다 — **자리를 더 만들 수는 없다.**
+       위로 쌓으면 더 먼 몸의 가슴에 얹히고, 옆으로 밀면 제 몸을 떠난다.
+       그래서 **제 몸 위로 내린다.** 제 가슴팍은 누구와도 안 다투는 제 자리고,
+       무엇보다 **주인과 같은 운명을 진다** — 앞의 몸이 주인을 덮으면 바도 같이 덮인다
+       (몸→바 차례로 그리므로 저절로 그렇게 된다). 가려진 놈의 바가 저 혼자 뜨는 일이 없어진다.
+     ※ 값·균형은 한 톨도 안 건드린다 — 그리는 자리만 바뀐다. */
+  const placedBars = [];   // 이 틀에 이미 놓인 바(그린 차례 = 뒤에서 앞으로)
+  /* **띄운 틈** — 6 이었다. 자로 골랐다(40초 · 임자 없는 막대 · 제 몸에 닿은 바):
+       6(옛것) 14.0% · 13.4%   |   4  14.0% · 13.4%   |   **1  8.3% · 100%**   |   -1  거의 같고 머리를 더 먹는다
+     1 이면 바 아랫자락이 머리끝을 **2px 물어** 「이 몸의 것」이 되고, 머리는 거의 안 가린다. */
+  const BAR_LIFT  = globalThis.__BARLIFT  != null ? +globalThis.__BARLIFT  : 1;
+  const BAR_STACK = globalThis.__BARSTACK != null ? +globalThis.__BARSTACK : 1;   // 0 = 옛 방식(안 내림)
   const barAt = (base, x, y, hh, pct, col) => {
     const fm = footMetrics(base);
     const headY = y - hh * (1 - (fm ? fm.headFrac : 0)) + (fm ? hh * fm.footFrac : 0);
     const wdt = Math.max(14, hh * (fm ? fm.bodyWidthFrac : 0.5) * 0.9);
-    const top = Math.round(headY - 6 * us);
     const h = Math.max(3, Math.round(3 * us));
+    /* 띄운 틈 — `__BARLIFT` 로 열어 두고 자로 골랐다(아래 표) */
+    let top = Math.round(headY - BAR_LIFT * us);
+    const x0 = Math.round(x - wdt / 2) - 1, w0 = Math.round(wdt) + 2;
+    /* 겹치면 **제 몸 위로** 한 칸씩 내린다. 바닥은 제 키의 45% — 그 아래는 가슴이 아니라
+       배라 무엇이 서 있는지가 안 읽힌다. 다섯 칸이면 한 자리에 여섯이 서도 갈린다. */
+    const floorY = headY + hh * 0.45, step = h + 3;
+    for (let g = 0; BAR_STACK && g < 5 && top + step <= floorY; g++) {
+      let hit = false;
+      for (const b of placedBars)
+        if (x0 < b[0] + b[2] && x0 + w0 > b[0] && top - 1 < b[1] + b[3] && top + h + 1 > b[1]) { hit = true; break; }
+      if (!hit) break;
+      top += step;
+    }
+    placedBars.push([x0, top - 1, w0, h + 2]);
     ctx.fillStyle = "#000c"; ctx.fillRect(Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2);
     ctx.fillStyle = "#1a1410"; ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt), h);
     ctx.fillStyle = col;
     ctx.fillRect(Math.round(x - wdt / 2), top, Math.round(wdt * Math.max(0, Math.min(1, pct))), h);
     /* ★ V-20 자 — **그리는 자리에서 바로 모은다.** 바깥에서 식을 다시 쓰면 판정이
        그림과 갈린다([[threshold-and-ruler-must-match]]). 기본은 꺼져 있다. */
-    if (window.__RECTS) window.__RECTS.bars.push([Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2]);
+    if (window.__RECTS) window.__RECTS.bars.push([Math.round(x - wdt / 2) - 1, top - 1, Math.round(wdt) + 2, h + 2, x, y]);
   };
 
   /* ══ 내 편 표시 ══ **이 게임은 아군과 적이 같은 종족이다.**
