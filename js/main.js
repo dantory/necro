@@ -194,6 +194,9 @@ function menuLayout() {
        정하는 값이라(V-16 이 88px 을 두고 싸운 그 자리), 1px 만 커져도 싸우는 자리가
        그만큼 준다. 그래서 늘리는 것은 **폭**이고, 세로는 그림을 34 → 28 로 줄여 낸다. */
   const NAME = { hName: "능력치", hBag: "가방", hLv: "스킬", hDoctrine: "편성", hTactic: "운용" };
+  /* V-32 의 문 — 배지 자리를 고치기 «전»으로 되돌린다(자가 같은 판을 두 번 재게).
+     고치는 것이 CSS 뿐이라 문도 CSS 로 열어야 한다. */
+  if (globalThis.__NOBADGEFIX) document.body.classList.add("noBadgeFix");
   for (const id of ["hName", "hBag", "hLv", "hDoctrine", "hTactic"]) {
     const el = $(id); if (!el) continue;
     if (!el.querySelector(".mIco")) {
