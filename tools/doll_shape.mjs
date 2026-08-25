@@ -22,7 +22,10 @@ const WANT = {
   "pd-wand":   { r: 2.0,  n: "무기 2×4" },
   "pd-shield": { r: 2.0,  n: "방패 2×4" },
   "pd-robe":   { r: 1.5,  n: "갑옷 2×3" },
-  "pd-belt":   { r: 0.5,  n: "허리띠 2×1" },
+  /* ★ 허리띠만 «바닥»이 있다(V-72) — 짧은 변이 --pdBeltMin 에 닿으면 비율을 놓고
+       읽히는 쪽을 고른다. 바닥값은 **CSS 에서 읽어 온다**(여기 20 을 또 적으면 둘이
+       갈린다 [[seam-not-values]]). */
+  "pd-belt":   { r: 0.5,  n: "허리띠 2×1", floor: true },
   "pd-helm":   { r: 1.0,  n: "투구 2×2" },
   "pd-glove":  { r: 1.0,  n: "장갑 2×2" },
   "pd-boots":  { r: 1.0,  n: "신발 2×2" },
@@ -73,7 +76,9 @@ for (const [W, H] of SIZES) {
       const g=c.getBoundingClientRect();
       out[key]={w:+g.width.toFixed(1), h:+g.height.toFixed(1)};
     }
-    return JSON.stringify({칸:out, 인물:doll.querySelectorAll(".pdSlot").length});
+    const bm=parseFloat(getComputedStyle(doll).getPropertyValue("--pdBeltMin"))||
+             parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--pdBeltMin"))||20;
+    return JSON.stringify({칸:out, 인물:doll.querySelectorAll(".pdSlot").length, 띠바닥:bm});
   })()`));
   const t = `${W}×${H}`;
   if (r.없음) { say(false, `${t}: ${r.없음} 이 없다`); continue; }
@@ -84,7 +89,10 @@ for (const [W, H] of SIZES) {
   const 틀린모양 = [], 너무작음 = [], 안좁음 = [];
   for (const k in WANT) {
     const c = r.칸[k]; if (!c) { 틀린모양.push(`${k} 없음`); continue; }
-    const got = c.h / c.w, want = WANT[k].r;
+    const got = c.h / c.w;
+    /* 바닥에 닿은 칸은 **바닥이 기대값**이다 — 안 그러면 「읽을 만하다」와 「물건
+       모양이다」가 서로를 떨어뜨린다(문턱 둘이 싸우면 자가 아니다). */
+    const want = WANT[k].floor ? Math.max(WANT[k].r, (r.띠바닥 || 20) / c.w) : WANT[k].r;
     if (Math.abs(got - want) / want > TOL) 틀린모양.push(`${WANT[k].n} ${got.toFixed(2)}(≠${want})`);
     if (Math.min(c.w, c.h) < MIN_SIDE) 너무작음.push(`${WANT[k].n} ${Math.min(c.w, c.h)}px`);
     if (WANT[k].narrow && unit && c.w / unit > WANT[k].narrow + TOL)
