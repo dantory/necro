@@ -1480,7 +1480,16 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 
 /* 도킹된 왼쪽 패널 안의 인물 — 수치 위에 선다. 세로를 너무 먹으면 일지가 밀리므로
    폭으로만 자란다(높이는 슬롯 세 줄이 정한다 · 08-17 13:41 의 그 규칙 그대로). */
-body.charOpen #statBody > .pdoll{ margin:0 auto 8px; max-width:250px }
+body.charOpen #statBody > .pdoll{ margin:0 auto clamp(3px, calc(var(--pdS,46px) * .18), 8px); max-width:250px }
+/* ══ V-56 (2026-08-25) 수치가 인물 «위»로 올라서는 자리 ══
+   낮은 창(1366×768 아래)에서는 인물이 바닥(22px)까지 줄어도 183px 이라, 수치판 176px
+   과 밑자락 그늘 34px 이 들어갈 자리가 없다. 그때는 **차례를 뒤집는다** — 창 이름이
+   「능력치」이므로 능력치가 먼저 서고 인물은 바로 아래에서 굴려 본다(main.js
+   `fitDollStat`). 자리를 옮기지 않으므로 가방 창은 한 톨도 안 밀린다. */
+#statBody.numsFirst{ display:flex; flex-direction:column }
+#statBody.numsFirst > .pdoll{ order:2 }
+#statBody.numsFirst > .sStat:not(.jList){ order:1 }
+#statBody.numsFirst > .jList{ order:3 }
 /* ★ 금을 능력치 쪽에서 **감췄다가 되돌렸다.** 「두 발치에 같은 수가 둘」이 눈에 걸려
    지웠는데, `statup_qa` 가 바로 울었다 — 그 패널에는 **금을 쓰는 단추(강화)** 가 있고,
    「값을 적었으면 가진 금도 적는다」는 규칙이 이미 서 있었다. 쓰는 자리에 잔고가 없으면

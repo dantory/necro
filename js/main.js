@@ -2455,17 +2455,45 @@ function fitDollBag() {
  *  ★ 끝 조건이 가방 쪽과 **다르다**: 여기서 다 들어가야 하는 것은 창 전체가 아니라
  *    **수치판**이다. 그 아래 ⑦ 일지는 431px 라 무엇을 깎아도 안 들어가고, 원래
  *    굴려 보는 목록이다. 창 이름이 「능력치」이므로 **능력치가 먼저 보여야** 한다. */
+/** ══ V-56 (2026-08-25) ══ **바닥에 닿으면 «그대로 포기»하고 있었다.**
+ *  30px 바닥에서 인물은 246px 이다. 낮은 창에서는 상자가 233~313px 뿐이라 수치판
+ *  176px 이 들어갈 자리가 없는데, 자는 바닥에서 `break` 하고 **잘린 채로 두었다** —
+ *  1280×620 에서 여섯 줄이 **전부** 숨고 「능력치」 창에 능력치가 한 줄도 없었다
+ *  ([[floor-far-from-threshold]] · 바닥이 문턱에서 멀면 그 수는 눈금이 아니라 상수다).
+ *  고친 것 둘:
+ *    ① 바닥을 30 → **22** 로 내린다. 스킬트리(V-55)가 쓰는 것과 같은 바닥이다 —
+ *       칸 22px 이면 그림이 19px 이라 아직 읽힌다. 이것만으로 세 크기가 산다.
+ *    ② **22 로도 안 들어가면 수치가 인물 «위»로 올라선다.** 창 이름이 「능력치」이므로
+ *       능력치가 먼저다 — 인물은 바로 아래에서 굴려 보면 된다.
+ *       ★ 처음엔 인물을 **가방 창으로 돌려보냈는데**(`body.dollFold`), `bagfit_qa` 가
+ *         바로 울었다 — 1280×800 에서 가방 칸이 20px 로 찌그러졌다(문턱 34px).
+ *         한쪽을 밀면 반대쪽이 따라 온다([[equilibrium-pushes-back]]). 자리를 옮기지
+ *         말고 **차례만 바꾸면** 아무 데도 안 밀린다. 장비를 만질 곳도 그대로 있다. */
+const PDS_FLOOR = 22;
 function fitDollStat() {
   const body = $("statBody"), doll = body && body.querySelector(".pdoll");
-  if (!doll || !body.clientHeight) return;
+  if (!body || !body.clientHeight) return;
+  /* 창이 다시 커졌는데 접힌 채로 남으면 안 된다 — 매번 **펴고** 시작한다 */
+  body.classList.remove("numsFirst");
+  if (!doll) return;
   const nums = body.querySelector(".sStat:not(.jList)");
-  for (let s = 46; ; s--) {
-    doll.style.setProperty("--pdS", s + "px");
-    doll.style.setProperty("--pdG", (s >= 44 ? 8 : 6) + "px");
-    if (s <= 30) break;                                     // 가방 쪽과 같은 바닥 — 더 줄면 칸이 안 읽힌다
-    if (!nums) { if (body.scrollHeight <= body.clientHeight) break; else continue; }
-    if (nums.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom + 0.5) break;
-  }
+  /* ★ **「아래에 더 있다」 그늘까지 자리를 비워 둔다.** 처음 고쳤을 때 자는 「넘침 0」
+     이라 했는데 켜서 보니 마지막 줄이 그대로 안 읽혔다 — `.wScroll::after` 가 밑자락
+     34px 를 검게 덮고 있었고, 그 아래(일지)가 늘 있으니 그늘도 늘 켜져 있다.
+     네모만 재면 통과, 사람 눈에는 잘림 — 문턱과 자가 어긋난 자리다
+     ([[threshold-and-ruler-must-match]] · [[silent-zero-is-not-an-observation]]).
+     높이는 **CSS 에서 읽는다** — 여기 34 를 또 적으면 둘이 갈린다. */
+  const moreH = () => parseFloat(getComputedStyle(body, "::after").height) || 34;
+  const fits = () => nums
+    ? nums.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom - moreH() + 0.5
+    : body.scrollHeight <= body.clientHeight;
+  /* ★ 줄 사이도 **칸에 매단다**(V-52 의 `--cs` 결). 바닥 근처에서 6px 를 고집하면
+     1366×768 에서 **3px 가 모자라** 인물을 통째로 잃는다 — 접기 전에 접을 수 있는
+     것을 먼저 접는다([[seam-not-values.md]] · 이음매를 값 하나로 때우지 않는다). */
+  const setS = (s) => { doll.style.setProperty("--pdS", s + "px");
+                        doll.style.setProperty("--pdG", (s >= 44 ? 8 : s >= 30 ? 6 : 5) + "px"); };
+  for (let s = 46; s >= PDS_FLOOR; s--) { setS(s); if (fits()) return; }
+  body.classList.add("numsFirst");                          // 바닥에서도 안 들어간다 — 수치가 먼저 선다
 }
 
 /** 능력치 — **수치만.** 물건은 가방 창이 맡는다(병수님 2026-08-13 "능력치랑 인벤토리가
