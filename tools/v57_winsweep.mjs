@@ -42,7 +42,9 @@ const MEASURE = (key) => `(()=>{const idOf={shop:"winShop",forge:"winForge",dive
   for(const b of boxes){ const cs=getComputedStyle(b); const scrollable=/auto|scroll/.test(cs.overflowY);
     const u=Math.max(0,b.scrollHeight-b.clientHeight); unseen=Math.max(unseen,u);
     if(u>2&&!scrollable) stuck=Math.max(stuck,u);
-    const fade=parseFloat(getComputedStyle(b,"::after").height)||0;
+    /* 그늘은 «넘칠 때»만 켜진다(.wScroll.more::after) — 늘 깎으면 멀쩡한 줄이
+       「반쯤 걸렸다」로 잡힌다(V-59b 가 bag 2/6 · stat 6/6 을 그렇게 만들어 냈다). */
+    const fade=b.classList.contains("more")?(parseFloat(getComputedStyle(b,"::after").height)||0):0;
     const br=b.getBoundingClientRect(), lim=br.bottom-fade;
     for(const el of b.children){ const r=el.getBoundingClientRect();
       if(r.height>4&&r.top<lim-.5&&r.bottom>lim+.5) cut++; } }
