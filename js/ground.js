@@ -913,6 +913,19 @@ export function addGlow(gx, gy, r, warm = 1, col = GLOW_WARM) { glows.push([gx, 
    불이 여럿이면 초당 수십만 번이라, 이 맥에서는 안 티 나도 폰에서는 여기부터 무너진다.
    ★ 그림은 **결정적**이다(자리·반지름·따뜻함만으로 정해진다) → **한 번 구워 두고 얹는다.**
      열쇠는 반지름·따뜻함·눌림. 종류가 몇 개뿐이라 캐시가 금세 수렴한다. */
+/* 빛의 기울기 — 옛 여섯 계단 `[0,.022,.042,.068,.10,.14]`(경계 .28/.45/.62/.78/.92)의
+   **각 칸 가운데**를 멈춤점으로 삼는다.
+   ★ 「가운데를 이으면 총량이 같다」는 **틀렸다** — 빛의 총량은 넓이로 재므로 바깥 고리가
+     더 무겁다(∫a(d)·d dd). 그냥 이으면 **94.8%** 로 준다(가운데 평지가 .28 → .14 로
+     줄어든 몫이다). 그래서 `K` 로 되돌려 **총량을 옛것과 같게** 맞춘다.
+     ★★ 판(바닥)에서 재면 이 1.6% 를 못 본다 — 소품 수가 판마다 달라 밝기가 ±0.15 씩
+       흔들리기 때문이다. 그래서 **타일 하나를 따로 구워 알파를 더해** 견줬다
+       (`tools/glow_sum.mjs`): 총량 **1.0049 배** · 가운데 가로줄의 계단 **10 → 0**
+       ([[equilibrium-pushes-back]] · [[floor-far-from-threshold]]). */
+const GLOW_K = 1.0553;
+const GLOW_RAMP = [[0, 0.14], [0.14, 0.14], [0.365, 0.10], [0.535, 0.068],
+                   [0.70, 0.042], [0.85, 0.022], [0.92, 0], [1, 0]]
+                  .map(([d, a]) => [d, a * GLOW_K]);
 const glowCache = new Map();
 function glowTile(r, warm, squash, col) {
   const key = Math.round(r) + "|" + warm.toFixed(2) + "|" + squash.toFixed(3) + "|" + col;
@@ -923,21 +936,21 @@ function glowTile(r, warm, squash, col) {
   const cv = document.createElement("canvas");
   cv.width = half * 2; cv.height = halfY * 2;
   const g = cv.getContext("2d");
-  for (let iy = -n; iy <= n; iy++) {
-    const y0 = Math.round(halfY + iy * GLOW_PX * squash);
-    const y1 = Math.round(halfY + (iy + 1) * GLOW_PX * squash);
-    if (y1 === y0) continue;
-    for (let ix = -n; ix <= n; ix++) {
-      const dx = (ix * GLOW_PX) / r, dy = (iy * GLOW_PX) / r;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      if (d > 1) continue;
-      const step = d < 0.28 ? 5 : d < 0.45 ? 4 : d < 0.62 ? 3 : d < 0.78 ? 2 : d < 0.92 ? 1 : 0;
-      if (!step) continue;
-      const a = [0, 0.022, 0.042, 0.068, 0.10, 0.14][step] * warm;
-      g.fillStyle = `rgba(${col},${a})`;
-      g.fillRect(half + ix * GLOW_PX, y0, GLOW_PX, y1 - y0);
-    }
-  }
+  /* ★ **계단이 아니라 이어지는 기울기로 굽는다**(V-61 · 2026-08-25).
+     예전엔 6px 칸에 여섯 단계로 찍었다 — 프레임마다 다시 찍던 시절의 절약이다.
+     지금은 이 타일을 **한 번 구워 캐시**하므로 계단으로 아낄 값이 없다. 그런데 V-60b 가
+     빛을 세 배(r 190→270 · warm 1.05→1.55)로 키우자 그 여섯 계단이 **양파 껍질처럼**
+     드러났고, 칸 격자 때문에 테두리까지 각졌다.
+     멈춤점은 옛 계단의 **가운데 자리**에 놓는다 — 이러면 같은 기울기를 이어 그은 셈이라
+     밝기 총량이 안 바뀐다([[equilibrium-pushes-back]] · lit_probe 로 확인). */
+  g.save();
+  g.translate(half, halfY);
+  g.scale(1, squash);
+  const grd = g.createRadialGradient(0, 0, 0, 0, 0, r);
+  for (const [d, a] of GLOW_RAMP) grd.addColorStop(d, `rgba(${col},${(a * warm).toFixed(4)})`);
+  g.fillStyle = grd;
+  g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill();
+  g.restore();
   c = { cv, half, halfY };
   glowCache.set(key, c);
   if (glowCache.size > 64) glowCache.clear();       // 판 크기가 바뀌면 열쇠가 는다
