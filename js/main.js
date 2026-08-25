@@ -2516,12 +2516,17 @@ function markMore(el) {
   if (!el) return;
   el.classList.toggle("more", el.scrollHeight - el.scrollTop - el.clientHeight > 2);
 }
-/* 구르는 칸마다 한 번만 매단다(scroll 은 passive — 굴림을 막을 일이 없다). */
-for (const id of ["statBody", "bagBody"]) {
-  const el = $(id);
-  if (el) el.addEventListener("scroll", () => markMore(el), { passive: true });
-}
-addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore($("bagBody")); if (ftipPin) ftipReflow(); });
+/* 굴림은 **이름이 아니라 결로** 듣는다(V-80 · 2026-08-26). 예전엔 `["statBody","bagBody"]`
+   두 이름에 낱개로 매달았더니, 뒤에 생긴 구르는 칸(건너뛰기 창의 `.wayList`)이 그 목록에
+   안 들어 「아래에 더 있다」가 **한 번도 안 켜졌다** — 63%(772→286px)가 말없이 잘렸다
+   ([[carry-fixes-forward]]). 문서 하나에서 캡처로 받아 **`.wScroll` 이면 무엇이든** 잰다:
+   새 칸에 클래스만 붙이면 따라온다(굴림 이벤트는 거품이 안 올라와 캡처라야 한다). */
+addEventListener("scroll", (e) => {
+  const el = e.target;
+  if (el instanceof Element && el.classList.contains("wScroll")) markMore(el);
+}, true);
+const markAllMore = () => { for (const el of document.querySelectorAll(".wScroll")) markMore(el); };
+addEventListener("resize", () => { fitDoll(); markAllMore(); if (ftipPin) ftipReflow(); });
 
 /** 페이퍼 돌을 **창 높이에 맞춘다** — 칸을 46px 로 못박아 두었더니 여섯 줄이 316px 가 되어
  *  아래 두 줄(신발·반지)이 창 밖으로 나갔다(08-17, 넘침 94px @1512×863).
@@ -3000,7 +3005,7 @@ function drawDive() {
   }).join("");
   $("diveBody").innerHTML =
     `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 표를 세운 데까지 <b>${max}층</b></div>` +
-    `<div class="wayList">${cards}</div>` +
+    `<div class="wayList wScroll">${cards}</div>` +
     `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.` +
     ((META.diveSet | 0) ? "" : `<br>고르지 않으면 <b>${max}층</b>부터 시작한다.`) + `</div>`;
   /* ★ **지금 고른 구역이 보이게 굴려 둔다.** 카드가 일곱 장이라 낮은 창에서는 아래
@@ -3012,6 +3017,9 @@ function drawDive() {
     const list = $("diveBody").querySelector(".wayList");
     const on = list && list.querySelector(".wayZ.on");
     if (on) list.scrollTop = Math.max(0, on.offsetTop - list.offsetTop - 6);
+    /* ★ 굴린 **뒤에** 다시 잰다 — win() 의 판정은 이 rAF 보다 먼저 돌아서, 아래로
+       굴려 놓고도 「아래에 더 있다」가 켜진 채(또는 꺼진 채) 굳는다. */
+    markMore(list);
   });
 }
 function drawReborn() {

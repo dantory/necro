@@ -1442,7 +1442,9 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
    (위 「세 창 모두 발치는 자리에 붙인다」 · [[carry-fixes-forward]]).
    몸통을 늘어나는 칸으로 만들고 **목록만** 구르게 한다. */
 #winDive #diveBody { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.wayList { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; padding-right: 4px; }
+/* ★ 구르는 것은 `.wScroll` 이 맡는다(flex·min-height·overflow-y·「더 있다」 띠) — 여기엔
+   이 목록만의 것(칸 사이·굴림막대 자리)만 남긴다. 같은 값을 두 곳에 적으면 갈라진다. */
+.wayList { display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
 .wayZ { border: 1px solid #3a3226; background: #17140f; border-radius: 3px; padding: 7px 9px 8px; }
 /* 지금 고른 층이 선 구역 — 고른 칩과 **같은 약속의 색**이다(위 .diveOpt.on). */
 .wayZ.on { border-color: #6b5626; background: #1e1a11; }
