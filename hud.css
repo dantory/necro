@@ -297,6 +297,10 @@
 /* 창이 떠 있는 동안은 로그가 없다 — 창 밖에 남은 붉은 「전멸」 한 줄이 정산보다
    먼저 눈에 들어왔다(2026-08-12). 창을 닫으면 그대로 돌아온다. */
 body.winopen #log{display:none}
+/* 같은 까닭으로 **하늘 단추도 창 뒤에 숨지 않는다** — 창 판은 56px 에서 시작하고
+   나가기·환생은 그 위 8px 띠에 서 있어, 창이 뜨면 단추가 판에 **반쯤 잘려** 남는다.
+   잘린 채 보이는 것보다 없는 편이 낫다 — 창을 닫으면 그대로 돌아온다. */
+body.winopen #hLeave, body.winopen #hReborn{display:none}
 
 /* 전장은 판만큼 비켜 선다 */
 /* ★ 맵은 **화면 끝까지** 간다 — UI 는 그 위에 떠 있는 물건이다. 잘라 놓으면
@@ -1267,7 +1271,11 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 /* 위 띠 — 글자와 단추를 같이 올린다(단추만 키우면 「금 1,234」가 상대적으로 작아진다). */
 #top{ height:48px; font-size:17px; gap:26px; }
 .hBtn{ padding:3px 10px; font-size:16px; border-radius:3px; }
-#hLeave{ top:56px; right:14px; font-size:15px; padding:4px 12px; }
+/* ★ 환생을 **같이 적는다.** 이 줄에 `#hLeave` 만 있었던 탓에 「나가기와 같은 자리」라고
+   적어 둔 환생이 혼자 12px·top:40px 에 남았다 — 위 띠(0~48)가 머리 8px 를,
+   창 판(56~)이 발치 10px 를 덮어 **26px 중 8px 만 보였다**(2026-08-26 에 쟀다).
+   짝으로 만든 것은 **짝으로 고친다** — 한쪽만 고치면 안 고친 쪽이 조용히 어긋난다. */
+#hLeave, #hReborn{ top:56px; right:14px; font-size:15px; padding:4px 12px; }
 #top .left{ font-size:17px }
 #top .floor{ font-size:19px }
 
