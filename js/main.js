@@ -9,15 +9,16 @@ import { drawTree, fitTree, markSp } from "./tree.js";
 
 /* ══ 판에서 터지는 그림 ══ **kind 하나에 그림 하나.** 여기 없는 kind 는 그림이 없는
    것이고, 그리는 쪽은 작은 `hit` 으로 떨어뜨린다 — 그 떨어짐이 조용해서 오래 못 봤다.
-   `img` 는 assets 경로, `h` 는 화면 높이(px), `grow` 는 작게 시작해 커지며 옅어지는 것.
+   `img` 는 assets 경로, `h` 는 화면 높이(px), `grow` 는 작게 시작해 커지며 옅어지는 것,
+   `flat` 은 **바닥에 깔리는 그림**(위에서 내려다본 고리 · 판과 같이 눌러 그린다).
    ★ 새 스킬을 넣으면 **여기 한 줄부터** 늘린다(docs/checklist.md 「스킬을 새로 넣을 때」).
      자(tools/fx_art.mjs)가 이 표를 읽어 **두 스킬이 같은 그림을 쓰면 실패**를 낸다. */
 export const FX_ART = {
   hit:   { img: "fx/hit",     h: 28 },
-  nova:  { img: "fx/nova",    h: 190, grow: true, life: 0.35 },
+  nova:  { img: "fx/nova",    h: 190, grow: true, life: 0.35, flat: true },
   /* ★ 210 은 **너무 컸다** — 판을 찍어 보니 보라 고리가 화면 네 귀 중 하나를 통째로
      덮고 가장자리로 잘려 나갔다(2026-08-15 저녁 스샷). 적 무리를 덮되 판을 안 먹는 크기로. */
-  curse: { img: "fx/curse",   h: 132, grow: true, life: 0.6 },
+  curse: { img: "fx/curse",   h: 132, grow: true, life: 0.6, flat: true },
   burn:  { img: "fx/burnfx",  h: 78 },
   offer: { img: "fx/offerfx", h: 108 },
   /* ★ `rise`(시체를 쓴 자리)는 **고리 + 그림 둘 다**다. 고리만 있던 동안 소환 셋은
@@ -1579,10 +1580,26 @@ function draw(dt) {
       ctx.save();
       ctx.strokeStyle = f.col; ctx.lineWidth = 3;
       ctx.globalAlpha *= 0.85;
-      ctx.beginPath(); ctx.ellipse(x, y, hh * 0.62, hh * 0.62 * SQUASH_VIEW_C, 0, 0, 6.284); ctx.stroke();
+      /* ★ V-70 · **여기도 바닥에 그린 고리다** — 눌림은 `SQUASH_VIEW_C`(셈에 쓰는 붙박이
+         0.78)가 아니라 **판이 지금 쓰는 `SQUASH`** 여야 한다(1512×863 에서 0.50).
+         붙박이로 그리면 저주 고리만 판보다 1.5 배 서 있어 같은 자리에 겹친 그림과
+         테두리가 어긋난다 — 위 바닥 그림과 같은 흠이라 같이 옮긴다
+         ([[carry-fixes-forward]]). 셈(1216 줄의 사거리)은 그대로 붙박이를 쓴다. */
+      ctx.beginPath(); ctx.ellipse(x, y, hh * 0.62, hh * 0.62 * SQUASH, 0, 0, 6.284); ctx.stroke();
       ctx.restore();
     }
-    if (im) { ctx.imageSmoothingEnabled = false; ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
+    /* ★ V-70 · **바닥에 깔리는 그림은 판과 같이 눌러 그린다.** `curse.png`·`nova.png` 는
+       위에서 내려다본 고리(바닥에 그린 진 · 퍼지는 충격파)인데, 세운 그림과 똑같이
+       정사각으로 찍고 있었다 — 판 위의 모든 둘레는 `SQUASH` 로 눌려 있는데 이 둘만
+       **동그라미**라, 바닥의 진이 아니라 **세워 놓은 굴렁쇠**로 읽혔다(19층 그림
+       tmp/look_deep.png 왼쪽 아래). 세우는 그림(rise·burn·offer)은 그대로 둔다 —
+       raise.png 는 제 발치에 눌린 고리를 이미 달고 있다.
+       ★ 눌린 그림은 **발치가 곧 한가운데**다(세운 그림의 0.72 오프셋은 발을 땅에
+         맞추려던 것이라 여기서는 그림을 위로 띄운다). */
+    const flat = art && art.flat && !noFlatFx();
+    if (im) { ctx.imageSmoothingEnabled = false;
+      if (flat) ctx.drawImage(im, x - hh / 2, y - hh * SQUASH / 2, hh, hh * SQUASH);
+      else      ctx.drawImage(im, x - hh / 2, y - hh * 0.72, hh, hh); }
     else { ctx.fillStyle = f.kind === "nova" ? "#ff8000" : "#e8dcc2";
       ctx.beginPath(); ctx.arc(x, y - 14, f.kind === "nova" ? 70 : 5, 0, 6.284); ctx.fill(); }
     ctx.globalAlpha = 1;
@@ -2268,6 +2285,10 @@ const pickGlyph = () => typeof globalThis !== "undefined" && globalThis.__PICKGL
  *  `setLineDash` 로 되돌아간다. 「획이 얼마나 픽셀인가」를 고치기 전 값과 나란히 재려면
  *  옛 꼴을 그 자리에서 다시 세울 수 있어야 한다(V-37 의 `__PICKGLYPH` 와 같은 결). */
 const vecDash = () => typeof globalThis !== "undefined" && globalThis.__VECDASH === 1;
+/** 자를 위한 **문** — `__NOFLATFX` 가 켜져 있으면 바닥 그림(curse·nova)이 V-70 **전**의
+ *  정사각(동그라미)으로 되돌아간다. 「얼마나 눌렸나」를 고치기 전 값과 나란히 재려면
+ *  옛 꼴을 그 자리에서 다시 세울 수 있어야 한다(V-38 의 `__VECDASH` 와 같은 결). */
+const noFlatFx = () => typeof globalThis !== "undefined" && globalThis.__NOFLATFX === 1;
 const pickIco = (kind, id, ico) => pickGlyph()
   ? `<span class="lvl">${ico}</span>` : `<i class="pk-${kind}-${id}"></i>`;
 
