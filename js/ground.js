@@ -752,8 +752,18 @@ const HUD_KEEP = 220, HUD_FADE = 80;
    불이 곧 조명이니 **불의 밀도가 곧 밝기**다 — 둘로 늘린다. */
 /* ★ V-41 — 다섯에서 아홉으로. 화로는 **불이 곧 조명**이라 몫을 지킨다(3/13 ≈ 23%,
    전에는 2/7 ≈ 29%). 석상은 키가 커서 자주 서면 숲이 되므로 한 몫만 준다. */
-const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "brazier", "rubble",
-                 "column2", "bones2", "urn", "statue", "brazier", "column2"];
+/* ★★ V-60b(2026-08-25) — **그 「몫을 지킨다」가 여기까지 왔다: 넷에 하나가 화로다.**
+   1512x863 한 화면에 화로가 24 개 서고(다음이 column2 17), 저마다 addGlow 를 부르니
+   **「불이 있는 자리에만 빛」이라는 뜻이 조명이 균일해지는 것으로 뒤집혔다.**
+   켜서 보면 화로가 「불 밝힌 자리」가 아니라 **바닥에 뿌린 주황 점**으로 읽힌다.
+   → **셋을 하나로 줄이고**, 빈 두 몫은 **가끔 보여야 할 것**(관·항아리)에 준다.
+     지금 coffin·urn 은 각각 한 몫뿐이라 「가끔 만나는 것」이 없다.
+   ★ 밝기는 되받는다([[equilibrium-pushes-back]]) — 수를 3분의 1로 줄이면 빛도 준다.
+     그래서 **불 하나가 내는 빛을 세 배로** 키운다(아래 addGlow: r 190→270 · 1.05→1.55,
+     빛무게 = r²·warm 이 2.98 배). 수는 줄고 덩이는 커지므로 **평균은 그대로, 퍼짐은
+     는다** — 그것이 이 항목이 노리는 것이다(자: tools/lit_probe.mjs 의 「퍼짐」). */
+const SCATTER = ["coffin", "bones", "brazier", "rubble", "pillar", "coffin", "rubble",
+                 "column2", "bones2", "urn", "statue", "urn", "column2"];
 
 /* ══ 접지 ══ 병수님: "던전입구/상인/대장간 같은거또 둥둥 떠잇네".
    ★★ **캐릭터에는 이미 고쳤던 것을 소품·건물에는 안 옮겼다.** PixelLab 이 준 그림은
@@ -1040,7 +1050,11 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
        겪은 그 결). 켤 때만 센다 — 끄면 배열이 아예 안 자란다. */
     if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name, vi * 3 + sizeI, im._ang || 0]);
     // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
-    if (name === "brazier") addGlow(px2, py2 - 12 * ART.s * kJit, 190 * sc * kJit, 1.05);
+    /* ★ V-60b — 화로가 넷에 하나에서 열셋에 하나로 줄었다(위 SCATTER). 수가 3분의 1이
+       되었으므로 **하나가 내는 빛을 세 배로** 키워 판 전체 밝기를 지킨다. 반경만 키우면
+       가장자리만 번지므로 따뜻함도 같이 올린다 — 가운데가 더 뜨거워야 「불 밝힌 자리」로
+       읽힌다. 빛무게 (270/190)² x (1.55/1.05) = 2.98. */
+    if (name === "brazier") addGlow(px2, py2 - 12 * ART.s * kJit, 270 * sc * kJit, 1.55);
     /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
        고여 「바닥이 밝고 불은 캄캄한」 그림이 된다. 높이는 눈대중이 아니라
        **따뜻한 화소 무게중심**을 재서 넣는다(발에서 -101px, 72x160 원본 기준).
