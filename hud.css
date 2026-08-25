@@ -1372,6 +1372,18 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      덮었다 — 막으려던 바로 그 「자기가 자기를 켠다」가 **줄상자로** 일어나 있었다. */
 .wScroll::after{
   content:"▾"; position:sticky; bottom:0; z-index:2; display:block;
+  /* ★★ 이 띠는 **칸의 일부가 아니라 배치 항목**이다(V-79 · 2026-08-26). `.wScroll` 이
+     흐름일 때만 「밑자락을 가로지르는 띠」로 보이고, 상자가 grid/flex 가 되면 격자 한
+     칸·차례 한 자리로 **끌려간다** — 재 보니
+       · `#statBody.sideBySide`(grid) 에서는 1열(인물) 아래 새 줄로 떨어져 **폭의 34~40%**
+         만 덮었다. 정작 글자가 잘리는 것은 2열의 「일지」인데 거기엔 표시가 없고,
+         인물 밑에는 볼 것이 없는데 검은 띠와 ▾ 가 덩그러니 떴다.
+       · `#statBody.numsFirst`(flex) 에서는 형제들이 `order:1/2/3` 인데 가상요소는
+         **기본 `order:0`** 이라 **맨 위**로 갔다 — 「아래에 더 있다」가 첫 줄을 덮었다.
+     그래서 자리를 **두 결 모두에** 못 박는다: 격자면 온 줄을 가로지르고(`1 / -1`),
+     차례가 있으면 언제나 맨 끝이다(`order:99`). 값이 아니라 **자리**를 고친다
+     ([[seam-not-values]]) — 새 `.wScroll` 이 어떤 결이 되든 따라온다. */
+  grid-column:1 / -1; order:99;
   height:34px; margin-top:-34px; line-height:34px; text-align:center;
   font-size:13px; letter-spacing:0; color:var(--gold); pointer-events:none;
   background:linear-gradient(to top,#050403 55%,#050403bf 78%,#05040300);
