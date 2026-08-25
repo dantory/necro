@@ -2436,7 +2436,48 @@ addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore(
  *  ★ 남는 높이를 **셈으로 맞히지 않는다** — 「여섯 줄 + 제목」으로 어림잡았더니 6px 이
  *    남아 그대로 잘렸다(제목 여백·판 사이가 셈에 안 들어온다). 한 칸 줄일 때마다
  *    **실제로 넘치는지 다시 읽는다**(scrollHeight). 보통 첫 판에 끝난다. */
-function fitDoll() { fitDollBag(); fitDollStat(); }
+function fitDoll() { fitDollBag(); fitDollStat(); fitBagGrid(); }
+
+/** ══ V-59 (2026-08-25) ══ **가방 격자의 높이를 «폭 하나»가 정하고 있었다.**
+ *  `.sSec.bag .grid` 는 `width:100%` + `aspect-ratio:10/4` 라 칸 크기가 **패널 폭**만
+ *  따라간다. 도킹 패널은 폭이 반쯤 고정인데 **높이는 창을 따라 줄어든다** — 그 높이가
+ *  셈에 한 번도 안 들어왔다. 1280×620 에서 격자가 상자보다 35px 길고, 그 위에 밑자락
+ *  그늘 34px 이 덮여 **아랫줄이 절반만** 남았다(V-57b 훑개가 `bag` 3/6 으로 찍은 그것).
+ *  자리(10×4)는 그대로 두고 **폭 상한**만 남는 높이에서 되짚는다 — 칸이 정사각이므로
+ *  높이 h 를 꼭 채우는 폭은 h×(10/4) 다. 창이 커지면 상한이 풀려 예전 크기로 돌아온다
+ *  (`fitDoll`·`fitTree` 와 같은 결 — 값을 못박지 않고 늘 다시 잰다).
+ *  ★ 콩알로 만들지는 않는다 — 칸 34px 이 바닥이다(`bagfit_qa` 가 「읽을 만한 크기」로
+ *    쓰는 바로 그 문턱 · 여기 34 를 따로 적으면 둘이 갈린다는 뜻에서 이름을 나눠 둔다).
+ *    바닥에서도 안 들어가면 **굴려 보는 자리로 남긴다** — 잘라 없애는 것보다 낫다. */
+const BAG_CELL_FLOOR = 34;
+function fitBagGrid() {
+  const body = $("bagBody"), grid = body && body.querySelector(".sSec.bag .grid");
+  if (!grid || !body.clientHeight || !grid.getClientRects().length) return;
+  const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+  const fadeH = parseFloat(getComputedStyle(body, "::after").height) || 0;
+  /* 바닥은 **폭으로** 잰다 — 칸 하나가 34px 이 되는 격자 폭이다. 높이로 잡았더니
+     칸이 34×32.7 로 나왔다(가로 틈이 아홉, 세로가 셋이라 같은 폭이 안 된다). */
+  const floorW = BAG_CELL_FLOOR * BAG_COLS + gap * (BAG_COLS - 1);
+  grid.style.maxWidth = "";                          /* 늘 «다 편 채»로 되짚는다 */
+  /* ★ 그늘은 **넘칠 때만** 켜진다(`.wScroll.more::after`) — 넘침이 그늘을 부르고 그늘이
+     다시 넘침을 키운다. 그래서 먼저 **그늘 없이** 좁혀 보고, 그래도 넘치면 그때 그늘
+     몫을 뺀다. 두 판이면 멎는다(좁히면 넘침은 늘지 않는다). */
+  for (let pass = 0; pass < 2; pass++) {
+    const over = body.scrollHeight > body.clientHeight + 1;
+    const br = body.getBoundingClientRect(), gr = grid.getBoundingClientRect();
+    /* 굴린 만큼 되돌린다 — 안 그러면 굴려 내려갈수록 격자가 자꾸 좁아진다 */
+    const top = gr.top - br.top + body.scrollTop;
+    const avail = body.clientHeight - (over ? fadeH : 0) - top;
+    if (gr.height <= avail + 0.5) break;             /* 다 들어간다 */
+    const w = Math.round(Math.max(avail * (BAG_COLS / BAG_ROWS), floorW));
+    if (w >= gr.width - 0.5) break;                  /* 바닥이다 — 더 줄이면 안 읽힌다 */
+    grid.style.maxWidth = w + "px";
+  }
+}
+/* 검수용 — 자가 **같은 셈**으로 전/후를 잰다(`tools/v59_bagfoot.mjs`). 상한을 지우면
+   「전」이고, 이것을 부르면 「후」다. 자가 제 손으로 되돌릴 수 있어야 한 판에 견준다. */
+window.__fitBagGrid = fitBagGrid;
+
 
 /** 가방창 안에 선 인물(도킹 안 한 좁은 창) — 넘침이 **가방 쪽**이면 안 깎는다. */
 function fitDollBag() {
