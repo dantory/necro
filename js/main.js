@@ -336,14 +336,20 @@ const WALK_PER_BODY = 1.8;
  *    땅을 놓치지 않고, 느릴 때만 이 바닥이 받쳐 준다(느린 골렘도 걷기는 한다). */
 const MIN_STEP_FPS = 6.5;
 
+/** **배어 나오는 알파** — 몸도 바도 이 하나를 쓴다. 따로 쓰면 또 갈린다
+ *  (V-65: 바가 이 값을 안 봐서 빈 땅에 임자 없는 막대가 떴다 — [[carry-fixes-forward]]). */
+export const bornAlpha = (e) => {
+  const bd = (e && e.born0) || 0.4;
+  return e && e.born > 0 ? Math.max(0.05, 1 - e.born / bd) : 1;
+};
+
 function drawOne(base, x, gy, h, fallback, e) {
   /* **막 나타난 놈은 어둠에서 배어 나온다.** 시차만 두고 툭 세우면 여전히 갑작스럽다 —
      배어 나오는 내내 흐리게 시작해 짙어진다. 그림자도 같이 옅어야 발밑만 먼저 뜨지 않는다.
      ★ 배어 나오는 시간은 개체마다 다르다(관문 보스 0.8 · 졸개 0.4) — born0 로 잰다.
      예전엔 0.4 를 박아 둬서 보스를 길게 배어 나오게 해도 앞 절반이 통째로 옅게 눌렸다. */
-  const bd = (e && e.born0) || 0.4;
-  const born = e && e.born > 0 ? 1 - e.born / bd : 1;
-  if (born < 1) { ctx.save(); ctx.globalAlpha = Math.max(0.05, born); }
+  const born = bornAlpha(e);
+  if (born < 1) { ctx.save(); ctx.globalAlpha = born; }
 
   // 상태: 휘두르는 중 > 걷는 중 > 서 있음. 방향은 dx,dy(공격 땐 내지르는 sdx,sdy).
   let state = "idle", dir = "south", frameIdx = 0;
@@ -930,7 +936,17 @@ function draw(dt) {
   const BAR_OLD   = !!globalThis.__BAROLD;
   const BAR_WFRAC = BAR_OLD ? 0.9 : (globalThis.__BARWF != null ? +globalThis.__BARWF : 0.78);
   const BAR_DIMA  = BAR_OLD ? 1   : (globalThis.__BARDIM != null ? +globalThis.__BARDIM : 0.42);
-  const barAt = (base, x, y, hh, pct, col) => {
+  /* ══ V-65 — **바는 몸보다 먼저 오면 안 된다.** ══════════════════════════════
+     관문의 주인은 2.6초에 걸쳐 어둠에서 배어 나오는데(`born0`), 바는 그 알파를
+     한 번도 안 보고 **처음부터 또렷하게** 그려졌다. 화면에는 빈 땅에 임자 없는
+     넓은 붉은 막대만 남는다(20층 사진에서 잡았다). 같은 자리의 이웃 둘(둘레
+     붉은 물듦 · 우두머리 금 고리)은 `!(m.born > 0)` 로 이미 막아 놨는데 **바에만
+     안 옮겼다** — [[carry-fixes-forward]].
+     ★ `__BARBORN_OFF` 는 자가 **옛 그림으로 되돌려** 같은 판을 두 번 재는 문이다
+       (`__BAROLD` 와 같은 결 · tools/v65_bornbar.mjs). */
+  const barAt = (base, x, y, hh, pct, col, e) => {
+    const bornA = globalThis.__BARBORN_OFF ? 1 : bornAlpha(e);
+    if (bornA < 1) { ctx.save(); ctx.globalAlpha = bornA; }
     const fm = footMetrics(base);
     const headY = y - hh * (1 - (fm ? fm.headFrac : 0)) + (fm ? hh * fm.footFrac : 0);
     const wdt = Math.max(BAR_OLD ? 14 : 11, hh * (fm ? fm.bodyWidthFrac : 0.5) * BAR_WFRAC);
@@ -972,6 +988,7 @@ function draw(dt) {
     if (window.__RECTS) window.__RECTS.bars.push([bx - 1, top - 1, bw + 2, h + 2, x, y,
       (BAR_OLD ? (bw + 2) * (h + 2) : (bw + 2) * (h + 2) - bw * h) * 0.8
       + (bw - fw) * h * (BAR_OLD ? 1 : BAR_DIMA)]);
+    if (bornA < 1) ctx.restore();
   };
 
   /* ══ 내 편 표시 ══ **이 게임은 아군과 적이 같은 종족이다.**
@@ -1187,7 +1204,7 @@ function draw(dt) {
          달라서 **바가 종을 가리는 것처럼 보였다** — 실측(14층 30초): 해골 70.5% ·
          골렘 60.5% · **구울 45.7%**(물어뜯을 때마다 35% 회복이라 늘 만피에 가깝다).
          적은 그대로 다쳐야만 뜬다 — 적까지 늘 켜면 화면이 막대밭이 된다. */
-      barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069");
+      barAt(ubase, x, y, hh, u.hp / u.hpMax, "#7fb069", u);
       continue;
     }
     const m = it.m, hh = (m.h || 48) * us, x = px(m.x), y = py(m.y);
@@ -1226,7 +1243,7 @@ function draw(dt) {
        **더 뜨겁다**(둘 사이 1.30:1 로 갈린다).
        ※ 초록/붉음은 색각이상에 약한 짝이라 **색만으로 편을 말하지 않는다** — 아군은
          발밑 룬 고리가 따로 있다(지배한 놈은 보라). 색은 거드는 채널이다. */
-    if (m.hp < m.hpMax || m.boss || m.champ) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#ff6b52" : m.champ ? "#e0b44a" : "#e05a4a");
+    if (m.hp < m.hpMax || m.boss || m.champ) barAt(mbase, x, y, hh, m.hp / m.hpMax, m.boss ? "#ff6b52" : m.champ ? "#e0b44a" : "#e05a4a", m);
   }
 
   /* ══ 떨어진 전리품 ══ **잠깐 놓였다가 빨려 온다.** 방치형이라 주우러 가지 않으므로,
