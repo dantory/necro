@@ -883,8 +883,14 @@ body.in-town #stage{cursor:pointer}
     color-mix(in srgb, var(--br, #c8aa6e) 74%, #ffe6a8 22%),
     color-mix(in srgb, var(--br, #c8aa6e) 22%, transparent) 68%, transparent 84%);
   box-shadow:inset 0 0 0 1px color-mix(in srgb, #ffe6a8 55%, transparent)}
-.tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8cc,
-  0 0 0 3px color-mix(in srgb, var(--br, #c8aa6e) 60%, #2a2010),
+/* ★ 테는 **2px 까지만** 나간다 — 칸 밑금에서 3px 부터가 이름 글자다.
+   예전엔 밝은 2px 위에 어두운 금 3px 을 한 겹 더 둘렀는데, 그 바깥 겹의 밑금이
+   3.5px 까지 내려와 「구울 되살리기」의 윗머리를 1px 밟았다(`v78_selink` 가 잰 수).
+   안쪽으로는 못 옮긴다 — 칸 테두리가 `border-image ... fill` 이라 inset 그림자를
+   덮는다(V-33 이 `::before` 를 쓴 그 까닭). 그래서 **겹을 줄이고 대신 밝기를 올렸다**
+   (cc → ee · 순금빛). 두께는 some 과 같아졌지만 some 의 테는 줄기색을 #2a2010 에
+   섞은 것이라, 순금 2px 이 그보다 밝다 — 사다리는 색으로 선다(`tree_contrast`). */
+.tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8ee,
   0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
 .tNode.big .tTile{width:calc(var(--tS)*1.158);height:calc(var(--tS)*1.158)}
 .tNode.big .tIco{width:var(--tS);height:var(--tS)}
