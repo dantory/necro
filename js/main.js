@@ -139,6 +139,7 @@ function fit() {
   dpr = Math.min(perfLow ? 1.35 : 2, devicePixelRatio || 1);
   cvW = cv.clientWidth; cvH = cv.clientHeight;
   cv.width = cvW * dpr; cv.height = cvH * dpr;
+  _hbKey = "";                 /* 띠 높이는 창 폭(@media)에 따라 40↔48 로 바뀐다 — 다시 잰다 */
 }
 addEventListener("resize", () => { railLayout(); fit(); });
 
@@ -588,6 +589,21 @@ function necroSigil(ctx, x, gy, hh, t, squash, us, opt = {}) {
    창이 떠 있는 동안 로그는 `display:none` 이라 키가 0 이 되는데, 그때 띠가 늘어나면
    **가방을 열 때마다 무대가 출렁인다** — 그래서 마지막으로 잰 값을 그대로 쓴다. */
 let _ovKey = "", _ovTop = 0;
+/* ★★ V-75 — **떠오르는 숫자가 위 띠(`#top`)를 타고 올라가 「60층」·「금 81k」 위에
+   겹쳐 그려진다.** 무대는 `position:fixed; top:0` 이라 캔버스가 띠 **밑까지** 깔려
+   있는데, 숫자는 `py(y) - lift` 로 **위로 자라기만** 해서 화면 꼭대기에 몸이 서면
+   글자가 띠 안으로 들어간다. 판 위 숫자가 머리말 위에 얹히면 둘 다 안 읽힌다.
+   띠의 밑금은 **DOM 에서 읽는다** — 40/48 을 여기 다시 적으면 CSS 와 갈린다
+   ([[seam-not-values]] · `overlayTop` 과 같은 결로 재 두고 쓴다). */
+let _hbKey = "", _hbBot = 0;
+function headBot(h) {
+  const key = String(h);
+  if (key === _hbKey && _hbBot > 0) return _hbBot;
+  const el = document.getElementById("top");
+  const r = el && el.getBoundingClientRect();
+  if (r && r.height > 0) { _hbKey = key; _hbBot = r.bottom; }
+  return _hbBot;
+}
 function overlayTop(h, panelH) {
   const key = h + "x" + panelH;
   if (key === _ovKey && _ovTop > 0) return _ovTop;
@@ -1302,10 +1318,16 @@ function draw(dt) {
        실어 보낸다). 바 꼭대기는 머리끝 위 6 인데 캔버스 위 여백(headFrac)이 그보다
        두꺼울 수 있으므로, 여백이 0 이어도 안 닿게 **+8** 을 둔다. */
     const lift = n.h ? n.h + 13 + 16 * p : 16 + 30 * p;
-    let x = Math.round(px(n.x) + n.vx * p * us); const y = Math.round(py(n.y) - lift * us);
+    let x = Math.round(px(n.x) + n.vx * p * us);
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
     const size = g9(base * us);                       // ★ 9 의 배수로 물린다(위 g9)
+    /* ★★ V-75 — **위 띠 밑으로 묶는다.** `y` 는 글자의 **밑금**이고 윗금은 `y - size`
+       이므로, 윗금이 띠 밑금에 닿는 자리가 제일 위다. 위로 올라가려던 만큼은 그냥
+       버린다 — 숫자는 「잠깐 보였다 사라지는 것」이라, 못 올라가도 알파가 제 몫을
+       한다(V-19). 아래 겹침 밀기(V-51·V-69)는 가로로만 미니 이 묶임과 안 싸운다. */
+    let y = Math.round(py(n.y) - lift * us);
+    if (!globalThis.__NOTOPCAP) y = Math.max(y, Math.round(headBot(cvH)) + size);
     /* ★ 50층이면 피해가 **398123**(여섯 자리)로 찍혀 스프라이트를 통째로 가렸다.
        구슬은 이미 k/M 로 줄여 적는데(`num()`) 떠오르는 숫자만 날것이라 **자가 둘**이었다 —
        같은 자로 맞춘다. 숫자가 불어나는 맛은 자릿수가 아니라 **단위가 바뀌는 데**서 온다. */
