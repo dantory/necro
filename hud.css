@@ -1464,8 +1464,13 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
        「스킬」 단추가 안 눌렸다(tap_qa: 손가락이 닿는 것이 `frame` — 실패 2건).
        예전 `.win{inset:52px …}` 이 52px 를 비워 두던 것이 바로 이 까닭이었다 —
        자리를 새로 짜면서 그 «왜»를 안 옮겨 적으면 같은 구덩이에 다시 빠진다. */
-    top:calc((100% - var(--panelH) - min(calc(100% - var(--panelH)), var(--stageH))) / 2 + 56px);
-    height:calc(min(calc(100% - var(--panelH)), var(--stageH)) - 64px);
+    /* ★★ V-77 (2026-08-26) — **비울 것은 판만이 아니다.** `--panelH` 만 빼면 창의 발치가
+       메뉴 띠(`#hudMenu` · z 29) 밑으로 43px 들어가, 발치 단추가 반쯤 안 눌렸다
+       (「나가기」 84.8% · 「초기화」 97% · `tools/v77_hit.mjs`). 무대 캔버스는 같은 구덩이를
+       V-16 에서 `overlayTop` 으로 이미 메웠는데 창에는 안 옮겼다([[carry-fixes-forward]]).
+       `--menuH` 는 js 가 **DOM 에서 재서** 넣는다(띠가 없으면 0 — 옛 자리 그대로). */
+    top:calc((100% - var(--panelH) - var(--menuH, 0px) - min(calc(100% - var(--panelH) - var(--menuH, 0px)), var(--stageH))) / 2 + 56px);
+    height:calc(min(calc(100% - var(--panelH) - var(--menuH, 0px)), var(--stageH)) - 64px);
     bottom:auto; }
   /* 왼쪽 = 능력치 · 오른쪽 = 가방. 무대 안쪽에 붙되 옆 패널(rail)은 안 덮는다. */
   body.charOpen #winStat{ left:calc(50vw - var(--stageW) / 2 + 8px); right:50vw; }

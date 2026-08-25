@@ -141,7 +141,7 @@ function fit() {
   cv.width = cvW * dpr; cv.height = cvH * dpr;
   _hbKey = "";                 /* 띠 높이는 창 폭(@media)에 따라 40↔48 로 바뀐다 — 다시 잰다 */
 }
-addEventListener("resize", () => { railLayout(); fit(); });
+addEventListener("resize", () => { railLayout(); menuH(); fit(); });
 
 /* ══ 옆 패널에 물건을 «넣는다» ══ (2026-08-16 19:30, 병수님 「PC UI 개판인데」)
  *  로그와 단추 넷은 여태 `position:fixed` + **무대 식을 베낀 좌표**로 서 있었다. 그래서
@@ -218,6 +218,24 @@ function menuLayout() {
     }
     slot.appendChild(el);
   }
+  menuH();
+}
+/* ══ V-77 — **메뉴 띠의 키를 CSS 에게 알려 준다.** ══ (2026-08-26)
+   `#hudMenu` 는 아래 판 «위»에 얹힌 51px 짜리 제 영역인데(2026-08-17 에 새로 생겼다),
+   **도킹 창(능력치·가방)은 그것이 있는 줄을 모르고** 아래를 `--panelH` 까지만 비웠다.
+   그래서 창의 발치 43px 이 띠 밑(z 25 대 29)으로 들어가고, 발치에 선 「초기화」·「나가기」가
+   **반쯤 안 눌렸다**(84.8% · 97% · `tools/v77_hit.mjs`).
+   무대 캔버스는 이 구덩이를 V-16 에서 이미 메웠다(`overlayTop` 이 `#hudMenu` 윗금을 읽는다) —
+   **그 «왜»를 창에 안 옮겨 적은 것**이 이 결함이다([[carry-fixes-forward]]).
+   ★ 51 을 CSS 에 적지 않는다 — 띠의 키는 그림·이름·창 폭이 정하므로 **DOM 에서 잰다**
+     ([[seam-not-values]]). 띠가 없거나 숨으면 0 이라, 띠를 안 쓰는 창은 예전 그대로다. */
+/* 문 — `__NOMENUH=true` 면 **고치기 «전»**이다(띠를 0 으로 친다). 자가 한 판에서 전/후를
+   견주고, 되돌려 **먼저 울려 보는** 데 쓴다([[pixel-verification-calibration]]). */
+function menuH() {
+  if (globalThis.__NOMENUH) { document.documentElement.style.setProperty("--menuH", "0px"); return; }
+  const el = $("hudMenu");
+  const r = el && getComputedStyle(el).display !== "none" ? el.getBoundingClientRect() : null;
+  document.documentElement.style.setProperty("--menuH", Math.round(r && r.height > 0 ? r.height : 0) + "px");
 }
 menuLayout();
 
