@@ -38,11 +38,33 @@ const RAMP = {
   mp: ["#89b6ff", "#3d6fe0", "#1f3aa8", "#0d1450"],
 };
 const SURF  = { hp: "#ffd0b4", mp: "#cfe2ff" };     // 수면 — 제일 밝은 한 줄
-const EMPTY = ["#2a211a", "#1c1512", "#120c0a", "#0a0605"];   // 빈 유리
+/* ══ V-49 — **빈 유리가 종마다 달라야 한다** ═══════════════════════════════
+   여태 빈 유리는 **둘이 한 표를 나눠 썼다**(따뜻한 갈색 하나). 체력 구슬에서는
+   그것이 맞다 — 갈색과 붉음은 같은 쪽이라 「피가 빠진 유리」로 읽힌다. 그런데
+   **마나 구슬에서는 그 갈색이 파랑의 반대쪽**이라, 반쯤 빈 구슬이 「담긴 것이
+   줄어든 그릇」이 아니라 **갈색 공 앞에 파란 웅덩이가 놓인 딴 물건**으로 읽혔다
+   (`tmp/v49_mp.png` · 12/43 인 마나 구슬).
+   ★ 게다가 **빈 쪽이 찬 쪽보다 밝았다** — 마나 액체의 맨 끝(#0d1450)은 밝기 24.7 인데
+     빈 유리의 맨 위는 34.9 다. 즉 마나가 바닥나면 **빈 자리가 눈에 먼저 든다.**
+     체력은 같은 자에서 0.76 로 안 넘는다([[pixel-verification-calibration]] — 멀쩡한
+     쪽을 양성 표본으로 두고 문턱을 맞췄다. 자는 `tools/v49_orb_ruler.py`).
+   ★ 규칙 — **빈 유리는 제 액체와 같은 쪽으로 기울고, 그 액체의 맨 끝보다 어둡다.**
+     값을 베껴 적지 말고 이 자로 재서 넣는다. 구슬이 셋째가 생겨도 같은 자를 쓴다
+     ([[carry-fixes-forward]]).
+   ★ 체력 쪽 값은 **한 톨도 안 바꾼다** — 이미 자를 통과하고, 이 구슬은 병수님이
+     네 번 되돌린 자리다. 바꾸는 것은 마나뿐이다.
+   ★ `__ORBOLD` 는 자가 **옛 빈 유리(공용 갈색)로 되돌려** 같은 판을 두 번 재는 문이다
+     (`__BAROLD`·`__CORPSEOLD`·`__campOld` 와 같은 결). */
+const EMPTY_OLD = ["#2a211a", "#1c1512", "#120c0a", "#0a0605"];   // 옛 빈 유리(둘이 같이 썼다)
+const EMPTY = {
+  hp: ["#2a211a", "#1c1512", "#120c0a", "#0a0605"],   // 붉음과 같은 쪽 — 그대로 둔다
+  mp: ["#0f1626", "#0a0f1b", "#060911", "#03050a"],   // 파랑과 같은 쪽 · 액체 맨 끝보다 어둡다
+};
 
 export function drawOrb(cv, kind, pct) {
   const g = cv.getContext("2d");
   const ramp = RAMP[kind] || RAMP.hp;
+  const empty = globalThis.__ORBOLD ? EMPTY_OLD : (EMPTY[kind] || EMPTY.hp);
   g.clearRect(0, 0, S, S);
 
   /* 액체 높이는 **유리 안쪽에서만** 잰다. 테까지 채우면 유리가 아니라 색종이다. */
@@ -70,7 +92,7 @@ export function drawOrb(cv, kind, pct) {
       } else if (y >= fillTop) {
         col = ramp[i];
       } else {
-        col = EMPTY[i];
+        col = empty[i];
       }
       g.fillStyle = col; g.fillRect(x, y, 1, 1);
     }
