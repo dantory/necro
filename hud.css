@@ -875,7 +875,7 @@ body.in-town #stage{cursor:pointer}
     color-mix(in srgb, var(--br, #c8aa6e) 14%, transparent) 66%, transparent 82%);
   /* 벽감 **안쪽에도** 한 줄 — 밖의 테와 짝을 이뤄 「불이 들어온 칸」으로 읽힌다 */
   box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--br, #c8aa6e) 40%, transparent)}
-.tNode.some .tTile{box-shadow:0 0 0 2px color-mix(in srgb, var(--br, #c8aa6e) 78%, #2a2010),
+.tNode.some .tTile{box-shadow:0 0 0 var(--tRing,2px) color-mix(in srgb, var(--br, #c8aa6e) 78%, #2a2010),
   0 0 12px 1px color-mix(in srgb, var(--br, #c8aa6e) 46%, transparent)}
 /* 최대 — 가장 환하다. 금빛 테를 겹쳐 「이 칸은 끝났다」를 색으로 말한다 */
 .tNode.full .tTile::before{inset:3px;
@@ -884,13 +884,16 @@ body.in-town #stage{cursor:pointer}
     color-mix(in srgb, var(--br, #c8aa6e) 22%, transparent) 68%, transparent 84%);
   box-shadow:inset 0 0 0 1px color-mix(in srgb, #ffe6a8 55%, transparent)}
 /* ★ 테는 **2px 까지만** 나간다 — 칸 밑금에서 3px 부터가 이름 글자다.
+   ★ 그 3px 은 **넉넉한 창에서만** 3px 이다 — 글자가 `--tS` 를 따라 줄면 line-height 의
+     윗여백도 같이 얇아져 잉크가 2.5px · 2px 까지 올라온다. 그래서 두께를 `--tRing` 에
+     매달았다(`fitTree()` 가 `--tS` 와 같이 정한다 · V-78c): 35 이상 2px · 34 이하 1px.
    예전엔 밝은 2px 위에 어두운 금 3px 을 한 겹 더 둘렀는데, 그 바깥 겹의 밑금이
    3.5px 까지 내려와 「구울 되살리기」의 윗머리를 1px 밟았다(`v78_selink` 가 잰 수).
    안쪽으로는 못 옮긴다 — 칸 테두리가 `border-image ... fill` 이라 inset 그림자를
    덮는다(V-33 이 `::before` 를 쓴 그 까닭). 그래서 **겹을 줄이고 대신 밝기를 올렸다**
    (cc → ee · 순금빛). 두께는 some 과 같아졌지만 some 의 테는 줄기색을 #2a2010 에
    섞은 것이라, 순금 2px 이 그보다 밝다 — 사다리는 색으로 선다(`tree_contrast`). */
-.tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8ee,
+.tNode.full .tTile{box-shadow:0 0 0 var(--tRing,2px) #ffe6a8ee,
   0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
 .tNode.big .tTile{width:calc(var(--tS)*1.158);height:calc(var(--tS)*1.158)}
 .tNode.big .tIco{width:var(--tS);height:var(--tS)}

@@ -106,11 +106,20 @@ export function drawTree() {
 export function fitTree() {
   const box = $("treeCols");
   if (!box || !box.clientHeight) return;                 // 닫혀 있으면 잴 것이 없다
-  for (let s = 44; ; s--) {
+  let s = 44;
+  for (; ; s--) {
     box.style.setProperty("--tS", s + "px");
     if (s <= 22) break;                                  // 여기보다 작으면 그림이 안 읽힌다(그림 19px)
     if (box.scrollHeight <= box.clientHeight) break;      // 다 들어갔다
   }
+  /* ★ **테 두께도 칸에 매단다**(V-78c). 이름 잉크는 칸 밑금에서 몇 px 아래에
+     시작하는데, 그 자리가 글자 크기를 따라 **위로 올라온다** — `--tS` 35 이상이면
+     3px, 34 이하면 2.5px, 글자가 9px 로 바닥에 닿는 24 언저리에서는 2px 이다
+     (`tools/v78_selink.mjs` 로 창 높이를 훑어 잰 수). 찍음 테의 심은 2px 이면
+     밑으로 2.5px 까지 나가므로, 34 이하에서는 **1px 으로 내린다.**
+     여백으로는 못 갚는다 — 칸↔이름 1px 은 V-55 가 낮은 창에서 칸이 잘리지 않게
+     일부러 깎아 둔 바닥이다([[floor-erases-the-ramp]]). */
+  box.style.setProperty("--tRing", s >= 35 ? "2px" : "1px");
 }
 
 /* 아래 끝의 흐림은 **더 있을 때만** 켠다 — 다 보이는데도 흐려져 있으면
