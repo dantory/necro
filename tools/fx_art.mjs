@@ -13,6 +13,7 @@
      ① 스킬이 fx 를 **하나라도** 내는가 (안 내면 화면에서 안 쓴 것과 같다)
      ② 그 kind 가 집는 그림 파일이 **실제로 있는가** (FX_ART 표 + HTTP 로 확인)
      ③ 두 스킬이 **같은 그림**을 쓰지 않는가 (빌려 쓰면 뜻이 어긋난다) */
+import { waitUntil, BOOTED, PAINTED, hasSkills, cannotMeasure } from "./qa_ready.mjs";
 const CDP = "http://127.0.0.1:9333", PAGE = "http://127.0.0.1:8774/index.html";
 const BASE = PAGE.replace(/index\.html$/, "");
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -32,9 +33,29 @@ const ev2 = async (e, aw = false) => (await S("Runtime.evaluate", { expression: 
 /* 트리를 열어 둔다 — 구울·골렘은 나무 뒤에 있어 안 열면 부를 수가 없다. */
 await S("Runtime.evaluate", { expression: `localStorage.setItem("necro.meta.v1",JSON.stringify({gold:9000,lv:20,deepest:14,runs:3,up:{hp:3,mp:4,dmg:2,army:3},equip:{},bag:[],tree:{bone:2,armor:3,ghoul:1,legion:3,golem:1,rot:1,harvest:1}}))` });
 await S("Page.reload", { ignoreCache: true });
-await new Promise(r => setTimeout(r, 4800));
+
+/* ★ **못박은 잠을 문으로 바꾼다**(V-57c · 2026-08-25). 예전엔 4.8초를 자고 시작했는데,
+   여기는 `setCacheDisabled` 로 **전부 다시 내려받는** 자라 바쁜 판에서 그 4.8초가
+   모자랐다. 그러면 `SKILLS` 가 아직 안 채워진 채로 `sk.mp` 를 읽어 터지고
+   (`syncSkills()` 가 나무를 보고 채운다), `qa_all` 은 그것을 **판마다 다른 실패**로
+   본다 — 따로 돌리면 늘 통과한다. 「배열이 있다」로는 못 막았다: 08-25 에
+   `SKILLS` 는 있었는데 **비어 있어** `find` 가 undefined 를 냈다. 그래서 **있어야 할
+   id 를 대 놓고** 묻는다. */
+const IDS = ["raise","ghoul","golem","nova","amp","burn","wall","offer"];
+{
+  const g = await waitUntil(ev2, BOOTED, { secs: 40 });
+  if (!g.ok) cannotMeasure("앱이 섬", g);
+  const k = await waitUntil(ev2, hasSkills(IDS), { secs: 40 });
+  if (!k.ok) cannotMeasure("스킬 표가 채워짐", k);
+  const p = await waitUntil(ev2, PAINTED, { secs: 40 });
+  if (!p.ok) cannotMeasure("글꼴·그림", p);
+}
 await ev2(`window.toDungeon && window.toDungeon()`);
-await new Promise(r => setTimeout(r, 700));
+/* `MODE` 는 **객체**다(`{at:"town"}`) — 문자열로 견주면 늘 거짓이라 문이 열린 척만 한다. */
+{
+  const d = await waitUntil(ev2, `!!(window.MODE && window.MODE.at === "dungeon")`, { secs: 15 });
+  if (!d.ok) cannotMeasure("던전으로 들어감", d);
+}
 /* 관문 층으로 — 제물(offer)은 주인이 있어야 걸린다. */
 await ev2(`(async()=>{const B=await import("/js/battle.js");B.enterFloor(10);return 1;})()`, true);
 await new Promise(r => setTimeout(r, 3000));
@@ -54,7 +75,7 @@ if (OLD) {
    「게임이 죽었다」로 보였다([[silent-zero-is-not-an-observation]]).
    빈 배열로 눙치면 다음엔 조용히 「0건 실패 = 통과」를 돌려주므로 **더 나쁘다**.
    그래서 여기서 멈추고 **「못 쟀다」고 말한 뒤 exit 2** 로 나간다. */
-const IDS = ["raise","ghoul","golem","nova","amp","burn","wall","offer"];
+
 const rres = await S("Runtime.evaluate", { expression: `(async()=>{
   const B = await import("/js/battle.js"), C = await import("/js/core.js");
   const S = window.S, ART = window.FX_ART || {};
