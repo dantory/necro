@@ -1469,6 +1469,17 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      프레임은 내용만큼만 좁아지고(shrink-to-fit) 그러면 아래 격자까지 폭이 안 정해져 10열이 콩알이
      된다. 창(#winBag)이 이미 절반 폭이라 여기서 폭을 못박으면 격자가 정상 크기로 내려간다. */
   body.charOpen #winBag .frame{ width:100% }
+  /* ══ V-64 (2026-08-25) **판이 격자보다 훨씬 길어 아래가 텅 빈다** ══
+     격자는 `width:100%` + `aspect-ratio:10/4` 라 **폭 하나**가 크기를 정한다(V-59).
+     그런데 도킹 판은 **높이를 창에서** 받아 `height:100%` 로 늘어난다 — 그래서 창이
+     길어질수록 격자 아래가 그만큼 빈다(1920×1080 에서 상자 높이의 **42%**가 검은 바닥).
+     칸을 더 키워 메울 수는 없다 — 열이 열이라 폭이 이미 상한이고, 억지로 늘리면
+     칸이 정사각을 잃는다(D2 칸은 정사각이다).
+     그러니 **판이 제 몸에 맞게 끝난다** — 높이를 내용에 맡기고 창을 상한으로만 쓴다.
+     발치(금·나가기)는 격자 바로 아래로 따라 올라온다. 넘칠 때는 `max-height` 가
+     예전과 같은 자리에서 잡아 주므로 V-59 의 되짚기는 그대로 돈다. */
+  body.charOpen #winBag{ align-items:flex-start }
+  body.charOpen #winBag .frame{ height:auto; max-height:100% }
   /* 금은 두 패널 **발치에 모두** 둔다 — D2 도 인벤토리 아래에 금이 있다(가방창은 감춰 뒀었다). */
   body.charOpen #winBag .winFoot .purse{ display:inline }
 }
