@@ -2623,7 +2623,7 @@ function fitDollStat() {
   if (!body || !body.clientHeight) return;
   /* 창이 다시 커졌는데 접힌 채로 남으면 안 된다 — 매번 **펴고** 시작한다 */
   body.classList.remove("numsFirst");
-  body.classList.remove("sideBySide");
+  body.classList.remove("sideBySide"); body.classList.remove("jSide");
   if (!doll) return;
   const nums = body.querySelector(".sStat:not(.jList)");
   /* ★ **「아래에 더 있다」 그늘까지 자리를 비워 둔다.** 처음 고쳤을 때 자는 「넘침 0」
@@ -2649,11 +2649,14 @@ function fitDollStat() {
   /* ── ① 옆에 세워 본다(V-73). `__NOSBS` 면 옛 꼴 — 자가 같은 판에서 전/후를 견준다. ── */
   if (nums && !window.__NOSBS) {
     body.classList.add("sideBySide");
+    /* V-74 — 일지는 수치 아래 «빈틈»으로 간다(인물이 두 줄을 걸친다). 자리만 옮기는
+       일이라 `fits()` 가 묻는 두 가지(수치·인물 밑자락)는 한 톨도 안 움직인다. */
+    if (!window.__NOJSIDE) body.classList.add("jSide");
     setS(46);
     const gap = parseFloat(getComputedStyle(body).columnGap) || 0;
     const wide = body.clientWidth >= doll.getBoundingClientRect().width + gap + SBS_NUMS_MIN;
     if (wide) for (let s = 46; s >= SBS_FLOOR; s--) { setS(s); if (fits()) return; }
-    body.classList.remove("sideBySide");
+    body.classList.remove("sideBySide"); body.classList.remove("jSide");
   }
   /* ── ② 위아래로 쌓고 칸을 깎는다(V-24) ── */
   for (let s = 46; s >= PDS_FLOOR; s--) { setS(s); if (fits()) return; }
