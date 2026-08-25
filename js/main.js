@@ -5,7 +5,7 @@ import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
-import { drawTree, markSp } from "./tree.js";
+import { drawTree, fitTree, markSp } from "./tree.js";
 
 /* ══ 판에서 터지는 그림 ══ **kind 하나에 그림 하나.** 여기 없는 kind 는 그림이 없는
    것이고, 그리는 쪽은 작은 `hit` 으로 떨어뜨린다 — 그 떨어짐이 조용해서 오래 못 봤다.
@@ -2055,7 +2055,8 @@ const WINS = ["winShop", "winForge", "winTree", "winStat", "winBag", "winEnd", "
    상자를 거두므로 여기(win 위)서 미리 선언해 둔다(안 그러면 참조가 앞서 터진다). */
 let ftipPin = null, ftipHover = null;
 const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
-  if (on) { fitDoll(); for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); }
+  if (on) { fitDoll(); if (id === "winTree") fitTree();   /* ★ 트리도 같은 까닭으로 여기서 — 위 주석 참고 */
+            for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); }
   else if (id === "winBag" || id === "winStat") ftipClose(); };   // 닫으면 떠 있는 상자도 거둔다
 const syncWinOpen = () =>
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));

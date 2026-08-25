@@ -723,23 +723,16 @@ body.in-town #stage{cursor:pointer}
   #winTree .tip .tipStat{line-height:1.25;margin-top:1px}
   #winTree .tip .tipBuy{margin-top:4px}
   #winTree .tCol h3{padding:1px 0 3px}
-  #winTree .tNode .tn{font-size:11px;line-height:1.05}
   /* 칸 사이 — 칸과 그림은 그대로 두고 **칸에 붙은 여백**만 뗀다 */
   #winTree .tNode{padding:0 2px 0}
   #winTree .tTile{margin-bottom:1px}
   /* 잇는 선 8 → 7. 화살촉이 6px 이라 **6 이 바닥**이고 7 은 그 바로 위 —
      여기서 9px 을 벌어 863 에 여유를 남긴다(딱 맞으면 이름 한 줄만 접혀도 다시 밀린다). */
-  #winTree .tLink{height:7px}
 }
 /* ★ 더 낮은 화면(1366×768 · 1280×800)에서는 위 규칙으로도 **어둠의 지배 한 칸이 남는다**
    (768 에서 43px · 800 에서 11px 넘침). 여기서는 장식이 이미 다 깎여 있어 남은 것이
    칸뿐이다 — **그림을 조금 줄인다.** 863 이상은 안 건드린다([[carry-fixes-forward]]). */
 @media (max-height: 820px){
-  #winTree .tTile{width:34px;height:34px}
-  #winTree .tIco{width:23px;height:23px}
-  #winTree .tNode.big .tTile{width:39px;height:39px}
-  #winTree .tNode.big .tIco{width:27px;height:27px}
-  #winTree .tNode .tn{font-size:10px}
   #winTree h2{line-height:22px}
   #winTree .frame{padding:3px 22px}
   #winTree .tip{padding:3px 16px}
@@ -750,10 +743,6 @@ body.in-town #stage{cursor:pointer}
 /* 제일 낮은 화면(1366×768). 위 두 층을 다 쓰고도 **13px** 이 남아 마지막 칸이 걸렸다 —
    그림을 한 번 더 줄이는 것 말고 깎을 장식이 없다. 여기까지가 바닥이다. */
 @media (max-height: 780px){
-  #winTree .tTile{width:32px;height:32px}
-  #winTree .tIco{width:22px;height:22px}
-  #winTree .tNode.big .tTile{width:37px;height:37px}
-  #winTree .tNode.big .tIco{width:26px;height:26px}
   #winTree .tCol h3{padding:0 0 2px}
 }
 
@@ -766,7 +755,7 @@ body.in-town #stage{cursor:pointer}
 /* ★ `height:100%` 로 두었더니 **높이가 확정되지 않은 부모**에서 퍼센트가 안 먹어,
    칸에 그림이 붙어 키가 커지자 그대로 자라 설명 상자를 덮어 버렸다(자는 잘림 0 이라
    답했다 — 안 잘린 게 아니라 **안 갇힌** 것이었다). 절대 배치로 자리를 못박는다. */
-#treeCols{position:absolute;inset:0;
+#treeCols{--tS:38px;position:absolute;inset:0;
   display:grid;grid-template-columns:repeat(3,1fr);gap:12px;
   overflow-y:auto;overflow-x:hidden;align-content:start;padding-bottom:1px;
   scrollbar-width:thin;scrollbar-color:#4a4030 transparent}
@@ -793,7 +782,8 @@ body.in-town #stage{cursor:pointer}
    선행을 찍으면 불이 들어온다. */
 /* ★ 길이는 14 → 9. 화살촉이 6px 이라 여기가 바닥이다 — 더 줄이면 선이 사라지고
    촉만 남아 「잇는 선」이 아니라 점으로 읽힌다. */
-.tLink{position:relative;height:8px;margin:0 auto;width:3px;background:#4a4030}
+.tLink{position:relative;height:clamp(6px, calc(var(--tS)*.19), 8px);
+  margin:0 auto;width:3px;background:#4a4030}
 .tLink::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
   border-left:5px solid transparent;border-right:5px solid transparent;
   border-top:6px solid #4a4030}
@@ -807,13 +797,19 @@ body.in-town #stage{cursor:pointer}
 .tNode{scroll-margin-top:38px;scroll-margin-bottom:6px;
   position:relative;padding:0 2px 2px;cursor:pointer;text-align:center;
   background:none;box-shadow:none}
-.tTile{position:relative;display:block;width:38px;height:38px;margin:0 auto 2px;
+/* ★★ **칸 크기는 «짧은 변» 하나에서 낸다**(V-55 · 가방 칸에서 배운 것 그대로 —
+   V-52 의 `--cs`). 그림·이름·잇는 선이 전부 `--tS` 에 매달려 있어서, 창이 낮으면
+   `fitTree()` 가 이 한 값만 내리면 된다. 예전엔 높이마다 CSS 를 손으로 한 층씩
+   쌓았는데(900·820·780 · 그리고 파일 끝에 또 하나), **목록에 없는 높이**에서는
+   그대로 잘렸다 — 1366×700 에서 주술 세 칸([[floor-erases-the-ramp]]). */
+.tTile{position:relative;display:block;width:var(--tS);height:var(--tS);margin:0 auto 2px;
   box-sizing:border-box;
   background:linear-gradient(#1c150e,#0d0906);
   border-style:solid;border-width:9px;border-color:transparent;
   border-image:url("assets/ui/slot.png") 34 fill / 9px / 0 stretch;
   image-rendering:pixelated}
-.tIco{position:absolute;inset:0;margin:auto;width:26px;height:26px;
+.tIco{position:absolute;inset:0;margin:auto;
+  width:calc(var(--tS)*.842);height:calc(var(--tS)*.842);
   image-rendering:pixelated;pointer-events:none;
   opacity:.34;filter:grayscale(1) brightness(.75)}
 /* 랭크는 **모서리의 숫자**다(디아블로 2 그대로). 점 열다섯 줄보다 조용하고 정확하다. */
@@ -833,7 +829,8 @@ body.in-town #stage{cursor:pointer}
   font-style:normal;font-size:10px;line-height:13px;padding:0 3px;white-space:nowrap;
   color:#9a7c3c;background:#160f08;box-shadow:inset 0 0 0 1px #3d3116}
 
-.tNode .tn{display:block;font-size:11px;line-height:1.15;color:#6b5f4e;word-break:keep-all}
+.tNode .tn{display:block;font-size:clamp(9px, calc(var(--tS)*.316), 13px);
+  line-height:1.1;color:#6b5f4e;word-break:keep-all}
 
 /* ══ 상태 넷 ══ 병수님 2026-08-17: "④ 찍은 칸과 안 찍은 칸의 대비가 약하다 —
    D2 는 찍은 것이 환하게 밝다."
@@ -885,8 +882,8 @@ body.in-town #stage{cursor:pointer}
 .tNode.full .tTile{box-shadow:0 0 0 2px #ffe6a8cc,
   0 0 0 3px color-mix(in srgb, var(--br, #c8aa6e) 60%, #2a2010),
   0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
-.tNode.big .tTile{width:44px;height:44px}
-.tNode.big .tIco{width:30px;height:30px}
+.tNode.big .tTile{width:calc(var(--tS)*1.158);height:calc(var(--tS)*1.158)}
+.tNode.big .tIco{width:var(--tS);height:var(--tS)}
 /* 고른 칸 — 찍음 테와 겹치지 않게 **한 칸 밖에서** 두른다(둘이 붙으면 둘 다 안 읽힌다) */
 .tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:3px}
 
@@ -1283,13 +1280,9 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 .winFoot{ font-size:17px }
 .btn{ font-size:17px; padding:7px 18px }
 
-/* 스킬 트리 — 그림과 이름이 커져야 「고르는 화면」으로 읽힌다.
-   ★ **여기가 진짜 값이다.** 위(.tIco 688줄)에 적은 크기는 이 줄이 덮어쓴다 — 칸을
-     줄이면서 위만 고쳤더니 38px 칸에 46px 그림이 들어가 **테 밖으로 뼈다귀가
-     삐져나왔다**(2026-08-18 · 눈으로 잡았다). 칸을 만질 때는 이 네 줄을 같이 만질 것. */
-.tIco{ width:32px; height:32px }
-.tNode.big .tIco{ width:38px; height:38px }
-.tNode .tn{ font-size:12px }
+/* 스킬 트리 칸 크기는 **여기 없다** — `--tS` 하나가 정하고(.tTile 위), 그 값은
+   `fitTree()` 가 창을 재서 넣는다(V-55). 예전엔 이 자리에 「진짜 값」 넷이 있었고
+   위아래로 미디어쿼리 네 층이 서로를 덮어쓰고 있었다([[floor-erases-the-ramp]]). */
 .tCol h3{ font-size:15px; letter-spacing:4px }
 
 /* 인벤토리·상점 칸 — 물건 그림이 주인공이라 칸부터 키운다. */
@@ -1616,12 +1609,6 @@ body.in-town #hudMenu #hDoctrine, body.in-town #hudMenu #hTactic{display:flex}
    ★ 이 자리는 **파일 맨 끝**이어야 한다 — 위쪽 `@media (max-height:820px)` 안에 두면
      그 뒤에 오는 전역 `.tIco{width:32px}` 가 도로 덮어쓴다(같은 함정에 오늘 한 번 빠졌다). */
 @media (max-height: 820px){
-  .tTile{width:34px;height:34px}
-  .tNode.big .tTile{width:40px;height:40px}
-  .tIco{width:28px;height:28px}
-  .tNode.big .tIco{width:33px;height:33px}
-  .tNode .tn{font-size:11px;line-height:1.1}
-  .tLink{height:6px}
   .tCol h3{font-size:14px;padding:2px 0 3px}
 }
 

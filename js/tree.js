@@ -88,10 +88,29 @@ export function drawTree() {
 
   $("treeSp").textContent = spLeft();
   $("treeSpAll").textContent = `${spUsed()}/${spTotal()}`;
+  fitTree();                 /* ★ 흐림을 재기 **전에** 맞춘다 — 순서가 바뀌면 한 판 늦는다 */
   edgeFade();
   /* 고른 칸이 접힌 자리에 있으면 **설명만 바뀌고 어느 칸인지 안 보인다** — 끌어온다.
      nearest 라 이미 보이는 칸은 화면이 안 흔들린다. */
   $("treeCols").querySelector(".tNode.sel")?.scrollIntoView({ block: "nearest" });
+}
+
+/** ★★ **칸을 창에 맞춘다 — 재서.** (V-55)
+ *  예전에는 높이마다 CSS 를 손으로 한 층씩 쌓았다(max-height 900 · 820 · 780 ·
+ *  그리고 hud.css 맨 끝에 또 하나). 그 사다리는 **목록에 적힌 높이에서만** 맞는다 —
+ *  자로 재 보니 1366×700 에서 주술 세 칸, 1280×620 에서 일곱 칸이 접힌 자리 아래에
+ *  있었다([[floor-erases-the-ramp]] — 나중에 깔린 바닥이 앞서 만든 눈금을 덮는다).
+ *  이제 값은 **하나**(`--tS`)고, 여기서 **넣어 보고 재서** 정한다(fitDoll 과 같은 결).
+ *  ★ 위에서 아래로 내려온다 — 넉넉한 창에서는 칸이 되레 커진다(1512×863 에서
+ *    상자의 18%가 빈 채로 남고 있었다). */
+export function fitTree() {
+  const box = $("treeCols");
+  if (!box || !box.clientHeight) return;                 // 닫혀 있으면 잴 것이 없다
+  for (let s = 44; ; s--) {
+    box.style.setProperty("--tS", s + "px");
+    if (s <= 22) break;                                  // 여기보다 작으면 그림이 안 읽힌다(그림 19px)
+    if (box.scrollHeight <= box.clientHeight) break;      // 다 들어갔다
+  }
 }
 
 /* 아래 끝의 흐림은 **더 있을 때만** 켠다 — 다 보이는데도 흐려져 있으면
@@ -103,7 +122,7 @@ function edgeFade() {
 }
 /* 모듈은 defer 라 여기 올 때 DOM 이 이미 있다 — 기다릴 것 없이 바로 건다. */
 $("treeCols")?.addEventListener("scroll", edgeFade, { passive: true });
-addEventListener("resize", edgeFade);
+addEventListener("resize", () => { fitTree(); edgeFade(); });
 
 /** 남은 점수가 있으면 **레벨 옆에 점**을 띄운다 — 창을 안 열어도 알 수 있어야
  *  「찍을 게 생겼다」가 전달된다(안 그러면 레벨업이 아무 일도 아닌 게 된다). */
