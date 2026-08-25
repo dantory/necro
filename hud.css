@@ -1480,6 +1480,20 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      예전과 같은 자리에서 잡아 주므로 V-59 의 되짚기는 그대로 돈다. */
   body.charOpen #winBag{ align-items:flex-start }
   body.charOpen #winBag .frame{ height:auto; max-height:100% }
+  /* ══ V-67 (2026-08-25) **두 판의 아래 끝이 어긋난다** ══
+     바로 위 V-64 는 가방 판을 **혼자** 보고 「제 몸에 맞게 끝난다」고 줄였다. 그런데 이 판은
+     옆에 능력치 판을 끼고 서 있고, 그쪽은 `height:100%` 로 창 끝까지 간다 — 그래서 두 판의
+     바닥이 **평균 170px**(1680 에서 308px) 어긋나고, 짧은 가방 판 밑으로 **마을 풀밭과
+     「웨이포인트」 글자가 그대로 비친다.** 창 하나가 아니라 «반쪽 창 둘»로 읽힌다.
+     ★ V-64 를 뒤집는 게 아니다 — V-64 가 미워한 것은 **높이가 아니라 «격자 아래에만 쌓인
+       검은 바닥»**이었다. 그러니 높이는 짝에 맞춰 되돌리되, 남는 자리를 **위아래로 나눈다**:
+       격자가 판 한가운데 서면 아래에 몰린 공백이 사라지고 발치(금·나가기)는 옆 판의 발치와
+       **같은 줄**에 선다. 칸 크기는 여전히 폭이 정하므로(V-59) 격자는 안 늘어난다.
+     ★ 좁은 창(<1200px)은 이 블록 밖이라 예전 그대로다. */
+  body.charOpen #winBag{ align-items:stretch }
+  body.charOpen #winBag .frame{ height:100%; max-height:100% }
+  body.charOpen #winBag .sCols{ align-items:stretch; min-height:100% }
+  body.charOpen #winBag .sSec.bag{ display:flex; flex-direction:column; justify-content:center }
   /* ══ V-66 (2026-08-25) **왼쪽 판이 제 몫의 60% 만 쓰고 서 있었다** ══
      바로 위 가방에는 「도킹한 프레임은 제 몫(창의 절반 폭)을 다 쓴다」를 못 박아 뒀는데
      **능력치에는 안 옮겼다.** flex row(.win) 안에서 `width:auto` 인 프레임은 내용만큼만
