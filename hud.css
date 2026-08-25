@@ -1094,11 +1094,35 @@ body.in-town #hTactic{ display:inline-block; }
 /* 납작한 허리띠도 마찬가지 — 위아래 6px 이면 그림이 남지 않는다. */
 .pd-belt .cell i{inset:2px 6px}
 /* ★ **구석의 수가 작은 칸을 통째로 덮는다** — 찍어 보고 알았다(반지 칸 28px 에 등급
-   숫자가 16px 이라 반지보다 수가 컸다). 칸을 줄였으면 **칸 안의 것도 같이 줄인다.** */
-.pd-charm .cell .q, .pd-ring .cell .q, .pd-ring2 .cell .q, .pd-belt .cell .q{
+   숫자가 16px 이라 반지보다 수가 컸다). 칸을 줄였으면 **칸 안의 것도 같이 줄인다.**
+   ★★ V-52 — 그 고침을 **네 칸에만 적어 둔 것**이 화근이었다(1×1 셋 + 허리띠).
+     `fitDoll` 이 --pdS 를 바닥 30px 까지 내리는데 나머지 여섯 칸(투구·장갑·신발·
+     망토·지팡이·방패)의 등급 숫자는 **18px 에 줄높이 1.5 라 상자가 27px** 이었다 —
+     30px 칸의 90% 다. 찍어 보면 노란 「2」가 물건보다 크다(재 보니 낀 칸 열의 등급
+     글자가 짧은변의 평균 77% · 그림의 24% 를 덮었다).
+     그래서 **칸마다 적지 않는다** — 칸의 «짧은 변»을 `--cs` 하나로 두고 글자를 거기
+     매단다. 새 슬롯이 늘어도 규칙이 저절로 따라간다([[carry-fixes-forward]]).
+     ※ `.pdSlot` 안에서만 건다 — 상점 좌판·가방 격자는 칸이 안 줄어든다. */
+.pdSlot{--cs:var(--pdS,46px)}                               /* 칸의 짧은 변 */
+.pd-charm, .pd-ring, .pd-ring2{--cs:calc(var(--pdS,46px) * .6)}
+.pd-belt{--cs:calc(var(--pdS,46px) * .5)}
+.pdSlot .cell .q{
+  font-size:clamp(8px, calc(var(--cs) * .34), 16px);line-height:1;right:1px;bottom:1px}
+.pdSlot .cell .afd{
+  font-size:clamp(7px, calc(var(--cs) * .26), 12px);line-height:1;left:2px;bottom:1px}
+.pdSlot .cell .plusBadge{
+  font-size:clamp(7px, calc(var(--cs) * .28), 13px);line-height:1;left:2px;top:2px}
+/* 옛 글자로 되돌리는 문 — 자가 **같은 판을 두 번** 재도록(`__BAROLD` 와 같은 결).
+   `document.body.classList.add("qold")` 로 켠다. */
+body.qold .pdSlot .cell .q{font-size:18px;line-height:1.5;right:2px;bottom:0}
+body.qold .pd-charm .cell .q, body.qold .pd-ring .cell .q,
+body.qold .pd-ring2 .cell .q, body.qold .pd-belt .cell .q{
   font-size:10px;line-height:1;right:1px;bottom:0}
-.pd-charm .cell .afd, .pd-ring .cell .afd, .pd-ring2 .cell .afd, .pd-belt .cell .afd{
+body.qold .pdSlot .cell .afd{font-size:12px;line-height:normal;left:4px;bottom:3px}
+body.qold .pd-charm .cell .afd, body.qold .pd-ring .cell .afd,
+body.qold .pd-ring2 .cell .afd, body.qold .pd-belt .cell .afd{
   font-size:8px;left:2px;bottom:1px}
+body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px}
 /* ★ **빈 칸이 «칸으로» 읽혀야 한다** — 여기 있던 `opacity:.24` 는 「어느 자리인지만
    흐리게」였는데, 재 보니 **빈 칸의 테두리 또렷함 15.9 대 빈 바닥 13.0 = 1.23배**로
    사실상 안 그려진 것과 같았다(V-31 · `tools/v31_slotring.mjs`). 열 칸 가운데 **일곱이
