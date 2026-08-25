@@ -77,6 +77,13 @@ const RULERS = [
      2026-08-26 에 3px 을 밟고 있었고 트리를 열면 늘 보이는 자리였다. `V78_OLD=1` 로 운다. */
   { name: "v78_selink",   args: [],                             secs: 120, tier: "fast", expect: /판정/ },
   { name: "v79_morehint", args: [],                             secs: 150, tier: "fast", expect: /판정/ },
+  /* ★ v77_hit 은 **도킹 창**(능력치·가방)의 발치를 보고, 이건 **마을 창 아홉 장**이
+     메뉴 띠(#hudMenu · z 29) 밑으로 들어가는지를 본다 — 「어디부터」가 z 25 에 서서
+     발치 40px 을 다섯 칸에 뺏기고 있었다(2026-08-26 · V-81). 네 폭을 다 재는 까닭은
+     1512 에서는 편성·운용·환생이 멀쩡하고 **720 에서만 셋 다 울기** 때문이다.
+     `V81_OLD=1` 로 옛 자리를 되돌려 운다(보정 확인 완료). */
+  { name: "v81_overlap", args: [],                              secs: 150, tier: "fast", expect: /판정/ },
+  { name: "v81_overlap", args: ["1280", "720"],                 secs: 150, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
