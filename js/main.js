@@ -357,10 +357,30 @@ const WALK_PER_BODY = 1.8;
 const MIN_STEP_FPS = 6.5;
 
 /** **배어 나오는 알파** — 몸도 바도 이 하나를 쓴다. 따로 쓰면 또 갈린다
- *  (V-65: 바가 이 값을 안 봐서 빈 땅에 임자 없는 막대가 떴다 — [[carry-fixes-forward]]). */
+ *  (V-65: 바가 이 값을 안 봐서 빈 땅에 임자 없는 막대가 떴다 — [[carry-fixes-forward]]).
+ *
+ *  ★★ **V-82 — 배어 나오는 시간이 «그 놈이 사는 시간»보다 길었다.**
+ *  관문 주인의 `born0` 은 2.6초인데, 4분을 재니(tools/v82_lord_alpha.mjs) 주인 열여섯이
+ *  **다 합쳐 12.0초**를 살았고 그중 **9.5초(79%)를 흐린 채**로 보냈다. 최고 알파가
+ *  0.9 에 못 미친 채 치워진 주인이 **7/16 기** — 켜서 보는 사람은 관문의 주인을
+ *  **온전한 몸으로 한 번도 못 봤다.** 사진에서 보스 몸 너머로 바닥 무늬가 비친 것이
+ *  그것이다.
+ *  `born0` 은 **못 건드린다** — 수법 시계와 걸음 보정을 갚는 저울이라(battle.js 의
+ *  「따로 갚는다」) 줄이면 관문 난이도가 통째로 움직인다. 그러니 **보는 것과 세는 것을
+ *  가른다**: 흐림은 `BORN_FADE` 만큼만 쓰고, `born` 은 예전 그대로 2.6초를 센다.
+ *  ★ 졸개(`born0` 0.4)는 **글자 그대로 예전과 같다** — 0.4 < 0.55 라 상한에 안 걸린다.
+ *  ★ `__BORNFADE_OFF` 는 자가 옛 그림으로 되돌려 같은 판을 두 번 재는 문이다
+ *    (`__BAROLD` · `__V81_OLD` 와 같은 결). */
+export const BORN_FADE = 0.55;
 export const bornAlpha = (e) => {
-  const bd = (e && e.born0) || 0.4;
-  return e && e.born > 0 ? Math.max(0.05, 1 - e.born / bd) : 1;
+  if (!(e && e.born > 0)) return 1;
+  const bd = e.born0 || 0.4;
+  const fade = globalThis.__BORNFADE_OFF ? bd
+             : Math.min(bd, globalThis.__BORNFADE != null ? +globalThis.__BORNFADE : BORN_FADE);
+  /* **선 지 얼마나 됐나**로 잰다(남은 시간이 아니라). 남은 시간을 짧은 자로 나누면
+     0.05 에 눌러앉았다가 마지막에 튀어오른다 — 방향이 거꾸로다. */
+  const el = bd - e.born;
+  return Math.max(0.05, Math.min(1, el / fade));
 };
 
 function drawOne(base, x, gy, h, fallback, e) {
@@ -1247,7 +1267,9 @@ function draw(dt) {
     /* ══ 둘레를 지난 놈 ══ **왜 내가 맞고 있는지**가 화면에 없었다. 사방에서 오는 판이라
        적이 여럿인데, 그중 **본인에게 닿을 놈**과 소환수에 붙들린 놈이 똑같아 보였다.
        진을 지나 안쪽으로 들어온 놈의 발밑만 붉게 물들인다 — 「저기가 뚫렸다」가 읽힌다. */
-    if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && !(m.born > 0)) {
+    /* ★ V-82: 문턱을 `born` 이 아니라 **몸이 여문 때**(bornAlpha)에 맞춘다 — 몸은 벌써
+       또렷한데 발밑만 2.6초를 비어 있으면 「임자 없는 몸」이 된다(V-65 의 거울상). */
+    if (Math.hypot(m.x, m.y * SQUASH_VIEW_C) < RING_HOLD * 0.92 && bornAlpha(m) >= 1) {
       const rr = hh * 0.30;
       ctx.save();
       ctx.translate(x, y);                                   // 원점 그러데이션(위 radial 캐시)
@@ -1258,7 +1280,7 @@ function draw(dt) {
     /* ══ 우두머리 무리 ══ **평지에서 군대를 쓸어내는 놈**이라 한눈에 갈려야 한다
        (battle.js CHAMP 문). 관문 주인의 붉은 고리와 달리 금빛이고, 발밑에만 두른다 —
        크기(×1.22)만으로는 「좀 큰 졸개」로 읽힌다. */
-    if (m.champ && !(m.born > 0)) {
+    if (m.champ && bornAlpha(m) >= 1) {   // ★ V-82: 위와 같은 자
       const rr = hh * 0.34;
       ctx.save(); ctx.translate(x, y);
       ctx.globalAlpha = 0.75; ctx.strokeStyle = m.col || "#e0b44a"; ctx.lineWidth = Math.max(1.5, 2 * us);
