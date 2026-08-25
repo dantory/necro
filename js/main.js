@@ -274,9 +274,14 @@ function sprite(path) {
      영영 얼룩으로만 남는다. */
 const TINTED = {};
 function corpseArt(sort, ti) {
-  const key = sort + ":" + ti;
+  /* ★ `__CORPSEOLD` 는 자가 **옛 그림으로 되돌려** 같은 프레임을 두 번 찍는 문이다
+     (V-46 · `__BAROLD`·`__GIBOLD` 와 같은 결). 판을 세우고 이 값만 갈면 시체 한 구까지
+     같은 자리에 있는 두 장이 나온다 — 이어 찍으면 다른 시체를 재게 된다
+     ([[same-seed-is-not-same-run]]). 켜지 않으면 옛 그림은 **받아오지도 않는다.** */
+  const oldArt = !!globalThis.__CORPSEOLD && sort === "bones";
+  const key = sort + ":" + ti + (oldArt ? ":old" : "");
   if (TINTED[key]) return TINTED[key];
-  const im = sprite("fx/corpse_" + sort);
+  const im = sprite("fx/corpse_" + sort + (oldArt ? "_old" : ""));
   if (!im) return null;
   const t = CORPSE_TINT[ti | 0];
   if (!t) return (TINTED[key] = im);
