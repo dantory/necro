@@ -888,8 +888,18 @@ body.in-town #stage{cursor:pointer}
   0 0 16px 2px color-mix(in srgb, var(--br, #c8aa6e) 55%, transparent)}
 .tNode.big .tTile{width:calc(var(--tS)*1.158);height:calc(var(--tS)*1.158)}
 .tNode.big .tIco{width:var(--tS);height:var(--tS)}
-/* 고른 칸 — 찍음 테와 겹치지 않게 **한 칸 밖에서** 두른다(둘이 붙으면 둘 다 안 읽힌다) */
-.tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:3px}
+/* 고른 칸 — 테를 **칸 안쪽에** 두른다. 밖으로 두르면 이름을 밟는다.
+   ★ 예전엔 `outline-offset:3px` 로 **한 칸 밖에서** 둘렀다(찍음 테와 안 겹치게).
+     그런데 칸과 이름 사이는 **1px 뿐이다** — 863 이하에서 `#winTree .tTile{margin-bottom:1px}`
+     로 세로를 벌어 쓰고 있기 때문이다. 그래서 밖으로 3px + 두께 2px = **밑으로 5.5px**
+     내려간 흰 줄이 이름의 윗머리를 가로질렀다(`tools/v78_selink.mjs` — 겹친 줄 3px).
+     트리를 열면 늘 첫 칸이 골라져 있어 **열 때마다 보이는** 자리였다.
+   ★ 「여백을 넓힌다」는 길은 접었다 — 그 1px 은 위 media 규칙이 **일부러 깎아 둔 것**이라,
+     되돌리면 낮은 창에서 칸이 도로 잘린다(V-55 가 고친 그 자리다).
+     안쪽은 텅 비어 있다: 칸 테두리가 `border-image` 9px 이라 -2px 자리는 돌 그림 위고,
+     outline 은 그 위에 그려진다. 찍음의 금테는 **밖**, 고름의 흰 테는 **안** — 반지름이
+     달라 둘이 각자 읽힌다([[floor-erases-the-ramp]] — 나중 바닥이 앞 규칙을 덮은 자리). */
+.tNode.sel .tTile{outline:2px solid #fff2cf;outline-offset:-2px}
 
 /* ══ 갈래 ══ 한 줄에 칸이 둘. 「기다리면 열리는 것」과 **다르게 보여야** 한다.
    D2 의 시너지처럼 나란히 놓고, 둘 사이에 갈렸음을 뜻하는 **가는 금**을 하나 긋는다. */
