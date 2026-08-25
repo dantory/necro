@@ -2194,7 +2194,14 @@ function drawForge() {
     const lv = META.up[k] | 0;
     return `<div class="cell${k === forgePick ? " sel" : ""}" data-fpick="${k}">
       <i class="up-${k}"></i><span class="q t2">${lv}</span></div>`;
-  }).join("") + '<div class="cell empty"></div>'.repeat(4);
+  }).join("")
+  /* ★ V-57 — 여기 있던 `.repeat(4)` 는 **빈 칸 넷**을 뒤에 붙였다. 격자가 여섯 칸짜리라
+     그 넷이 「첫 줄 뒤 둘 + 둘째 줄에 홀로 둘」로 앉아, 강화할 것은 넷뿐인데 판에는
+     **구멍 넷**이 보였다. V-28 이 편성·운용에서 이미 정한 규칙이 있다 —
+     「고를 것이 넷이면 칸도 넷 · 빈 칸은 «아직 못 여는 것»으로 읽힌다」. 그 규칙을
+     이 창에 안 옮긴 것뿐이다([[carry-fixes-forward]]). 격자는 hud.css 에서 넷으로
+     좁힌다. 빈 칸은 **자를 위한 문**(noPickName)에서만 되살아난다. */
+    + (pickDoor() ? '<div class="cell empty"></div>'.repeat(4) : "");
 
   const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
   const cost = upCost(k), can = META.gold >= cost;

@@ -1688,3 +1688,17 @@ body::after{content:"";position:fixed;left:0;right:0;bottom:0;
 .cell i.pk-tac-always { background-image:url("assets/ui/pick/tac_always.png") }
 /* 문 — `body.noPickName` 은 V-28 전을 그대로 되살린다(자를 위한 것) */
 body.noPickName #docGrid, body.noPickName #tacGrid{ grid-template-columns:repeat(6,1fr) }
+
+/* ══ V-57 · **대장간도 「고를 것이 넷이면 칸도 넷」** ══
+   위 V-28 이 편성·운용에 세운 그 규칙을 대장간에는 안 옮겼었다 — 강화할 것은 넷인데
+   격자가 여섯 칸이라, 뒤에 빈 칸 넷을 붙여 「첫 줄 뒤 둘 · 둘째 줄에 홀로 둘」이 되었다.
+   빈 칸은 값도 그림도 없어서 **「아직 못 여는 강화」**로 읽힌다(실제로는 그런 것이 없다).
+   칸을 넷으로 좁히고 가운데로 모은다 — 줄이 하나로 줄면서 칸도 커진다(113 → 140px).
+   ★ 편성·운용처럼 1fr 로 쫙 펴지 않는 까닭: 저 창의 칸은 **넓적**하지만(170×92) 대장간
+     칸은 **정사각**이라, 1fr 이면 172×172 짜리가 되어 설명칸을 밀어낸다. */
+#forgeGrid{ grid-template-columns:repeat(4, minmax(0,140px)); justify-content:center; gap:10px }
+/* 낮은 창에서는 칸을 한 뼘 줄인다 — 격자가 설명칸을 먹지 않게(위 max-height:800px 와 같은 결) */
+@media (max-height:800px){ #forgeGrid{ grid-template-columns:repeat(4, minmax(0,118px)) } }
+@media (max-height:700px){ #forgeGrid{ grid-template-columns:repeat(4, minmax(0,104px)) } }
+/* 문 — 자가 고치기 전 꼴(여섯 칸 격자 + 빈 칸 넷)을 그 자리에서 다시 세운다 */
+body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content:stretch; gap:6px }
