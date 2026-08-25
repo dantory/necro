@@ -1480,6 +1480,12 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      예전과 같은 자리에서 잡아 주므로 V-59 의 되짚기는 그대로 돈다. */
   body.charOpen #winBag{ align-items:flex-start }
   body.charOpen #winBag .frame{ height:auto; max-height:100% }
+  /* ══ V-66 (2026-08-25) **왼쪽 판이 제 몫의 60% 만 쓰고 서 있었다** ══
+     바로 위 가방에는 「도킹한 프레임은 제 몫(창의 절반 폭)을 다 쓴다」를 못 박아 뒀는데
+     **능력치에는 안 옮겼다.** flex row(.win) 안에서 `width:auto` 인 프레임은 내용만큼만
+     좁아지므로(shrink-to-fit), 1512 창에서 **748px 자리에 449px 짜리 판**이 서고
+     그 사이 **299px 이 맨 땅으로 비쳤다** — 두 판이 한 화면으로 안 읽힌다. */
+  body.charOpen #winStat .frame{ width:100% }
   /* 금은 두 패널 **발치에 모두** 둔다 — D2 도 인벤토리 아래에 금이 있다(가방창은 감춰 뒀었다). */
   body.charOpen #winBag .winFoot .purse{ display:inline }
 }
@@ -1525,6 +1531,17 @@ body.charOpen #statBody .sStat:not(.jList){ grid-template-columns:1fr; column-ga
 body.charOpen #statBody .sStat:not(.jList){ padding:7px 14px }
 body.charOpen #statBody .sStat:not(.jList) .tipStat{ margin:1px 0 }
 body.charOpen #statBody .jList{ grid-template-columns:1fr }
+
+/* ══ V-66 (이어서) **「한 줄에 하나」의 «까닭»이 사라졌다** ══
+   바로 위 두 규칙은 「반쪽으로 좁아지면 한 칸이 210px 이라 이름과 값이 서로 밟는다」를
+   까닭으로 적었다. 그 210px 은 **판이 제 몫을 안 쓰던 탓**이었다 — 폭이 제자리로 오면
+   한 칸이 347px 이라 밟을 일이 없다(겹침은 `tools/v66_dockfill.mjs` 가 줄마다 센다).
+   까닭이 사라진 규칙은 거둔다. 도킹하는 창(≥1200px)에서만 되돌리고, 좁은 창의
+   가운데 상자는 예전 그대로 한 줄에 하나다. */
+@media (min-width: 1200px) {
+  body.charOpen #statBody .sStat:not(.jList){ grid-template-columns:1fr 1fr; column-gap:26px }
+  body.charOpen #statBody .jList{ grid-template-columns:1fr 1fr }
+}
 
 /* ── 아래 판의 메뉴 ── (병수님 2026-08-17 20:33 「하단에 메뉴로 빼줘」)
    벨트 바로 밑, 구슬 사이. D2 의 아래 판이 캐릭터·인벤토리·스킬을 여는 자리다.
