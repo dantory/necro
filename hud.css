@@ -1075,7 +1075,12 @@ body.in-town #hTactic{ display:inline-block; }
      여백을 잘라 굽고(`tools/doll_crop.py` → assets/ui/doll_necro.png) 높이로 채우면
      세 줄(132px)을 꽉 채운다 — 세로는 **슬롯이 정하므로** 창은 한 톨도 안 커진다. */
 .pdChar img{height:100%;width:auto;max-width:100%;object-fit:contain;
-  image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a)}
+  image-rendering:pixelated;filter:drop-shadow(0 3px 4px #000a);
+  /* ★ **몸을 축에 세운다**(2026-08-26 · V-71) — 그림은 오른쪽으로 «지팡이 꼬리»를
+     달고 있어(몸 폭 78 대 그림 폭 120 @1512×863), 그림 상자를 가운데 놓으면 몸이
+     축에서 13.9px 왼쪽에 선다. 여기 %를 **못박지 않는다** — main.js `centerDollArt()`
+     가 그림의 불투명 세로줄을 재서 미룬다. 자: tools/v71_dollmid.mjs */
+  transform:translateX(var(--pdMid,0%))}
 .pd-helm{grid-area:helm}.pd-charm{grid-area:neck}.pd-wand{grid-area:wpn}.pd-robe{grid-area:arm}
 .pd-glove{grid-area:glv}.pd-ring{grid-area:rg1}.pd-shield{grid-area:shd}.pd-belt{grid-area:blt}
 .pd-boots{grid-area:boo}.pd-ring2{grid-area:rg2}

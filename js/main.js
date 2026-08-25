@@ -2491,7 +2491,39 @@ addEventListener("resize", () => { fitDoll(); markMore($("statBody")); markMore(
  *  ★ 남는 높이를 **셈으로 맞히지 않는다** — 「여섯 줄 + 제목」으로 어림잡았더니 6px 이
  *    남아 그대로 잘렸다(제목 여백·판 사이가 셈에 안 들어온다). 한 칸 줄일 때마다
  *    **실제로 넘치는지 다시 읽는다**(scrollHeight). 보통 첫 판에 끝난다. */
-function fitDoll() { fitDollBag(); fitDollStat(); fitBagGrid(); }
+/* ══ 인물을 «몸» 기준으로 축에 세운다 ══ (V-71 · 2026-08-26)
+   `doll_necro.png` 는 오른쪽으로 가는 **꼬리**(지팡이)를 달고 있다 — 34칸 중 여덟 칸이
+   두께 2~7px 뿐인 그 꼬리다. 그림 상자를 칸 한가운데 놓으면 **꼬리까지 한가운데**가 되어
+   몸은 왼쪽으로 밀린다(실측 −13.9px · 슬롯 축은 좌우 기둥과 0.0px 로 맞는데 몸만 어긋났다).
+   ★ 미루는 양을 **못박지 않는다** — 그림에서 직접 잰다. 에셋을 다시 구우면 값도 따라온다
+     ([[knob-that-does-nothing]] — 손잡이가 도는데 미는 데가 없는 일을 막는다).
+   ★ `window.__NOPDMID=1` 이면 옛 꼴로 되돌린다(자가 「전」을 같은 판에서 세울 때 쓴다). */
+let pdMidPct = null;                                   /* 그림 하나뿐이라 한 번만 잰다 */
+function dollArtMid(im) {
+  if (pdMidPct !== null) return pdMidPct;
+  const w = im.naturalWidth, h = im.naturalHeight;
+  if (!w || !h) return null;                           /* 아직 안 왔다 — 오면 다시 부른다 */
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const g = cv.getContext("2d", { willReadFrequently: true });
+  g.imageSmoothingEnabled = false; g.drawImage(im, 0, 0);
+  let d; try { d = g.getImageData(0, 0, w, h).data; } catch (e) { return null; }  /* file:// 이면 못 읽는다 */
+  const col = new Array(w).fill(0);
+  for (let x = 0; x < w; x++) for (let y = 0; y < h; y++) if (d[((y * w + x) << 2) + 3] > 40) col[x]++;
+  const mx = Math.max.apply(null, col); if (!mx) return null;
+  let a = -1, b = -1;                                  /* 「제일 두꺼운 줄의 40% 이상」만 몸으로 본다 */
+  for (let x = 0; x < w; x++) if (col[x] >= mx * 0.4) { if (a < 0) a = x; b = x; }
+  if (a < 0) return null;
+  return (pdMidPct = ((w / 2) - (a + b + 1) / 2) / w * 100);   /* 분모는 그림 폭 — translateX(%) 가 쓰는 그것 */
+}
+function centerDollArt() {
+  for (const im of document.querySelectorAll(".pdChar img")) {
+    if (window.__NOPDMID) { im.style.removeProperty("--pdMid"); continue; }
+    const set = () => { const p = dollArtMid(im); if (p !== null) im.style.setProperty("--pdMid", p.toFixed(2) + "%"); };
+    if (im.complete && im.naturalWidth) set(); else im.addEventListener("load", set, { once: true });
+  }
+}
+
+function fitDoll() { centerDollArt(); fitDollBag(); fitDollStat(); fitBagGrid(); }
 
 /** ══ V-59 (2026-08-25) ══ **가방 격자의 높이를 «폭 하나»가 정하고 있었다.**
  *  `.sSec.bag .grid` 는 `width:100%` + `aspect-ratio:10/4` 라 칸 크기가 **패널 폭**만
