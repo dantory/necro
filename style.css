@@ -11,6 +11,19 @@
 @font-face{font-family:"Galmuri9";src:url("assets/font/Galmuri9.woff2") format("woff2");
   font-display:swap}
 
+/* ══ 구르는 칸의 «막대» ══ **판에서 제일 밝은 것이 브라우저 기본 스크롤바였다**(V-50).
+   `#treeCols` 와 `.wScroll` 에는 진작 결에 맞는 막대를 달아 뒀는데, 그 뒤에 생긴
+   구르는 칸(상인 좌판·설명칸·구역 목록·창 몸통…)에는 **안 옮겼다.** 자리가 좁아져
+   내용이 넘치는 순간 흰 궤도(#fff)에 회색 손잡이가 서고, 그것이 횃불보다 밝다 —
+   1024×620 에서 창 열하나 중 **여덟**이 그랬다([[carry-fixes-forward]]).
+   그러므로 «모든» 구르는 칸에 한 번에 건다. 값은 위 두 곳과 **똑같이** 둔다 —
+   이미 눈으로 통과한 자리라 새 값을 고를 까닭이 없다(양성 표본). */
+:root{ scrollbar-width:thin; scrollbar-color:#4a4030 transparent }
+*::-webkit-scrollbar{ width:6px; height:6px }
+*::-webkit-scrollbar-thumb{ background:#4a4030 }
+*::-webkit-scrollbar-track{ background:transparent }
+*::-webkit-scrollbar-corner{ background:transparent }
+
 /* ══════════════════════════════════════════════════════════════
    디아블로 2 의 화면 — **아쉬운 방치형 UI 말고 진짜 그것처럼**(병수님)
    ──────────────────────────────────────────────────────────────
