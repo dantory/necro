@@ -1259,6 +1259,20 @@ function draw(dt) {
                  core: ["#ff2d2d", "#1a0000"], heal: ["#7fe07f", "#04160a"],
                  nova: ["#ffa53c", "#180c02"] };
   ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  /* ★★★ V-51: **합칠 수 없는 둘이 «붙어서» 한 수로 읽힌다.** 「16」 옆에 「16」이 서면
+     사람은 **1616** 을 읽는다 — Lv.1 에게 없는 수다. 화면이 거짓말을 한다.
+     · V-23(같은 몸)·V-26(한 방)이 합칠 수 있는 것은 이미 다 합쳤고, 남은 것은
+       **저마다 다른 몸이 같은 피해로 맞은 것**이라 합치면 거짓말이 된다(V-26 이 적었다).
+       그러니 합치지 말고 **떼어 놓는다.**
+     · 까닭은 **자가 둘**이었다 — 붙는지 마는지는 «글자 폭»(픽셀)으로 정해지는데,
+       판단은 `popNum` 의 `NUM_MERGE_R = 18` **세계 단위**로만 했다. 무대 배율이나
+       글자 크기가 바뀌면 그 문턱은 소리 없이 어긋난다([[threshold-and-ruler-must-match]]).
+       그래서 여기 — **그리는 자리, 진짜 잰 네모** — 에서 정한다.
+     · V-23 이 접은 「줄(lane)」과 다른 점 둘: ① **붙은 것만** 민다(전부가 아니다)
+       ② 미는 양은 고른 상수가 아니라 **모자란 틈만큼**이다. 그래서 V-20(체력바를 덮는
+       숫자)이 되돌아오지 않는다 — 아래 자로 확인했다.
+     · 한 번 정한 밀기(`n.sep`)는 **수명 내내 안 바꾼다.** 틀마다 다시 풀면 글자가 떤다. */
+  const placed = [];
   for (const n of S.nums) {
     const p = 1 - Math.max(0, n.t) / 0.9;                 // 0 → 1
     /* ★ 픽셀 글꼴은 **정수 자리**에 놓여야 획이 안 번진다 — 소수 자리에 그리면
@@ -1270,7 +1284,7 @@ function draw(dt) {
        실어 보낸다). 바 꼭대기는 머리끝 위 6 인데 캔버스 위 여백(headFrac)이 그보다
        두꺼울 수 있으므로, 여백이 0 이어도 안 닿게 **+8** 을 둔다. */
     const lift = n.h ? n.h + 13 + 16 * p : 16 + 30 * p;
-    const x = Math.round(px(n.x) + n.vx * p * us), y = Math.round(py(n.y) - lift * us);
+    let x = Math.round(px(n.x) + n.vx * p * us); const y = Math.round(py(n.y) - lift * us);
     const [fg, bg] = NUMC[n.kind] || NUMC.dmg;
     const base = n.kind === "core" ? 19 : n.kind === "nova" ? 15 : 13;   // 본인은 1.5배
     const size = g9(base * us);                       // ★ 9 의 배수로 물린다(위 g9)
@@ -1288,11 +1302,42 @@ function draw(dt) {
     /* ★ 외곽선이 **획만큼 굵으면** 「6」의 구멍이 메워져 덩어리가 된다 — 22px 글자에
        3.4px 테를 둘렀던 것이 흙빛 블록의 나머지 절반이다. 글자 크기에 매달되 정수로. */
     ctx.lineWidth = Math.max(2, Math.round(size / 9)); ctx.strokeStyle = bg; ctx.lineJoin = "round";
+    /* ── 붙어 있으면 떼어 놓는다(위 V-51) ── 재는 자와 미는 자가 **같은 픽셀**이다 */
+    const wpx = ctx.measureText(txt).width, cw = wpx / Math.max(1, txt.length);
+    if (n.sep === undefined) n.sep = 0;
+    if (!globalThis.__NOGLUE) {
+      /* ★ 밀기는 **커지기만 한다.** 틀마다 새로 풀면 글자가 떨고, 첫 틀에 얼려 두면
+         `vx` 로 떠다니다 **나중에 다시 붙는다**(첫 판에서 0.8% → 0.5% 까지밖에 안 줄었다).
+         커지기만 하면 떨지도 않고 다시 붙지도 않는다. */
+      const box = [x + n.sep - wpx / 2, y - size, wpx, size];
+      for (const q of placed) {
+        if (q.kind !== n.kind) continue;                       // 빛깔이 다르면 둘로 읽힌다
+        const vo = Math.min(box[1] + box[3], q.y + q.h) - Math.max(box[1], q.y);
+        if (vo < 0.6 * Math.min(box[3], q.h)) continue;        // 같은 띠가 아니다
+        const gap = Math.max(box[0], q.x) - Math.min(box[0] + box[2], q.x + q.w);
+        const want = 0.5 * Math.min(cw, q.cw);                 // 한 수 «안»의 틈은 0 이다
+        if (gap >= want) continue;
+        /* 방향은 **한 번만** 정한다 — 이미 민 쪽이 있으면 그쪽으로 더 민다 */
+        const dir = n.sep !== 0 ? Math.sign(n.sep)
+                  : ((box[0] + box[2] / 2) >= (q.x + q.w / 2) ? 1 : -1);
+        /* 모자란 만큼만 민다 — 통틀어 세 글자까지(더 밀면 제 몸을 떠난다) */
+        const cap = 3 * cw;
+        const next = Math.max(-cap, Math.min(cap, n.sep + (want - gap) * dir));
+        if (Math.abs(next) > Math.abs(n.sep)) { n.sep = next; box[0] = x + n.sep - wpx / 2; }
+      }
+    }
+    x = Math.round(x + n.sep);
+    placed.push({ x: x - wpx / 2, y: y - size, w: wpx, h: size, cw, kind: n.kind });
     ctx.strokeText(txt, x, y); ctx.fillStyle = fg; ctx.fillText(txt, x, y);
-    if (window.__RECTS) { const w = ctx.measureText(txt).width;
+    if (window.__RECTS) { const w = wpx;
       /* ★ V-26: 뒤에 **글자와 묶음 표**를 붙인다 — 자가 「같은 수가 몇 개나 동시에
          떠 있나」를 세려면 네모만으로는 못 센다. */
-      window.__RECTS.nums.push([Math.round(x - w / 2), y - size, Math.round(w), size, txt, n.g | 0]); }
+      /* ★ V-51: **빛깔(kind)** 도 같이 싣는다 — 「둘이 한 수로 읽히는가」는 색이 같을
+         때만 뜻이 있다(주황 옆에 회색이 붙으면 사람은 둘로 읽는다). */
+      window.__RECTS.nums.push([Math.round(x - w / 2), y - size, Math.round(w), size, txt, n.g | 0, n.kind,
+        /* ★ V-51: **알파**도 싣는다 — 다 사그라든 글자를 「붙었다」고 세면 위양성이다
+           (사람 눈에는 없는 것이다 · [[pixel-verification-calibration]]). */
+        +ctx.globalAlpha.toFixed(3)]); }
     ctx.restore();
   }
 

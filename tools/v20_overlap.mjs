@@ -25,6 +25,8 @@ await S("Runtime.evaluate", { expression: `localStorage.removeItem("necro.meta.v
 await S("Page.reload", { ignoreCache: true }); await wait(4500);
 /* ★ V-26 의 문 — `BLOW=0` 이면 「한 방을 한 글자로 모으기」를 끄고 잰다(전/후 견줌용) */
 if (process.env.BLOW === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOBLOW = 1" });
+/* ★ V-51 의 문 — `GLUE=0` 이면 「붙은 숫자 떼어 놓기」를 끄고 잰다(되돌아갔나 보려고) */
+if (process.env.GLUE === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOGLUE = 1" });
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(1200);
 /* 틀마다 겹침을 세는 감시자를 페이지 안에 심는다 — 밖에서 폴링하면 틀을 건너뛴다 */
