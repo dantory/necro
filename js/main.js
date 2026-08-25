@@ -1328,11 +1328,28 @@ function draw(dt) {
          커지기만 하면 떨지도 않고 다시 붙지도 않는다. */
       const box = [x + n.sep - wpx / 2, y - size, wpx, size];
       for (const q of placed) {
-        if (q.kind !== n.kind) continue;                       // 빛깔이 다르면 둘로 읽힌다
         const vo = Math.min(box[1] + box[3], q.y + q.h) - Math.max(box[1], q.y);
-        if (vo < 0.6 * Math.min(box[3], q.h)) continue;        // 같은 띠가 아니다
         const gap = Math.max(box[0], q.x) - Math.min(box[0] + box[2], q.x + q.w);
-        const want = 0.5 * Math.min(cw, q.cw);                 // 한 수 «안»의 틈은 0 이다
+        let want;
+        if (q.kind === n.kind) {
+          if (vo < 0.6 * Math.min(box[3], q.h)) continue;      // 같은 띠가 아니다
+          want = 0.5 * Math.min(cw, q.cw);                     // 한 수 «안»의 틈은 0 이다
+        } else {
+          /* ★★ V-69: **「빛깔이 다르면 둘로 읽힌다」는 «나란히 설 때»만 맞다.**
+             V-51 은 여기서 다른 빛깔을 통째로 건너뛰었는데, 깊은 층 그림에서 주황
+             「714k」가 붉은 「851」 **위에 그대로 얹혀** 둘 다 못 읽었다 — 획이 획을
+             덮으면 색은 못 구한다(실측 그려진 글자의 12.6%가 덮였고, 최악은 한 수가
+             다른 수 안에 100% 들어앉았다 · `tools/v69_numlap.mjs`).
+             그러니 같은 빛깔처럼 «붙는 것»을 막지는 않고 — 나란한 둘은 그대로 둔다 —
+             **진짜 겹칠 때만**(세로도 가로도 물릴 때) **겨우 떨어질 만큼만** 민다. */
+          if (globalThis.__NOXLAP) continue;                   // 자가 «고치기 전»을 재는 문
+          if (vo <= 0 || gap >= 0) continue;                   // 안 겹친다 — 이웃은 그냥 이웃이다
+          want = 0.25 * Math.min(cw, q.cw);
+          /* ★ 틈을 0.6(같은 빛깔과 같은 값)까지 넓혀 봤다가 **되돌렸다** — 덮인 글자는
+             1.3% 로 똑같은데 덮인 넓이는 오히려 0.06 → 0.16% 로 늘었다. 남은 겹침은
+             「덜 밀어서」가 아니라 **아래 `cap`(세 글자)에 막혀서**다(「725k」처럼 넓은
+             수끼리는 세 글자로 못 비킨다). 틈만 넓히면 밀 데 없는 것을 더 밀 뿐이다. */
+        }
         if (gap >= want) continue;
         /* 방향은 **한 번만** 정한다 — 이미 민 쪽이 있으면 그쪽으로 더 민다 */
         const dir = n.sep !== 0 ? Math.sign(n.sep)

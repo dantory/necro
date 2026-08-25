@@ -27,6 +27,9 @@ await S("Page.reload", { ignoreCache: true }); await wait(4500);
 if (process.env.BLOW === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOBLOW = 1" });
 /* ★ V-51 의 문 — `GLUE=0` 이면 「붙은 숫자 떼어 놓기」를 끄고 잰다(되돌아갔나 보려고) */
 if (process.env.GLUE === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOGLUE = 1" });
+/* ★ V-69 의 문 — `XLAP=0` 이면 「빛깔이 다른데 겹친 것 떼어 놓기」를 끄고 잰다.
+   옆으로 미는 고침은 **바 위로 밀 수도** 있으니, 이 자로 전/후를 견줘야 한다(V-20 이 되돌아왔나). */
+if (process.env.XLAP === "0") await S("Runtime.evaluate", { expression: "globalThis.__NOXLAP = 1" });
 await S("Runtime.evaluate", { expression: "window.__toDungeon && window.__toDungeon()" });
 await wait(1200);
 /* 틀마다 겹침을 세는 감시자를 페이지 안에 심는다 — 밖에서 폴링하면 틀을 건너뛴다 */
