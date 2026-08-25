@@ -1442,9 +1442,31 @@ function draw(dt) {
       /* ★ **네모가 아니라 조각이다.** 처음엔 정사각형으로 그렸더니 「흰 네모가 날아간다」로
          보였다 — 뼛조각은 **길쭉하다.** 가로 대 세로를 1:0.42 로 두고 도는 각도를 주면
          같은 픽셀 수로도 「부러진 뼈」로 읽힌다. 색도 한 톤 낮췄다(#d9cdb4 는 이 판에서
-         제일 밝은 축이라 눈이 그리로만 갔다). */
-      ctx.fillStyle = f.landed ? "#5e5344" : "#bfb298";
-      ctx.fillRect(-sz, -sz * 0.21, sz * 2, sz * 0.42);
+         제일 밝은 축이라 눈이 그리로만 갔다).
+         ★★ **그래도 판때기였다**(V-45). 길쭉한 네모는 여전히 «종잇조각»이다 — 누운 것은
+         돌지도 않아 **가로 막대가 줄줄이** 눕는다. 같은 픽셀 수로 **양 끝에 마디가 붙은
+         뼈**를 그리고 **어두운 테**를 먼저 깔면(밝은 면적이 그만큼 준다) 갈색 바닥에서
+         떠오르지 않으면서 「부러진 뼈」로 읽힌다. 누운 것에는 각도를 다시 준다 —
+         바닥에 붙는 것과 **안 도는 것**은 다른 말이다(옛 그림은 둘을 한 줄로 묶었다). */
+      if (globalThis.__GIBOLD) {
+        ctx.fillStyle = f.landed ? "#5e5344" : "#bfb298";
+        ctx.fillRect(-sz, -sz * 0.21, sz * 2, sz * 0.42);
+      } else {
+        if (f.landed) ctx.rotate(f.lie !== undefined ? f.lie : (f.lie = f.spin));
+        const col = f.landed ? "#655a48" : "#bfb298";
+        const dk  = f.landed ? "#2b241c" : "#5a5140";
+        /* 뼈 한 대 — 대(shaft) 하나 + 마디 넷. `g` 만큼 바깥으로 부풀려 테를 만든다.
+           마디는 **작게** 둔다 — 크면 아령으로 읽힌다(처음 판이 그랬다). */
+        const bone = (c, g) => {
+          ctx.fillStyle = c;
+          ctx.fillRect(-sz * 0.80 - g, -sz * 0.13 - g, sz * 1.60 + g * 2, sz * 0.26 + g * 2);
+          const k = sz * 0.24 + g * 2;
+          for (const sx of [-1, 1]) for (const sy of [-1, 1])
+            ctx.fillRect(sx * sz * 0.80 - k / 2, sy * sz * 0.21 - k / 2, k, k);
+        };
+        bone(dk, Math.max(0.8, sz * 0.13));
+        bone(col, 0);
+      }
       ctx.restore();
       ctx.globalAlpha = 1;
       continue;
