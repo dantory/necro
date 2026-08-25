@@ -619,6 +619,8 @@ const decor = {};
  *  소품은 앵커에 맞춰 손으로 놓은 것이라 흔들면 안 된다.
  *  ★ 매 프레임 `ctx.filter` 를 거는 것은 비싸다(loadFloor 머리말) — **한 번 구워 둔다.** */
 const decorVars = {};
+/** 돌리기 **전**의 변형 셋 — 짝지어 찍는 자만 쓴다(`globalThis.__LIEROT = 0`). */
+const decorFlat = {};
 /** 조각 한 장을 이름으로 꺼낸다 — 건물 **앞에** 덧놓을 때 쓴다(js/town.js). */
 export const decorOf = (n) => decor[n];
 
@@ -637,6 +639,38 @@ function toneVars(base) {
     g.drawImage(base, 0, 0);
     out.push(c);
   }
+  return out;
+}
+/** ══ 눕는 것은 **방향도 흔든다** ══ (V-48)
+ *  밝기 ±6% · 크기 ±12% 로 흔들어도 눈은 **같은 조각**으로 알아본다 — 자로 대면
+ *  그 흔들기의 NCC 가 0.88~0.97 로, 「다른 이름끼리」(≤0.69)와 견주면 사실상 같은
+ *  그림이다(`tools/v48_same.py`). 그래서 한 화면에 스물두 개가 놓이는 `column2`
+ *  (누운 기둥)는 **전부 같은 방향으로 나란히** 누워 벽지가 된다.
+ *  ★ **서 있는 것은 못 돌린다** — 기둥·석상·화로·항아리·관은 중력이 붙어 있어
+ *    기울이면 넘어진 것으로 읽힌다. 돌리는 것은 **이미 바닥에 누운 것**뿐이다.
+ *  ★ 각도는 ±17° 부터 듣는다(NCC 0.60 → 문턱 0.79 아래). 0 을 넣어 「그대로 누운 것」도
+ *    남긴다 — 전부 비스듬하면 그것대로 규칙이 된다.
+ *  ★ 이웃값으로 돌린다(imageSmoothingEnabled=false) — 픽셀아트는 흐려지면 안 된다. */
+const LIE_ROT = { column2: [-34, -17, 0, 17, 34], bones2: [-41, -20, 0, 22, 43] };
+function rotVar(base, deg) {
+  if (!deg) return base;
+  const r = deg * Math.PI / 180, ca = Math.abs(Math.cos(r)), sa = Math.abs(Math.sin(r));
+  const w = Math.ceil(base.width * ca + base.height * sa);
+  const h = Math.ceil(base.height * ca + base.width * sa);
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.translate(w / 2, h / 2); g.rotate(r);
+  g.drawImage(base, -base.width / 2, -base.height / 2);
+  return c;
+}
+/** 밝기 변형 × 눕는 각 — 눕지 않는 것은 밝기 변형 그대로다. */
+function lieVars(name, base) {
+  const tones = toneVars(base);
+  const angs = LIE_ROT[name];
+  if (!angs) return tones;
+  const out = [];
+  for (const t of tones) for (const a of angs) { const c = rotVar(t, a); c._ang = a; out.push(c); }
   return out;
 }
 let decorLeft = DECOR.length, decorReady = false;
@@ -678,7 +712,8 @@ export function loadDecor(dir = "assets/decor") {
       g.filter = "sepia(0.42) saturate(1.15) brightness(0.92)";
       g.drawImage(im, 0, 0);
       decor[n] = c;
-      decorVars[n] = toneVars(c);
+      decorVars[n] = lieVars(n, c);
+      decorFlat[n] = toneVars(c);            // A/B 용 — `__LIEROT = 0` 이면 이쪽을 쓴다
       if (--decorLeft === 0) decorReady = true;
       LOAD.done++;
     };
@@ -973,7 +1008,7 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
        x(>>>11)·y(>>>17)·판뒤(>>>23)가 이미 쓰고 있으니 **안 쓰는 비트**에서 꺼낸다.
        밝기는 미리 구운 셋 중 하나, 크기는 ±12% 셋 중 하나다.
        ★ 좌우 뒤집기는 **안 쓴다** — place() 의 「빛은 왼쪽 위에서 온다」가 깨진다. */
-    const vs = decorVars[name];
+    const vs = (globalThis.__LIEROT === 0 ? decorFlat : decorVars)[name];
     const vi = vs ? (rnd >>> 2) % vs.length : 0;
     const im = vs ? vs[vi] : decor[name]; if (!im) return;
     const sizeI = vs ? (rnd >>> 27) % 3 : 1;
@@ -1003,7 +1038,7 @@ export function drawScatter(ctx, cx, cy, sc, squash, w, h, clear = 0, density = 
     /* ★ 자(2026-08-24 V-10) — **놓인 소품을 그 자리와 함께** 센다. 총 개수만 세면
        「가운데는 빽빽하고 위아래 띠는 통째로 빈」 얼룩이 안 보인다(08-12 야영지에서
        겪은 그 결). 켤 때만 센다 — 끄면 배열이 아예 안 자란다. */
-    if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name, vi * 3 + sizeI]);
+    if (globalThis.__scatterCount) (globalThis.__scatterHits ||= []).push([px2, py2, name, vi * 3 + sizeI, im._ang || 0]);
     // 불이 든 것은 **제 둘레를 밝힌다** — 왜 밝은지가 화면에 보여야 한다
     if (name === "brazier") addGlow(px2, py2 - 12 * ART.s * kJit, 190 * sc * kJit, 1.05);
     /* ★ 횃불은 **불이 장대 꼭대기에** 있다 — 화로와 같은 -12 를 쓰면 빛이 발치에
