@@ -1544,6 +1544,18 @@ body.charOpen #statBody > .pdoll{ margin:0 auto clamp(3px, calc(var(--pdS,46px) 
 #statBody.numsFirst > .pdoll{ order:2 }
 #statBody.numsFirst > .sStat:not(.jList){ order:1 }
 #statBody.numsFirst > .jList{ order:3 }
+
+/* ══ V-73 (2026-08-26) 수치를 인물 «옆»에 세운다 ══
+   반쪽 도킹한 「능력치」 상자는 **가로가 남고 세로가 모자란다** — 인물 덩어리가 폭 664 중
+   250px 만 쓰는데(위 `max-width:250px`), 그 아래 수치판이 세로를 먹어 `fitDollStat` 이
+   칸을 46 → 26px 까지 깎았다. 남는 쪽으로 옮기면 깎을 까닭이 사라진다.
+   ★ 폭이 모자라면 이 결로 가지 않는다 — `fitDollStat` 이 붙이고 뗀다(값을 여기 또 적지
+     않는다 · [[seam-not-values]]). `numsFirst`(수치가 위로) 와는 **서로 배타**다. */
+#statBody.sideBySide{ display:grid; align-items:start;
+  grid-template-columns:auto minmax(var(--sbsNums,240px), 1fr); column-gap:14px }
+#statBody.sideBySide > .pdoll{ grid-column:1; grid-row:1; margin-bottom:0 }
+#statBody.sideBySide > .sStat:not(.jList){ grid-column:2; grid-row:1; margin-top:0 }
+#statBody.sideBySide > .jList{ grid-column:1 / -1; grid-row:2 }
 /* ★ 금을 능력치 쪽에서 **감췄다가 되돌렸다.** 「두 발치에 같은 수가 둘」이 눈에 걸려
    지웠는데, `statup_qa` 가 바로 울었다 — 그 패널에는 **금을 쓰는 단추(강화)** 가 있고,
    「값을 적었으면 가진 금도 적는다」는 규칙이 이미 서 있었다. 쓰는 자리에 잔고가 없으면
@@ -1572,6 +1584,15 @@ body.charOpen #statBody .jList{ grid-template-columns:1fr }
   body.charOpen #statBody .sStat:not(.jList){ grid-template-columns:1fr 1fr; column-gap:26px }
   body.charOpen #statBody .jList{ grid-template-columns:1fr 1fr }
 }
+
+/* ══ V-73 (이어서) 옆에 세운 수치는 **한 줄에 하나**다 ══
+   바로 위 V-66 은 「폭이 제자리로 오면 한 칸이 347px 이라 밟을 일이 없다」를 까닭으로
+   두 칸을 되돌렸다. 그 까닭은 **판이 상자 폭을 통째로 쓸 때**의 것이다 — 인물 옆으로
+   가면 판이 274~390px 뿐이라 한 칸이 124~182px 로 떨어져 「소환수 피해」가 두 줄로
+   접힌다(찍어 보고 알았다 · 자는 넘침만 보고 통과시켰다).
+   창 폭(@media)이 아니라 **판이 실제로 받은 폭**이 정하는 일이므로 결에 매단다. */
+body.charOpen #statBody.sideBySide > .sStat:not(.jList){ grid-template-columns:1fr; column-gap:0 }
+body.charOpen #statBody.sideBySide > .jList{ grid-template-columns:1fr }
 
 /* ── 아래 판의 메뉴 ── (병수님 2026-08-17 20:33 「하단에 메뉴로 빼줘」)
    벨트 바로 밑, 구슬 사이. D2 의 아래 판이 캐릭터·인벤토리·스킬을 여는 자리다.

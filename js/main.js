@@ -2604,12 +2604,26 @@ function fitDollBag() {
  *         바로 울었다 — 1280×800 에서 가방 칸이 20px 로 찌그러졌다(문턱 34px).
  *         한쪽을 밀면 반대쪽이 따라 온다([[equilibrium-pushes-back]]). 자리를 옮기지
  *         말고 **차례만 바꾸면** 아무 데도 안 밀린다. 장비를 만질 곳도 그대로 있다. */
+/** ══ V-73 (2026-08-26) ══ **가로가 남는데 세로로만 쌓고 있었다.**
+ *  반쪽 도킹한 상자는 폭 548~664px 인데 인물 덩어리는 250px 에 못박혀 있어
+ *  (`hud.css` `max-width:250px`) **55~62%가 빈 채**로 남았다. 그런데 그 밑의 수치판이
+ *  세로를 먹으니 아래 되짚기가 칸을 46 → 26~38px 까지 깎는다 — 남는 쪽을 안 쓰고
+ *  모자란 쪽을 깎고 있었다. 그래서 **넓으면 먼저 «옆»에 세워 본다.**
+ *  ★ 차례가 뜻이다: ① 옆에 세우기(칸이 크게 남는다) ② 위아래로 깎기 ③ 수치 먼저(V-56).
+ *    ①이 안 되는 것은 **폭이 모자랄 때**뿐이고, 그 판정은 CSS 의 gap 과 인물의 실제
+ *    폭을 읽어서 한다 — 250·14 를 여기 또 적으면 둘이 갈린다([[seam-not-values]]).
+ *  ★ 옆에 세우면 **인물이 수치를 밀어내지 못한다** — 아래로 넘치는 것이 수치가 아니라
+ *    인물일 수 있으니 `fits()` 가 둘 다 물어야 한다. 하나만 물으면 「넘침 0」이라 하고
+ *    인물 다리가 잘린 채 통과한다([[silent-zero-is-not-an-observation]]). */
 const PDS_FLOOR = 22;
+const SBS_NUMS_MIN = 240;   /* 수치판이 「유해 12구 · ×1.96」을 한 줄에 담는 최소 폭 */
+const SBS_FLOOR = 30;       /* 옆에 세워도 칸이 이보다 작아지면 값어치가 없다 — 위아래로 되돌린다 */
 function fitDollStat() {
   const body = $("statBody"), doll = body && body.querySelector(".pdoll");
   if (!body || !body.clientHeight) return;
   /* 창이 다시 커졌는데 접힌 채로 남으면 안 된다 — 매번 **펴고** 시작한다 */
   body.classList.remove("numsFirst");
+  body.classList.remove("sideBySide");
   if (!doll) return;
   const nums = body.querySelector(".sStat:not(.jList)");
   /* ★ **「아래에 더 있다」 그늘까지 자리를 비워 둔다.** 처음 고쳤을 때 자는 「넘침 0」
@@ -2619,14 +2633,29 @@ function fitDollStat() {
      ([[threshold-and-ruler-must-match]] · [[silent-zero-is-not-an-observation]]).
      높이는 **CSS 에서 읽는다** — 여기 34 를 또 적으면 둘이 갈린다. */
   const moreH = () => parseFloat(getComputedStyle(body, "::after").height) || 34;
-  const fits = () => nums
-    ? nums.getBoundingClientRect().bottom <= body.getBoundingClientRect().bottom - moreH() + 0.5
-    : body.scrollHeight <= body.clientHeight;
+  const lim = () => body.getBoundingClientRect().bottom - moreH() + 0.5;
+  const fits = () => {
+    const ok = nums ? nums.getBoundingClientRect().bottom <= lim()
+                    : body.scrollHeight <= body.clientHeight;
+    /* 옆에 세운 동안에는 인물이 제 줄에서 따로 넘칠 수 있다 — 둘 다 물어야 한다 */
+    return ok && (!body.classList.contains("sideBySide")
+                  || doll.getBoundingClientRect().bottom <= lim());
+  };
   /* ★ 줄 사이도 **칸에 매단다**(V-52 의 `--cs` 결). 바닥 근처에서 6px 를 고집하면
      1366×768 에서 **3px 가 모자라** 인물을 통째로 잃는다 — 접기 전에 접을 수 있는
      것을 먼저 접는다([[seam-not-values.md]] · 이음매를 값 하나로 때우지 않는다). */
   const setS = (s) => { doll.style.setProperty("--pdS", s + "px");
                         doll.style.setProperty("--pdG", (s >= 44 ? 8 : s >= 30 ? 6 : 5) + "px"); };
+  /* ── ① 옆에 세워 본다(V-73). `__NOSBS` 면 옛 꼴 — 자가 같은 판에서 전/후를 견준다. ── */
+  if (nums && !window.__NOSBS) {
+    body.classList.add("sideBySide");
+    setS(46);
+    const gap = parseFloat(getComputedStyle(body).columnGap) || 0;
+    const wide = body.clientWidth >= doll.getBoundingClientRect().width + gap + SBS_NUMS_MIN;
+    if (wide) for (let s = 46; s >= SBS_FLOOR; s--) { setS(s); if (fits()) return; }
+    body.classList.remove("sideBySide");
+  }
+  /* ── ② 위아래로 쌓고 칸을 깎는다(V-24) ── */
   for (let s = 46; s >= PDS_FLOOR; s--) { setS(s); if (fits()) return; }
   /* ══ V-58 (2026-08-25) ══ **접고 나서도 «쥐어짠 채»로 두고 있었다.**
      위 되짚기가 바닥까지 갔다는 것은 **깎아서는 안 들어간다**는 뜻이다. 그런데 그때
