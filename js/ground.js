@@ -21,6 +21,9 @@ import { LOAD } from "./sprite8.js";
    ══════════════════════════════════════════════════════════ */
 
 const tileSets = {};       // 이름 → 네 가지 변형
+/* 검수기가 **구워진 것**을 그대로 읽는다(tools/v62_grain.mjs) — 원본 png 를 밖에서
+   재면 boost·saturate·tone 열둘을 안 거쳐 사람이 보는 것과 다른 수가 나온다. */
+globalThis.__floorTiles = tileSets;
 let tiles = [], floorReady = false;
 /* ★★ **마을에 던전 돌바닥이 깔려 있었다**(병수님: "마을과 던전 타일도 구분이 필요").
    타일은 확실히 다른데(던전 평균밝기 41 회색돌 · 마을 96 갈색흙) 화면에는 던전 것이
@@ -62,6 +65,27 @@ export function useFloor(name, tint = null) {
   if (tileSets[name]) { tiles = tileSets[name]; floorReady = true; }
 }
 
+/** 구운 타일의 **높낮이만** con 배로 벌린다 — 축은 **제 채널 평균**이다.
+ *  ★ CSS `contrast()` 는 축이 127.5 에 못 박혀 있어 어두운 타일을 더 어둡게 민다.
+ *    그러면 밝기 손잡이를 다시 만져야 하고 둘이 또 엉킨다 — 축을 제 평균에 두면
+ *    평균이 안 움직이므로 `boost` 는 손댈 필요가 없다.
+ *  ★ 채널마다 따로 미는 이유는 색 균형을 지키기 위해서다. 밝기 하나로 밀면
+ *    RGB(69,5,32) 처럼 **한 채널만 서 있는 색**이 더 새빨개진다(V-5 가 겪은 그것).
+ *  타일은 32×32 한 장이고 **한 번만** 굽는다 — 프레임당 값은 0 이다. */
+function grain(g, t, con) {
+  const img = g.getImageData(0, 0, t, t), d = img.data, n = t * t;
+  for (let c = 0; c < 3; c++) {
+    let m = 0;
+    for (let i = 0; i < n; i++) m += d[i * 4 + c];
+    m /= n;
+    for (let i = 0; i < n; i++) {
+      const v = m + (d[i * 4 + c] - m) * con;
+      d[i * 4 + c] = v < 0 ? 0 : v > 255 ? 255 : v;
+    }
+  }
+  g.putImageData(img, 0, 0);
+}
+
 /** 바닥 타일을 받아 **네 가지 변형으로 미리 구워 둔다.**
  *  ★ 한 장을 그대로 반복하면 **격자가 보인다** — 같은 얼룩이 32px 마다 되풀이되니
  *  눈이 그 주기를 금방 찾아낸다. 좌우·상하로 뒤집은 네 장을 자리마다 골라 쓰면
@@ -74,7 +98,13 @@ export function useFloor(name, tint = null) {
  *  타고난 채도가 다르다** — 새로 구운 「마른 피의 골」은 원본이 RGB(69,5,32) 라
  *  평균밝기를 다른 구역과 똑같이 맞춰도 화면에서는 혼자 새빨갰다(최대채널 86 대 42~55).
  *  평균은 **빨강 하나만 서 있는 색**을 못 본다 — 그러니 밝기 말고 채도도 손잡이여야 한다. */
-export function loadFloor(src, boost = 1.8, name = "crypt", sat = 0.9) {
+/*  ★★ `con`(대비) 도 밖에서 준다(V-62). `boost` 는 **곱하기**라 평균만 내리는 게 아니라
+ *  **무늬의 높낮이도 같은 배로 깎는다.** 원본이 밝은 camp 는 화면 44 를 맞추려 0.39 를
+ *  곱해야 하는데, 그러면 퍼짐 15 가 5.9 로 주저앉아 「매끈한 갈색 종이」가 된다 —
+ *  원본이 이미 어두운 crypt(0.95)는 무늬가 거의 그대로다. **같은 화면 밝기인데
+ *  한쪽만 무늬를 잃는다.** 그래서 밝기와 대비를 갈라, 구운 뒤 **제 평균을 축으로**
+ *  높낮이만 되돌린다(평균은 안 움직이므로 밝기는 그대로다). */
+export function loadFloor(src, boost = 1.8, name = "crypt", sat = 0.9, con = 1) {
   const im = new Image();
   LOAD.total++;
   im.onload = () => {
@@ -100,6 +130,7 @@ export function loadFloor(src, boost = 1.8, name = "crypt", sat = 0.9) {
         g.translate(sx < 0 ? t : 0, sy < 0 ? t : 0);
         g.scale(sx, sy);
         g.drawImage(im, 0, 0);
+        if (con !== 1) grain(g, t, con);
         made.push(c);
       }
     /* ★ 같은 이름으로 두 번 부르면 **덮지 않고 이어 붙인다** — 풀 타일 12 + 흙 타일 12

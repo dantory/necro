@@ -3444,7 +3444,7 @@ loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
    뼈의 회랑은 **채도를 걷어 창백한 찬빛**으로(sat 0.9 → 0.30 · 원본이 색상 20°/채도 0.25
    짜리 «따뜻한» 뼈였다), 잿빛 야영터는 반대로 **채도를 올려 호박빛**으로 민다. */
 loadFloor("assets/floor/bone_tile.png", 0.96, "bone", 0.30);  // 창백한 뼛빛 · 화면 52
-loadFloor("assets/floor/camp_tile.png", 0.39, "camp", 1.15);  // 호박빛 야영터 · 화면 48
+loadFloor("assets/floor/camp_tile.png", 0.39, "camp", 1.15, 2.16);  // 호박빛 야영터 · 화면 48
 /* ★ V-47 — 자가 **옛 바닥으로 되돌려** 같은 판 같은 프레임을 두 번 찍는 문
    (`__CORPSEOLD`·`__BAROLD`·`__GIBOLD` 와 같은 결). 바닥은 캐시에 구워 두므로
    갈아 끼운 뒤 `__gbust` 를 올려 **다시 굽게** 한다(V-4c 가 겪은 그 결).
@@ -3470,9 +3470,14 @@ window.__campOld = (on) => {
    ★ 밝기를 고르는 자는 **평균이 아니라 최대채널**이다(V-5 에서 두 번 놓쳤다). 평균은
      RGB(69,5,32) 처럼 **한 채널만 서 있는 색**을 못 본다 — 평균을 맞춰 놓고도 화면에서는
      혼자 새빨갛다. 일곱 구역의 최대채널을 42~55 에 모으고, 채도가 튀는 것은 sat 로 눌렀다. */
+/* ★★ V-62 — 다섯째 값은 **대비**다. 밝기를 맞추려 곱한 boost 가 무늬의 높낮이까지
+   같이 깎아, camp·sanctum·blood 세 구역이 「무늬 없는 색판」이 돼 있었다(결이 crypt 의
+   46%·44%·61%). 축을 **제 평균**에 두고 높낮이만 되돌리므로 화면 밝기는 안 움직인다.
+   값은 `node tools/v62_grain.mjs` 로 crypt(=1층, 사람이 「돌바닥으로 읽힌다」고 본 유일한
+   자리) 에 맞춘 것이다 — 손으로 고른 수가 아니라 잰 수다. */
 loadFloor("assets/floor/rot_tile.png",     0.98, "rot",  0.72); // 썩은 시체 굴 4층
-loadFloor("assets/floor/sanctum_tile.png", 0.73, "sanctum"); // 어둠의 성소 26층 · 60 × 0.73 ≈ 44
-loadFloor("assets/floor/blood_tile.png",   0.68, "blood");      // 마른 피의 골 40층
+loadFloor("assets/floor/sanctum_tile.png", 0.73, "sanctum", 0.9, 2.25); // 어둠의 성소 26층 · 60 × 0.73 ≈ 44
+loadFloor("assets/floor/blood_tile.png",   0.68, "blood", 0.9, 1.63);   // 마른 피의 골 40층
 loadFloor("assets/floor/abyss_tile.png",   0.95, "abyss");      // 심연 60층
 /* ★ 마을 바닥을 **야영지 마른 풀**로 바꾼다(병수님이 준 D2 로그 야영지 화면).
    갈색 흙 한 가지는 「공터」로 읽혔다 — 마른 풀빛이라야 야영지가 된다.
