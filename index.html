@@ -50,8 +50,13 @@
        주석) 단추를 끼우자 「남은 적」이 잘렸다. 붐비는 줄에 끼우는 대신 **전장 오른쪽 위
        빈 하늘**에 띄운다 — 판 위라 눈에 걸리고, 아무 줄도 밀지 않는다. -->
   <button id="hLeave" class="hBtn" title="여기까지만 하고 마을로 — 얻은 것은 그대로 가져간다">나가기</button>
-  <!-- 환생 — 나가기와 짝. **마을에서, 임계 층을 넘겼을 때만** 뜬다(js/main.js syncReborn). -->
-  <button id="hReborn" class="hBtn" title="환생 — 처음부터 다시, 대신 영구 배수(유해)">환생 ⟳</button>
+  <!-- 환생 — 나가기와 짝. **마을에서, 임계 층을 넘겼을 때만** 뜬다(js/main.js syncReborn).
+       ★ V-63 — 여기 있던 ⟳(U+27F3)는 **Galmuri 에 없는 낱자**라 macOS 가 Apple Symbols 로
+         그렸다. 판에서 시스템 폰트가 그리던 마지막 자리다(V-34 가 상인 좌판의 ⚰ 하나를,
+         V-37 이 편성·운용 여덟을 고치며 「이것이 마지막」이라 적고 여기를 안 봤다
+         · [[carry-fixes-forward]]). 뜻이 같고 **Galmuri 가 가진** ↻(U+21BB)로 바꾼다 —
+         글리프를 지우지 않고 픽셀로 되돌리는 길이다. `tools/v63_glyph.mjs` 가 지킨다. -->
+  <button id="hReborn" class="hBtn" title="환생 — 처음부터 다시, 대신 영구 배수(유해)">환생 ↻</button>
   <!-- 편성 — **마을에서 늘** 뜨는 단추(왼쪽 위 하늘). 환생이 오른쪽인 것과 짝으로 왼쪽에 둔다.
        CSS 의 body.in-town 만으로 켜고 끈다(늘 열려 있어 syncReborn 같은 조건이 없다). -->
   <button id="hDoctrine" class="hBtn" title="편성 — 어떤 군대를 세울지 고른다 (O)">편성 ⚔</button>
