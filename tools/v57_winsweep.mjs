@@ -46,11 +46,25 @@ const MEASURE = (key) => `(()=>{const idOf={shop:"winShop",forge:"winForge",dive
     const br=b.getBoundingClientRect(), lim=br.bottom-fade;
     for(const el of b.children){ const r=el.getBoundingClientRect();
       if(r.height>4&&r.top<lim-.5&&r.bottom>lim+.5) cut++; } }
-  /* 글자가 제 칸 밖으로 나간 것 — 가로 잘림 */
-  let hcut=0; for(const el of w.querySelectorAll("*")){ if(el.scrollWidth-el.clientWidth>2&&el.clientWidth>0) hcut++; }
+  /* 가로 잘림 — «자르는 요소»만 본다.
+     overflow-x 가 visible 이면 넘쳐도 다 보인다(스킬트리 랭크 배지·잇는 선이 그렇다).
+     hidden/clip 이라야 «영영 못 읽는 것», auto/scroll 은 굴려서 닿으니 따로 센다. */
+  let hcut=0, hscr=0; const hits=[];
+  const nameOf=(el)=>el.id?("#"+el.id):(el.className&&typeof el.className==="string"
+    ?el.tagName.toLowerCase()+"."+el.className.trim().split(/\s+/).slice(0,2).join("."):el.tagName.toLowerCase());
+  for(const el of w.querySelectorAll("*")){
+    const over=el.scrollWidth-el.clientWidth;
+    if(!(over>2&&el.clientWidth>0)) continue;
+    const cs=getComputedStyle(el);
+    if(/visible/.test(cs.overflowX)) continue;              /* 안 자른다 — 위양성의 정체 */
+    if(/auto|scroll/.test(cs.overflowX)){ hscr++; continue; } /* 굴리면 닿는다 */
+    if(!el.getClientRects().length) continue;                /* 안 그려진 것 */
+    hcut++; if(hits.length<6) hits.push(nameOf(el)+" +"+Math.round(over)+"px"
+      +(/ellipsis/.test(cs.textOverflow)?"(…)":""));
+  }
   return {below:Math.round(Math.max(0,wr.bottom-VH)), above:Math.round(Math.max(0,-wr.top)),
     right:Math.round(Math.max(0,wr.right-VW)), left:Math.round(Math.max(0,-wr.left)),
-    h:Math.round(wr.height), unseen:Math.round(unseen), stuck:Math.round(stuck), cut, hcut};})()`;
+    h:Math.round(wr.height), unseen:Math.round(unseen), stuck:Math.round(stuck), cut, hcut, hscr, hits};})()`;
 
 const rows = [];
 for (const [W, H] of SIZES) {
@@ -76,7 +90,9 @@ for (const [k, v] of Object.entries(byWin).sort((a, b) => b[1].length - a[1].len
     (r.below ? ` · 아래로 넘침 ${r.below}px` : "") + (r.above ? ` · 위로 넘침 ${r.above}px` : "") +
     (r.right ? ` · 오른쪽 ${r.right}px` : "") + (r.left ? ` · 왼쪽 ${r.left}px` : "") +
     (r.unseen > 8 ? ` · 못 본 내용 ${r.unseen}px` : "") + (r.stuck ? ` · **못 구르는데 넘침 ${r.stuck}px**` : "") +
-    (r.cut ? ` · 반쯤 걸린 줄 ${r.cut}` : "") + (r.hcut ? ` · 가로 잘린 것 ${r.hcut}` : ""));
+    (r.cut ? ` · 반쯤 걸린 줄 ${r.cut}` : "") + (r.hcut ? ` · 가로 잘린 것 ${r.hcut}` : "")
+    + (r.hscr ? ` · 굴러야 닿는 것 ${r.hscr}` : "")
+    + (r.hits && r.hits.length ? `\n        ${r.hits.join(" · ")}` : ""));
 }
 const off = rows.filter(r => r.off).map(r => r.win + "@" + r.size);
 if (off.length) console.log("\n못 연 창:", [...new Set(off.map(x => x.split("@")[0]))].join(" "));
