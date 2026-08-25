@@ -3314,6 +3314,24 @@ loadFloor("assets/floor/crypt_tile.png", 0.95, "crypt");
    짜리 «따뜻한» 뼈였다), 잿빛 야영터는 반대로 **채도를 올려 호박빛**으로 민다. */
 loadFloor("assets/floor/bone_tile.png", 0.96, "bone", 0.30);  // 창백한 뼛빛 · 화면 52
 loadFloor("assets/floor/camp_tile.png", 0.39, "camp", 1.15);  // 호박빛 야영터 · 화면 48
+/* ★ V-47 — 자가 **옛 바닥으로 되돌려** 같은 판 같은 프레임을 두 번 찍는 문
+   (`__CORPSEOLD`·`__BAROLD`·`__GIBOLD` 와 같은 결). 바닥은 캐시에 구워 두므로
+   갈아 끼운 뒤 `__gbust` 를 올려 **다시 굽게** 한다(V-4c 가 겪은 그 결).
+   ★ `loadFloor` 는 같은 이름이면 **덮지 않고 이어 붙인다**(마을의 풀+흙이 그렇다) —
+     그래서 옛 타일은 반드시 **다른 이름**으로 굽는다. 켜지 않으면 받아오지도 않는다.
+   ★ **두 번 불러야 한다.** 첫 부름은 굽기를 «시작»만 하고(그림은 비동기로 온다),
+     그 사이 캐시 열쇠는 `wanted` 만 바뀐 채 **타일 수가 12 로 같아** 다시 안 구워진다.
+     자는 첫 부름 뒤 그림이 오기를 기다렸다가 **한 번 더 부른다**(tools/v47_shot.mjs). */
+let campOldBaked = false;
+window.__campOld = (on) => {
+  if (on && !campOldBaked) {
+    loadFloor("assets/floor/camp_tile_old.png", 0.39, "camp_old", 1.15);
+    campOldBaked = true;
+  }
+  useFloor(on ? "camp_old" : "camp", zoneOf(S.floor | 0).tint);
+  globalThis.__gbust = (globalThis.__gbust | 0) + 1;
+  return on ? "camp_old" : "camp";
+};
 /* ★★ 구역 바닥 **넉 장**을 더 굽는다(ROADMAP V-5). 여태 일곱 구역이 타일 셋을 **색만
    바꿔** 돌려 썼다 — 색 곱하기는 값싸게 「달라 보이게」 하지만 **무늬는 그대로**라
    4층에서 9층으로 내려가도 발밑의 돌 이음새가 한 톨도 안 바뀐다. 내려가는 맛은
