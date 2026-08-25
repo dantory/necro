@@ -99,7 +99,7 @@ const $$ = (id) => _nodes[id] || (_nodes[id] = $(id));
 const setTxt  = (el, v) => { if (el && el.__t !== v) { el.__t = v; el.textContent = v; } };
 const setHTML = (el, v) => { if (el && el.__h !== v) { el.__h = v; el.innerHTML  = v; } };
 import { drawSlot, drawBar, watch } from "./frame.js";
-import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, pxDashEllipse, pxDashLine, setAnchors, useFloor, useLayout } from "./ground.js";
+import { drawGlows, drawGround, drawHoldRing, loadDecals, loadFloor, loadWang, loadDecor, pxDashEllipse, pxDashLine, rebuildWang, setAnchors, useFloor, useLayout } from "./ground.js";
 import { drawTown, drawTownLabels, loadTown, setTownHover, townBreath, townGaze, townHitAt, townHits } from "./town.js";
 
 /* 전장은 캔버스, 판(UI)은 DOM. **섞지 않는다** — 앞 프로토타입에서 백여 개 DOM 을
@@ -3510,6 +3510,8 @@ loadFloor("assets/floor/meadow_tile.png", 0.55, "town");
 /* 마을은 **Wang 16장**으로 깐다 — 풀과 흙이 한 바닥에서 섞이고 길 가장자리가
    너덜너덜해진다(위 loadFloor 는 Wang 이 안 뜰 때의 대비책). */
 loadWang("assets/floor/meadow2.png", "assets/floor/meadow2_wang.json", 0.55, "town");
+/* 검수 훅 — 자가 `__wangRough` 를 껐다 켜며 **같은 판**에서 전/후를 견준다(V-68). */
+window.__rebuildWang = () => { const ok = rebuildWang(); globalThis.__gbust = (globalThis.__gbust || 0) + 1; return ok; };
 /* ★ 흙 타일을 통째로 갈아 끼우니 **네모 덩어리**로 떴다 — 두 타일은 Wang 전이가
    아니라서 경계가 직각이 된다. 타일은 풀 하나로 두고, 흙은 **얼룩(decal)** 으로
    얹는다 — 얼룩은 알파 모양이라 경계가 원래 너덜너덜하다. */

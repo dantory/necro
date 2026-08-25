@@ -185,23 +185,107 @@ function nearAnchor(x, y) {
   for (const a of anchors) m = Math.min(m, Math.hypot(x - a[0], y - a[1]));
   return m;
 }
+/** 타일 **한 장을 주기로** 하는 값잡음. 주기가 타일과 같으므로 이웃 칸의 맞닿는
+ *  줄에서 값이 정확히 같다 — 경계를 흔들어도 이음매가 안 벌어진다.
+ *  @param u,v 타일 안의 자리(0~1) @param N 타일 한 변에 놓을 격자 수 @param seed 결 */
+function tnoise(u, v, N, seed) {
+  const x = u * N, y = v * N;
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const fx = x - xi, fy = y - yi;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const at = (i, j) => (hash2((((i % N) + N) % N) * 7 + seed * 131,
+                              (((j % N) + N) % N) * 13 + seed * 197) % 2048) / 2048;
+  const a = at(xi, yi), b = at(xi + 1, yi), c = at(xi, yi + 1), d = at(xi + 1, yi + 1);
+  return (a + (b - a) * sx) * (1 - sy) + (c + (d - c) * sx) * sy;
+}
+
+/* ══ V-68 · 곧은 이음매를 너덜너덜하게 ══
+   Wang 16 장을 제대로 맞춰 깔아도 마을의 풀/흙 경계가 **큰 네모의 계단**으로 보였다.
+   까닭은 배치가 아니라 **그림**이다 — `meadow2.png` 은 칸 안에서 풀과 흙이 **가로세로
+   직선**으로 갈려 있고 모서리 칸은 **직각 노치**다. 넉 장을 아무리 잘 맞춰도 곧은
+   토막을 잇는 것이라 계단이 된다([[cause-written-in-the-item-is-a-guess]] — 「Wang 이니
+   가장자리가 저절로 너덜너덜해진다」고 적혀 있던 그 자리를 확대해 보고 알았다).
+   그림을 다시 굽는 대신 **여기서 열넉 장을 다시 만든다**: 순수한 두 장(풀 `0000` ·
+   흙 `1111`)만 재료로 쓰고, 네 꼭짓점 값을 이중선형으로 편 위에 **타일 주기의 잡음**을
+   얹어 0.5 에서 자른다.
+     · 맞닿는 줄에서는 값이 **두 꼭짓점만으로** 정해지고 잡음도 주기가 같아, 이웃과
+       경계가 정확히 이어진다(0.5 넘는 자리가 언제나 변 한가운데다).
+     · 모서리 칸은 등고선이 쌍곡선이라 **직각 노치가 둥근 모서리**로 바뀐다.
+     · 순수한 두 장은 그대로다(d 가 0 이나 1 이라 잡음 ±0.1 로는 0.5 를 못 넘는다).
+   ★ `globalThis.__wangRough = 0` 이면 옛 그림을 그대로 쓴다 — 자가 「전」을 되살리는 문. */
+const WROUGH = 0.20;                 // 경계가 흔들리는 폭(d 단위 · 0.20 이면 ±6px/32px)
+let wangSrc = null, wangBoost = 1, wangReady = false;
+
+function cutTile(im, col, row, t, boost) {
+  const c = document.createElement("canvas");
+  c.width = t; c.height = t;
+  const g = c.getContext("2d");
+  g.imageSmoothingEnabled = false;
+  g.filter = `brightness(${boost}) saturate(0.95)`;
+  g.drawImage(im, col * t, row * t, t, t, 0, 0, t, t);
+  return c;
+}
+
+export function rebuildWang() {
+  const im = wangSrc;
+  if (!im || !wang) return false;
+  const t = im.width / 4;
+  const slot = new Array(16);
+  for (let i = 0; i < 16; i++) slot[i] = cutTile(im, i % 4, (i / 4) | 0, t, wangBoost);
+  wangTiles = slot;
+  wangReady = true;
+  if (globalThis.__wangRough === 0) return true;      // 옛 그림 그대로(자의 「전」)
+  const gp = wang["0000"], dp = wang["1111"];
+  if (!gp || !dp) return true;                        // 순수한 장이 없으면 손대지 않는다
+  const gd = slot[gp[1] * 4 + gp[0]].getContext("2d").getImageData(0, 0, t, t).data;
+  const dd = slot[dp[1] * 4 + dp[0]].getContext("2d").getImageData(0, 0, t, t).data;
+  for (const key of Object.keys(wang)) {
+    if (key === "0000" || key === "1111") continue;
+    const TL = +key[0], TR = +key[1], BL = +key[2], BR = +key[3];
+    const c = document.createElement("canvas");
+    c.width = t; c.height = t;
+    const g = c.getContext("2d");
+    const img = g.createImageData(t, t), a = img.data;
+    const mask = new Uint8Array(t * t);
+    for (let y = 0; y < t; y++) {
+      const v = (y + 0.5) / t;
+      for (let x = 0; x < t; x++) {
+        const u = (x + 0.5) / t;
+        const d = TL * (1 - u) * (1 - v) + TR * u * (1 - v) + BL * (1 - u) * v + BR * u * v;
+        const n = 0.62 * (tnoise(u, v, 4, 1) - 0.5) + 0.38 * (tnoise(u, v, 8, 2) - 0.5);
+        mask[y * t + x] = d + n * 2 * WROUGH > 0.5 ? 1 : 0;
+      }
+    }
+    /* ★ 원래 그림에는 흙 쪽 경계에 **한 겹 짙은 줄**이 있었다(닳은 땅의 테두리다).
+       다시 만들면서 그것까지 잃으면 두 재질이 그냥 뭉개진 것처럼 보인다 — 살려 둔다. */
+    for (let y = 0; y < t; y++) {
+      for (let x = 0; x < t; x++) {
+        const i = y * t + x, o = i * 4, m = mask[i];
+        const src = m ? dd : gd;
+        a[o] = src[o]; a[o + 1] = src[o + 1]; a[o + 2] = src[o + 2]; a[o + 3] = src[o + 3];
+        if (!m) continue;
+        const nb = (xx, yy) => (xx < 0 || yy < 0 || xx >= t || yy >= t) ? 1 : mask[yy * t + xx];
+        if (nb(x - 1, y) && nb(x + 1, y) && nb(x, y - 1) && nb(x, y + 1)) continue;
+        a[o] = a[o] * 0.78 | 0; a[o + 1] = a[o + 1] * 0.78 | 0; a[o + 2] = a[o + 2] * 0.78 | 0;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    slot[wang[key][1] * 4 + wang[key][0]] = c;
+  }
+  return true;
+}
+
 export function loadWang(sheetSrc, mapSrc, boost = 1, name = "town") {
   LOAD.total += 2;
-  fetch(mapSrc).then((r) => r.json()).then((m) => { wang = m; LOAD.done++; })
+  wangBoost = boost;
+  fetch(mapSrc).then((r) => r.json()).then((m) => { wang = m; rebuildWang(); LOAD.done++; })
                .catch(() => { LOAD.done++; });
   const im = new Image();
   im.onload = () => {
-    const t = im.width / 4;
-    wangTiles = [];
-    for (let i = 0; i < 16; i++) {
-      const c = document.createElement("canvas");
-      c.width = t; c.height = t;
-      const g = c.getContext("2d");
-      g.imageSmoothingEnabled = false;
-      g.filter = `brightness(${boost}) saturate(0.95)`;
-      g.drawImage(im, (i % 4) * t, ((i / 4) | 0) * t, t, t, 0, 0, t, t);
-      wangTiles.push(c);
-    }
+    wangSrc = im;
+    /* ★ 그림과 지도가 **따로** 온다 — 둘 다 온 뒤에 굽는다(먼저 온 쪽이 부르면 그냥
+       false 로 돌아가고, 늦게 온 쪽이 다시 부른다). */
+    rebuildWang();
     LOAD.done++;
   };
   im.onerror = () => { LOAD.done++; };
@@ -317,7 +401,7 @@ let gcv = null, gctx = null, gkey = "", bakedGlows = [];
 export function groundCacheKey(w, h, cx, cy, sc, squash, scatter, band) {
   return [w, h, Math.round(cx), Math.round(cy), sc.toFixed(3), squash.toFixed(3),
           band ? Math.round(band.x0) + "," + Math.round(band.w) : "-",
-          floorReady, decorReady, wanted, tintCol || "-", tiles.length,
+          floorReady, decorReady, wangReady, wanted, tintCol || "-", tiles.length,
           layoutOX + ":" + layoutOY,        // ★ 층마다 다른 방(V-17) — 빼면 캐시가 옛 방을 돌려준다
           scatter ? [scatter.clear, scatter.density, scatter.decal,
                      scatter.set ? scatter.set.length : 0, scatter.wild ? 1 : 0].join(",") : "-",
