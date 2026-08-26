@@ -660,7 +660,17 @@ body.in-town #stage{cursor:pointer}
    창이 아래로 내려앉아 **안 닿던 화면에서까지 구슬을 덮으므로**, 여기서는 z 만 올린다.
    ★ 셋을 한꺼번에 적는 까닭 — 「닿는 것만 고치면」 다음 화면 크기에서 또 하나가 남는다
    (1512 에서는 셋 다 멀쩡했고 720 에서 셋 다 울었다 · [[carry-fixes-forward]]). */
+/* ★★★ V-86 (2026-08-26) — **자리가 남는데 글을 잘랐다.** 위 주석의 「자리를 더 달라는
+   게 아니다」는 **띠 이야기였고**, 글이 들어가느냐는 안 재 봤다. 재 보니 1366×700 ·
+   1280×720 에서 편성·운용의 설명칸이 **46px·42px 넘치는데 겉판 밑으로 화면이 206px 이
+   비어 있다**(`tools/v86_roomcut.mjs`) — 있는 자리를 안 쓰고 자른 것이다
+   ([[knob-that-does-nothing]] 의 이웃). 셋도 **마을에서만** 열리고 보는 동안은 안 싸우니
+   구슬 자리를 비워 둘 까닭이 상인·대장간과 똑같이 없다([[carry-fixes-forward]]).
+   옛 주석이 걱정한 「구슬을 덮는다」는 V-85 가 이미 다른 길로 풀었다(띠를 통째로 숨긴다).
+   `body.roomold` 는 자를 위한 문 — 옛 결로 되돌려 같은 자로 잰다. */
 #winDoctrine, #winTactic, #winReborn{z-index:35}
+body:not(.roomold) #winDoctrine, body:not(.roomold) #winTactic, body:not(.roomold) #winReborn{bottom:0}
+body.roomold #winDoctrine, body.roomold #winTactic, body.roomold #winReborn{bottom:var(--hudH)}
 /* ★★ V-85 (2026-08-26) — **z 만 올린 자리에 흠이 남았다.** 위 셋은 짧아서 띠에
    «걸치기만» 하므로 창틀이 단추의 윗동만 덮는다(1366×700 에서 87% · 환생 30% ·
    `tools/v85_bandcut.mjs`). 게다가 겉판이 화면을 통째로 덮는 z 35 라 **네 크기 모두에서
