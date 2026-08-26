@@ -1127,6 +1127,10 @@ body.in-town #hTactic{ display:inline-block; }
    읽히도록 올린다(V-104 `.lockNote` 와 같은 밝기 · [[carry-fixes-forward]]). */
 .purse b.off{color:#6f6553}
 .purse .when{color:#8b8271}
+/* 능력치 창의 **중립인 배수**(×1.00) — 값이지만 아직 아무 말도 안 하는 수라 눕힌다.
+   V-106 이 좌판·대장간 배지 0 에 쓴 바로 그 빛깔(.cell .q.off)을 옮긴 것이다
+   ([[carry-fixes-forward]]). 줄도 단추도 그대로 두고 **빛깔만** 뺀다. */
+.sStat .tipStat b.off{color:#8a7c60}
 
 
 /* ══ 폰 전용 규칙(@media max-width:560px)은 **통째로 지웠다** ══

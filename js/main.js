@@ -2565,9 +2565,22 @@ const statNumbers = () => {
      ★ 폭은 58 → 68px(hud.css) — 「999k 금」이 상자를 안 넘게. 옛 결은 `__UPCOSTOLD`. */
   const 옛값 = !!globalThis.__UPCOSTOLD;
   document.body.classList.toggle("upcostOld", 옛값);
+  /* ★ **중립인 배수는 가라앉힌다**(V-111). 처음 켠 사람의 「본인 피해 ×1.00 · 소환수
+     피해 ×1.00」은 마을에서 depthMul=1 · 강화 0 · 레벨 1 · 옵션 없음이라 **한 번도 뜻을
+     가진 적이 없는 수**인데, 빛깔이 「체력 56」과 똑같아 그 옆의 진짜 값까지 안 읽힌다.
+     이 창은 유해·깊이·금 획득 셋을 이미 「값이 붙었을 때만」으로 걸러 두었다 — **피해
+     두 줄에만 안 옮겨진 못이다**([[carry-fixes-forward]] · V-101 이 1층 머리글에서
+     지운 바로 그 「×1.00」).
+     ★ **지우지 않고 가라앉힌다** — 소환수 피해 줄에는 강화 단추가 달려 있어 줄을 없애면
+       사는 길까지 사라지고, 「배수라는 것이 있다」는 것 자체를 모른다. V-106 이 배지 0 에
+       쓴 `.off`(#8a7c60)를 그대로 옮긴다(V-104 lockNote · V-105 purse 와 같은 결).
+     ★ 중립인지는 **`mul(1)` 과 견줘서** 안다 — 「×1.00」을 손으로 안 적는다(자릿수 규칙이
+       바뀌면 같이 따라간다). 옛 결은 `__NEUTOLD`. */
+  const 옛중립 = globalThis.__NEUTOLD === 1, 중립값 = mul(1);
   return `<div class="sStat">${rows.map(([n, v, up]) => {
     const c = up ? upCost(up) : 0, can = up && META.gold >= c;
-    return `<div class="tipStat"><span class="sN">${n}</span><b>${v}</b>` +
+    const 눕힘 = !옛중립 && v === 중립값 ? " class=\"off\"" : "";
+    return `<div class="tipStat"><span class="sN">${n}</span><b${눕힘}>${v}</b>` +
       (up
         ? `<button class="upBtn${can ? "" : " no"}" data-up="${up}"${can ? "" : " disabled"}
              title="${UPS[up].n} 강화 — ${UPS[up].d} · ${c.toLocaleString()} 금">▲ ${num(c)}${옛값 ? "" : " 금"}</button>`
@@ -3405,6 +3418,10 @@ document.addEventListener("click", (e) => {
    창을 다시 열어 **토글로 닫히고**, 자는 「인물이 없다」로 울었다 — 1440 에서만 났다.
    여는 길이 하나로 모여 있듯 **닫는 길도 하나** 있어야 밖에서 검수할 수 있다. */
 window.__closeAll = () => closeAll();
+/** 자를 위한 **참값 창구**(V-111) — 능력치 창의 배수가 정말 중립인지를 **화면 글자가
+ *  아니라 core.js 함수**에서 읽게 한다. 화면에서 되읽으면 자가 제 고침을 되읽는다
+ *  ([[silent-zero-is-not-an-observation]]). 값도 그림도 안 건드리는 읽기 전용 창구다. */
+window.__STATTRUTH = () => ({ self: selfDmgMul(), minion: minionDmgMul(), depth: depthMul() });
 window.__openWin = (which) => {
   /* 같은 단추를 다시 누르면 **닫힌다** — 열기만 되면 「어떻게 닫지」를 또 찾게 된다. */
   const idOf = { shop:"winShop", forge:"winForge", stat:"winStat", bag:"winBag", tree:"winTree", end:"winEnd", reborn:"winReborn", offline:"winOffline", doctrine:"winDoctrine", tactic:"winTactic", wipe:"winWipe" }[which];
