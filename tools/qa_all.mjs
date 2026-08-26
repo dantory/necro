@@ -144,6 +144,9 @@ const RULERS = [
      **두 크기를 다 본다** — 1366 에서는 예외 밖이라 여태 멀쩡했다.
      `node tools/v96_wide.mjs old` 로 부르면 ①이 운다(12/12 · 보정 확인 완료). */
   { name: "v96_wide",     args: [],                             secs: 240, tier: "fast", expect: /PASS|FAIL/ },
+  /* V-97 — 화면에 뜬 수의 «자릿점». 마을·전장·덮는 창 열둘을 한 자로 훑는다.
+     `node tools/v97_digits.mjs old` 로 부르면 운다(미달 5 · 보정 확인 완료). */
+  { name: "v97_digits",   args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

@@ -371,6 +371,16 @@ const MIN_STEP_FPS = 6.5;
  *  ★ 졸개(`born0` 0.4)는 **글자 그대로 예전과 같다** — 0.4 < 0.55 라 상한에 안 걸린다.
  *  ★ `__BORNFADE_OFF` 는 자가 옛 그림으로 되돌려 같은 판을 두 번 재는 문이다
  *    (`__BAROLD` · `__V81_OLD` 와 같은 결). */
+/** ══ 수의 **자릿점** ══ (V-97)
+ *  이 게임에는 수를 적는 결이 둘 있다. `num()`(core.js)은 「1.7k」로 줄여 **좁은 자리**에
+ *  놓고, `toLocaleString()`은 「1,720」으로 **정확한 값**을 놓는다. 값·가격처럼
+ *  «세어 볼 수 있어야 하는 수»는 뒤쪽이다 — V-95 가 정산에서 내린 판정이 그것이다.
+ *  그런데 그 못이 정산에만 박혀서, 상인·대장간·무덤 파기의 **가격**과 늘 떠 있는
+ *  **경험치 분수**는 날것으로 남아 있었다([[carry-fixes-forward]]).
+ *  ★ `__NFMT_OLD` 는 자가 **옛 결로 되돌려** 같은 화면을 두 번 재는 문이다
+ *    (`__BAROLD` · `__BORNFADE_OFF` 와 같은 결 · tools/v97_digits.mjs). */
+export const gnum = (v) => globalThis.__NFMT_OLD ? String(v | 0) : (v | 0).toLocaleString();
+
 export const BORN_FADE = 0.55;
 export const bornAlpha = (e) => {
   if (!(e && e.born > 0)) return 1;
@@ -2015,10 +2025,14 @@ function hud() {
      그때마다 스타일을 다시 셈한다(눈에 보이는 폭은 0.1% 아래로 안 갈린다). */
   { const w = Math.min(100, (META.xp / need) * 100), el = $$("xpFill"), k = Math.round(w * 10);
     if (el.__w !== k) { el.__w = k; el.style.width = w + "%"; } }
-  /* ★ 경험치 **분수**는 따로 감싼다 — 폰에서는 이 한 줄이 「시체·레벨·군세」를
-     두 줄로 접어 버린다(129/120423 처럼 길어질수록 심해진다). 숨길 수 있으려면
-     따로 있어야 한다(hud.css 의 좁은 화면 규칙). 막대가 이미 진행을 보여 준다. */
-  setHTML($$("xpNum"), `Lv.${META.lv} <span class="xpNumFrac">${META.xp | 0}/${need}</span>`);
+  /* ★ 경험치 분수에도 **자릿점**을 찍는다 — 늘 떠 있는 줄인데 여기만 날것이었다
+     (V-95 가 정산에서 고친 그 못을 여기엔 안 박았다). `num()` 의 「1.7k」가 아니라
+     자릿점인 까닭은 **한 판이 이 수를 얼마나 밀었는지**를 보는 자리이기 때문이다 —
+     1.7k 로 줄이면 오늘 번 800 이 안 보인다.
+     ★ 감싸던 `xpNumFrac` 은 걷어냈다 — 폰에서 이 줄을 숨기려고 둔 껍데기인데
+     「모바일을 걷어낸다」(521f501)가 **규칙만 지우고 껍데기와 그 까닭을 적은 주석은
+     남겼다.** 읽는 곳이 한 곳도 없었다(V-96 의 rail 예외와 같은 병). */
+  setHTML($$("xpNum"), `Lv.${META.lv} ${gnum(META.xp)}/${gnum(need)}`);
   /* 서른 줄 넘게 낸다 — 좁은 창에서는 hud.css 가 높이로 세 줄만 남기고 자른다(overflow).
      넓은 창에서는 왼쪽 패널이 그 열넉 줄을 다 세운다(「일지」). */
   /* ★ 이 한 줄이 `hud` 에서 제일 비쌌다 — 서른네 줄을 **매 프레임** 파서에 다시 물렸다.
@@ -2235,7 +2249,7 @@ const digFateHtml = (r) => {
   if (r.worn)       line = `<b class="${cls}">${nm}</b> 갈아 끼움`;
   else if (r.bagged) line = `<b class="${cls}">${nm}</b> → 가방 (${bagUsed()}/${BAG_MAX})`;
   else if (fused)   line = `셋이 하나로 — <b class="${TIER_CLS[fused.tier]}">${fused.n}</b>`;
-  else              line = `<b class="${cls}">${nm}</b> → 금 ${r.melted[0].gold}`;
+  else              line = `<b class="${cls}">${nm}</b> → 금 ${gnum(r.melted[0].gold)}`;
   return `<div class="tipDig">방금 · ${line}</div>`;
 };
 
@@ -2246,7 +2260,7 @@ function drawDigTip() {
      <div class="tipKind">금을 전리품으로 · 가방 ${bagUsed()}/${BAG_MAX}</div>
      <div class="tipStat">지금 깊이 <b>${META.deepest}층</b> — 최고 <b class="${TIER_CLS[cap]}">${cap}등급</b>까지 · 깊이 <b>×${ilMul(META.deepest).toFixed(2)}</b></div>
      <div class="tipNote sm">깊이를 따라 값이 오른다 — 벌이와 같은 결로 매달아 두었다</div>
-     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
        <button class="btn" data-dig ${can ? "" : "disabled"}>파기</button></div>` +
     digFateHtml(lastDig);
 }
@@ -2300,7 +2314,7 @@ function drawShop() {
       ? `<div class="tipNote">최고 등급 · 더 살 것 없음</div>`
       : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
          <div class="tipStat up">${g.d} <b>${fmt(g.val[nx])}</b></div>
-         <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+         <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
            <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`);
 }
 
@@ -2343,7 +2357,7 @@ function drawForge() {
        · 군세 <b>${num(armyCap())}</b></div>
      <div class="tipStat">재련 · ${GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`).join(" · ")}</div>
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
-     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${cost} 금</span>
+     <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
