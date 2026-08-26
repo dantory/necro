@@ -120,12 +120,27 @@ export function fitTree() {
      여백으로는 못 갚는다 — 칸↔이름 1px 은 V-55 가 낮은 창에서 칸이 잘리지 않게
      일부러 깎아 둔 바닥이다([[floor-erases-the-ramp]]). */
   box.style.setProperty("--tRing", s >= 35 ? "2px" : "1px");
+  /* ★★ **맞춘 «뒤» 에 흐림을 다시 정한다**(V-90). `--tS` 는 22px 에서 바닥을 친다 —
+     그보다 낮은 창(1152×648)에서는 아무리 줄여도 **안 들어간다.** 바로 그때만
+     「더 있다」가 필요한데, 그 표식은 창이 **닫혀 있을 때** 정해져 있었다
+     (drawTree → edgeFade 는 clientHeight 0 에서 돈다 → 늘 「끝」). 여는 길이
+     `fitTree` 만 다시 부르고 `edgeFade` 는 안 불러, **필요한 창에서만 꺼져 있었다**
+     ([[carry-fixes-forward]] — `win()` 에 `markMore` 를 더할 때 이것만 빠졌다). */
+  if (!TREE_OLD()) edgeFade();
 }
+/* **고치기 «전»을 같은 자로 재는 문** — `window.__TREE_OLD = 1` 이면 아래 둘이 옛 꼴로
+   돌아간다: ① 맞춘 뒤 흐림을 안 다시 정한다 ② 닫힌 상자(높이 0)로도 판정한다.
+   자(`tools/v90_treefade.mjs`)는 이 문을 열고 **울어야** 눈금이 된다. */
+const TREE_OLD = () => typeof globalThis !== "undefined" && !!globalThis.__TREE_OLD;
 
 /* 아래 끝의 흐림은 **더 있을 때만** 켠다 — 다 보이는데도 흐려져 있으면
    「뭔가 잘렸나」로 읽힌다. 창을 그릴 때와 구를 때 둘 다에서 본다. */
 function edgeFade() {
   const w = $("treeWrap"), c = $("treeCols"); if (!w || !c) return;
+  /* ★ **닫힌 상자로 판정하지 않는다** — 높이가 0 이면 「넘침 0」이라 늘 「다 봤다」가
+     된다. 그 거짓 판정이 표식에 눌러앉아 정작 열렸을 때를 덮었다. 잴 것이 없으면
+     **아무 말도 안 한다**([[silent-zero-is-not-an-observation]]). */
+  if (!c.clientHeight && !TREE_OLD()) return;
   const more = c.scrollHeight - c.clientHeight - c.scrollTop > 2;
   w.classList.toggle("atEnd", !more);
 }
