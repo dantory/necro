@@ -2232,7 +2232,10 @@ const syncWinOpen = () => {
 };
 /* ★ `charOpen`(능력치+가방 한 벌)도 여기서 걷는다 — 창만 닫고 표식을 남기면 다음에
    다른 창을 열 때 그 창이 반쪽에 붙어 버린다(표식은 창보다 오래 산다). */
-const closeAll = () => { for (const w of WINS) win(w, false); document.body.classList.remove("charOpen"); };
+const closeAll = () => { for (const w of WINS) win(w, false); document.body.classList.remove("charOpen"); charWhich = null; };
+/** ══ V-115 ══ 능력치+가방 한 벌 중 **사람이 부른 쪽.** 도킹은 열 때 한 번만 판정하는데
+ *  창 크기는 그 뒤에도 바뀐다 — 좁아져 한 장만 서게 되면 «어느 장을 남길지»를 이 값이 정한다. */
+let charWhich = null;
 /* 환생 단추는 **마을에서, 임계 층을 넘겼을 때만** 뜬다(나가기가 던전에서만 뜨는 것과 짝).
    자동으로 강제하지 않으므로 단추가 곧 「열렸다」의 유일한 신호다. */
 const syncReborn = () =>
@@ -3494,6 +3497,7 @@ window.__openWin = (which) => {
        (가방 쪽 인물은 CSS 가 감추고, 능력치 쪽은 아직 안 그렸으니 어느 창에도 없다).
        두 번째부터는 지난번 표식이 남아 있어 멀쩡해 보였다 — 자가 1440 에서만 울어
        잡혔다(1512 는 앞 차례의 표식을 물려받았다). 순서가 곧 버그였다. */
+    charWhich = which;
     const both = matchMedia("(min-width: 1200px)").matches;
     document.body.classList.toggle("charOpen", both);
     drawStat(); drawBag();
@@ -3513,6 +3517,30 @@ window.__openWin = (which) => {
   if (which === "tactic")  { closeAll(); drawTactic();   win("winTactic", true); }
   if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
 };
+/** ══ V-115 ══ **도킹은 «열 때» 한 번만 정해졌다 — 창은 그 뒤에도 커지고 작아진다.**
+ *  1200px 위에서 능력치를 열면 둘이 반씩 도킹하는데(`body.charOpen`), 창을 그 아래로
+ *  줄이면 도킹 CSS(@media)만 꺼지고 표식은 남는다. 그러면 두 장이 **똑같은 자리에
+ *  통째로 겹쳐** 서고(실측 겹침 100%), 뒤에 깔린 능력치는 화면에서 사라진다 —
+ *  사람은 C 를 눌러 능력치를 열어 놓고 가방을 보고 있게 된다(페이퍼 돌도 둘이 된다).
+ *  ★ 표식과 CSS 가 **같은 문턱**을 봐야 한다([[threshold-and-ruler-must-match]]) —
+ *    문턱은 hud.css 의 `@media (min-width: 1200px)` 와 한 글자도 다르면 안 된다.
+ *  ★ 좁아지면 **사람이 부른 쪽**(charWhich)을 남긴다 — 무엇을 열었는지는 그것만 안다.
+ *  ★ 값도 규칙도 안 건드린다. 다시 그리는 것은 도킹 여부가 바뀐 **그 순간 한 번**뿐이라
+ *    굴리는 동안 판을 다시 그리지 않는다. */
+function syncCharDock() {
+  if (globalThis.__DOCKOLD) return;                    // 자가 «고치기 전»을 재는 문
+  if (!charWhich) return;
+  if (!$("winStat").classList.contains("on") && !$("winBag").classList.contains("on")) return;
+  const both = matchMedia("(min-width: 1200px)").matches;
+  if (both === document.body.classList.contains("charOpen")) return;   // 안 바뀌었다
+  ftipClose();                                         // 판을 다시 그리면 붙박인 툴팁은 남의 칸을 가리킨다
+  document.body.classList.toggle("charOpen", both);
+  drawStat(); drawBag();                               // ★ 표식을 **붙이고 나서** 그린다(__openWin 의 ★★)
+  win("winStat", both || charWhich === "stat");
+  win("winBag",  both || charWhich === "bag");
+}
+addEventListener("resize", syncCharDock);
+
 $("stage").addEventListener("click", (e) => {
   if (MODE.at !== "town") return;
   const r = $("stage").getBoundingClientRect();
