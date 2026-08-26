@@ -175,6 +175,12 @@ const RULERS = [
      처음 켠 사람(잠김 둘) · 트리를 판 사람(잠김 0 · 과잉 수정 막이).
      `node tools/v104_doclock.mjs old` 로 부르면 운다(말없이 내건 자리 4 · 보정 확인 완료). */
   { name: "v104_doclock",  args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
+  /* V-105 — **트리 밑자락이 처음 켠 사람에게 「0 · 0/0」 셋을 늘어놓는다.** 점수는
+     레벨 2부터 한 점씩 생기는데(core.js spTotal), 언제 생기는지는 어디에도 없었다.
+     총점은 화면이 아니라 **심은 레벨**에서 세고(고칠 쪽과 재는 쪽을 가른다),
+     두 사람을 잰다 — 처음 켠 사람(총점 0) · 트리를 판 사람(총점 23 · 과잉 수정 막이).
+     `node tools/v105_treesp.mjs old` 로 부르면 운다(뜻 없는 0 셋 · 보정 확인 완료). */
+  { name: "v105_treesp",   args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

@@ -1116,6 +1116,10 @@ body.in-town #hTactic{ display:inline-block; }
 #spDot.on{display:inline-block;margin-left:4px;padding:0 4px;font-style:normal;
   background:#8a2b1e;color:#ffd9a0;box-shadow:inset 0 0 0 1px #c8aa6e}
 .purse .dim{margin-left:6px;color:#5a5040}
+/* 아직 한 점도 안 생긴 사람 — 뜻 없는 수는 눕히고(off), 그 자리의 「언제」 줄은
+   읽히도록 올린다(V-104 `.lockNote` 와 같은 밝기 · [[carry-fixes-forward]]). */
+.purse b.off{color:#6f6553}
+.purse .when{color:#8b8271}
 
 
 /* ══ 폰 전용 규칙(@media max-width:560px)은 **통째로 지웠다** ══

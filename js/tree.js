@@ -15,6 +15,10 @@ import { $, exclLockedBy, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, s
 
 let pick = "bone";                 // 고른 칸
 
+/** 자를 위한 **문** — `__TREESPOLD` 가 켜져 있으면 밑자락·툴팁이 V-105 **전**으로
+ *  돌아간다(`node tools/v105_treesp.mjs old`). 자가 정말 우는지 먼저 보정하려고 둔다. */
+const treeSpOld = () => typeof globalThis !== "undefined" && globalThis.__TREESPOLD === 1;
+
 /* ★ 자(`tools/icon_qa.mjs`)가 **잠긴 칸까지** 보게 노드 id 를 내놓는다. 이게 없던
    동안 자는 트리를 **0칸으로 세고** 「빠진 칸」을 belt 여섯 개에서만 찾았다 — 잠긴
    칸이 빈칸이어도 통과가 났다는 뜻이다(2026-08-13). 자는 사람이 지나는 길로 가야 한다. */
@@ -76,6 +80,11 @@ export function drawTree() {
     : exclLockedBy(pick) ? `<div class="tipFork shut">갈래가 갈렸다 — 「${twin.n}」을 고른 판이다</div>`
     : rank(pick) > 0     ? `<div class="tipFork">이 갈래를 골랐다 — 「${twin.n}」은 잠겼다</div>`
     :                      `<div class="tipFork">갈래 · 찍으면 「${twin.n}」이 잠긴다</div>`;
+  /* ★ 아직 한 점도 **생기지 않은** 사람에게 「남은 점수 없음」은 «다 써 버렸다»로
+     읽힌다 — 기다리면 열리는 것인지 아닌지가 안 갈린다. 규칙(takeWhy)은 한 톨도
+     안 건드리고 **말만** 바꾼다([[carry-fixes-forward]] · V-104 와 같은 결). */
+  const whyTxt = (!treeSpOld() && why === "남은 점수 없음" && spTotal() === 0)
+    ? "레벨 2부터 점수가 생긴다" : why;
   $("treeTip").innerHTML =
     `<div class="tipName ${maxed ? "t4" : r ? "t2" : "t0"}">${nd.n}
        <span class="lv">${r}/${nd.max}</span></div>
@@ -83,11 +92,18 @@ export function drawTree() {
      <div class="tipStat">${nd.d}</div>${forkNote}` +
     (maxed
       ? `<div class="tipNote">최대 단계 · 더 올릴 수 없음</div>`
-      : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${why || "점수 1 소모"}</span>
+      : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${whyTxt || "점수 1 소모"}</span>
            <button class="btn" data-tk="${pick}" ${why ? "disabled" : ""}>찍기</button></div>`);
 
-  $("treeSp").textContent = spLeft();
-  $("treeSpAll").textContent = `${spUsed()}/${spTotal()}`;
+  /* ★ 처음 켠 사람의 밑자락은 「남은 점수 **0**  **0/0**」 — 맞는 말이 셋인데 그중
+     하나도 «무엇을 하면 되는지»를 안 말한다(V-101 의 「×1.00」· V-102 의 「+0%」·
+     V-104 의 셈줄과 같은 못). 뜻 없는 수는 **눕히고**, 그 자리에 **언제 첫 점이
+     생기는지**를 적는다. 점수가 이미 있는 사람의 밑자락은 한 톨도 안 달라진다. */
+  const tot = spTotal(), born = tot > 0 || treeSpOld();
+  $("treeSp").textContent = born ? spLeft() : "―";
+  $("treeSp").classList.toggle("off", !born);
+  $("treeSpAll").textContent = born ? `${spUsed()}/${tot}` : "레벨 2부터 한 점씩 생긴다";
+  $("treeSpAll").classList.toggle("when", !born);
   fitTree();                 /* ★ 흐림을 재기 **전에** 맞춘다 — 순서가 바뀌면 한 판 늦는다 */
   edgeFade();
   /* 고른 칸이 접힌 자리에 있으면 **설명만 바뀌고 어느 칸인지 안 보인다** — 끌어온다.
