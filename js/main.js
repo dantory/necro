@@ -2319,8 +2319,15 @@ function drawShop() {
   const it = equipped(k), t = gearTier(k), nx = gearNext(k), max = g.tiers.length - 1;
   const fmt = (v) => gearShow(k, v);
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
+  /* ★ **빈 칸에는 등급을 붙이지 않는다** (V-102). 처음 켠 사람은 열 칸이 전부 비어 있는데
+     첫 줄이 흰색(`--t0`) 「없음」 + 등급표 「일반」이었다 — D2 에서 그 빛깔과 그 낱말은
+     **가진 물건**의 표시라, 아무것도 없는 칸이 「일반 등급 물건을 낀 칸」으로 읽혔다.
+     같은 못이 능력치 툴팁에는 이미 박혀 있다(`statTipHtml` 의 `if(!it) … "빈 칸"`) —
+     여기로만 안 옮겨졌다([[carry-fixes-forward]]). 줄 자체는 남긴다 — 아래 「다음 · 녹슨 홀」
+     과 견주는 자리라 없애면 무엇과 견주는지가 사라진다. */
+  const 빈칸 = !it && !window.__SHOPNONEOLD;
   $("shopTip").innerHTML =
-    `<div class="tipName ${clsOf(it)}">${nameOf(it)} <span class="rarTag">${rarWord(it)}</span></div>
+    `<div class="tipName ${빈칸 ? "none" : clsOf(it)}">${nameOf(it)}${빈칸 ? "" : ` <span class="rarTag">${rarWord(it)}</span>`}</div>
      <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${bagUsed()}/${BAG_MAX}</div>
      <div class="tipStat">${g.d} <b>${fmt(g.val[t] * ilMul(it?.il))}</b></div>` +
     (it?.il > 0 ? `<div class="tipNote sm">${it.il}층에서 나온 것 · 깊이 <b>×${ilMul(it.il).toFixed(2)}</b></div>` : "") +

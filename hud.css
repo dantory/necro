@@ -412,6 +412,9 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .ftip.pin{pointer-events:auto}
 .tipName{font-size:18px;margin-bottom:2px}
 .tipName .lv{color:#8a7c60}
+/* 빈 칸 — 등급 빛깔이 아니라 **가라앉은 글자**다(V-102). 흰색(--t0)은 「일반 등급 물건」의
+   빛깔이라, 아무것도 없는 칸에 쓰면 가진 것처럼 읽힌다. */
+.tipName.none{color:#8a7c60}
 .tipKind{color:#6b5f4e;margin-bottom:6px;word-break:keep-all}
 .tipStat{color:#9d907a;margin-top:2px;word-break:keep-all}
 .tipStat b{color:#c9bda4;font-weight:400}
