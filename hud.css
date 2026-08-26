@@ -350,7 +350,7 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
 .wSub{margin:-6px 0 18px;text-align:center;color:#6b5f4e}
 
 /* 좌판 — 인벤토리 격자. 빈 칸도 그린다: **빈 칸이 있어야 격자로 읽힌다** */
-.grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:13px}
+.grid{display:grid;grid-template-columns:repeat(6,1fr);--gap:6px;gap:var(--gap);margin-bottom:13px}
 .cell{aspect-ratio:1;position:relative;cursor:pointer;
   background:linear-gradient(#241410 0 40%, #150c08 40% 74%, #0e0806 74%);
   box-shadow:inset 0 0 8px #000, inset 0 0 0 1px var(--ring,#4a3a28)}
@@ -1314,6 +1314,21 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 #endSub .eTally{display:flex;flex-wrap:wrap;justify-content:center;gap:1px 14px;margin-top:2px}
 #endSub .eTally > span{white-space:nowrap}
 #endBody .grid{margin-top:2px;margin-bottom:0}
+/* ★ V-100 — **정산의 좌판은 «격자»가 아니라 «이번 판에 얻은 것 몇 개»다.**
+   `.grid` 는 상인 좌판의 돌이라 여섯 칸을 늘 세우고, 상인은 빈 칸까지 그려 여섯을
+   채운다(「빈 칸이 있어야 격자로 읽힌다」 · 353줄). 정산은 **빈 칸을 안 그린다** —
+   얻은 만큼만 그린다. 그래서 처음 켠 사람처럼 한둘·서넛만 얻으면 그것이 **왼쪽
+   여섯 분의 셋에 몰리고 창의 절반이 빈다**(V-100 · 1512 에서 가운데에서 205px 밀림).
+   제목·부제·셈줄이 다 가운데인 창에서 좌판만 왼끝에 붙는다.
+   빈 칸으로 채우면 「여섯을 얻을 수 있었는데」로 읽히므로 **칸 크기는 그대로 두고
+   줄만 가운데로 모은다** — 여섯이 넘어 줄이 꺾일 때도 마지막 줄이 가운데 선다.
+   칸 폭은 여섯 칸 격자와 **한 톨도 안 다르다**(같은 `--gap` 으로 셈한다).
+   빈손의 자취 넉 장(`.runGrid`)은 두 칸이 폭을 다 쓰므로 건드리지 않는다. */
+#endBody .grid:not(.runGrid){display:flex;flex-wrap:wrap;justify-content:center}
+#endBody .grid:not(.runGrid) > .cell{flex:0 0 calc((100% - 5 * var(--gap)) / 6)}
+/* 문 — 자가 옛 결을 같은 판에서 세운다(tools/v100_firstend.mjs old) */
+body.v100old #endBody .grid:not(.runGrid){display:grid;justify-content:normal}
+body.v100old #endBody .grid:not(.runGrid) > .cell{flex:none}
 /* 금으로 녹은 것은 **흐리게** — 남지 않았다(낀 것·가방과 한눈에 갈린다). */
 .cell.gone{opacity:.5}
 .eFate{position:absolute;left:0;right:0;top:1px;text-align:center;font-size:10px;
@@ -1415,7 +1430,7 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 .tCol h3{ font-size:15px; letter-spacing:4px }
 
 /* 인벤토리·상점 칸 — 물건 그림이 주인공이라 칸부터 키운다. */
-.grid{ gap:9px }
+.grid{ --gap:9px }
 .cell{ border-radius:3px }
 .sSec h3{ font-size:16px; letter-spacing:3px }
 /* 낀 것 셋과 가방 열둘이 **같은 크기**로 보이게 — 폭이 넓어지면 3칸 쪽이 혼자 커진다.

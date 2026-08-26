@@ -153,6 +153,9 @@ const RULERS = [
   /* V-99 — 툴팁 줄의 짝(이름 + 값)이 갈려 다른 줄에 앉는지. 문은
      `node tools/v99_wrap.mjs old` 로 부르면 운다(갈린 짝 2 · 보정 확인 완료). */
   { name: "v99_wrap",     args: [],                             secs: 240, tier: "fast", expect: /판정|갈린 짝/ },
+  /* V-100 — 정산 좌판이 창 가운데에 서는가(얻은 것이 여섯보다 적을 때).
+     `node tools/v100_firstend.mjs 1512 863 old` 로 부르면 운다(밀림 304px · 보정 확인 완료). */
+  { name: "v100_firstend", args: [],                            secs: 300, tier: "fast", expect: /판정|밀림/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
