@@ -2383,6 +2383,21 @@ function drawForge() {
   const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
   const cost = upCost(k), can = META.gold >= cost;
   const pl = META.plus, reNext = GEAR_KEYS.reduce((a, b) => reforgeCost(b) < reforgeCost(a) ? b : a, GEAR_KEYS[0]);
+  /* ★ **재련 줄은 «오른 것»만 적는다.** 처음 켠 사람에겐 열 자리가 전부 `+0` 이라, 창
+     안에서 **가장 긴 줄(두 줄로 접힌다)이 가장 뜻이 없었다** — V-102 「없음」·
+     V-105 「0 · 0/0」· V-106 「밝은 0」· V-107 「▲ 14」· V-108 「가장 깊이 1층」·
+     V-110 「10→10층」· V-111 「×1.00」과 같은 자리다.
+     · **가라앉히지 않고 접는다 — 여기서 V-111 과 갈린다.** V-111 의 「소환수 피해」에는
+       강화 단추가 달려 있어 줄을 지우면 사는 길이 같이 사라졌지만, 이 줄에는 단추가
+       없고 **「재련이라는 것이 있다」는 바로 아래 줄이 그대로 말해 준다**
+       (「다음 재련 N 금 — 저절로 산다」). 그래서 접어도 잃는 것이 없다.
+     · 능력치 창이 유해·깊이·금 획득에 **이미 쓰는 규칙**을 이 창에 옮긴 것뿐이다
+       ([[carry-fixes-forward]]).
+     · 문(`__REFOLD`)은 옛 결(열 자리 전부)을 되돌려 자를 보정하는 자리다. */
+  const reLit = (globalThis.__REFOLD ? GEAR_KEYS : GEAR_KEYS.filter((g) => (pl[g] | 0) > 0));
+  const reRow = reLit.length
+    ? `<div class="tipStat">${pairs(["재련"].concat(reLit.map((g) => `${GEAR[g].n} <b>+${pl[g] | 0}</b>`)))}</div>`
+    : "";
   $("forgeTip").innerHTML =
     `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
      <div class="tipKind">대장간</div>
@@ -2392,7 +2407,7 @@ function drawForge() {
           같은 값이 창마다 달라 보이면 그건 두 수가 된다(core.js num 의 주석과 같은 결). -->
      <div class="tipStat up">${pairs(["지금", `체력 <b>${num(hpMaxOf())}</b>`,
        `마나 <b>${num(mpMaxOf())}</b>`, `군세 <b>${num(armyCap())}</b>`])}</div>
-     <div class="tipStat">${pairs(["재련"].concat(GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`)))}</div>
+     ${reRow}
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
