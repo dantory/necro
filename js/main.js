@@ -1,5 +1,5 @@
 import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
- diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
+ diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_DEF, DOCTRINE_IDS, doctrineId, doctrineWants, doctrineWantsOf, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -2460,29 +2460,51 @@ const docLocked = () => docLockOld() ? {} : {
 };
 /** 편성 칸이 «앞세우는 몸» — 칸 하나에 하나. 균형·해골 위주는 해골이라 늘 열려 있다. */
 const DOC_PRIME = { flesh: "ghoul", wall: "golem" };
+/** 지금 **보고 있는** 칸 — 상인·대장간의 `shopPick`/`forgePick` 과 같은 자리(V-113).
+ *  여태 편성 창에는 이것이 없어 「보는 것」과 「세우는 것」이 한 낱말이었다: 「아직」이
+ *  붙은 칸을 눌러도 그대로 **지금 편성이 되어**, 골렘이 한 마리도 못 서는 판에서 발치가
+ *  「지금 · 골렘 벽」이라고 적었다([[knob-that-does-nothing]] · V-104 가 셈줄만 고치고
+ *  이 줄에 안 옮긴 자리 · [[carry-fixes-forward]]). 잠긴 칸은 **보여만 준다.** */
+let docPick = null;
+/** 자를 위한 **문** — `__DOCPICKOLD` 가 켜져 있으면 편성 창이 V-113 **전**으로 돌아간다
+ *  (「아직」이 붙은 칸도 누르면 그대로 지금 편성이 되고, 「결과가 같다」를 안 적는다).
+ *  `__DOCLOCKOLD`(V-104 전 · 배지 자체가 없다)와는 **다른 문**이다 — 여기서 되돌릴 것은
+ *  배지가 아니라 «누르면 골라진다» 쪽이다. */
+const docPickOld = () => typeof globalThis !== "undefined" && globalThis.__DOCPICKOLD === 1;
 function drawDoctrine() {
   const cur = doctrineId(), cap = armyCap(), door = pickDoor();
   const lk = docLocked();
+  const shutOf = (id) => { const need = DOC_PRIME[id]; return !!(need && lk[need]); };
+  /* 보는 칸이 없거나 잠금이 풀려 사라진 칸이면 지금 것으로 떨어진다. */
+  const view = (docPick && DOCTRINE[docPick]) ? docPick : cur;
   $("docGrid").innerHTML = DOCTRINE_IDS.map((id) => {
     const d = DOCTRINE[id];
-    const need = DOC_PRIME[id];
-    const shut = !!(need && lk[need]);
+    const shut = shutOf(id);
     /* ★ 칸의 그림은 **픽셀아트**다(assets/ui/pick) — 여기 있던 유니코드 글리프(⚖ ☠ ✦ ◆)는
        판에서 유일하게 시스템 폰트가 그리는 칸이었고, ✦ 와 ◆ 는 모양만으로 못 갈랐다
        (V-34 가 상인 좌판에서 고친 그것을 이 창에 안 옮겼다 · V-37). */
-    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}${shut ? " lock" : ""}" data-doc="${id}">${pickIco("doc", id, d.ico)}` +
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}${!door && !docPickOld() && id === view && id !== cur ? " pv" : ""}${shut ? " lock" : ""}" data-doc="${id}">${pickIco("doc", id, d.ico)}` +
            (shut && !door ? `<span class="docLock">아직</span>` : "") +
            (door ? "" : `<span class="cn">${d.n}</span>`) + `</div>`;
   }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length)) : "");
 
-  const d = DOCTRINE[cur], w = doctrineWants(cap);
+  const d = DOCTRINE[view], w = doctrineWantsOf(view, cap);
   /* ★ 못 세우는 몫은 **해골이 받는다** — auto() 의 사슬이 그렇다(벽→몸→수 · 못 세우면 샌다).
      그래서 잠긴 것은 「―」로 눕히고 그 수를 해골에 얹는다. 예전 셈줄은 잠겨 있어도
      골렘 1 · 구울 1 을 밝게 적어 **합이 상한을 넘었다.** */
   const gN = lk.golem ? 0 : w.golem, hN = lk.ghoul ? 0 : w.ghoul;
   const dash = (v, off) => off ? `<b class="off">―</b>` : `<b>${v}</b>`;
   const shutList = ["golem", "ghoul"].filter((k) => lk[k]).map((k) => MINIONS[k].n);
-  $("docNow").textContent = d.n;
+  /* 발치는 늘 **지금 세우는 것**을 적는다 — 보고 있는 칸이 아니다. */
+  $("docNow").textContent = DOCTRINE[cur].n;
+  const shut = shutOf(view);
+  /* 넷이 **결과가 같아지는** 동안 그렇게 적는다 — 잠긴 몸의 몫이 전부 해골로 새므로
+     처음 켠 사람에게는 「균형」과 「해골 위주」가 **같은 군대**다(5기 전부 해골). 견주는
+     자리는 «지금 고른 것»이 아니라 늘 **기본(균형)** 이다 — 고르고 나면 view === cur 이
+     되어 견줌이 사라지던 자리([[knob-that-does-nothing]] 를 하나 더 만들 뻔했다). */
+  const wDef = doctrineWantsOf(DOCTRINE_DEF, cap);
+  const seen = (x) => [lk.golem ? 0 : x.golem, lk.ghoul ? 0 : x.ghoul].join("/");
+  const same = !docPickOld() && view !== DOCTRINE_DEF && !shut && seen(w) === seen(wDef);
   $("docTip").innerHTML =
     `<div class="tipName t2">${d.n}</div>
      <div class="tipKind">편성 · 지금 상한 ${cap} 기준</div>
@@ -2491,7 +2513,12 @@ function drawDoctrine() {
     (shutList.length
       ? `<div class="tipNote lockNote">${shutList.join(" · ")}은 <b>스킬 트리</b>에서 찍어야 선다 — 그때까지 그 몫은 해골이 받는다</div>`
       : "") +
-    `<div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`;
+    (shut && !docPickOld()
+      ? `<div class="tipNote lockNote">아직 <b>고를 수 없다</b> — ${MINIONS[DOC_PRIME[view]].n}을 찍으면 열린다</div>`
+      : same
+        ? `<div class="tipNote lockNote">지금은 <b>${DOCTRINE[DOCTRINE_DEF].n}</b>과 결과가 같다 — 갈리는 몸이 아직 안 섰다</div>`
+        : "") +
+    (shut && !docPickOld() ? "" : `<div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`);
 }
 
 /* 운용 — **주술을 언제 쓸지 고른다.** 편성 창과 같은 격자+툴팁이되, 여기서 고르는 것은
@@ -3376,7 +3403,14 @@ document.addEventListener("click", (e) => {
   if (fpick) { forgePick = fpick.getAttribute("data-fpick"); drawForge(); return; }
   /* 편성 칸 — 고르는 즉시 META 에 쓰고 저장한다(사는 것이 아니라 고르는 것 · 확인 없음). */
   const dpick = t.closest && t.closest("[data-doc]");
-  if (dpick) { META.doctrine = dpick.getAttribute("data-doc"); saveMeta(); drawDoctrine(); return; }
+  if (dpick) {
+    const id = dpick.getAttribute("data-doc");
+    docPick = id;
+    /* 잠긴 칸은 **보여만 준다** — 누른다고 지금 편성이 되지 않는다(V-113). 「아직」이
+       붙었는데 고를 수는 있으면 그 배지는 그림일 뿐이다. */
+    if (docPickOld() || !dpick.classList.contains("lock")) { META.doctrine = id; saveMeta(); }
+    drawDoctrine(); return;
+  }
   const tpick = t.closest && t.closest("[data-tac]");
   if (tpick) { META.tactic = tpick.getAttribute("data-tac"); saveMeta(); drawTactic(); return; }
   /* 칸을 고르고 붙박는 일은 «떠 있는 상자»(⑦)의 ftip 리스너가 쥔다 — 여기(전역 click)는
@@ -3475,7 +3509,7 @@ window.__openWin = (which) => {
   if (which === "end")   { closeAll(); drawEnd();   win("winEnd", true); }
   if (which === "reborn"){ closeAll(); drawReborn(); win("winReborn", true); }
   if (which === "wipe")  { closeAll(); drawWipe();   win("winWipe",  true); }
-  if (which === "doctrine"){ closeAll(); drawDoctrine(); win("winDoctrine", true); }
+  if (which === "doctrine"){ closeAll(); docPick = null; drawDoctrine(); win("winDoctrine", true); }
   if (which === "tactic")  { closeAll(); drawTactic();   win("winTactic", true); }
   if (which === "offline" && window.__lastOffline) { closeAll(); drawOffline(window.__lastOffline); win("winOffline", true); }
 };

@@ -2027,3 +2027,14 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
 .tipStat.up b.off{ color:#6f675a }
 .tipNote.lockNote{ font-size:11px; line-height:1.4; color:#8b8271; margin-top:6px }
 .tipNote.lockNote b{ color:#b0a68d; font-weight:normal }
+
+/* ══ V-113 · **편성 창에서 「보는 칸」과 「세우는 편성」을 가른다** ══
+   여태 이 창에는 상인·대장간의 `shopPick`/`forgePick` 에 해당하는 자리가 없어, 「아직」이
+   붙은 칸을 눌러도 **그대로 지금 편성이 됐다** — 골렘이 한 마리도 못 서는 판에서 발치가
+   「지금 · 골렘 벽」이라고 적었다. 이제 잠긴 칸은 **보여만 준다**(.pv). 금테(.sel)는
+   여전히 «지금 세우는 것» 하나뿐이고, 보는 칸은 그보다 **약한 테**로 표시한다 —
+   둘이 같은 세기면 무엇이 지금인지 다시 못 읽는다. */
+.cell.pick.pv{ box-shadow:inset 0 0 8px #000, inset 0 0 0 1px #8a7c62 }
+.cell.pick.pv .cn{ color:#bdae90 }
+.cell.pick.pv.lock .cn{ color:#8d8371 }
+.cell.pick.pv.lock i{ filter:brightness(.62) saturate(.55) }

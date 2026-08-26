@@ -238,6 +238,11 @@ const RULERS = [
      막이 둘), 적힌 값을 **화면이 아니라 `META.plus`** 와 견준다.
      `node tools/v112_reforge.mjs old` 로 부르면 운다(뜻 없는 「+0」 10 · 보정 확인 완료). */
   { name: "v112_reforge",  args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
+  /* V-113 — 편성 창의 「아직」 칸이 **정말 안 눌리는가**(그리고 갖춘 사람에게는 여태처럼
+     다 눌리는가). `node tools/v113_docpick.mjs old` 로 부르면 운다(어긋난 자리 2 · 보정
+     확인 완료). ★ `__DOCLOCKOLD`(V-104) 가 아니라 `__DOCPICKOLD` 를 쓴다 — 앞엣것은
+     배지 자체를 지워서 「눌리는가」를 못 잰다. */
+  { name: "v113_docpick",  args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

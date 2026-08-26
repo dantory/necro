@@ -145,13 +145,17 @@ export const doctrineId = () => {
   return DOCTRINE[d] ? d : DOCTRINE_DEF;
 };
 export const doctrineOf = () => DOCTRINE[doctrineId()];
-/** auto() 가 읽는다 — 이 편성이 원하는 **벽(골렘)·몸(구울) 수.** 나머지는 전부 수(해골)라
- *  auto() 의 채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 그대로다. */
-export const doctrineWants = (cap) => {
-  const d = doctrineOf();
+/** 편성 **하나**가 원하는 벽·몸 수. 식은 여기 한 곳뿐이다 — 창이 「이 칸을 고르면 어찌
+ *  되나」를 미리 보여 주려면 지금 것이 아닌 편성도 셈해야 하는데, 그 식을 창에 베껴 두면
+ *  두 곳이 갈린다([[seam-not-values]]). */
+export const doctrineWantsOf = (id, cap) => {
+  const d = DOCTRINE[id] || DOCTRINE[DOCTRINE_DEF];
   return { golem: Math.max(d.wallMin, Math.min(d.wallMax, Math.floor(cap / d.wallDiv))),
            ghoul: Math.floor(cap * d.body) };
 };
+/** auto() 가 읽는다 — 이 편성이 원하는 **벽(골렘)·몸(구울) 수.** 나머지는 전부 수(해골)라
+ *  auto() 의 채우는 차례(벽→몸→수)와 「못 세우면 다음 결로 샌다」 사슬은 그대로다. */
+export const doctrineWants = (cap) => doctrineWantsOf(doctrineId(), cap);
 
 /* ══ 운용(tactic) ══ **사람이 「주술을 언제 쓸지」 고를 자리.** 여태 폭발·저주는 auto() 안에
    문턱 하나로만 박혀 있었다 — 저주는 「군세가 상한이면 늘」, 폭발은 「시체가 상한의 20% 를
