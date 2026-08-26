@@ -381,6 +381,18 @@ const MIN_STEP_FPS = 6.5;
  *    (`__BAROLD` · `__BORNFADE_OFF` 와 같은 결 · tools/v97_digits.mjs). */
 export const gnum = (v) => globalThis.__NFMT_OLD ? String(v | 0) : (v | 0).toLocaleString();
 
+/** ══ 짝은 **한 낱개로** 꺾인다 ══ (V-99)
+ *  「신발 +0」이 「신발」과 「+0」으로 갈려 다른 줄에 앉는다 — 병수님이 2026-08-12 에
+ *  「어중간하게 꺾인다」고 하신 그 결함이다. 그때 못은 **정산(drawEnd)에만** 박혔고
+ *  같은 꼴로 적히는 툴팁 줄에는 안 옮겨졌다([[carry-fixes-forward]]).
+ *  이름과 값을 한 낱개(`.u` · `white-space:nowrap`)로 싸면 그 사이가 안 꺾인다.
+ *  가르는 「·」는 **앞 낱개에 붙여** 둔다 — 꺾여도 「·」가 홀로 줄머리에 안 선다
+ *  (정산은 「·」를 빼고 칸 사이를 벌렸는데, 여기는 짝이 열 개라 가르는 표가 있어야 읽힌다).
+ *  ★ `__PAIROLD` 는 자가 **옛 결로 되돌려** 같은 화면을 두 번 재는 문이다
+ *    (`__NFMT_OLD` 와 같은 결 · tools/v99_wrap.mjs). */
+export const pairs = (list) => globalThis.__PAIROLD ? list.join(" · ")
+  : list.map((s, i) => `<span class="u">${s}${i < list.length - 1 ? " ·" : ""}</span>`).join(" ");
+
 export const BORN_FADE = 0.55;
 export const bornAlpha = (e) => {
   if (!(e && e.born > 0)) return 1;
@@ -2353,9 +2365,9 @@ function drawForge() {
      <!-- ★ 값은 **능력치 창과 같은 자**(num)로 적는다 — 여기만 날것이라 마나가
           「307.79999999999995」로 떴다(mpMaxOf 는 장비값이 섞여 정수가 아니다).
           같은 값이 창마다 달라 보이면 그건 두 수가 된다(core.js num 의 주석과 같은 결). -->
-     <div class="tipStat up">지금 · 체력 <b>${num(hpMaxOf())}</b> · 마나 <b>${num(mpMaxOf())}</b>
-       · 군세 <b>${num(armyCap())}</b></div>
-     <div class="tipStat">재련 · ${GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`).join(" · ")}</div>
+     <div class="tipStat up">${pairs(["지금", `체력 <b>${num(hpMaxOf())}</b>`,
+       `마나 <b>${num(mpMaxOf())}</b>`, `군세 <b>${num(armyCap())}</b>`])}</div>
+     <div class="tipStat">${pairs(["재련"].concat(GEAR_KEYS.map((k) => `${GEAR[k].n} <b>+${pl[k] | 0}</b>`)))}</div>
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;

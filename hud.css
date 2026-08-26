@@ -477,6 +477,9 @@ body.noSticky .win .tip .tipBuy{position:static;background:none;padding:0;margin
 .cell.uniq .q{text-shadow:0 0 5px #ff7800,0 1px 0 #000}
 
 .winFoot{margin-top:18px;display:flex;align-items:center;justify-content:space-between}
+/* ★ 툴팁 줄의 **낱개** — 이름과 값 사이가 안 꺾인다(V-99 · js/main.js `pairs`).
+   정산의 `#endSub .eTally > span` 과 같은 못이다([[carry-fixes-forward]]). */
+.tipStat .u{white-space:nowrap}
 .purse{color:#9d907a}
 .purse b{color:var(--gold);font-weight:400}
 
