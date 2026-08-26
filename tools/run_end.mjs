@@ -81,10 +81,10 @@ const O = await ev(`(function(){
   /* 창 뒤의 로그 — 「전멸 · 20층에서 쓰러짐」이 창 밖에 붉게 남아 시선이 갈렸다.
      ★ 「안 보인다」만 재면 로그가 **원래 비어 있어도** 통과한다(빈 자를 못 믿는다).
      그래서 **할 말이 있는데도** 창을 안 건드리는지를 잰다.
-     ★★ 2026-08-16 — 묻는 말을 바꿨다. 예전엔 「안 그려졌는가」였는데, 옆 패널이 서면서
-       로그가 **전장 위가 아니라 패널 안**에 산다. 거기서는 창과 겹칠 일이 없으니
-       감출 이유도 없다(감추면 「일지」가 빈 상자로 남는다). 진짜 묻고 싶었던 것은
-       처음부터 「**창을 가리는가**」였다 — 안 겹치면 보여도 된다. */
+     ★★ 2026-08-16 — 옆 패널이 서면서 「창을 가리는가」로 느슨하게 풀었다.
+     ★★ 2026-08-26(V-96) — **그 패널이 08-17 에 없어졌다.** 로그는 전장 위로 돌아왔고
+       logSlot 은 어디에도 없다. 물음을 08-12 의 「안 그려졌는가」로 되돌린다.
+       느슨하게 푼 물음은 **그 까닭이 사라져도 저 혼자 남는다.** */
   const lg = document.getElementById("log");
   const logSaid = (lg.textContent || "").trim().length > 0;
   const logDrawn = [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5);
@@ -93,7 +93,7 @@ const O = await ev(`(function(){
   const fb = fr ? fr.getBoundingClientRect() : null;
   const logOverWin = !!fb && [...lg.getClientRects()].some(r => r.width > .5 && r.height > .5 && hit(r, fb));
   return { on, endOn: on.includes("winEnd"), nCells: cells.length, lootLen, tierOk, tierDetail, fates,
-           logSaid, logDrawn, logOverWin, inRail: (lg.parentElement.id === "logSlot"),
+           logSaid, logDrawn, logOverWin,
            logText: (lg.textContent || "").trim().slice(0, 40),
            modeTown: window.__MODE ? window.__MODE.at === "town" : null };
 })()`);
@@ -273,14 +273,21 @@ const wearBagGold = O.fates.includes("착용") && O.fates.includes("가방") && 
 const lines = [
   ["① 정산만 떴다(다른 창 0)", O.endOn && O.on.length === 1, `열린창=[${O.on.join(",")}]`],
   ["② 칸 수 == 스냅샷 loot", O.nCells === O.lootLen && O.lootLen === 3, `칸=${O.nCells} loot=${O.lootLen} (실제쌓임=${R.real})`],
-  ["③ 등급 클래스 = tier", O.tierOk, O.tierDetail],
+  /* ③ 배지의 **색과 숫자가 같은 것을 말하는가.** 자가 낡은 것이 아니라 화면이
+     갈려 있었다 — 정산 칸만 희귀도로 칠하고 숫자는 tier 였다(V-96). */
+  ["③ 등급 배지 색 = tier", O.tierOk, O.tierDetail],
   ["④ 갈림 표식(착용·가방·금)", wearBagGold, `[${O.fates.join(",")}]`],
   ["⑤ 닫으면 town", !C.endOn && C.modeTown, `endOn=${C.endOn} town=${C.modeTown}`],
-  /* ⑩ 창이 뜨면 로그가 **창을 가리지 않는다.** 푸는 길이 둘이고 둘 다 옳다 —
-     패널 안이면 그대로 두고(안 겹친다), 전장 위면 감춘다. 어느 쪽이든 닫으면 돌아온다. */
-  ["⑩ 창이 뜨면 로그가 창을 안 가린다",
-    O.logSaid && !O.logOverWin && (O.inRail ? O.logDrawn : !O.logDrawn) && C.logDrawn,
-    `할말=${O.logSaid}«${O.logText}» 패널안=${O.inRail} 창가림=${O.logOverWin} 창중그려짐=${O.logDrawn} 닫은뒤=${C.logDrawn}`],
+  /* ⑩ 창이 뜨면 로그가 **안 그려진다**(V-96 · 2026-08-26 에 되돌렸다).
+     08-16 에 「패널 안이면 안 겹치니 보여도 된다」로 물음을 느슨하게 풀었는데,
+     08-17 에 **그 패널이 없어졌다.** `logSlot` 은 이제 어디에도 없어 `inRail` 이
+     늘 false 다 — 곧 「전장 위면 감춘다」쪽만 남았는데도 1512 에서는 CSS 예외가
+     살아 있어 그려지고 있었다. 물음을 08-12 의 그것으로 되돌린다.
+     ★ `logOverWin`(진짜 겹쳤나)은 그대로 적어 둔다 — 감춤이 풀렸을 때 그것이
+       **얼마나 나쁜가**를 같은 줄에서 읽으려고. */
+  ["⑩ 창이 뜨면 로그가 안 그려진다",
+    O.logSaid && !O.logDrawn && C.logDrawn,
+    `할말=${O.logSaid}«${O.logText}» 창중그려짐=${O.logDrawn} 창가림=${O.logOverWin} 닫은뒤=${C.logDrawn}`],
   ["⑥ 재입장 — 창 닫힘·loot 0", !D.endOn && D.lootLen === 0, `endOn=${D.endOn} loot=${D.lootLen}`],
   ["⑦ 콘솔 오류 0", errors.length === 0, errors.slice(0, 3).join(" | ") || "없음"],
   ["⑧ 부제 토막이 안 꺾인다", wrapBad.length === 0,

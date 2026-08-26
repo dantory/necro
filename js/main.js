@@ -2979,8 +2979,16 @@ function drawEnd() {
     const fate = it.made ? ["made", "합침"] : it.mat ? ["mat", "재료"]
                : it.worn ? ["wear", "착용"] : it.bagged ? ["bag", "가방"] : ["gone", "금"];
     const n = (it.af || []).length, uq = !!it.uid;
+    /* ★ 배지는 **숫자가 tier 면 색도 tier** 다(V-96 · 2026-08-26). 여기만 `clsOf(it)`
+       (희귀도)를 쓰고 있었다 — 유니크에 ★ 를 넣던 f00d57f 가 `uniq` 클래스를 얻으려고
+       클래스를 통째로 희귀도로 바꾸면서, **숫자는 tier 인데 색만 희귀도**가 됐다.
+       hud.css 가 r0/r1/r2 를 t0/t1/t2 색으로 되쓰는 탓에 tier 4 짜리 매직이
+       가방에서는 초록(t4), 정산에서는 파랑(r1) — **같은 물건의 같은 숫자가 두 빛깔**이었다.
+       위 `gearCell`(2429줄)이 처음부터 옳게 하던 그대로 맞춘다 — 유니크만 `uniq`,
+       나머지는 `TIER_CLS[tier]`([[carry-fixes-forward]] · 한 문에만 박힌 못이었다).
+       희귀도는 이름·툴팁·칸 테두리(`rar-`)가 말한다 — 배지가 겹쳐 말할 자리가 아니다. */
     return `<div class="cell ${fate[0]}${uq ? " uniq" : ""}"><span class="eFate">${fate[1]}</span>
-      <i class="gear-${it.k}"></i><span class="q ${clsOf(it)}">${uq ? "★" : it.tier}</span>
+      <i class="gear-${it.k}"></i><span class="q ${uq ? "uniq" : TIER_CLS[it.tier]}">${uq ? "★" : it.tier}</span>
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   };
   /* 빈손이어도 **한 일은 있다** — 예전엔 「빈손으로 돌아왔다」 한 줄만 남아 창의

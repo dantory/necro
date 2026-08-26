@@ -140,6 +140,10 @@ const RULERS = [
   /* 판이 끝나고 보는 창(정산 · 그동안)의 «글» — 자릿점 · 「N시간 0분」 · 존댓말(V-95).
      `node tools/v95_text.mjs old` 로 부르면 운다(미달 4 · 보정 확인 완료). */
   { name: "v95_text",     args: [],                             secs: 120, tier: "fast", expect: /미달/ },
+  /* V-96 — 넓은 창에서 창이 떠도 일지가 뒤에 남던 것(없앤 옆 패널이 깔아 둔 CSS 예외).
+     **두 크기를 다 본다** — 1366 에서는 예외 밖이라 여태 멀쩡했다.
+     `node tools/v96_wide.mjs old` 로 부르면 ①이 운다(12/12 · 보정 확인 완료). */
+  { name: "v96_wide",     args: [],                             secs: 240, tier: "fast", expect: /PASS|FAIL/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
