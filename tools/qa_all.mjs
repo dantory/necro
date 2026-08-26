@@ -137,6 +137,9 @@ const RULERS = [
   /* 물건 이름의 「의」 사슬 — 브라우저를 안 쓰므로 몇 초면 끝난다.
      `node tools/v94_names.mjs old` 로 부르면 운다(32/256 · 보정 확인 완료). */
   { name: "v94_names",    args: [],                             secs: 60,  tier: "fast", expect: /판정/ },
+  /* 판이 끝나고 보는 창(정산 · 그동안)의 «글» — 자릿점 · 「N시간 0분」 · 존댓말(V-95).
+     `node tools/v95_text.mjs old` 로 부르면 운다(미달 4 · 보정 확인 완료). */
+  { name: "v95_text",     args: [],                             secs: 120, tier: "fast", expect: /미달/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

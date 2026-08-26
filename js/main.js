@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -2972,7 +2972,8 @@ function drawEnd() {
     `<span data-u>${label ? label + " " : ""}<b${cls ? ` class="${cls}"` : ""}>${val}</b></span>`;
   $("endSub").innerHTML =
     `<div class="eWhere" data-u>${r.floor}층에서 ${r.dead === false ? "발길을 돌림" : "쓰러짐"}</div><div class="eTally">`
-    + u("잡은 수", r.killed) + u("금", "+" + r.gold.toLocaleString()) + u("경험치", "+" + r.xp)
+    + u("잡은 수", (r.killed | 0).toLocaleString()) + u("금", "+" + r.gold.toLocaleString())
+    + u("경험치", "+" + (r.xp | 0).toLocaleString())
     + (r.leveled ? u("", "레벨 업!", "t2") : "") + `</div>`;
   const cell = (it) => {
     const fate = it.made ? ["made", "합침"] : it.mat ? ["mat", "재료"]
@@ -3130,15 +3131,17 @@ function drawWipe() {
 /* ══ 오프라인 정산 패널 ② ══ 껐다 켠 사이의 벌이를 「그동안 N분 · 금 X · 시체 Y」로 보여
    준다. 상한(8시간)에 걸렸으면 그것도 알린다. 정산·환생과 같은 돌(winFoot·tip). */
 function drawOffline(off) {
+  /* ★ 「8시간 0분」 — 상한(OFFLINE_CAP_MIN)에 걸린 판은 **언제나** 분이 0 이라
+     밤새 껐다 켠 사람이 늘 보는 줄이 이것이다. 분이 0 이면 시만 적는다. */
   const hrs = Math.floor(off.min / 60), mins = off.min % 60;
-  const dur = hrs ? `${hrs}시간 ${mins}분` : `${mins}분`;
+  const dur = hrs ? (mins ? `${hrs}시간 ${mins}분` : `${hrs}시간`) : `${mins}분`;
   $("offBody").innerHTML =
     `<div class="tip">
        <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
        <div class="tipStat">금 <b class="t3">+${off.gold.toLocaleString()}</b></div>
        <div class="tipStat">시체 <b class="t3">+${(off.corpsesIn ?? off.corpses).toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
        ${off.corpseFull ? `<div class="tipStat dim">시체는 <b>한 짐</b>까지만 지고 간다 — ${off.corpses.toLocaleString()}구를 벌었다</div>` : ""}
-       ${off.capped ? `<div class="tipStat dim">8시간까지만 쌓입니다</div>` : ""}
+       ${off.capped ? `<div class="tipStat dim">${OFFLINE_CAP_MIN / 60}시간까지만 쌓인다</div>` : ""}
      </div>`;
   $("offGold").textContent = (META.gold | 0).toLocaleString();
 }
