@@ -126,6 +126,10 @@ const RULERS = [
      **바닥을 친 창에서만** 돌았는지도 본다. `node tools/v90b_treefit.mjs old` 로 부르면
      운다(24px 넘침 · 보정 확인 완료). */
   { name: "v90b_treefit", args: [],                             secs: 260, tier: "fast", expect: /판정/ },
+  /* 창 열셋의 **모든 글자**가 바탕에 안 묻히는지 — 잉크를 뺀 판·형광으로 칠한 판과
+     견줘 «화면에 정말 닿은 잉크»로 잰다(CSS 색이 아니다). `node tools/v91_ink.mjs old`
+     로 부르면 운다(옛 그늘·옛 흐림 · 보정 확인 완료). */
+  { name: "v91_ink",      args: [],                             secs: 300, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

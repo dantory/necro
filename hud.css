@@ -1099,7 +1099,12 @@ body.in-town #hTactic{ display:inline-block; }
    옵션 줄은 한 가지 푸른빛으로만 두고, 색은 등급에게 남겨 둔다. */
 .tipAf{ font-size:11px; color:#8fb6e0; letter-spacing:-.2px; padding:1px 0 1px 8px;
         border-left:2px solid rgba(143,182,224,.35); margin:2px 0 2px 2px; }
-.tipNote.sm{ font-size:10px; opacity:.62; line-height:1.35; }
+/* ★ V-91 (2026-08-26) — **흐리게를 두 번 걸지 않는다.** `.tipNote` 는 이미 설명문 잉크
+   (#6b5f4e)로 한 번 죽인 색인데 여기서 `opacity:.62` 를 또 걸어, 화면에는
+   rgb(66,59,48) · **대비 1.89:1** 로 찍혔다(v91_ink · 상인·교리·운용 셋에서 같이 울었다).
+   두 번째 흐림만 뺀다 — 색은 그대로라 여전히 「덧붙인 말」로 읽히고, 3.4:1 로 올라온다. */
+.tipNote.sm{ font-size:10px; line-height:1.35; }
+html.inkOld .tipNote.sm{ opacity:.62 }
 .cell .afd{ position:absolute; left:4px; bottom:3px; font-size:12px; line-height:1;
             color:#a8cdf2; letter-spacing:-1px;
             text-shadow:0 0 4px #2a5f96, 0 1px 0 #000; }
@@ -1460,9 +1465,21 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
   grid-column:1 / -1; order:99;
   height:34px; margin-top:-34px; line-height:34px; text-align:center;
   font-size:13px; letter-spacing:0; color:var(--gold); pointer-events:none;
-  background:linear-gradient(to top,#050403 55%,#050403bf 78%,#05040300);
+  /* ★★★ V-91 (2026-08-26) — **「더 있다」는 물리는 것이지 지우는 것이 아니다.**
+     여기 있던 `#050403 55%` 는 띠의 **아래 55%(19px)를 통째로 불투명**하게 칠했다.
+     그 자리는 빈 여백이 아니다 — 능력치 창의 `.wScroll` 은 내용이 789px 인데 상자가
+     262px 이라 **장비 인형의 아랫줄이 늘 그 밑에 깔린다.** 재 보니 겉옷 칸의 재련
+     딱지(`+4`)가 금빛 rgb(200,170,110) 인데 화면에는 **rgb(48,42,27) · 대비 1.41:1**
+     로 찍혔다(v91_ink). 같은 딱지가 지팡이 칸(띠의 약한 자리)에서는 멀쩡했다 —
+     색이 아니라 **덮개**가 원인이다([[cause-written-in-the-item-is-a-guess]]).
+     그늘의 세기를 **0.72 를 넘지 않게** 눌렀다. 밑자락은 여전히 어두워지고 ▾ 도
+     그대로라 「더 있다」는 읽히는데, 그 밑의 글자가 사라지지는 않는다. */
+  background:linear-gradient(to top,#050403b8 0%,#0504038a 46%,#05040300 100%);
   opacity:0; transition:opacity .16s;
 }
+/* 옛 그늘로 되돌리는 문 — 자가 **같은 판을 두 번** 재도록(`__TREE_OLD`·`body.qold` 와 같은 결).
+   `document.documentElement.classList.add("inkOld")` 로 켠다. */
+html.inkOld .wScroll::after{ background:linear-gradient(to top,#050403 55%,#050403bf 78%,#05040300) }
 .wScroll.more::after{ opacity:1 }
 /* 가방의 설명은 이제 **떠 있는 상자**(⑦ · #ftip)라 창 안에 붙박이 .tip 이 없다 —
    예전의 `#winBag .frame > .tip` 규칙은 그 칸과 함께 뺐다. */
