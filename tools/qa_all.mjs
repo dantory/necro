@@ -163,6 +163,11 @@ const RULERS = [
      `node tools/v102_shopnone.mjs old` 로 부르면 운다(빈 칸 10 전부 · 보정 확인 완료).
      자에 **과잉 수정 막이**가 있다 — 물건을 심어 등급표가 그대로 서는지도 함께 본다. */
   { name: "v102_shopnone", args: [],                            secs: 180, tier: "fast", expect: /통과|미달/ },
+  /* V-103 — 경험치 띠가 **「시체」의 눈금으로 읽히던 것**(왼끝이 픽셀 하나까지 같았다).
+     차례만 바꿔 칸 줄 밑으로 내렸다 — 판 높이는 한 톨도 안 변한다(자가 함께 센다).
+     `node tools/v103_xpbar.mjs old` 로 부르면 운다(사이에 낀 것 없음 · 보정 확인 완료).
+     ★ 밑자락의 차례나 `.mid` 의 flex 를 만지면 이 자부터 돌린다. */
+  { name: "v103_xpbar",   args: [],                             secs: 180, tier: "fast", expect: /통과|틀림/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

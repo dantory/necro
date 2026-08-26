@@ -47,16 +47,22 @@ const SPLIT = `(()=>{
   return bad;})()`;
 
 let total = 0;
+let seen = 0;
 for (const [w, h] of SIZES) {
   await S("Emulation.setDeviceMetricsOverride", { width: w, height: h, deviceScaleFactor: 1, mobile: false });
   await wait(300);
   for (const which of ["forge", "shop", "tree", "doctrine", "tactic", "dive", "reborn"]) {
     await ev(`window.__openWin(${JSON.stringify(which)})`); await wait(350);
     const bad = await ev(SPLIT);
+    seen++;
     if (bad && bad.length) { total += bad.length; console.log(`  ${w}×${h} · ${which}: ${bad.length} — ${bad.join(" | ")}`); }
     await ev(`window.__closeAll()`); await wait(150);
   }
 }
+/* ★ **본 자리를 먼저 적는다.** 0 만 내놓으면 「안 갈렸다」와 「안 봤다」가 같은 말이 된다
+   ([[silent-zero-is-not-an-observation]]). 게다가 `qa_all` 은 한 줄만 뱉는 자를
+   **죽은 것**으로 세므로(2줄 미만 = DEAD), 통과할 때마다 ★죽음으로 잡혔다. */
+console.log(`본 자리 ${seen} (크기 ${SIZES.length} × 창 7)`);
 console.log(`\n${OLD ? "옛 결" : "지금"} · 갈린 짝 ${total} · 문턱 0 → ${total === 0 ? "통과" : "미달"}`);
 await raw("Target.closeTarget", { targetId });
 bws.close();
