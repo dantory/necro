@@ -2294,7 +2294,7 @@ function drawShop() {
     /* 칸에 **붙은 것의 개수**를 점으로 찍는다 — 등급만 보면 같은 4등급 둘이 구분이
        안 되고, 랜덤 옵션을 넣은 뜻이 좌판에서 사라진다. */
     return `<div class="cell${k === shopPick ? " sel" : ""}" data-pick="${k}">
-      <i class="gear-${k}"></i><span class="q ${TIER_CLS[t]}">${t}</span>
+      <i class="gear-${k}"></i><span class="q ${qCls(t, TIER_CLS[t])}">${t}</span>
       ${n ? `<span class="afd">${"•".repeat(n)}</span>` : ""}</div>`;
   }).join("") +
     /* 파는 것 옆에 **금을 쓰는 자리** 하나 — 무덤을 파 전리품을 뽑는다(반복 구매).
@@ -2362,7 +2362,7 @@ function drawForge() {
   $("forgeGrid").innerHTML = Object.entries(UPS).map(([k, u]) => {
     const lv = META.up[k] | 0;
     return `<div class="cell${k === forgePick ? " sel" : ""}" data-fpick="${k}">
-      <i class="up-${k}"></i><span class="q t2">${lv}</span></div>`;
+      <i class="up-${k}"></i><span class="q ${qCls(lv, "t2")}">${lv}</span></div>`;
   }).join("")
   /* ★ V-57 — 여기 있던 `.repeat(4)` 는 **빈 칸 넷**을 뒤에 붙였다. 격자가 여섯 칸짜리라
      그 넷이 「첫 줄 뒤 둘 + 둘째 줄에 홀로 둘」로 앉아, 강화할 것은 넷뿐인데 판에는
@@ -2417,6 +2417,13 @@ const pickIco = (kind, id, ico) => pickGlyph()
 /** 자를 위한 **문** — `__DOCLOCKOLD` 가 켜져 있으면 편성 창이 V-104 **전**으로 돌아간다
  *  (못 세우는 몸도 멀쩡한 칸으로 세우고, 그 수를 밝은 값으로 적는다). */
 const docLockOld = () => typeof globalThis !== "undefined" && globalThis.__DOCLOCKOLD === 1;
+
+/** 자를 위한 **문** — `__ZEROQOLD` 가 켜져 있으면 좌판·대장간의 배지가 V-106 **전**으로
+    돌아간다(0 도 등급 빛깔 그대로). 자가 정말 우는지 먼저 보정하려고 둔다
+    ([[silent-zero-is-not-an-observation]]). `node tools/v106_zeroq.mjs old` */
+const zeroQOld = () => typeof globalThis !== "undefined" && globalThis.__ZEROQOLD === 1;
+/** 배지 값이 0 이면 «가라앉은» 표식을 준다 — 안 가진 칸이 좌판에서 가장 밝으면 안 된다. */
+const qCls = (v, cls) => `${cls}${v || zeroQOld() ? "" : " off"}`;
 /** 지금 **못 세우는 몸** — 구울·골렘은 트리에서 찍어야 `SKILLS` 에 든다(core.js syncSkills).
  *  ★ 편성 창은 여태 이것을 안 봤다. 처음 켠 사람에게 「구울 위주」·「골렘 벽」은 고를 수는
  *    있으나 **한 마리도 안 서는 칸**이고([[knob-that-does-nothing]]), 기본값 「균형」의 셈줄은

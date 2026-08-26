@@ -400,6 +400,13 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
    자리를 비켜 주면 그림을 다시 줄여야 하므로, 비키는 대신 **글자에 그림자를 준다** —
    무엇 위에 앉아도 읽힌다(재련 딱지는 이미 그렇게 하고 있었다). */
 .cell .q{position:absolute;right:2px;bottom:0;text-shadow:0 1px 0 #000,0 0 3px #000c}
+/* ★ V-106 — **아직 «0» 인 배지는 가라앉힌다.** 등급 0(안 가진 것)·강화 0(안 올린 것)은
+   그 칸이 «비었다»는 뜻인데, 배지 빛깔이 등급색(--t0 흰색 · --t2 노랑)이라 좌판에서
+   **가장 밝은 것이 뜻 없는 0** 이 된다 — 처음 켠 사람은 열넷을 한꺼번에 본다.
+   V-102 가 같은 창의 **툴팁**에 이미 박은 못을 격자로 옮긴 것뿐이다
+   ([[carry-fixes-forward]] · .tipName.none 과 같은 #8a7c60). 수는 **지우지 않는다** —
+   지우면 「단계가 있다」는 것 자체를 모른다. */
+.cell .q.off{color:#8a7c60;text-shadow:0 1px 0 #000}
 /* 재련 단계 — 등급 숫자(오른쪽 아래)·옵션 점(왼쪽 아래)과 안 겹치게 왼쪽 위 */
 .cell .plusBadge{position:absolute;left:2px;top:1px;font-size:11px;line-height:1;
   color:var(--gold);text-shadow:0 1px 0 #000}
