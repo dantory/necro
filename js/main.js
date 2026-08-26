@@ -2547,12 +2547,22 @@ const statNumbers = () => {
   ];
   /* 강화 없는 줄에도 **같은 폭의 빈 칸**을 둔다 — 안 그러면 단추가 붙은 줄만 값이
      왼쪽으로 밀려 일곱 줄의 숫자가 층계처럼 어긋난다(읽는 자리인데 눈이 흔들린다). */
+  /* ★ 단추에 적히는 것은 **값이 아니라 값어치**다 — 「금」을 붙인다.
+     여태 「▲ 14」였는데, 그 자리가 값(`<b>56</b>`) 바로 오른쪽이라 **「체력 56, 14 오른다」**
+     로 읽힌다(▲ 는 이 게임에서 「오른다」의 표다 — `.tipStat.up`). 정작 14 는 **금값**이고,
+     오르는 몫은 25% 다. 게임의 다른 값어치는 **어디서나 「N 금」**으로 적는다
+     (좌판 · 대장간 · 「다음 재련 20 금」 — `.tipBuy .cost`). 여기만 낱말을 빼고 ▲ 를 달았다
+     ([[carry-fixes-forward]]). 값은 한 톨도 안 바뀐다 — **낱말 하나가 붙을 뿐이다.**
+     ★ ▲ 는 남긴다 — 「누르면 오른다」는 것까지 지우면 단추가 값표로 보인다.
+     ★ 폭은 58 → 68px(hud.css) — 「999k 금」이 상자를 안 넘게. 옛 결은 `__UPCOSTOLD`. */
+  const 옛값 = !!globalThis.__UPCOSTOLD;
+  document.body.classList.toggle("upcostOld", 옛값);
   return `<div class="sStat">${rows.map(([n, v, up]) => {
     const c = up ? upCost(up) : 0, can = up && META.gold >= c;
     return `<div class="tipStat"><span class="sN">${n}</span><b>${v}</b>` +
       (up
         ? `<button class="upBtn${can ? "" : " no"}" data-up="${up}"${can ? "" : " disabled"}
-             title="${UPS[up].n} 강화 — ${UPS[up].d} · ${c.toLocaleString()} 금">▲ ${num(c)}</button>`
+             title="${UPS[up].n} 강화 — ${UPS[up].d} · ${c.toLocaleString()} 금">▲ ${num(c)}${옛값 ? "" : " 금"}</button>`
         : `<span class="upBtn none"></span>`) +
       `</div>`;
   }).join("")}</div>`;
