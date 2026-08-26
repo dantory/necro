@@ -102,6 +102,11 @@ const RULERS = [
   { name: "v85_bandcut",  args: ["1512", "863"],                secs: 200, tier: "fast", expect: /판정/ },
   { name: "v86_roomcut",  args: [],                             secs: 200, tier: "fast", expect: /판정/ },
   { name: "v86_roomcut",  args: ["1280", "720"],                secs: 200, tier: "fast", expect: /판정/ },
+  /* V-87 — 트리 칸의 그림이 «빈칸»으로 보이는가. 원본 png 가 아니라 **그린 뒤**를
+     제 빈칸(`.tIco` 를 숨긴 같은 칸)과 견준다 — 흠은 opacity·filter 를 지나온 뒤에
+     생긴다. 한 폭이면 된다: 칸 크기는 `--tS` 하나가 정하고 그림의 어둠은 폭을 안 탄다.
+     `DIM_OLD=1` 로 부르면 울어야 옳다(보정 확인 완료). */
+  { name: "v87_dimicon",  args: [],                             secs: 200, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
