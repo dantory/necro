@@ -2414,25 +2414,54 @@ const pickIco = (kind, id, ico) => pickGlyph()
  *  고르는 것이라 값이 없고 즉시 적용된다(확인 창 없음 · 되돌릴 수 있다). 지금 고른 것은
  *  칸의 금테(.sel)와 발치(docNow)로 보이고, 툴팁은 그 편성이 이번 상한에서 세우는
  *  벽·몸·수를 그대로 계산해 보여 준다(doctrineWants — auto() 가 읽는 바로 그 함수). */
+/** 자를 위한 **문** — `__DOCLOCKOLD` 가 켜져 있으면 편성 창이 V-104 **전**으로 돌아간다
+ *  (못 세우는 몸도 멀쩡한 칸으로 세우고, 그 수를 밝은 값으로 적는다). */
+const docLockOld = () => typeof globalThis !== "undefined" && globalThis.__DOCLOCKOLD === 1;
+/** 지금 **못 세우는 몸** — 구울·골렘은 트리에서 찍어야 `SKILLS` 에 든다(core.js syncSkills).
+ *  ★ 편성 창은 여태 이것을 안 봤다. 처음 켠 사람에게 「구울 위주」·「골렘 벽」은 고를 수는
+ *    있으나 **한 마리도 안 서는 칸**이고([[knob-that-does-nothing]]), 기본값 「균형」의 셈줄은
+ *    「벽(골렘) 1 · 몸(구울) 1」을 **가장 밝은 값**으로 적는다 — V-101 의 「×1.00」·V-102 의
+ *    「+0%」와 같은 꼴이다([[carry-fixes-forward]]). 규칙은 한 톨도 안 건드린다 — 고르는 것도
+ *    그대로 되고 auto() 의 사슬도 그대로다(못 세우면 그 몫은 해골이 받는다 · main.js auto).
+ *    **말만 바로잡는다.** */
+const docLocked = () => docLockOld() ? {} : {
+  ghoul: !SKILLS.some((s) => s.id === "ghoul"),
+  golem: !SKILLS.some((s) => s.id === "golem"),
+};
+/** 편성 칸이 «앞세우는 몸» — 칸 하나에 하나. 균형·해골 위주는 해골이라 늘 열려 있다. */
+const DOC_PRIME = { flesh: "ghoul", wall: "golem" };
 function drawDoctrine() {
   const cur = doctrineId(), cap = armyCap(), door = pickDoor();
+  const lk = docLocked();
   $("docGrid").innerHTML = DOCTRINE_IDS.map((id) => {
     const d = DOCTRINE[id];
+    const need = DOC_PRIME[id];
+    const shut = !!(need && lk[need]);
     /* ★ 칸의 그림은 **픽셀아트**다(assets/ui/pick) — 여기 있던 유니코드 글리프(⚖ ☠ ✦ ◆)는
        판에서 유일하게 시스템 폰트가 그리는 칸이었고, ✦ 와 ◆ 는 모양만으로 못 갈랐다
        (V-34 가 상인 좌판에서 고친 그것을 이 창에 안 옮겼다 · V-37). */
-    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}" data-doc="${id}">${pickIco("doc", id, d.ico)}` +
+    return `<div class="cell${door ? "" : " pick"}${id === cur ? " sel" : ""}${shut ? " lock" : ""}" data-doc="${id}">${pickIco("doc", id, d.ico)}` +
+           (shut && !door ? `<span class="docLock">아직</span>` : "") +
            (door ? "" : `<span class="cn">${d.n}</span>`) + `</div>`;
   }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - DOCTRINE_IDS.length)) : "");
 
   const d = DOCTRINE[cur], w = doctrineWants(cap);
+  /* ★ 못 세우는 몫은 **해골이 받는다** — auto() 의 사슬이 그렇다(벽→몸→수 · 못 세우면 샌다).
+     그래서 잠긴 것은 「―」로 눕히고 그 수를 해골에 얹는다. 예전 셈줄은 잠겨 있어도
+     골렘 1 · 구울 1 을 밝게 적어 **합이 상한을 넘었다.** */
+  const gN = lk.golem ? 0 : w.golem, hN = lk.ghoul ? 0 : w.ghoul;
+  const dash = (v, off) => off ? `<b class="off">―</b>` : `<b>${v}</b>`;
+  const shutList = ["golem", "ghoul"].filter((k) => lk[k]).map((k) => MINIONS[k].n);
   $("docNow").textContent = d.n;
   $("docTip").innerHTML =
     `<div class="tipName t2">${d.n}</div>
      <div class="tipKind">편성 · 지금 상한 ${cap} 기준</div>
      <div class="tipStat">${d.d}</div>
-     <div class="tipStat up">벽(골렘) <b>${w.golem}</b> · 몸(구울) <b>${w.ghoul}</b> · 나머지 수(해골) <b>${Math.max(0, cap - w.golem - w.ghoul)}</b></div>
-     <div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`;
+     <div class="tipStat up">벽(골렘) ${dash(w.golem, lk.golem)} · 몸(구울) ${dash(w.ghoul, lk.ghoul)} · 나머지 수(해골) <b>${Math.max(0, cap - gN - hN)}</b></div>` +
+    (shutList.length
+      ? `<div class="tipNote lockNote">${shutList.join(" · ")}은 <b>스킬 트리</b>에서 찍어야 선다 — 그때까지 그 몫은 해골이 받는다</div>`
+      : "") +
+    `<div class="tipNote sm">고르면 바로 바뀐다 — 이미 선 군대는 그대로, 다음 소환부터 새 비율로 찬다</div>`;
 }
 
 /* 운용 — **주술을 언제 쓸지 고른다.** 편성 창과 같은 격자+툴팁이되, 여기서 고르는 것은

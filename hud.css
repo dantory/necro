@@ -1991,3 +1991,22 @@ body.noPickName #docGrid, body.noPickName #tacGrid{ grid-template-columns:repeat
 @media (max-height:700px){ #forgeGrid{ grid-template-columns:repeat(4, minmax(0,104px)) } }
 /* 문 — 자가 고치기 전 꼴(여섯 칸 격자 + 빈 칸 넷)을 그 자리에서 다시 세운다 */
 body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content:stretch; gap:6px }
+
+/* ══ V-104 · **편성 창이 «못 세우는 몸»을 이름만 내걸고 침묵하던 것** ══
+   처음 켠 사람은 해골밖에 못 세우는데(구울 Lv.6 · 골렘 Lv.10 언저리에서 트리가 열어 준다),
+   편성 창은 넷을 다 멀쩡한 칸으로 세우고 「벽(골렘) 1 · 몸(구울) 1」을 가장 밝은 값으로
+   적었다. 규칙은 안 바꾼다 — 고르는 것도 그대로다. **말만 바로잡는다.**
+   ★ 결은 「어디부터」의 잠긴 구역을 그대로 옮겼다(.wayZ.lock — 죽이되 지우지 않는다) —
+     안 보이면 「더 있다」를 모르고, 보이면 그게 다음 목표가 된다([[carry-fixes-forward]]). */
+.cell.pick.lock i{ filter:brightness(.5) saturate(.45) }
+.cell.pick.lock .cn{ color:#6b6152 }
+.cell.pick.lock:hover i{ filter:brightness(.66) saturate(.6) }
+.cell.pick.lock:hover .cn{ color:#8d8371 }
+/* 「아직」 — 칸 오른쪽 위. 이름(.cn 은 아래) · 그림(inset 6/30) 어느 것도 안 밟는다. */
+.cell .docLock{ position:absolute; right:5px; top:4px; font-size:10px; line-height:1;
+  padding:2px 4px; border:1px solid #4a4034; background:#0d0907cc; color:#9a8f79;
+  letter-spacing:.5px; pointer-events:none }
+/* 잠긴 몫의 수 — 눕혀 둔다. 값이 아니라 「지금은 없다」이므로 밝기를 뺀다. */
+.tipStat.up b.off{ color:#6f675a }
+.tipNote.lockNote{ font-size:11px; line-height:1.4; color:#8b8271; margin-top:6px }
+.tipNote.lockNote b{ color:#b0a68d; font-weight:normal }
