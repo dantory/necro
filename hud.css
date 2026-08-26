@@ -669,6 +669,32 @@ body.winover:not(.bandold) #hudMenu{visibility:hidden}
    `body.resold` 는 자를 위한 문. */
 body.winover:not(.resold) .mid .res{visibility:hidden}
 
+/* ★★★ V-98 (2026-08-26) — **「보는 동안은 안 싸운다」가 던전에서는 거짓이다.**
+   위 두 규칙(`#hudMenu` · `.res`)과 `#winShop,#winForge,#winDive`(622) ·
+   `#winTree`(707) · 편성·운용·환생(V-86) 은 **하나같이 같은 말**로 판을 덮는다 —
+   「마을에서만 열리고 보는 동안은 안 싸우므로 구슬을 가려도 잃을 게 없다」.
+   그런데 **스킬·편성·운용은 던전에서도 열린다**(아래 판 띠의 세 칸 · `KeyT`/`KeyS`).
+   열어 놓고 3초를 재니 시체·군세가 계속 움직였고, 트리를 보는 사이 판은 **2층에서
+   4층까지** 내려갔다(`tools/v98_dunwin.mjs`). 즉 싸움이 도는 내내 구슬(체·마) ·
+   시체/Lv/군세 · 벨트 · 띠가 **통째로 사라진다** — 죽는 것을 못 보고 죽는다.
+   전제가 틀린 자리에서 값만 옳았던 것이다([[cause-written-in-the-item-is-a-guess]]).
+   ★ 고침은 **자리를 되돌려 주는 것**이지 값이 아니다 — 던전에서는 덮는 창이
+     아래 판(`--hudH`)과 띠(`--menuH`) 위에서 멈춘다. 마을은 한 톨도 안 바뀐다
+     (거기서는 정말로 안 싸우고, 트리가 세로 190px 을 쓰는 까닭이 살아 있다).
+   ★ 띠도 같이 되살린다 — V-85 가 띠를 숨긴 까닭은 「겉판(z 35)이 눌림을 먹어 이미
+     죽어 있다」였는데, 창이 띠 위에서 멈추면 **다시 살아난다.** 죽은 것을 숨기는 것과
+     살아 있는 것을 숨기는 것은 다르다([[knob-that-does-nothing]] 의 뒤집힌 짝).
+   `body.dunold` 는 자를 위한 문 — 옛 결로 되돌려 같은 자로 잰다. */
+body:not(.in-town):not(.dunold) #winTree,
+body:not(.in-town):not(.dunold) #winShop,
+body:not(.in-town):not(.dunold) #winForge,
+body:not(.in-town):not(.dunold) #winDive,
+body:not(.in-town):not(.dunold) #winDoctrine,
+body:not(.in-town):not(.dunold) #winTactic,
+body:not(.in-town):not(.dunold) #winReborn{bottom:calc(var(--hudH) + var(--menuH, 0px))}
+body:not(.in-town):not(.dunold) #hudMenu{visibility:visible}
+body:not(.in-town):not(.dunold) .mid .res{visibility:visible}
+
 /* ★ **낮은 창에서는 둘의 역할을 뒤집는다**(2026-08-24 · v27_buyfit 이 잡았다).
    위 규칙대로면 남는 자리를 설명칸이 먹는데, 863 이 아니라 **720 에서는 남는 자리가
    28px** 이라 설명칸이 통째로 찌부러진다 — 붙박은 값·단추(53px)조차 못 들어간다.

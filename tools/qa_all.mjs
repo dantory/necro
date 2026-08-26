@@ -147,6 +147,9 @@ const RULERS = [
   /* V-97 — 화면에 뜬 수의 «자릿점». 마을·전장·덮는 창 열둘을 한 자로 훑는다.
      `node tools/v97_digits.mjs old` 로 부르면 운다(미달 5 · 보정 확인 완료). */
   { name: "v97_digits",   args: [],                             secs: 240, tier: "fast", expect: /판정/ },
+  /* V-98 — 던전에서 덮는 창이 아래 판(구슬·시체/Lv/군세·벨트·띠)을 먹지 않는가.
+     `node tools/v98_dunwin.mjs 1512 863 old` 로 부르면 운다(미달 4 · 보정 확인 완료). */
+  { name: "v98_dunwin",   args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
