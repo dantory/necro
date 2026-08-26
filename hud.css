@@ -927,8 +927,18 @@ body.in-town #stage{cursor:pointer}
 /* ══ 갈래 ══ 한 줄에 칸이 둘. 「기다리면 열리는 것」과 **다르게 보여야** 한다.
    D2 의 시너지처럼 나란히 놓고, 둘 사이에 갈렸음을 뜻하는 **가는 금**을 하나 긋는다. */
 .tFork{display:flex;justify-content:center;align-items:flex-start;gap:10px;position:relative}
-.tFork::before{content:"";position:absolute;top:26px;left:50%;transform:translateX(-50%);
-  width:1px;height:20px;background:#4a4030}
+/* ★ **금은 칸에 매단다 — 픽셀로 못박지 않는다**(2026-08-26 · V-84). 여기 있던
+     `top:26px;height:20px` 는 칸이 46px 이던 시절의 수다. 칸은 `fitTree` 가 창 높이에
+     따라 24~38px 로 줄이는데 금만 그 자리에 남아, **네 폭 전부에서** 금이 칸 밑으로
+     10~22px 내려가 **이름 글자를 8.9~11.5px 뚫고** 지났다(1366×700 에서는 칸 사이에
+     0px — 갈래를 뜻하던 금이 이름을 긋는 줄이 되어 있었다).
+     `--tS` 에 매달면 칸이 줄어도 금은 두 칸 «사이»에 남는다([[seam-not-values]]).
+     자: tools/v84_forkline.mjs — 칸 네모를 직접 재므로 큰 칸(`.big`)이 갈래에 들어와도 운다. */
+.tFork::before{content:"";position:absolute;top:calc(var(--tS,46px) * .3);left:50%;
+  transform:translateX(-50%);
+  width:1px;height:calc(var(--tS,46px) * .4);background:#4a4030}
+/* 옛 자리로 되돌리는 문 — 자가 **같은 판을 두 번** 재도록(`body.qold` 와 같은 결). */
+body.forkold .tFork::before{top:26px;height:20px}
 /* 갈래에서 **닫힌** 칸 — 잠김(회색)보다 더 눌러 두고, 되돌릴 수 없음을 빗금으로 말한다.
    ★ 그림을 지우지는 않는다. 무엇을 포기했는지가 보여야 다음 판의 계획이 선다. */
 .tNode.xlock{cursor:default}
