@@ -3096,12 +3096,23 @@ function drawEnd() {
   const mmss = (s) => `${Math.floor((s | 0) / 60)}:${String((s | 0) % 60).padStart(2, "0")}`;
   const runCell = (label, val) =>
     `<div class="cell run"><span class="rVal">${val}</span><span class="rLbl">${label}</span></div>`;
-  const depth = (r.from | 0) > 1 ? `${r.from}→${r.floor}층` : `${r.floor}층`;
+  /* ★ V-110 — **「10→10층」은 «내려간 깊이»가 아니다.** 건너뛰기가 열린 뒤로는 판이
+     10층·23층에서 시작하는데, 거기서 **한 층도 못 내려가고** 끝나면 이 칸이
+     `10→10층` 이라고 적었다 — 화살표는 「여기서 저기로 갔다」는 말인데 간 데가 없다.
+     처음 판이 8초 만에 끝나는 자리(V-14b)라 **자주 보이는 거짓말**이다.
+     V-101 「×1.00」· V-102 「없음」· V-105 「0/0」· V-108 「가장 깊이 1층」과 같은 못이다
+     ([[carry-fixes-forward]]) — 뜻 없는 수가 가장 크게 거짓말하는 자리.
+     ★ 자리를 비우지 않는다(V-108 에서 배운 것) — 수는 그대로 두고 **딱지가 참말을
+     한다.** 시작 층은 `from<=1` 일 때와 똑같이 «끝난 층» 하나만 적는다. */
+  /* 옛 결로 되돌리는 문 — 자가 **같은 판을 두 번** 재도록(`body.headold` 와 같은 결). */
+  const 내려감 = window.__DEPTHOLD ? 1 : (r.floor | 0) - Math.max(1, r.from | 0);
+  const depth = 내려감 > 0 && (r.from | 0) > 1 ? `${r.from}→${r.floor}층` : `${r.floor}층`;
+  const depthLbl = 내려감 > 0 ? "내려간 깊이" : "한 층도 못 내려감";
   $("endBody").innerHTML = r.loot.length
     ? `<div class="grid">${r.loot.map(cell).join("")}</div>`
     : `<div class="eEmpty">빈손으로 돌아왔다</div>
        <div class="grid runGrid">`
-       + runCell("내려간 깊이", depth)
+       + runCell(depthLbl, depth)
        + runCell("불러낸 하수인", (r.summoned | 0).toLocaleString())
        + runCell("쓴 시체", (r.used | 0).toLocaleString())
        + runCell("버틴 시간", mmss(r.secs))
