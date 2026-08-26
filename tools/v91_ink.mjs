@@ -88,6 +88,11 @@ const meta = { gold: 182400, lv: 26, xp: 0, deepest: 52, runs: 6, dive: 1, diveS
            robe: { k: "robe", tier: 3, af: [{ id: "hp", v: 88 }] },
            charm: { k: "charm", tier: 2, af: [{ id: "mdmg", v: 18 }] } },
   bag: [], tree: {}, quests: {}, relics: 3, rebirths: 1, best: 52, lastSeen: 0, corpses: 0 };
+/* ★ **난수를 못박는다.** 던전 판은 마을과 달리 «무엇이 화면에 서 있는가»가 실행마다
+   갈린다(몹 이름·일지 줄·떠오르는 수). 못 박지 않으면 고치기 전/후 사진이 다른 판이라
+   견줄 수가 없다([[same-seed-is-not-same-run]]). dt 도 아래에서 못박는다. */
+await S("Page.addScriptToEvaluateOnNewDocument", { source:
+  `Math.random = (() => { let s = 0x9e3779b9; return () => ((s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296); })();` });
 await S("Page.reload", { ignoreCache: true }); await wait(2200);
 await ev(`localStorage.setItem("necro.meta.v1", ${JSON.stringify(JSON.stringify(meta))})`);
 await S("Page.reload", { ignoreCache: true }); await wait(1600);
@@ -147,7 +152,7 @@ const COLLECT = (SPARE) => `(() => {
           const qr = q.getBoundingClientRect();
           if (rects.some(([l0, t0, r0, b0]) => t0 < qr.top - 1 || b0 > qr.bottom + 1 || l0 < qr.left - 1 || r0 > qr.right + 1)) partial = true;
         }
-        out.push({ inFade: partial, tag: el.tagName.toLowerCase(), id: el.id || "",
+        out.push({ inFade: partial, belt: !!el.closest("#belt"), tag: el.tagName.toLowerCase(), id: el.id || "",
                    cls: String(el.className && el.className.baseVal !== undefined ? el.className.baseVal : el.className || "").split(" ")[0],
                    txt: t.slice(0, 26), fs: Math.round(parseFloat(cs.fontSize)), rects });
       }
@@ -181,7 +186,10 @@ const REINK = `(() => { const s = document.getElementById("__noink"); if (s) s.t
      ★ 그래서 이 자는 **띠가 살아 있는 던전을 아직 못 봤다** — V-91b 로 남긴다.
    · `.btn.ghost.faint` — 「초기화」처럼 되돌릴 수 없는 단추는 **일부러** 흐리다
      (`opacity:.42`). 눈에 먼저 띄면 안 되는 단추다. */
-const SPARE = [["#belt", "마을에선 기술띠를 죽여 둔다"], [".btn.ghost.faint", "되돌릴 수 없는 단추는 일부러 흐리다"]];
+const SPARE_TOWN = [["#belt", "마을에선 기술띠를 죽여 둔다"], [".btn.ghost.faint", "되돌릴 수 없는 단추는 일부러 흐리다"]];
+/* ★ V-91b — **던전에서는 띠를 안 봐준다.** 거기서는 기술을 정말 쓴다(`opacity:1`).
+   봐주기를 그대로 들고 가면 「다 봤다」면서 정작 띠가 살아 있는 자리를 영영 안 본다. */
+const SPARE_DUN = [[".btn.ghost.faint", "되돌릴 수 없는 단추는 일부러 흐리다"]];
 
 const CASES = [
   ["town",     null],
@@ -190,9 +198,18 @@ const CASES = [
   ["doctrine", "doctrine"], ["tactic",   "tactic"],  ["reborn", "reborn"],
   ["end",      "end"],      ["offline",  "offline"], ["wipe",   "wipe"],
 ];
+/* ★ V-91b — **던전 네 구역.** 마을은 늘 같은 흙길이지만 던전은 구역마다 바닥 그림과
+   물빛이 통째로 갈린다(`ZONES`: crypt 무색 · bone 푸름 · camp **누런빛** · sanctum 보라).
+   글자가 서는 밑바탕이 갈리니 여기가 오히려 묻히기 쉬운 자리다 — 게다가 일지·체력바·
+   떠오르는 수가 **바닥 그림 위**에 선다([[probe-must-walk-the-real-path]]). */
+const FLOORS = [["dun1", 1], ["dun16", 16], ["dun26", 26], ["dun40", 40]];
+
 const bad = [], note = []; let scanned = 0, tiny = 0, covered = 0, spared = 0, clipped = 0;
-for (const [name, which] of CASES) {
-  if (which) { await ev(`window.__openWin(${JSON.stringify(which)})`); await wait(420); }
+const spareSeen = new Set();
+
+/** 한 화면을 잰다 — 마을이든 던전이든 같은 셈이다. */
+async function measure(name, SPARE) {
+  for (const [q] of SPARE) spareSeen.add(q);
   const got = (await ev(COLLECT(SPARE))) || { out: [], spared: 0, clip: 0 };
   const items = got.out; spared += got.spared; clipped += got.clip || 0;
   const A = await shot();
@@ -245,15 +262,94 @@ for (const [name, which] of CASES) {
   for (const d of fadeBad) bad.push(`${name}: ${who(d)} — 그늘 밑인데 ${d.cr}:1 (지워졌다)`);
   for (const d of fade) if (!fadeBad.includes(d)) note.push(`${name}: ${who(d)} — 그늘 밑 ${d.cr}:1 (문 ${FADE_MIN})`);
   if (dim.length || gone.length || fadeBad.length) await save(`tmp/v91_${name}.png`);
-  const worst = rows.slice().sort((a, b) => a.cr - b.cr)[0];
+  /* **낮은 쪽 다섯을 적는다.** 「최저 2.4:1」 한 줄만 보면 그 뒤에 2.41 이 열 줄 서 있는지
+     혼자 떠 있는지를 알 수 없다 — 문을 옮길지 말지는 그 모양을 봐야 정한다
+     ([[floor-far-from-threshold]]). */
+  const low = rows.slice().sort((a, b) => a.cr - b.cr).slice(0, 5);
   console.log(name.padEnd(9), String(rows.length).padStart(3) + "칸 ·",
-    "최저대비", worst ? `${worst.cr}:1 "${worst.txt}"` : "-",
+    "낮은쪽", low.map(d => `${d.cr} "${d.txt.slice(0, 10)}"`).join(" · "),
     (dim.length + gone.length + fadeBad.length) ? `· 미달 ${dim.length + gone.length + fadeBad.length}` : "",
     fade.length ? `· 그늘 밑 ${fade.length}` : "");
+  return { n: rows.length, belt: rows.filter(r => r.belt).length };
+}
+
+for (const [name, which] of CASES) {
+  if (which) { await ev(`window.__openWin(${JSON.stringify(which)})`); await wait(420); }
+  await measure(name, SPARE_TOWN);
   if (which) { await ev(`window.__openWin(${JSON.stringify(which)})`); await wait(180); }
 }
+
+/* ────────── V-91b · 던전 ──────────
+   이 자는 사진 **석 장을 견주는** 자다(있는 그대로 · 잉크 뺀 판 · 형광 판). 곧
+   **세 장 사이에 화면이 움직이면 셈이 통째로 거짓말**을 한다 — 움직인 화소가 「잉크」로
+   잡힌다. 그래서 재기 전에 판을 **얼린다**: 걸음을 0 으로 두고 dt 를 1e-6 으로 못박는다
+   (`draw(dt)` 가 도는 것은 그대로지만 시간이 안 흐르므로 그림이 안 바뀐다).
+   얼었는지는 **짐작하지 않고 잰다** — 같은 화면을 두 번 찍어 다른 화소를 센다
+   ([[silent-zero-is-not-an-observation]]). */
+const evAwait = async (e) => (await S("Runtime.evaluate", { expression: e, awaitPromise: true, returnByValue: true })).result?.value;
+/** 두 사진이 얼마나 다른지 + **어디가** 다른지. 「안 얼었다」만 알면 못 고친다 —
+    움직인 자리를 CSS 화소 네모로 돌려줘야 그 자리의 요소를 물어볼 수 있다. */
+const diffAt = (X, Y, sc) => {
+  let n = 0, l = 1e9, t = 1e9, r = -1, b = -1; const N = X.W * X.H;
+  for (let i = 0; i < N; i++) { const o = i * X.BPP;
+    if (Math.abs(X.img[o] - Y.img[o]) + Math.abs(X.img[o+1] - Y.img[o+1]) + Math.abs(X.img[o+2] - Y.img[o+2]) < 12) continue;
+    n++; const x = i % X.W, y = (i / X.W) | 0;
+    if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y; }
+  return { pct: Math.round((n / N) * 10000) / 100, n,
+           box: n ? [l, t, r, b].map(v => Math.round(v / sc)) : null };
+};
+for (const [name, floor] of FLOORS) {
+  /* 내려갈 층은 **세이브에 적어 두고 다시 연다** — `newRun()` 이 `startFloor()` 로
+     그 값을 읽는다. 판 안에서 S.floor 를 손으로 바꾸면 구역 바닥이 안 따라온다. */
+  await ev(`(() => { const m = JSON.parse(localStorage.getItem("necro.meta.v1"));
+    m.dive = ${floor}; m.diveSet = 1; localStorage.setItem("necro.meta.v1", JSON.stringify(m)); return 1; })()`);
+  await S("Page.reload", { ignoreCache: true }); await wait(1500);
+  await evAwait(`new Promise(r => { const w = () => (window.LOAD && window.LOAD.done) ? r(1) : setTimeout(w, 150); w(); })`);
+  if (OLD) await ev(`window.__IN_OLD = 1; document.documentElement.classList.add("inkOld")`);
+  if (!(await ev(`typeof window.__toDungeon === "function"`))) { bad.push("__toDungeon 없다 — 이름을 확인할 것"); break; }
+  /* dt 를 못박고 걸음을 몰아 밟는다 — 벽시계 2.4초에 «판의 시간» 열두어 초.
+     싸움이 붙고 일지가 차고 떠오르는 수가 떠야 **재는 보람이 있는 화면**이 된다. */
+  /* ★ **정한 초만큼 굴리지 않는다 — 싸움이 붙는 순간을 기다린다.**
+     처음엔 벽시계 2.4초를 세었더니 26·40층에서 **판이 그 안에 끝났다**(Lv.26 인물이
+     깊은 층에서 스무 초를 못 버틴다 — V-14b 가 이미 연 발견이다). 마을로 돌아온 화면을
+     「던전」이라 적고 잴 뻔했다. 그래서 **화면이 재기 좋아진 자리**에서 멈춘다:
+     적이 서 있고 일지가 여섯 줄 넘게 찼을 때. 판이 먼저 끝나면 그 자리에서 접는다. */
+  /* ★ **26·40층에서는 판이 «재기 전에» 끝난다.** 심어 둔 몸(Lv.26 · tier 3)은 그
+     깊이에서 반 초를 못 버틴다 — 적이 36·50 마리다(V-14b 가 이미 연 발견이다).
+     그래서 `__AUTORETURN` 으로 **쓰러지면 그 자리에서 다시 내려가게** 두고, 마을이
+     아닌 프레임을 붙잡는다. 안 그러면 마을 사진을 「던전」이라 적고 재게 된다. */
+  await ev(`globalThis.__FIXEDDT = 0.02; globalThis.__AUTORETURN = 1; window.__toDungeon(); window.__S.speed = 3; true`);
+  const peek = `window.__S ? {f: window.__S.floor, mobs: (window.__S.mobs||[]).length, log: (window.__S.log||[]).length, hp: Math.round(window.__S.hp), town: document.body.classList.contains("in-town")} : null`;
+  let at = null;
+  for (let i = 0; i < 60; i++) { await wait(60); at = await ev(peek);
+    if (at && !at.town && at.mobs > 0 && at.log >= 4) break; }
+  if (!at || at.town) { bad.push(`${name}: 던전에 못 섰다 — 마을 프레임만 잡혔다 (${JSON.stringify(at)})`); continue; }
+  await ev(`globalThis.__AUTORETURN = 0; true`);
+  /* 얼린다 — 걸음 0 · dt 1e-6. 여기에 **CSS 움직임도 멈춘다**(전환·애니메이션).
+     석 장을 견주는 자라 세 장 사이에 한 화소라도 움직이면 그게 「잉크」로 잡힌다. */
+  await ev(`window.__S.speed = 0; globalThis.__FIXEDDT = 1e-6;
+    (() => { let z = document.getElementById("__freeze");
+      if (!z) { z = document.createElement("style"); z.id = "__freeze"; document.head.appendChild(z); }
+      z.textContent = "*,*::before,*::after{animation-play-state:paused !important;transition:none !important}"; })(); true`);
+  await wait(340);
+  const F1 = await shot(); await wait(260); const F2 = await shot();
+  const jit = diffAt(F1, F2, F1.W / W);
+  if (jit.pct > 0.2) {
+    const who = jit.box ? await ev(`(() => { const [l,t,r,b] = ${JSON.stringify(jit.box)};
+      const e = document.elementFromPoint((l+r)/2, (t+b)/2);
+      return e ? (e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + (e.className ? "." + String(e.className).split(" ")[0] : "")) : "(없다)"; })()`) : "-";
+    bad.push(`${name}: 안 얼었다 — 두 사진이 ${jit.pct}% 다르다 · 움직인 네모 [${jit.box}] ${who} (잰 값을 믿을 수 없다)`);
+  }
+  console.log(`  ${name}: ${at.f}층 · 몹 ${at.mobs} · 일지 ${at.log}줄 · 체력 ${at.hp} · 흔들림 ${jit.pct}%${jit.box ? " " + JSON.stringify(jit.box) : ""}`);
+  const seenHere = await measure(name, SPARE_DUN);
+  /* ★ **띠를 정말 쟀는지 확인한다.** V-91b 는 「띠가 살아 있는 자리를 못 봤다」가
+     까닭이었으니, 여기서 띠 글자가 0 이면 이 자는 또 못 본 것이다 — 통과가 아니라
+     **안 잰 것**이다([[silent-zero-is-not-an-observation]]). */
+  if (!seenHere.belt) bad.push(`${name}: 띠(#belt) 글자를 한 칸도 못 쟀다 — 또 지름길로 잰 것이다`);
+  await save(`tmp/v91_${name}_look.png`);
+}
 if (errs.length) bad.push(`콘솔오류 ${errs.length}: ${errs[0]}`);
-console.log(`잰 글자자리 ${scanned} · 일부러 봐준 것 ${spared}(${SPARE.map(x => x[0]).join(" ")}) · 덮여서 뺀 것 ${covered} · 굴림 밖이라 뺀 것 ${clipped} · 너무 작아 봐준 것 ${tiny} · 문 대비 ${CR_MIN}:1 · 잉크 ${INK_MIN * 100}%`);
+console.log(`잰 글자자리 ${scanned} · 일부러 봐준 것 ${spared}(${[...spareSeen].join(" ")}) · 덮여서 뺀 것 ${covered} · 굴림 밖이라 뺀 것 ${clipped} · 너무 작아 봐준 것 ${tiny} · 문 대비 ${CR_MIN}:1 · 잉크 ${INK_MIN * 100}%`);
 for (const n of note) console.log("  그늘밑", n);
 for (const b of bad) console.log("  미달", b);
 console.log(`판정: ${bad.length ? `미달 ${bad.length}` : `통과 (${W}x${H} · 창 ${CASES.length}장)`}`);

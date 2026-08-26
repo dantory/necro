@@ -793,7 +793,10 @@ export function enterFloor(f) {
   { const z = zoneOf(f);
     if (S.zone !== z.n) {
       S.zone = z.n;
-      if (f > 1) say(`<b style="color:#c8a96a">${z.n}</b> 에 들어섰다`);
+      /* ★ 조사는 이름에 **붙여** 쓴다 — 「어둠의 성소 에 들어섰다」처럼 띄우면
+         한국어가 아니다. 굵게 감싼 자리 뒤에 빈칸을 하나 넣어 둔 탓이었다.
+         (「에」는 받침을 안 가리니 core.js 의 `josa` 를 부를 일이 없다 · V-89 와 같은 결) */
+      if (f > 1) say(`<b style="color:#c8a96a">${z.n}</b>에 들어섰다`);
     } }
   S.spawnT = 0;                                // 첫 놈은 바로
   /* 이 층에 들어선 자리를 적어 둔다 — 층을 비웠을 때 「몇 마리 · 몇 초」를 말하려면
