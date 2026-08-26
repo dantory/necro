@@ -120,6 +120,23 @@ export function fitTree() {
      여백으로는 못 갚는다 — 칸↔이름 1px 은 V-55 가 낮은 창에서 칸이 잘리지 않게
      일부러 깎아 둔 바닥이다([[floor-erases-the-ramp]]). */
   box.style.setProperty("--tRing", s >= 35 ? "2px" : "1px");
+  /* ★★ **2단 — 칸이 바닥을 쳐도 안 들어가면 «칸 사이»를 깎는다**(V-90b).
+     `--tS` 는 22px 이 바닥이라(그림이 안 읽힌다) 1152×648 에서는 아무리 줄여도 24px 이
+     넘쳤다. 남은 자리는 칸이 아니라 **칸과 칸 사이**다 — 여기서도 값을 층층이 쌓지 않고
+     **넣어 보고 재서** 정한다([[floor-erases-the-ramp]] — 높이마다 CSS 를 손으로 쌓으면
+     목록에 없는 높이에서 그대로 잘린다). 시작값은 **지금 창의 값**을 읽어 온다
+     (`@media` 가 낮은 창에서 이미 1px 로 내려 둔다) — 2px 에서 시작하면 되레 늘린다. */
+  box.style.removeProperty("--tV");
+  /* 문이 열려 있으면 잇는 선의 바닥도 옛 6px 으로 되돌린다 — 「고치기 전」을 온전히 되살려야
+     자가 24px 을 본다(반만 되돌리면 눈금이 반만 남는다). */
+  if (FIT2_OFF()) box.style.setProperty("--tLmin", "6px"); else box.style.removeProperty("--tLmin");
+  if (s <= 22) {
+    const v0 = parseFloat(getComputedStyle(box).getPropertyValue("--tV")) || 2;
+    for (let v = Math.round(v0 * 10); v >= 0 && !FIT2_OFF(); v -= 2) {
+      box.style.setProperty("--tV", (v / 10) + "px");
+      if (box.scrollHeight <= box.clientHeight) break;
+    }
+  }
   /* ★★ **맞춘 «뒤» 에 흐림을 다시 정한다**(V-90). `--tS` 는 22px 에서 바닥을 친다 —
      그보다 낮은 창(1152×648)에서는 아무리 줄여도 **안 들어간다.** 바로 그때만
      「더 있다」가 필요한데, 그 표식은 창이 **닫혀 있을 때** 정해져 있었다
@@ -132,6 +149,9 @@ export function fitTree() {
    돌아간다: ① 맞춘 뒤 흐림을 안 다시 정한다 ② 닫힌 상자(높이 0)로도 판정한다.
    자(`tools/v90_treefade.mjs`)는 이 문을 열고 **울어야** 눈금이 된다. */
 const TREE_OLD = () => typeof globalThis !== "undefined" && !!globalThis.__TREE_OLD;
+/* **2단을 끄는 문** — `window.__TREE_NOFIT2 = 1` 이면 칸 사이를 안 깎는다.
+   자(`tools/v90b_treefit.mjs`)는 이 문을 열고 **울어야** 눈금이 된다. */
+const FIT2_OFF = () => typeof globalThis !== "undefined" && !!globalThis.__TREE_NOFIT2;
 
 /* 아래 끝의 흐림은 **더 있을 때만** 켠다 — 다 보이는데도 흐려져 있으면
    「뭔가 잘렸나」로 읽힌다. 창을 그릴 때와 구를 때 둘 다에서 본다. */

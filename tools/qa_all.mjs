@@ -121,6 +121,11 @@ const RULERS = [
      **닫혀 있는 동안** 「다 봤다」로 정해져 다시 안 물었다. 네 폭에서 넘침과 흐림을 같이
      재고 끝까지 굴려도 본다. `node tools/v90_treefade.mjs old` 로 부르면 운다(보정 확인 완료). */
   { name: "v90_treefade", args: [],                             secs: 260, tier: "fast", expect: /판정/ },
+  /* V-90b — 그 창에서 **잘리는 것 자체**를 없앤 2단 맞추기. 칸(`--tS`)이 22px 바닥을 쳐도
+     안 들어가면 **칸 사이**(`--tV`)를 깎는다. 네 폭에서 넘침·잘린 칸을 재고, 2단이
+     **바닥을 친 창에서만** 돌았는지도 본다. `node tools/v90b_treefit.mjs old` 로 부르면
+     운다(24px 넘침 · 보정 확인 완료). */
+  { name: "v90b_treefit", args: [],                             secs: 260, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

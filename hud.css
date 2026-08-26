@@ -769,7 +769,9 @@ body.winover:not(.bandold) #hudMenu{visibility:hidden}
   #winTree .tCol h3{padding:1px 0 3px}
   /* 칸 사이 — 칸과 그림은 그대로 두고 **칸에 붙은 여백**만 뗀다 */
   #winTree .tNode{padding:0 2px 0}
-  #winTree .tTile{margin-bottom:1px}
+  /* ★ 여기서는 **손잡이만 돌린다** — 성질을 못박으면 `fitTree()` 의 2단이 못 깎는다
+     (`#treeCols` 가 더 가까운 조상이라 그때 이 값을 덮는다 · V-90b) */
+  #winTree{--tV:1px}
   /* 잇는 선 8 → 7. 화살촉이 6px 이라 **6 이 바닥**이고 7 은 그 바로 위 —
      여기서 9px 을 벌어 863 에 여유를 남긴다(딱 맞으면 이름 한 줄만 접혀도 다시 밀린다). */
 }
@@ -826,7 +828,11 @@ body.winover:not(.bandold) #hudMenu{visibility:hidden}
    선행을 찍으면 불이 들어온다. */
 /* ★ 길이는 14 → 9. 화살촉이 6px 이라 여기가 바닥이다 — 더 줄이면 선이 사라지고
    촉만 남아 「잇는 선」이 아니라 점으로 읽힌다. */
-.tLink{position:relative;height:clamp(6px, calc(var(--tS)*.19), 8px);
+/* ★★ 바닥은 6 이 아니라 **4** 다(V-90b). 화살촉(`::after`)은 `bottom:-1px` 에 6px 으로
+   서므로 **줄기를 통째로 덮는다** — 6px 일 때 눈에 보이는 것은 이미 촉뿐이었다.
+   즉 6px 바닥은 «안 보이는 줄기»를 지키고 있었다([[knob-that-does-nothing]]).
+   4 로 내리면 낮은 창에서 칸 사이가 좁아질 뿐 화살표는 그대로 6px 이다. */
+.tLink{position:relative;height:clamp(var(--tLmin,4px), calc(var(--tS)*.19), 8px);
   margin:0 auto;width:3px;background:#4a4030}
 .tLink::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
   border-left:5px solid transparent;border-right:5px solid transparent;
@@ -846,7 +852,9 @@ body.winover:not(.bandold) #hudMenu{visibility:hidden}
    `fitTree()` 가 이 한 값만 내리면 된다. 예전엔 높이마다 CSS 를 손으로 한 층씩
    쌓았는데(900·820·780 · 그리고 파일 끝에 또 하나), **목록에 없는 높이**에서는
    그대로 잘렸다 — 1366×700 에서 주술 세 칸([[floor-erases-the-ramp]]). */
-.tTile{position:relative;display:block;width:var(--tS);height:var(--tS);margin:0 auto 2px;
+/* ★ 칸 밑 여백은 **값이 아니라 손잡이**다(`--tV` · V-90b) — 칸(`--tS`)이 22px 바닥을
+   쳐도 안 들어가는 창(1152×648)에서 `fitTree()` 가 2단으로 이것을 깎는다. */
+.tTile{position:relative;display:block;width:var(--tS);height:var(--tS);margin:0 auto var(--tV,2px);
   box-sizing:border-box;
   background:linear-gradient(#1c150e,#0d0906);
   border-style:solid;border-width:9px;border-color:transparent;
