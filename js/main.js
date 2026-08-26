@@ -2536,6 +2536,24 @@ const questListHtml = () =>
  *  ★ 창이 닫혀 있으면 clientHeight 가 0 이라 판정이 못 선다. 그래서 **열 때도** 부른다. */
 function markMore(el) {
   if (!el) return;
+  /* ★ 「읽을 수 있는 바닥」은 네모의 바닥이 아니다(V-83 · 2026-08-26). 상인·대장간의
+     설명칸은 값·단추(.tipBuy)가 `position:sticky` 로 못박혀 그 아래 글을 **덮는다** —
+     1366×700 에서 「다음 · 왕의 홀」이 반 잘리고 그 상승치는 통째로 가려져 있었다.
+     띠를 발치 «위»로 올릴 만큼을 여기서 재서 넘긴다(CSS 에 또 적으면 둘이 갈린다). */
+  const cs = getComputedStyle(el);
+  const foot = el.lastElementChild;
+  let bot = 0;
+  if (foot && getComputedStyle(foot).position === "sticky") {
+    const r = el.getBoundingClientRect();
+    bot = Math.max(0, Math.round(r.top + el.clientTop + el.clientHeight - foot.getBoundingClientRect().top));
+  }
+  /* ★ **아래 여백만큼 더 내린다.** 못박힌(sticky) 상자는 제 «내용칸» 밖으로 못 나가서,
+     `bottom:0` 이면 아래 여백(.tip 은 11px)이 **안 덮인 채로 남는다** — 켜서 보니 띠가
+     한가운데 서고 마지막 줄이 그 «밑»으로 삐져나왔다(2026-08-26 · tmp/v83_crop_doctrine.png).
+     여백은 창마다 다르므로 여기서 읽는다 — 여백 없는 칸(일지·가방·「어디부터」)은 0 이라
+     예전 그대로다. */
+  bot -= parseFloat(cs.paddingBottom) || 0;
+  el.style.setProperty("--moreBot", bot + "px");
   el.classList.toggle("more", el.scrollHeight - el.scrollTop - el.clientHeight > 2);
 }
 /* 굴림은 **이름이 아니라 결로** 듣는다(V-80 · 2026-08-26). 예전엔 `["statBody","bagBody"]`
@@ -2548,6 +2566,25 @@ addEventListener("scroll", (e) => {
   if (el instanceof Element && el.classList.contains("wScroll")) markMore(el);
 }, true);
 const markAllMore = () => { for (const el of document.querySelectorAll(".wScroll")) markMore(el); };
+/* **글이 바뀌면 다시 잰다**(V-83 · 2026-08-26). 여태는 창을 «열 때»와 창 크기가 바뀔 때만
+   쟀는데, 상인·대장간·편성·운용의 설명칸은 **열린 뒤에 칸을 누를 때마다** 다시 그려진다 —
+   그 글이 길어져 넘쳐도 띠가 안 켜졌다. 어느 함수 끝에 한 줄씩 붙이면 새로 생기는
+   그리기마다 또 빠뜨리므로([[carry-fixes-forward]]), **바뀐 것을 보고** 그 칸을 되짚는다.
+   ★ 한 프레임에 한 번만 판정한다 — 일지는 싸움 내내 줄이 붙는 칸이라, 붙을 때마다
+     scrollHeight 를 읽으면 그 자리에서 배치를 다시 계산하게 만든다(렉). */
+let moreDue = null;
+new MutationObserver((muts) => {
+  const hit = moreDue || (moreDue = new Set());
+  for (const m of muts) {
+    const n = m.target instanceof Element ? m.target : m.target.parentElement;
+    const box = n && n.closest(".wScroll");
+    if (box) hit.add(box);
+  }
+  if (hit.size && !moreDue.__q) {
+    moreDue.__q = true;
+    requestAnimationFrame(() => { const s = moreDue; moreDue = null; for (const el of s) markMore(el); });
+  }
+}).observe(document.body, { childList: true, subtree: true, characterData: true });
 addEventListener("resize", () => { fitDoll(); markAllMore(); if (ftipPin) ftipReflow(); });
 
 /** 페이퍼 돌을 **창 높이에 맞춘다** — 칸을 46px 로 못박아 두었더니 여섯 줄이 316px 가 되어

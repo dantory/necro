@@ -87,6 +87,9 @@ const RULERS = [
   /* V-82 — 관문의 주인이 제 몸으로 서는가(배어 나오는 시간 < 사는 시간). 90초면 주인
      여섯쯤을 본다. `old` 로 부르면 울어야 옳다(자가 무엇을 잡는지 그것으로 안다). */
   { name: "v82_lord_alpha", args: ["90"],                       secs: 180, tier: "fast", expect: /판정/ },
+  /* V-83 — 창 안 설명칸(.tip)이 **말없이** 자르는가. 네 폭 × 창 다섯을 훑는다.
+     `old` 로 부르면 울어야 옳다(설명칸에서 wScroll 을 떼면 띠가 없던 그 판). */
+  { name: "v83_tipclip",  args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

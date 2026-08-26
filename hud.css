@@ -1385,7 +1385,7 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      내용이 다 들어가는데도 넘침 3px 이 남아 그늘이 켜졌고, 그 그늘이 아랫줄을 25px
      덮었다 — 막으려던 바로 그 「자기가 자기를 켠다」가 **줄상자로** 일어나 있었다. */
 .wScroll::after{
-  content:"▾"; position:sticky; bottom:0; z-index:2; display:block;
+  content:"▾"; position:sticky; bottom:var(--moreBot,0px); z-index:2; display:block;
   /* ★★ 이 띠는 **칸의 일부가 아니라 배치 항목**이다(V-79 · 2026-08-26). `.wScroll` 이
      흐름일 때만 「밑자락을 가로지르는 띠」로 보이고, 상자가 grid/flex 가 되면 격자 한
      칸·차례 한 자리로 **끌려간다** — 재 보니
@@ -1397,6 +1397,11 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
      그래서 자리를 **두 결 모두에** 못 박는다: 격자면 온 줄을 가로지르고(`1 / -1`),
      차례가 있으면 언제나 맨 끝이다(`order:99`). 값이 아니라 **자리**를 고친다
      ([[seam-not-values]]) — 새 `.wScroll` 이 어떤 결이 되든 따라온다. */
+  /* ★★★ V-83 (2026-08-26) — **붙박이 발치가 있는 칸에서는 띠를 그 «위»에 세운다.**
+     상인·대장간의 설명칸은 값·단추(.tipBuy)가 `position:sticky` 로 바닥에 못박혀 있어,
+     띠를 bottom:0 에 두면 **단추를 덮는다**. 얼마나 올릴지는 여기 적지 않는다 —
+     발치의 키는 글에 따라 바뀌므로 `markMore()` 가 재서 `--moreBot` 에 넣는다
+     ([[seam-not-values]] · 「여기 34 를 또 적으면 둘이 갈린다」와 같은 까닭). */
   grid-column:1 / -1; order:99;
   height:34px; margin-top:-34px; line-height:34px; text-align:center;
   font-size:13px; letter-spacing:0; color:var(--gold); pointer-events:none;
