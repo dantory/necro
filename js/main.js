@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_IDS, doctrineId, doctrineWants, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -1965,7 +1965,15 @@ function hud() {
     /* 좁은 화면에서 「가장 깊이…」로 잘려 **정작 층수가 먹혔다**(2026-08-13, 나가기
        단추를 넣고 눈으로 보다 발견). 아래 「남은 적」과 같은 규칙을 쓴다 —
        .lw 로 감싼 말은 좁으면 사라지고 **수는 남는다**(「깊이 15층」). */
-    setLeft(`<span class="lw">가장 </span>깊이 ${META.deepest}층`);
+    /* ★ V-108 — **처음 켠 사람은 아직 한 층도 안 걸었다.** `META.deepest` 밑값이 1 이라
+       던전 문 앞에 선 사람에게 「가장 깊이 1층」이라고 말하고 있었다(V-99b 에서 적어 둠).
+       V-101 「×1.00」· V-105 「0/0」· V-106 「밝은 0」· V-107 「▲ 14」와 같은 자리다
+       ([[carry-fixes-forward]]) — **뜻 없는 수가 화면에서 가장 크게 거짓말하는 것**.
+       규칙은 안 건드린다(core.js `neverDove` 주석) — 글월만 가른다.
+       `.lw` 는 좁으면 사라지는 말이라, 360px 에서는 「안 내려감」만 남는다. */
+    setLeft(!window.__DEEPOLD && neverDove()
+      ? `<span class="lw">아직 </span>안 내려감`
+      : `<span class="lw">가장 </span>깊이 ${META.deepest}층`);
     /* 마을에는 깊이가 없다(1층 = ×1.00). 빈 글자로 두면 :empty 가 자리까지 지운다. */
     setDepth("");
     setTxt($$("hZone"), "");      // 마을은 구역이 아니다
@@ -3174,7 +3182,11 @@ function drawDive() {
          + `<div class="wayChips">${chips}</div></div>`;
   }).join("");
   $("diveBody").innerHTML =
-    `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 표를 세운 데까지 <b>${max}층</b></div>` +
+    /* ★ V-108 — 처음 켠 사람에게는 **두 쪽이 다 거짓말**이다: 한 층도 안 걸었는데
+       「가장 깊이 1층」이고, 표를 하나도 안 세웠는데 「표를 세운 데까지 1층」이다. */
+    (!window.__DEEPOLD && neverDove()
+      ? `<div class="tipStat" style="margin-bottom:6px">아직 안 내려갔다 · 세워 둔 표 <b>없음</b></div>`
+      : `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 표를 세운 데까지 <b>${max}층</b></div>`) +
     `<div class="wayList wScroll">${cards}</div>` +
     `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.` +
     ((META.diveSet | 0) ? "" : `<br>고르지 않으면 <b>${max}층</b>부터 시작한다.`) + `</div>`;
@@ -3216,7 +3228,9 @@ function drawWipe() {
   const done = QUESTS.filter((q) => questDone(q)).length;
   $("wipeBody").innerHTML =
     `<div class="tip">
-       <div class="tipStat">가장 깊이 <b>${META.deepest}층</b> <span class="dim">(최고 ${Math.max(META.best | 0, META.deepest | 0)}층)</span></div>
+       ${!window.__DEEPOLD && neverDove()
+         ? `<div class="tipStat">가장 깊이 <b>아직 안 내려감</b></div>`
+         : `<div class="tipStat">가장 깊이 <b>${META.deepest}층</b> <span class="dim">(최고 ${Math.max(META.best | 0, META.deepest | 0)}층)</span></div>`}
        <div class="tipStat">레벨 <b>Lv.${META.lv}</b> · 금 <b>${num(META.gold)}</b> · 가방 <b>${META.bag.length}</b></div>
        <div class="tipStat">유해 <b class="t3">${rel}구</b> · 회차 <b>${rb}회</b> · 일지 <b>${done}/${QUESTS.length}</b></div>
      </div>

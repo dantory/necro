@@ -696,6 +696,14 @@ export const relicGain = (deepest) => Math.max(0, (deepest | 0) - REBIRTH_MIN + 
 export const RELIC_MUL = 0.08;
 /** 금·경험치·시체 획득에 곱하는 **영구 배수.** 유해가 없으면 정확히 1.0. */
 export const relicMul = () => 1 + (META.relics | 0) * RELIC_MUL;
+/** **아직 한 층도 안 걸었는가.** `META.deepest` 의 밑값이 **1** 이라(위 base) 처음 켠
+ *  사람의 화면에 「가장 깊이 1층」이 뜬다 — 던전 문 앞에 서 있는 사람에게 **1층을
+ *  이미 밟았다**고 말하는 셈이다(V-99b 에서 발견해 적어 둔 것).
+ *  밑값 자체는 **못 건드린다** — `digCost`·`offlineGoldPerMin`·`splitLv`·`rollDrop` 이
+ *  전부 그 1 을 밟고 서 있다(규칙은 D 계열 잠금 안이다). 그래서 **글월만** 가른다.
+ *  `runs` 는 판이 끝날 때 오른다(battle.js endRun) — 1층에서 죽고 온 사람은 runs 1 ·
+ *  deepest 1 이라 「가장 깊이 1층」이 **맞는 말**이고, 여기 걸리지 않는다. */
+export const neverDove = () => (META.runs | 0) === 0 && (META.deepest | 0) <= 1;
 /** 환생 버튼이 열렸는가 — 이번 회차 최고층이 임계를 넘었나. 자동으로 강제하지 않는다. */
 export const canRebirth = () => (META.deepest | 0) >= REBIRTH_MIN;
 /** 마을 확인 창이 실행 **전에** 읽는 미리보기 — 「지금 환생하면 유해 +N (총 M) · ×K」. */
