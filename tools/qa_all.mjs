@@ -90,6 +90,10 @@ const RULERS = [
   /* V-83 — 창 안 설명칸(.tip)이 **말없이** 자르는가. 네 폭 × 창 다섯을 훑는다.
      `old` 로 부르면 울어야 옳다(설명칸에서 wScroll 을 떼면 띠가 없던 그 판). */
   { name: "v83_tipclip",  args: [],                             secs: 240, tier: "fast", expect: /판정/ },
+  /* V-84 — 갈래의 「가는 금」이 이름을 뚫는가. 칸 크기(--tS)는 창 높이가 정하므로
+     **네 폭을 다 훑어야** 안다(1512 에서도 9px 을 뚫고 있었다).
+     `old` 로 부르면 울어야 옳다(못박은 top:26/height:20 으로 되돌리는 문). */
+  { name: "v84_forkline", args: [],                             secs: 200, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
