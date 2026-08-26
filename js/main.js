@@ -2171,8 +2171,21 @@ const win = (id, on) => { $(id).classList.toggle("on", on); syncWinOpen();
   if (on) { fitDoll(); if (id === "winTree") fitTree();   /* ★ 트리도 같은 까닭으로 여기서 — 위 주석 참고 */
             for (const el of $(id).querySelectorAll(".wScroll")) markMore(el); }
   else if (id === "winBag" || id === "winStat") ftipClose(); };   // 닫으면 떠 있는 상자도 거둔다
-const syncWinOpen = () =>
+/* ★★ `winover` — **띠를 덮는 창**만 따로 센다(V-85, 2026-08-26).
+   V-81 이 편성·운용·환생의 z 를 35 로 올려 「띠가 발치를 밟던 것」을 뒤집었는데,
+   뒤집힌 자리에 흠이 남았다: 이 창들은 짧아서 띠에 **걸치기만** 하므로 창틀이 단추의
+   윗동만 덮고(1366×700 에서 87% · 환생 30%) 아랫동은 그대로 남는다. 그리고 겉판이
+   화면을 통째로 덮는 z 35 라, **모든 크기에서 다섯 칸이 안 눌린다**(1512 에서는
+   온전히 보이는데 죽어 있었다 · [[knob-that-does-nothing]]).
+   그래서 덮는 창이 열려 있는 동안은 **띠를 통째로 숨긴다** — 이미 죽어 있으므로
+   잃는 것이 없고, 상인·대장간·「어디부터」·트리가 하던 것(통째로 가림)과 같아진다.
+   ★ 능력치·가방(도킹 한 벌)은 **뺀다** — 띠와 안 겹치고 살아 있어서, 그 둘을 오가는
+     유일한 길이다(`tools/v85_bandcut.mjs` 가 그쪽을 지킨다). */
+const COVERWINS = WINS.filter(w => w !== "winStat" && w !== "winBag");
+const syncWinOpen = () => {
   document.body.classList.toggle("winopen", WINS.some(w => $(w).classList.contains("on")));
+  document.body.classList.toggle("winover", COVERWINS.some(w => $(w).classList.contains("on")));
+};
 /* ★ `charOpen`(능력치+가방 한 벌)도 여기서 걷는다 — 창만 닫고 표식을 남기면 다음에
    다른 창을 열 때 그 창이 반쪽에 붙어 버린다(표식은 창보다 오래 산다). */
 const closeAll = () => { for (const w of WINS) win(w, false); document.body.classList.remove("charOpen"); };

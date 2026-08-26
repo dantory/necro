@@ -94,6 +94,12 @@ const RULERS = [
      **네 폭을 다 훑어야** 안다(1512 에서도 9px 을 뚫고 있었다).
      `old` 로 부르면 울어야 옳다(못박은 top:26/height:20 으로 되돌리는 문). */
   { name: "v84_forkline", args: [],                             secs: 200, tier: "fast", expect: /판정/ },
+  /* V-85 — 창이 뜨면 메뉴 띠가 «반쯤» 잘려 남는가 · 보이는데 안 눌리는가.
+     v81_overlap 은 「띠가 창을 밟는가」를 보고 이건 그 **뒤집힌 쪽**을 본다.
+     두 폭만 둔다 — 높이가 흠을 가르므로 제일 큰 것(안 눌림)과 제일 낮은 것(잘림).
+     `BAND_OLD=1` 로 부르면 울어야 옳다(보정 확인 완료). */
+  { name: "v85_bandcut",  args: [],                             secs: 200, tier: "fast", expect: /판정/ },
+  { name: "v85_bandcut",  args: ["1512", "863"],                secs: 200, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
