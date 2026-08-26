@@ -1266,9 +1266,32 @@ export function nameOf(it) {
      이름만 보고도 「이건 노란 것」이 읽힌다(빛깔이 안 보이는 자리에서도). */
   const srt = it.af.slice().sort((a, b) => (AFFIX[b.id].w * b.v) - (AFFIX[a.id].w * a.v));
   if (srt.length >= 2 && AFFIX[srt[1].id].suf)
-    return `${AFFIX[srt[0].id].pre} ${base}의 ${AFFIX[srt[1].id].suf}`;
+    return `${AFFIX[srt[0].id].pre} ${baseHead(base)}의 ${AFFIX[srt[1].id].suf}`;
   return `${AFFIX[srt[0].id].pre} ${base}`;
 }
+/* ★★ 「의」가 사슬로 이어지던 것을 여기서 끊는다 (V-94, 2026-08-26).
+   위 주석이 **접두사**에만 못을 박아 뒀다 — 그런데 레어의 뒷낱말도 `base + "의" + suf`
+   로 붙는다. 얼굴 이름 절반이 이미 「심장의 홀」·「깊은 곳의 인장」이라, 붙는 순간
+   **「잔혹한 심장의 홀의 샘」·「흐르는 깊은 곳의 인장의 깨달음」**이 된다. 전체 조합
+   640 가운데 **240(37.5%)** 이 그랬다 — 접두사에서 이미 「이건 한국어가 아니다」로
+   내린 판정을 뒷낱말에 안 옮긴 것이다([[carry-fixes-forward]]).
+   ★ 고침은 **뒷낱말이 붙을 때만** 얼굴의 「~의」 꾸밈을 떼는 것이다(머리 낱말만 남긴다).
+     「심장의 홀」→「홀」 · 「깊은 곳의 인장」→「인장」 · 「상여꾼의 갑주」→「갑주」.
+     레어가 아닌 이름(매직·평범)은 얼굴을 **그대로** 쓴다 — 다양함이 사는 자리가 거기다.
+     레어는 앞뒤 두 낱말(10×10)이 이미 백 가지라 얼굴을 떼도 이름이 겹치지 않는다.
+   ★ **「의」로 끝난다고 다 꾸밈이 아니다** — `수의`(壽衣) · `제의`(祭衣)는 물건 이름
+     자체다. 「수의 두건」을 「두건」으로 깎으면 없는 규칙을 만든 것이 된다. 그래서
+     낱말 목록으로 가른다(정규식으로는 못 가른다 · 둘 다 「의」로 끝난다). */
+const NOT_GENITIVE = ["수의", "제의"];
+export const baseHead = (base) => {
+  const t = String(base).split(" ");
+  /* **마지막** 꾸밈까지 떼어 낸다 — 「첫 시신의 홀」은 앞 낱말이 꾸밈이 아니라
+     둘째가 꾸밈이다(앞에서부터 끊으면 「시신의 홀」이 남아 사슬이 그대로다). */
+  let cut = -1;
+  for (let i = 0; i < t.length - 1; i++)
+    if (t[i].endsWith("의") && !NOT_GENITIVE.includes(t[i])) cut = i;
+  return cut < 0 ? base : t.slice(cut + 1).join(" ");
+};
 export const afText = (a) =>
   `${AFFIX[a.id].n} +${a.v}${AFFIX[a.id].u}`;
 

@@ -134,6 +134,9 @@ const RULERS = [
      그려진 줄은 2.2:1 을 지키고, 물러난 줄은 통과로 센다(V-93).
      `node tools/v93_shade.mjs 1512 863 old` 로 부르면 운다(1.85:1 · 보정 확인 완료). */
   { name: "v93_shade",    args: ["1512", "863"],                secs: 200, tier: "fast", expect: /판정/ },
+  /* 물건 이름의 「의」 사슬 — 브라우저를 안 쓰므로 몇 초면 끝난다.
+     `node tools/v94_names.mjs old` 로 부르면 운다(32/256 · 보정 확인 완료). */
+  { name: "v94_names",    args: [],                             secs: 60,  tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
