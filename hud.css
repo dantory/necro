@@ -1295,6 +1295,17 @@ body.qold .pdSlot .cell .plusBadge{font-size:11px;line-height:1;left:2px;top:1px
 .cell.gone{opacity:.5}
 .eFate{position:absolute;left:0;right:0;top:1px;text-align:center;font-size:10px;
   letter-spacing:0;color:#8a7c60}
+/* ★ V-88 — 이 한 낱말이 **그림 밑에 깔려 먹히고 있었다.** 표식의 줄상자(top:1px·15px)와
+   물건 그림(`.cell i`, inset 6px)이 10px 겹치는데, 그림이 DOM 에서 뒤라 글자 위를 덮는다
+   (둘 다 z-index:auto). 덮이는 몫이 물건마다 달라 흠이 눈에 「글꼴이 깨진 것」처럼 보였다 —
+   투구는 뿔 사이가 비어 53%가 남고, 옷은 42%만 남는다(tools/v88_fatecover.mjs).
+   ★ V-53 의 「비키지 말고 그림자를 줘라」는 **여기서 안 통한다** — 그건 한 글자(등급 수)
+     이야기였고, 무엇보다 밑에 깔린 글자는 그림자를 줘도 **안 보인다**. 순서부터 세운다.
+   ★ 띠는 **상수 16px** 이다(퍼센트가 아니다) — 글자 줄상자가 폭과 무관하게 15px 이라
+     칸이 작아져도 필요한 자리는 안 줄어든다(V-53 의 «칸에 비례»는 그림 이야기였다).
+     정산 칸(113px)에서 그림은 101→91px 로만 준다. */
+#endBody .grid .cell i{inset:16px clamp(1px,6%,6px) clamp(1px,6%,6px)}
+#endBody .eFate{z-index:2;text-shadow:0 1px 0 #000,0 0 3px #000c}
 .cell.wear .eFate{color:#8ac06a}
 .cell.bag  .eFate{color:#9d907a}
 .cell.gone .eFate{color:#c8aa6e}
