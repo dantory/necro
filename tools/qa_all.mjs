@@ -130,6 +130,10 @@ const RULERS = [
      견줘 «화면에 정말 닿은 잉크»로 잰다(CSS 색이 아니다). `node tools/v91_ink.mjs old`
      로 부르면 운다(옛 그늘·옛 흐림 · 보정 확인 완료). */
   { name: "v91_ink",      args: [],                             secs: 300, tier: "fast", expect: /판정/ },
+  /* 덮는 창이 열렸을 때 **띠 옆 글줄**(가방 · Lv · 군세)이 반쯤 먹히지 않는지 —
+     그려진 줄은 2.2:1 을 지키고, 물러난 줄은 통과로 센다(V-93).
+     `node tools/v93_shade.mjs 1512 863 old` 로 부르면 운다(1.85:1 · 보정 확인 완료). */
+  { name: "v93_shade",    args: ["1512", "863"],                secs: 200, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
