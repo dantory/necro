@@ -1912,7 +1912,11 @@ let _depthV = 0;
 function setDepth(txt, v = 0) {
   const el = $("hDepth");
   if (el.textContent === txt) { _depthV = v; return; }
-  const grew = txt && el.textContent && v > _depthV;
+  /* ★ V-101 — 「빈 칸에서 처음 뜰 때」도 자란 것이다. 옛 셈은 `el.textContent` 가
+     비면 무조건 아니라고 했는데, 1층을 비우고 나니 **2층에서 깊이가 처음 붙는 순간**
+     (사람이 이 표시를 처음 보는 바로 그 순간)이 조용해졌다. 마을(_depthV = 0)에서
+     내려오는 길은 그대로 조용하다 — 굴러온 값이 있을 때만 튄다. */
+  const grew = txt && _depthV > 0 && v > _depthV;
   el.textContent = txt;
   _depthV = v;
   if (!grew) return;
@@ -1968,7 +1972,13 @@ function hud() {
   } else {
   setTxt($$("hFloor"), S.floor + "층");
   syncZone();
-  setDepth(mul(depthMul()), depthMul());
+  /* ★ V-101 — **1층의 「×1.00」은 아무 말도 안 한다.** 마을에서는 이미 지웠는데
+     (바로 위 `setDepth("")` · 「마을에는 깊이가 없다(1층 = ×1.00)」) 정작 **처음 켠
+     사람이 맨 처음 들어가는 1층**에는 그 못이 안 옮겨졌다([[carry-fixes-forward]]).
+     능력치 창도 같은 규칙을 쓴다 — 「값이 붙었을 때만 적는다」(아래 `depthMul` 줄).
+     `:empty{display:none}`(style.css) 이 빈 글자면 자리까지 거둔다. */
+  const dm = mul(depthMul());
+  setDepth(!window.__DEP1OLD && dm === mul(1) ? "" : dm, depthMul());
   /* **얼마나 남았는지**가 없으면 층이 바뀌는 순간이 그냥 툭 온다. 남은 수를 적고
      띠로도 보인다 — 방치형은 보는 게임이라 진행이 눈에 보여야 한다. */
   const left = S.mobs.length;
