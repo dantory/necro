@@ -8,7 +8,7 @@ import { num, armyCap, MINION_SPD, minionSpd, CORPSE_TINT, knockOf, raiseHp, rai
          deepTick, deepReset, deepEnter, DEEP_CRUSH,  /* ★ D-36 · 방아쇠를 «층» 에 건 문 */
          pulseTick, pulseReset, PULSE_CRUSH,          /* ★ D-37 · 그 눌림을 «짧고 잦게» */
          gripTick, gripReset, gripMul, GRIP,        /* ★ D-43 · 무너진 동안엔 «못 붙잡게» */
-         GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart,
+         GATELORDS, gatelordFor, gatelordIdx, zoneOf, zoneStart, josa,
          GEAR, dropChance, rollDrop, takeDrop, BAG_MAX, bagUsed, LASTRUN, startFloor, relicMul,
          hasUnique, gateFactor, TWICE_P, BLAST_MUL, BLAST_R, OVF_TRIG, OVF_MUL, OVF_R,
          questNote, registerQuestToast, autoSpend, spLeft, CORPSE_BANK_MAX } from "./core.js";
@@ -782,7 +782,7 @@ export function enterFloor(f) {
        등장이 묻힌다. */
     S.spawnQ.unshift({ f, i: 0, n: 1, boss: true });
     const lord = gatelordFor(f);
-    say(`<b style="color:${lord.col}">${f}층 · 관문</b> ${lord.n} 이(가) 지키는 중`);
+    say(`<b style="color:${lord.col}">${f}층 · 관문</b> ${lord.n}${josa(lord.n, "이")} 지키는 중`);
   } else {
     say(`<b>${f}층</b> 진입`);
   }
@@ -1636,7 +1636,8 @@ function castOnce(id) {
          터지는 것이 아니라 주인에게 **빨려 올라가는** 기운이다. */
       S.fx.push({ t: 0.5, x: boss.x, y: boss.y, kind: "offer" });
       questNote("offer", 1);                          // ⑦ 관문에서 제물을 바쳤다(cast 가드가 관문·보스를 이미 보장)
-      say(`<b style="color:#a06ad0">제물</b> · ${boss.lord ? boss.lord.n : "주인"}이(가) 약해진다`);
+      const lnm = boss.lord ? boss.lord.n : "주인";
+      say(`<b style="color:#a06ad0">제물</b> · ${lnm}${josa(lnm, "이")} 약해진다`);
     }
   }
   if (id === "amp") {
@@ -1814,7 +1815,8 @@ export function step(dt) {
       e.age = (e.age || 0) + dt;
       if (at > 0 && e.age > at) {
         if (!e.tired) { e.tired = true;
-          say(`<b style="color:#d0a06a">${e.lord ? e.lord.n : "주인"}</b>이(가) <b>지친다</b> — 받는 피해가 점점 는다`);
+          const tnm = e.lord ? e.lord.n : "주인";
+          say(`<b style="color:#d0a06a">${tnm}</b>${josa(tnm, "이")} <b>지친다</b> — 받는 피해가 점점 는다`);
           S.fx.push({ t: 0.5, x: e.x, y: e.y, kind: "nova", rad: 70 }); }
         const t = 1 + (e.age - at) / TIRE_RAMP;
         if (!(e.wkT > 0) || e.wk < t) { e.wk = t; e.wkT = Math.max(e.wkT || 0, dt * 2); }   // 제물(1.6)이 더 세면 안 덮는다
