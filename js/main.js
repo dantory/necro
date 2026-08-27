@@ -2113,11 +2113,49 @@ function hud() {
 /* ⑧-f **되짚기 빨리 감기 안에서도 이 머리가 돈다**(battle.js registerAutoTick).
    여태 auto 는 아래 그리는 고리에서만 불렸다 — 그래서 되짚는 층을 ×3 으로 감는 동안
    머리는 셋에 한 번만 돌았다(ROADMAP J 가 S.speed 에서 이미 고친 그 결함이다). */
+/** ══ V-117 (2026-08-27) ══ **금이 저절로 타는데 판은 한 줄도 안 적었다.**
+ *  마을에서 「금 1.8M」이던 것이 던전에 들어선 지 20초 만에 「44k」다 — 사람은 아무것도
+ *  안 눌렀다(`tools/v117_forge.mjs`). 판의 다른 사건은 전부 한 줄을 남긴다 — 소환 ·
+ *  시체 폭발 · 전리품 · 「가방이 차서 … → 금 158」 · 레벨업. **금을 태우는 것만 조용했다**
+ *  ([[carry-fixes-forward]]). `autoForge()` 는 산 것을 돌려주는데 부르는 쪽이 `.length`
+ *  만 보고 버렸다 — 말할 재료는 여태 있었다.
+ *  ★ 처음 켠 사람에게는 **안 보이던 흠**이다. 금이 세 자리라 한 번 사고 마는데,
+ *    오래 논 사람은 모아 둔 은행이 몇 초에 사라진다([[knob-that-does-nothing]] 의 반대 —
+ *    손잡이는 도는데 아무도 그걸 안 알려 준다).
+ *  ★ **묶어서 적는다** — 한 틱에 여덟까지 사므로 낱개로 적으면 로그가 강화로 덮인다.
+ *  ★ 묶는 자는 **게임초**(S.t)다. 벽시계로 묶으면 같은 판이 실행마다 다른 줄을 낸다
+ *    ([[same-seed-is-not-same-run]]). 판이 새로 시작하면(S.t 가 되감기면) 자도 되감는다.
+ *  ★ **값도 규칙도 안 건드린다** — 무엇을 얼마에 사는지는 한 톨도 그대로고, 여기서 느는
+ *    것은 적는 것뿐이다. D 계열 잠금 밖이다. 옛 결은 `__FORGESAYOLD`. */
+/*  ★★ **처음 쓴 글월은 타일에 먹혔다.** 산 것을 이름으로 세어(「방패 재련 ×7 · 허리띠
+ *     재련 ×7 · 신발 재련 ×7 · 외 8 — 금 591k」) 적었더니 1280 에서 **꼬리(금값)가
+ *     메뉴 타일 밑으로 들어갔다** — V-114 가 레벨업 줄에서 고친 바로 그 자리인데
+ *     새 줄에 안 옮겼다([[carry-fixes-forward]]). 이름을 세지 말고 **두 갈래**로만 센다:
+ *     강화(대장간 넷)와 재련(슬롯 여섯). 길이가 값과 무관하게 늘 짧고, 사람이 묻는
+ *     것(「금이 어디로 갔나」)에는 그대로 답한다 — 어느 축인지는 능력치·대장간 창이 말한다. */
+const FORGE_SAY_GAP = 2;                       /* 게임초 — 이 사이에 산 것은 한 줄로 묶는다 */
+const forgeSay = { gold: 0, up: 0, re: 0, at: -Infinity };
+function forgeTally(bought) {
+  if (window.__FORGESAYOLD) return;            // 자가 «고치기 전»을 재는 문
+  for (const b of bought) {
+    forgeSay.gold += b.cost | 0;
+    if (b.reforge) forgeSay.re++; else forgeSay.up++;
+  }
+  const t = +S.t || 0;
+  if (t < forgeSay.at) forgeSay.at = -Infinity; // 새 판 — 게임초가 되감겼다
+  if (t - forgeSay.at < FORGE_SAY_GAP) return;
+  forgeSay.at = t;
+  const n = (w, c) => (c ? [c > 1 ? `${w} ×${c}` : w] : []);
+  const head = [...n("강화", forgeSay.up), ...n("재련", forgeSay.re)];
+  say(`<b>대장간</b> 저절로 ${head.join(" · ")} — 금 <b>${num(forgeSay.gold)}</b>`);
+  forgeSay.gold = 0; forgeSay.up = 0; forgeSay.re = 0;
+}
+
 function auto() {
   if (S.dead) return;
   /* ★ **금을 저절로 태운다**(core.js autoForge). 여기 둔 이유 — 마을은 들르는 곳이고
      방치형의 시간은 던전에서 흐른다. 상점 몫은 남기므로 손으로 할 축은 그대로다. */
-  if (autoForge().length) saveMeta();
+  { const bought = autoForge(); if (bought.length) { saveMeta(); forgeTally(bought); } }
   /* ── 군세는 **셋의 결로** 나눠 세운다(core.js: 해골 수 · 구울 몸 · 골렘 벽) ──
      예전엔 「골렘 한 마리 세워 두고, 시체 2 이상이면 무조건 구울」이라 상한이 통째로
      구울로 찼다(30분 머릿수 구울 79%·해골 13%·골렘 5마리뿐, tmp/ap_baseline.json).

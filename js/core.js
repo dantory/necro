@@ -1630,7 +1630,10 @@ export function autoForge(max = 8) {
     META.gold -= lo;
     if (reforge) META.plus[pick] = (META.plus[pick] | 0) + 1;
     else         META.up[pick]   = (META.up[pick]   | 0) + 1;
-    bought.push(pick);
+    /* ★ V-117 — **무엇을 얼마에 샀는지**까지 돌려준다. 여태 키만 돌려줬고 부르는 쪽은
+       `.length` 만 봤다 — 그래서 금이 어디로 갔는지 아무도 몰랐다(판이 한 줄도 안 적었다).
+       사는 셈은 한 톨도 안 바뀐다. 옛 소비자도 `.length` 만 쓰므로 안 깨진다. */
+    bought.push({ k: pick, cost: lo, reforge });
   }
   return bought;
 }
