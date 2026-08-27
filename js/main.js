@@ -2403,6 +2403,37 @@ function drawDigTip() {
     digFateHtml(lastDig);
 }
 
+/** ══ 상인 창에서도 **「사면 내 몸이 어떻게 되는가」** ══ (V-134 · 2026-08-27)
+ *  V-133 이 가방 툴팁에 박은 못을 **돈이 오가는 자리**로 옮긴다([[carry-fixes-forward]]).
+ *  이 창은 3,200 금을 낼지 말지를 정하는 자리인데, 여태 적힌 것은 **물건에 적힌 수**
+ *  하나뿐이었다(「최대 체력 924 → 1,120」). 그 수는 `bodyHp` 안쪽 값이라 사람이 보는
+ *  체력은 천장을 지나 나온다 — V-133 실측으로 「+369」가 몸에서는 +233 이었다.
+ *  ★ 식을 여기 다시 적지 않는다 — **살 때 손에 들어오는 바로 그 물건**을 잠깐 끼워 보고
+ *    판이 쓰는 함수에서 앞뒤를 읽는다(`core.gearStats` · 끝나면 곧바로 되돌린다 ·
+ *    `saveMeta` 를 안 부르므로 저장도 값도 규칙도 한 톨 안 바뀐다 · D 계열 잠금 밖이다).
+ *  ★ 위의 「다음 · 녹슨 홀」 줄은 **그대로 둔다** — 그것은 «이 물건이 무엇인가»이고
+ *    여기는 «내가 어떻게 되는가»다(V-133 이 옵션 줄을 남겨 둔 것과 같은 까닭).
+ *  ★ 문은 `__SHOPFX_OLD`. */
+/* ★ 문(`__SHOPFX_OLD`)은 **null** 을 낸다 — 「블록도 없고 밑의 말도 없던」 옛 화면 그대로다.
+   빈 배열([])은 「봤는데 움직이는 수가 없다」라는 **다른 말**이라 그 자리에 한 줄을 적는다
+   ([[silent-zero-is-not-an-observation]]). */
+const shopFx = (k, nx) =>
+  (nx === null || (typeof globalThis !== "undefined" && globalThis.__SHOPFX_OLD)) ? null
+  /* 상점 것은 **옵션 없는 바닥**이고 깊이(il)도 안 붙는다 — `data-buy` 가 부르는
+     `mkItem(k, nx, true)` 와 같은 물건이다. 얼굴(v)만 0 으로 세운다(mkItem 은 거기서
+     난수를 먹는데, 그리는 자리에서 난수를 먹으면 안 된다 · 값에는 안 쓰인다). */
+  : gearStats({ k, tier: nx, af: [], v: 0, il: 0 });
+/* ★ 새 줄을 얹었으면 **그 값을 이 툴팁 안에서 갚는다**([[floor-erases-the-ramp]]) —
+   트리(V-123)가 좁은 창에서 한 그것과 같다. 갚는 자리는 ① 촘촘한 판(.tFx · 트리·대장간이
+   쓰는 그것) ② 「상인이 파는 것엔 옵션이 없다」 한 줄 — 이 줄은 «이 물건을 살까»와 상관이
+   없는 일반 지식이라, 둘 중 접을 것은 이쪽이다. 잰 값은 V-134 항목의 표에 있다. */
+const shopFxHtml = (fx) =>
+  !fx?.length ? "" :
+  `<div class="tipCmp tFx"><div class="tipKind fxK">사면 <b>내 몸</b>이 이렇게 된다</div>` +
+  fx.map((r) => `<div class="tipStat ${r.up ? "up" : "down"}"><span class="sN">${r.n}</span>` +
+    `<b>${gearStatShow(r.k, r.now)} <span class="tFxA">→</span> ${gearStatShow(r.k, r.next)}</b></div>`).join("") +
+  `</div>`;
+
 function drawShop() {
   /* ① 좌판 — 파는 물건이 칸에 놓여 있다 */
   $("shopGrid").innerHTML = Object.entries(GEAR).map(([k, g]) => {
@@ -2457,6 +2488,7 @@ function drawShop() {
      여기로만 안 옮겨졌다([[carry-fixes-forward]]). 줄 자체는 남긴다 — 아래 「다음 · 녹슨 홀」
      과 견주는 자리라 없애면 무엇과 견주는지가 사라진다. */
   const 빈칸 = !it && !window.__SHOPNONEOLD;
+  const fx = shopFx(k, nx);
   $("shopTip").innerHTML =
     `<div class="tipName ${빈칸 ? "none" : clsOf(it)}">${nameOf(it)}${빈칸 ? "" : ` <span class="rarTag">${rarWord(it)}</span>`}</div>
      <div class="tipKind">${g.n}${it ? ` · 점수 ${Math.round(scoreOf(it))}` : ""} · 가방 ${bagUsed()}/${BAG_MAX}</div>
@@ -2465,7 +2497,7 @@ function drawShop() {
     ruleHtml(it) +
     /* 붙은 것 — 이 줄이 「같은 등급인데 더 좋다」의 전부다. */
     ((it?.af || []).map((a) => `<div class="tipAf">${afText(a)}</div>`).join("")) +
-    (nx !== null ? `<div class="tipNote sm">상인이 파는 것엔 <b>옵션이 없다</b> — 붙은 건 던전에서</div>` : "") +
+    (nx !== null && !fx?.length ? `<div class="tipNote sm">상인이 파는 것엔 <b>옵션이 없다</b> — 붙은 건 던전에서</div>` : "") +
     /* ★ 등급 점(`tipPips`)을 **값·단추보다 먼저** 적는다 — 단추가 칸 아래에 붙박이므로
        (hud.css `.win .tip .tipBuy`) 뒤에 오는 것은 그 밑에 깔려 안 보인다. */
     `<div class="tipPips">${Array.from({ length: max }, (_, i) =>
@@ -2478,6 +2510,8 @@ function drawShop() {
           `<div class="tipNote sm">${dir < 0 ? "지금 낀 것보다 <b>못하다</b>" : "지금 낀 것과 <b>같다</b>"}` +
           (it?.il > 0 ? ` — ${it.il}층에서 주운 것이라 깊이 <b>×${ilMul(it.il).toFixed(2)}</b>가 붙어 있다` : "") +
           ` · 상인 것엔 깊이가 안 붙는다</div>`) +
+        shopFxHtml(fx) +
+        (fx && !fx.length ? `<div class="tipNote sm">사도 능력치 창의 수는 <b>한 줄도 안 움직인다</b></div>` : "") +
         `<div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
            <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`);
 }

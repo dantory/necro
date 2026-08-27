@@ -2059,12 +2059,26 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
 /* ★ V-123 (2026-08-27) — **트리 툴팁의 「지금 / 한 점 더」.** 가방 툴팁의 견줌 줄과 같은
    판(.tipCmp)을 쓰되, 줄이 셋까지 붙을 수 있어 한 줄을 촘촘히 눕힌다. 이름은 왼쪽에
    고정 폭으로 세워 수가 세로로 줄을 맞춘다 — 안 그러면 셋이 들쭉날쭉해 못 읽는다. */
-#winTree .tFx,#winForge .tFx{margin-top:8px;padding-top:6px}
-#winTree .tFx .tipStat,#winForge .tFx .tipStat{display:flex;align-items:baseline;gap:5px;margin:1px 0;
+#winTree .tFx,#winForge .tFx,#winShop .tFx{margin-top:8px;padding-top:6px}
+#winTree .tFx .tipStat,#winForge .tFx .tipStat,#winShop .tFx .tipStat{display:flex;align-items:baseline;gap:5px;margin:1px 0;
   font-size:12px;line-height:1.35;white-space:nowrap}
-#winTree .tFx .sN,#winForge .tFx .sN{flex:0 0 auto;min-width:92px;color:#8a7c60}
-#winTree .tFx .tFxA,#winForge .tFx .tFxA{color:#6b5f4e}
+#winTree .tFx .sN,#winForge .tFx .sN,#winShop .tFx .sN{flex:0 0 auto;min-width:92px;color:#8a7c60}
+#winTree .tFx .tFxA,#winForge .tFx .tFxA,#winShop .tFx .tFxA{color:#6b5f4e}
 #winTree .tFx .tFxD,#winForge .tFx .tFxD{color:#8a7c60}
+/* ★ V-134 (2026-08-27) — 상인 툴팁의 「사면 내 몸이 이렇게 된다」. 트리·대장간과 **같은 판**을
+   쓰되(위 세 줄에 #winShop 을 얹었다) 머리글 한 줄이 더 붙으므로 그 줄을 촘촘히 눕힌다 —
+   툴팁이 이미 1512 에서 딱 맞아 있어 여기서 넘치면 값·단추 띠 밑으로 깔린다(V-83). */
+#winShop .tFx .fxK{margin:0;font-size:12px;line-height:1.3}
+/* ★ 갚는 여백 — 두 수치를 건드리는 칸(장갑)에서 15px 이 넘쳤다(잰 값). 읽을 것을 깎는
+   대신 **여백을** 깎는다(트리가 좁은 창에서 세워 둔 결과 같다). 줄이 실제로 붙었을 때만. */
+#winShop .tip:has(.tFx) .tipBuy{margin-top:8px}
+#winShop .tip:has(.tFx) .tipNext{margin-top:6px;padding-top:5px}
+#winShop .tFx{margin-top:5px;padding-top:3px}
+#winShop .tFx .fxK b{color:#9d907a;font-weight:400}
+/* 이름과 값이 **붙어** 「최대 체력620 → 772」로 읽히던 것을 띄운다(V-133 이 가방 툴팁에
+   남긴 것 — 트리는 flex+gap 이라 안 겪었다). 띄우는 자리는 한 곳이면 된다. */
+.tipCmp .tipStat .sN{margin-right:7px;color:#8a7c60}
+#winTree .tFx .sN,#winForge .tFx .sN,#winShop .tFx .sN{margin-right:0}
 
 /* ★★ 제일 낮은 화면(1152×648)에서 **「지금 / 한 점 더」가 칸을 밀어냈다**(V-123 · 2026-08-27).
    잰 값: 툴팁 104 → 149px, 넘침 **27px**(「영혼 착취」가 잘린다). 칸(`--tS` 22px)도 칸 사이
@@ -2076,8 +2090,8 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
      잔치·지배)은 설명줄이 유일한 말이라 그대로 남는다. */
 @media (max-height: 700px){
   #winTree .tip .tipStat.tD:has(+ .tFx),#winForge .tip .tipStat.tD:has(+ .tFx){display:none}
-  #winTree .tFx,#winForge .tFx{margin-top:3px;padding-top:3px}
-  #winTree .tFx .tipStat,#winForge .tFx .tipStat{font-size:11px;line-height:1.2;margin:0}
+  #winTree .tFx,#winForge .tFx,#winShop .tFx{margin-top:3px;padding-top:3px}
+  #winTree .tFx .tipStat,#winForge .tFx .tipStat,#winShop .tFx .tipStat{font-size:11px;line-height:1.2;margin:0}
   /* ★ 그래도 14px 이 남았다(잰 값). 툴팁에서 제일 두꺼운 것은 글이 아니라 **단추 줄**이다
      (53px — 밑에 깔린 그늘 여백 9+11 과 단추 안쪽 7+7). 읽을 것을 더 깎는 대신 **여백을**
      깎는다 — 글자와 칸은 여기서도 안 줄인다(위 900/820 층이 세워 둔 결). */

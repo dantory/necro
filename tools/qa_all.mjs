@@ -306,6 +306,9 @@ const RULERS = [
   /* V-133 — 견줌 줄이 「끼면 이렇게 된다」를 실제로 껴 본 수와 맞댄다.
      문(`node tools/v133_gear.mjs old`)으로 옛 뺄셈을 세우면 13/13 으로 운다. */
   { name: "v133_gear",     args: [],                             secs: 200, tier: "fast", expect: /판정/ },
+  /* V-134 — 상인 창의 「사면 이렇게 된다」를 실제로 사 본 수와 맞댄다(열 슬롯).
+     문(`node tools/v134_shop.mjs old`)으로 줄을 지우면 11/11 로 운다. */
+  { name: "v134_shop",     args: [],                             secs: 200, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
