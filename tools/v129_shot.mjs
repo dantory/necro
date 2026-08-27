@@ -1,0 +1,35 @@
+/* V-129 — 고친 줄을 **켜서 본다.** 일지를 열어 맨 아래(「시체 잔치」)까지 굴려 찍는다.
+   문(`--old`)이면 옛 글월을 세워 같은 자리를 찍는다 — 같은 판 · 같은 순간에 문만 여닫는다. */
+import fs from "node:fs";
+const OLD = process.argv.includes("--old");
+const CDP = "http://127.0.0.1:9333", URL = "http://127.0.0.1:8774/index.html";
+const ver = await (await fetch(CDP + "/json/version")).json();
+const bws = new WebSocket(ver.webSocketDebuggerUrl);
+let id = 0; const pend = new Map();
+const raw = (m, p = {}, s) => { const i = ++id; bws.send(JSON.stringify({ id: i, method: m, params: p, sessionId: s })); return new Promise((res, rej) => pend.set(i, { res, rej })); };
+bws.addEventListener("message", e => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)) { const p = pend.get(m.id); pend.delete(m.id); return m.error ? p.rej(new Error(JSON.stringify(m.error))) : p.res(m.result); } });
+await new Promise(r => bws.addEventListener("open", r));
+const { targetId } = await raw("Target.createTarget", { url: URL });
+const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
+const S = (m, p) => raw(m, p, sessionId);
+await S("Page.enable"); await S("Runtime.enable");
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
+await S("Emulation.setDeviceMetricsOverride", { width: 1512, height: 863, deviceScaleFactor: 2, mobile: false });
+await S("Page.reload", { ignoreCache: true }); await wait(1100);
+await ev(`(()=>{try{localStorage.clear()}catch(e){}return 1})()`);
+await S("Page.reload", { ignoreCache: true }); await wait(2600);
+await ev(`(async()=>{globalThis.__C = await import('./js/core.js'); return 1})()`);
+if (OLD) await ev(`(()=>{const q=globalThis.__C.QUESTS.find(q=>q.id==='feast'); q.d='시체 잔치로 소환수를 여덟 번 먹인다'; return 1})()`);
+await ev(`window.__openWin('stat')`); await wait(700);
+const info = await ev(`(()=>{const r=[...document.querySelectorAll('.jRow')].pop();
+  const sc=r.closest('.wScroll')||r.parentElement.parentElement; sc.scrollTop=sc.scrollHeight;
+  return {칸:sc.className, 글:r.innerText.replace(/\\n/g,' · ')}})()`);
+await wait(400);
+const box = await ev(`(()=>{const l=document.querySelector('.jList').getBoundingClientRect();
+  return {x:Math.round(l.left)-8,y:Math.round(l.top)-8,width:Math.round(l.width)+16,height:Math.round(l.height)+16}})()`);
+const { data } = await S("Page.captureScreenshot", { format: "png", clip: { ...box, scale: 1 } });
+const out = "tmp/v129_feast_" + (OLD ? "old" : "new") + ".png";
+fs.writeFileSync(out, Buffer.from(data, "base64"));
+console.log(out + "  |  " + info.글);
+await raw("Target.closeTarget", { targetId }); bws.close(); process.exit(0);

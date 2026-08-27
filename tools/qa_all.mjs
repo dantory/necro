@@ -284,6 +284,11 @@ const RULERS = [
      **보정이 붙어 있다** — 옛 결에서 안 울면 스스로 진다(판정에 든다).
      ★ 정산 창의 밑자락·자취 칸·`@media (max-height:700px)` 를 만지면 이 자부터 돌린다. */
   { name: "v128_endfit",   args: [],                             secs: 300, tier: "fast", expect: /판정/ },
+  /* ★ 일지(⑦) — **적힌 글월과 규칙을 맞대는 자.** 일곱 줄은 「다르게 놀 이유」라
+     읽고 그대로 했는데 안 깨지면 이유가 아니라 거짓말이다. 문(`--old`)으로 옛 글월을
+     세우면 울어야 한다 — 안 울면 스스로 진다(판정에 든다).
+     ★ QUESTS 의 `d`·`goal`·`mode` 나 questNote 부르는 자리를 만지면 이 자부터 돌린다. */
+  { name: "v129_quest",    args: [],                             secs: 180, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

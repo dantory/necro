@@ -818,7 +818,7 @@ export const QUESTS = [
   { id:"gate5",   n:"무결의 답파",   d:"한 판에 관문 다섯을 죽지 않고 지난다", axis:"관문", tag:"gate",    goal:5, mode:"sum", reward:3 },
   { id:"rebirth", n:"윤회",         d:"환생을 한 번 한다",                  axis:"환생", tag:"rebirth", goal:1, mode:"max", reward:2 },
   { id:"offer",   n:"제물",         d:"관문에서 제물을 바친다",              axis:"시체", tag:"offer",   goal:1, mode:"max", reward:1 },
-  { id:"feast",   n:"시체 잔치",     d:"시체 잔치로 소환수를 여덟 번 먹인다",  axis:"시체", tag:"feast",   goal:8, mode:"max", reward:1 },
+  { id:"feast",   n:"시체 잔치",     d:"시체 잔치로 한 소환수를 여덟 번 먹인다", axis:"시체", tag:"feast",   goal:8, mode:"max", reward:1 },
 ];
 /* tag → 과제. 진행은 tag 로 들어오고(꼬리표), 저장·판정은 id 로 한다. */
 const QUEST_BY_TAG = {};
