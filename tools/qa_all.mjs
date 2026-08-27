@@ -254,6 +254,11 @@ const RULERS = [
      전부 말해야 한다 — 새 칸을 넣고 식에 안 꽂으면(=아무 수치도 안 움직이면) 여기서 운다
      ([[knob-that-does-nothing]]). `node tools/v123_tree.mjs old` 로 부르면 운다(21칸 · 보정 확인 완료). */
   { name: "v123_tree",     args: [],                             secs: 240, tier: "fast", expect: /판정/ },
+  /* V-124 — **대장간 툴팁이 고른 칸이 움직이는 수치를 말하는가.** 상인(V-122)·트리(V-123)와
+     같은 못이다 — 여태 「지금」 줄이 네 칸 다 똑같아, 제일 비싼 「어둠의 힘」을 골라도
+     화면에서 움직이는 수가 없었다([[knob-that-does-nothing]] · [[carry-fixes-forward]]).
+     `node tools/v124_forge.mjs old` 로 부르면 운다(0/24 · 보정 확인 완료). */
+  { name: "v124_forge",    args: [],                             secs: 300, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

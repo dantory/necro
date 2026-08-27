@@ -2,6 +2,8 @@ import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearSh
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_DEF, DOCTRINE_IDS, doctrineId, doctrineWants, doctrineWantsOf, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
+/* V-124 — 대장간 툴팁의 「지금 / 한 단계 더」. 트리(V-123)와 **같은 함수·같은 꼴**이다. */
+import { upStats, treeShow } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
@@ -2446,6 +2448,39 @@ function drawShop() {
 
 let forgePick = "hp";
 
+/** ★★ **「지금 얼마이고, 한 단계 더 올리면 얼마가 되는가」**(V-124 · 2026-08-27).
+ *  여태 대장간 툴팁의 「지금」 줄은 **네 칸이 전부 똑같았다** — 체력·마나·군세 셋을
+ *  늘 그대로 찍어서, 제일 비싼 「어둠의 힘」(10,164 금)을 골라도 그 칸이 움직이는 수가
+ *  화면에 **한 줄도 없었다.** 사고 나서 무엇이 달라졌는지도 알 길이 없다
+ *  ([[knob-that-does-nothing]]). 상인 창(V-122)·가방 툴팁(V-121)·트리(V-123)가 이미
+ *  「지금 / 다음」을 나란히 적으므로 **같은 못을 이 창에도 박는다**([[carry-fixes-forward]]).
+ *  · 수는 전부 `core.upStats` 에서 나온다 — 이 파일에는 식이 한 줄도 없다. 화면이 식을
+ *    다시 쓰면 판과 갈릴 자리가 생긴다([[threshold-and-ruler-must-match]]).
+ *  · **배수(mul)는 절대값으로 안 적는다** — 소환수 피해에는 깊이·레벨·장비가 다 곱해져
+ *    있어 그 수는 **어느 칸을 골라도 똑같다.** 그래서 **이 강화의 몫**(단계 0 대비)으로
+ *    적는다(트리와 같은 규칙 · `treeShow`). 체력·마나·상한은 사람이 세는 수라 그대로다. */
+/** 「한 단계 더」 · 「두 단계 뒤」 — 제자리인 단계를 건너뛴 만큼 그대로 적는다. */
+const stepWord = (n) => n <= 1 ? "한 단계 더" : `${n} 단계 뒤`;
+const upFxHtml = (k) => {
+  /* ★ **문은 옛 꼴을 그대로 다시 세운다** — 없애는 것이 아니라 되돌린다. 안 그러면 나란히
+     찍은 그림이 「없던 자리」를 보여 주고, 자도 옛 결을 덜 세게 잰다
+     ([[silent-zero-is-not-an-observation]]). 네 칸이 다 똑같던 그 한 줄이 이것이다. */
+  if (typeof globalThis !== "undefined" && globalThis.__FORGEFX_OLD)
+    return `<div class="tipStat up">${pairs(["지금", `체력 <b>${num(hpMaxOf())}</b>`,
+      `마나 <b>${num(mpMaxOf())}</b>`, `군세 <b>${num(armyCap())}</b>`])}</div>`;
+  const rows = upStats(k);
+  if (!rows.length) return "";                       // 아무 수치도 안 움직이는 강화(있으면 그게 결함이다)
+  return `<div class="tipCmp tFx">` + rows.map((r) => {
+    /* 아직 한 단계도 안 올린 칸의 「이 강화가 **+0%**」는 뜻이 없다 — 그런 0 이 이 게임에서
+       가장 밝은 글자가 되곤 했다(V-102·V-112·V-123). 그 줄은 「한 단계 더」만 적는다. */
+    const born = r.k !== "mul" || r.now !== r.base;
+    const now = born ? `${r.k === "mul" ? "이 강화가" : "지금"} <b>${treeShow(r.k, r.now, r.base)}</b>` : "";
+    const nxt = r.next == null ? ""
+      : `${born ? ` <span class="tFxA">→ ${stepWord(r.steps)}</span>` : `<span class="tFxA">${stepWord(r.steps)}</span>`} <b>${treeShow(r.k, r.next, r.base)}</b>`;
+    return `<div class="tipStat"><span class="sN">${r.n}</span> ${now}${nxt}</div>`;
+  }).join("") + `</div>`;
+};
+
 function drawForge() {
   /* 대장간도 같은 결 — **칸에 놓고 고르면 툴팁**.
      ★★ 예전엔 칸에 그림 대신 **이름을 적었다**(생명력·기력·어둠의 힘·군세). 칸이
@@ -2490,12 +2525,8 @@ function drawForge() {
   $("forgeTip").innerHTML =
     `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
      <div class="tipKind">대장간</div>
-     <div class="tipStat">${u.d}</div>
-     <!-- ★ 값은 **능력치 창과 같은 자**(num)로 적는다 — 여기만 날것이라 마나가
-          「307.79999999999995」로 떴다(mpMaxOf 는 장비값이 섞여 정수가 아니다).
-          같은 값이 창마다 달라 보이면 그건 두 수가 된다(core.js num 의 주석과 같은 결). -->
-     <div class="tipStat up">${pairs(["지금", `체력 <b>${num(hpMaxOf())}</b>`,
-       `마나 <b>${num(mpMaxOf())}</b>`, `군세 <b>${num(armyCap())}</b>`])}</div>
+     <div class="tipStat tD">${u.d} <span class="lv">— 한 단계당</span></div>
+     ${upFxHtml(k)}
      ${reRow}
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>

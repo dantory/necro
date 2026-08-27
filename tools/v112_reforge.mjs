@@ -8,7 +8,7 @@
      오른 사람. 뒤엣둘이 **과잉 수정 막이**다: 오른 자리는 한 톨도 안 사라져야 한다.
    ★ **값은 화면이 아니라 `META.plus` 에서 읽는다** — 화면에서 되읽으면 자가 제 고침을
      되읽는다([[silent-zero-is-not-an-observation]]). 심은 값과 적힌 값을 견준다.
-   ★ **같은 창 안의 막이** — 「다음 재련 N 금」 줄 · 「지금 · 체력/마나/군세」 줄 · 격자 칸
+   ★ **같은 창 안의 막이** — 「다음 재련 N 금」 줄 · 수치 줄(`.tFx` · V-124 전에는 「지금 · 체력/마나/군세」 한 줄) · 격자 칸
      수 · 단추가 그대로여야 한다. 줄을 접다가 옆줄을 데려가면 여기서 운다.
 
    쓰기:  node tools/v112_reforge.mjs [old]
@@ -42,7 +42,10 @@ const MEASURE = `(()=>{
   });
   const 재련=줄들.find(r=>r.글.startsWith("재련"));
   const 다음=줄들.find(r=>r.글.startsWith("다음 재련"));
-  const 지금=줄들.find(r=>r.글.startsWith("지금"));
+  /* ★ V-124 로 이 줄의 **꼴이 바뀌었다** — 네 칸이 다 똑같던 「지금 · 체력/마나/군세」
+     한 줄이, 고른 칸이 움직이는 수치만 적는 「tFx」 여러 줄이 됐다. 막이의 뜻은 그대로다
+     (「재련 줄을 접다가 옆줄을 데려가지 않았나」) — **찾는 자리만** 옮긴다. */
+  const 지금=t.querySelector(".tFx .tipStat");
   return { 줄수:줄들.length, 재련:재련||null, 다음있나:!!다음, 지금있나:!!지금,
            글줄합:줄들.reduce((a,r)=>a+r.접힌줄,0),
            설명칸높이:Math.round(t.getBoundingClientRect().height),

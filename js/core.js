@@ -908,7 +908,8 @@ export const xpNeed  = (lv) => Math.round(
   Math.pow(lv, globalThis.__XP_P != null ? +globalThis.__XP_P : XP_P_DEF));
 /** 강화는 **넷뿐이다.** 목록이 길면 방치형이 아니라 표 읽기가 된다. */
 export const UPS = {
-  hp:   { n:"생명력",   d:"최대 체력 +25%",    base:14 },
+  /* ★ 「+25%」라고 적혀 있었는데 식(`bodyHp`)은 **낱개 +25** 다 — 단위가 틀렸다(V-124). */
+  hp:   { n:"생명력",   d:"최대 체력 +25",     base:14 },
   mp:   { n:"기력",     d:"최대 마나 +8",      base:16 },
   dmg:  { n:"어둠의 힘", d:"소환수 피해 +8%",  base:22 },
   army: { n:"군세",     d:"소환수 상한 +1",    base:40 },
@@ -2768,6 +2769,55 @@ export function treeStats(id) {
       out.push({ n: st.n, k: st.k, base: v0, now: vr, next: canGrow && vn !== vr ? vn : null });
     }
   } finally { META.tree = had; }
+  return out;
+}
+
+/** ══ 강화(대장간)가 **무엇을 얼마나 올리는가** ══ (V-124 · 2026-08-27)
+ *  트리(V-123)와 **같은 못**이다. 여태 이 창의 수는 `UPS[k].d` 의 «한 단계당» 하나뿐이라
+ *  12 단계를 올린 사람도 「최대 체력 +25%」를 읽었고, 「지금」 줄은 네 칸이 **전부 똑같아서**
+ *  (체력·마나·군세) 제일 비싼 「어둠의 힘」을 골라도 그 칸이 움직이는 수가 화면에
+ *  **한 줄도 없었다**([[knob-that-does-nothing]]).
+ *  값은 `TREE_STATS` 와 **같은 함수**에서 나온다 — 화면 쪽에 식을 다시 적으면 언젠가 갈린다. */
+export const UP_STATS = [
+  { n: "최대 체력",   k: "int", f: () => Math.round(hpMaxOf()) },
+  { n: "최대 마나",   k: "int", f: () => Math.round(mpMaxOf()) },
+  { n: "소환수 피해", k: "mul", f: () => minionDmgMul() },
+  /* ★ 트리의 「본인 공격력」과 **한 글자도 다르지 않게** 적는다 — battle.js 가 본인 한 방에
+     곱하는 그대로다. 두 창이 같은 수를 다르게 세면 그건 두 수가 된다. */
+  { n: "본인 공격력", k: "mul", f: () => selfDmgMul() * (1 + gearVal("wand")) * wandMul() },
+  { n: "군세 상한",   k: "int", f: () => armyCap() },
+];
+/** 고른 강화가 건드리는 수치들 — `[{n,k,base,now,next}]`. `treeStats` 와 **같은 꼴**이라
+ *  화면도 같은 `treeShow` 로 찍는다.
+ *  ★ 어느 칸이 어느 수치를 건드리는지 **손으로 안 적는다** — 단계 0 과 견줘 달라지는 것만
+ *    고른다. 새 강화를 넣고 식에 안 꽂으면(=아무 수치도 안 움직이면) 줄이 아예 안 뜬다.
+ *  ★ `META.up` 을 갈아 끼우는 동안 **반드시 되돌린다**(finally). 저장(`saveMeta`)도
+ *    재계산(`syncSkills`)도 여기서는 안 부른다 — 읽기만 한다. */
+/** 「한 단계 더」가 제자리일 때 **몇 단계까지 내다볼 것인가.** 여덟이면 제일 굼뜬
+ *  자리(정예 3 · 군세)에서도 넉넉하다 — 거기서도 두 단계면 움직인다. */
+const UP_LOOK = 8;
+export function upStats(id) {
+  if (typeof globalThis !== "undefined" && globalThis.__FORGEFX_OLD) return [];   // 문 — V-124 «전»
+  if (!UPS[id]) return [];
+  const had = META.up, r = META.up[id] | 0;
+  const at = (v) => { META.up = Object.assign({}, had, { [id]: v }); };
+  const out = [];
+  try {
+    for (const st of UP_STATS) {
+      at(0); const v0 = st.f();
+      at(r); const vr = st.f();
+      /* ★ **한 단계가 아무것도 안 움직이는 자리가 있다.** 군세 상한은 정예 갈래가 곱으로
+         깎고 올림(`Math.ceil`)이 붙어, 단계 6→7 이 6 그대로다(7→8 에서 7 이 된다).
+         「한 단계 더 6」이라 적으면 사고 나서 「아무것도 안 변했다」가 되고, 줄을 아예
+         안 적으면 555 금이 **버리는 돈**처럼 보인다 — 둘 다 거짓말이다. 그래서 **움직이는
+         첫 단계까지 세어** 「두 단계 뒤 7」이라고 적는다([[knob-that-does-nothing]]). */
+      let vn = vr, steps = 0;
+      while (steps < UP_LOOK && vn === vr) { steps++; at(r + steps); vn = st.f(); }
+      const moves = vn !== vr;
+      if (vr === v0 && !moves) continue;              // 이 강화가 안 건드리는 수치다
+      out.push({ n: st.n, k: st.k, base: v0, now: vr, next: moves ? vn : null, steps: moves ? steps : 0 });
+    }
+  } finally { META.up = had; }
   return out;
 }
 
