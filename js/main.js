@@ -1950,14 +1950,43 @@ function refreshOpenStat() {
   statSig = sig; if (open) drawStat(); if (openBag) drawBag();
 }
 
+/** ★ V-116 — **마을은 «내려갈 때의 몸»을 보여야 한다.**
+ *  `toTown` 은 이미 그 약속을 글로 적어 뒀다 — 「내려갈 때의 몸이 지금 보이는 몸이다」.
+ *  그런데 몸의 크기(`hpMaxOf`·`armyCap`)는 **서 있는 층**에서 나오는데, 마을은 판에서
+ *  나올 때의 `S.floor` 를 그대로 들고 있다. 그래서 4층에서 나온 사람의 마을 구슬이
+ *  140/140 인데 다시 1층에 서면 93/93 이다(잰 값 · 레벨·장비·강화 한 톨도 안 바뀜).
+ *  **2026-08-13 에 세운 「마을에서는 마을의 말만 한다」가 시체·군세에만 옮겨졌고
+ *  구슬에는 안 옮겨진 것**이다([[carry-fixes-forward]]) — 화면에서 가장 큰 수가
+ *  가장 크게 거짓말한다(V-101·V-105·V-106·V-107·V-108 과 같은 자리).
+ *  ★ **값도 규칙도 안 건드린다.** 마을에서는 판이 안 돌고, 새 판은 `newRun` 이
+ *    `startFloor()` 로 층을 다시 박고 `enterFloor` 가 몸을 그 층에 맞춘다 —
+ *    여기서 미리 맞춰 두는 것은 **보여 주는 층**뿐이다.
+ *  ★ 한 곳에만 적는다 — `toTown` 과 `hud` 두 곳에 베끼면 웨이포인트를 고른 순간
+ *    둘이 갈린다([[seam-not-values]]). 문은 `__TOWNBODYOLD`. */
+function townFloorSync() {
+  if (MODE.at !== "town" || window.__TOWNBODYOLD) return false;
+  const f = startFloor();
+  if (S.floor === f) return false;
+  S.floor = f;
+  zoneForget();   // 다음에 내려갈 때 바닥·배치를 다시 고르게 한다(_lfloor 도 같이 비운다)
+  return true;
+}
+
 function hud() {
   refreshOpenStat();
+  /* ★ V-116 — 마을에 선 층을 «다음에 내려갈 층»으로 맞춘다(위 townFloorSync).
+     매 프레임 보는 까닭은 «어디부터» 창에서 표를 고르면 그 자리에서 몸이 갈리기 때문이다. */
+  townFloorSync();
   /* ★ **마을에서도 상한을 지킨다.** 넘친 것을 걷는 자리는 battle.step 안인데 마을에서는
      판이 안 돈다 — 그래서 장비를 갈아 끼워 최대치가 내려가면 「1.2k/398」이 그대로
      떠 있었다(2026-08-13 스샷). 그리기 직전에 한 번 더 맞춘다. */
   { const hm = hpMaxOf(), mm = mpMaxOf();
     S.hpMax = hm; if (S.hp > hm) S.hp = hm;
-    S.mpMax = mm; if (S.mp > mm) S.mp = mm; }
+    S.mpMax = mm; if (S.mp > mm) S.mp = mm;
+    /* ★ V-116 — **마을은 쉬는 곳이다**(toTown 의 그 규칙). 표를 더 깊은 층으로 옮기면
+       상한이 «올라가는데», 위 자르기는 내려가는 쪽만 본다 — 그러면 마을에 반쯤 빈
+       구슬이 선다. 마을에서만 가득 채운다(판이 안 도니 깎을 것도 없다). */
+    if (MODE.at === "town" && !window.__TOWNBODYOLD) { S.hp = hm; S.mp = mm; } }
   /* 마을에서는 층이 아니라 **여기가 어디인지**를 적는다. 「1층 정리 중」이 마을 위에
      떠 있으면 화면이 무슨 장면인지 헷갈린다. */
   if (MODE.at === "town") {
@@ -3587,6 +3616,7 @@ export function toTown(why) {
      ★ 물러남(retreat)도 같다 — 반쯤 깎인 채 마을에 서 있을 까닭이 없다.
      ★ 상한도 같이 잡는다. 판 밖에서 레벨·장비가 바뀌면 hpMax 가 옛 판 것이라
        「4300/3800」 같은 넘치는 구슬이 한 틱 떠 버린다. */
+  townFloorSync();   // ★ V-116 — **몸을 재기 «전»에** 층부터 옮긴다(안 그러면 옛 층의 몸으로 채워진다)
   S.hpMax = hpMaxOf(); S.hp = S.hpMax;
   S.mpMax = mpMaxOf(); S.mp = S.mpMax;
   saveMeta();
