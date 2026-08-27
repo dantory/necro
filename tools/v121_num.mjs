@@ -1,8 +1,12 @@
 /* V-121 자 — 물건 툴팁의 **수**를 잰다. 두 가지를 본다:
      ㉠ 소수점이 몇 자리로 적히는가(「최대 마나 +197.9177682123602」)
-     ㉡ 「지금 낀 것과 견줌」의 값이 **같은 창의 두 줄**과 맞는가
-        (가방 것의 대표 수 − 낀 것의 대표 수)
-   `node tools/v121_num.mjs old` 면 고치기 «전» 결을 그대로 되낸다(__NUMOLD). */
+     ㉡ 「끼면 이렇게 된다」가 **「지금 → 끼면」 두 값**을 말하는가
+   ★ ㉡ 은 V-133 에서 **뜻이 바뀌었다.** 예전엔 「가방 것의 대표 수 − 낀 것의 대표 수」가
+     맞는지 봤는데, 그 뺄셈 자체가 거짓말이었다 — 「최대 체력 +369」인데 몸은 +233 만
+     오른다(물건에 적힌 수는 `bodyHp` 안쪽 수다). 이제 견줌 줄은 **물건을 잠깐 끼워 보고**
+     판이 쓰는 함수에서 앞뒤를 읽는다(`core.gearStats`). 그 수가 정말 맞는지는
+     `tools/v133_gear.mjs` 가 실제로 「끼기」를 눌러 재고, 여기서는 **꼴**만 본다.
+   `node tools/v121_num.mjs old` 면 고치기 «전» 결(__NUMOLD · __GEARFX_OLD)을 되낸다. */
 import fs from "node:fs";
 const OLD = process.argv[2] === "old";
 const CDP = "http://127.0.0.1:9333", URL = "http://127.0.0.1:8774/index.html";
@@ -35,7 +39,7 @@ await S("Page.reload", { ignoreCache: true }); await wait(2400);
 await ev(`(async()=>{globalThis.__C = await import('./js/core.js'); return 1})()`);
 await ev(SEED);
 await S("Page.reload", { ignoreCache: true }); await wait(2600);
-if (OLD) await ev(`globalThis.__NUMOLD = 1`);
+if (OLD) await ev(`globalThis.__NUMOLD = 1; globalThis.__GEARFX_OLD = 1`);
 
 /* ★ 창이 정말 섰는지 자가 스스로 본다(__openWin 은 토글이다 · V-119/V-120 의 그 자리). */
 const open = await ev(`(()=>{[...document.querySelectorAll('.win.on')].forEach(e=>e.classList.remove('on'));
@@ -63,7 +67,8 @@ const numOf = (line) => {
   const m = line.match(/([+−-])\s*([\d.]+)/);
   return m ? (m[1] === "+" ? 1 : -1) * parseFloat(m[2]) : null;
 };
-const decOf = (line) => { const m = line.match(/[+−-]\s*\d+\.(\d+)/); return m ? m[1].length : 0; };
+/* ★ 견줌 줄은 V-133 부터 부호 없이 「1,186 → 2,053」으로 적히므로 부호를 **선택**으로. */
+const decOf = (line) => { const m = line.match(/[+−-]?\s*\d+\.(\d+)/); return m ? m[1].length : 0; };
 
 const rows = [];
 for (let i = 0; i < KS.length; i++) {
@@ -72,26 +77,29 @@ for (let i = 0; i < KS.length; i++) {
   const bag = await tipOf(`[data-bpick="${i}"]`);
   const pick = (ls, from) => ls.slice(from).find(l => l.startsWith(d)) || "";
   const eqL = pick(eq, 0), bagL = pick(bag, 0);
-  const ci = bag.findIndex(l => l.includes("견줌") || l.includes("빈 슬롯"));
-  const cmpL = ci >= 0 ? pick(bag, ci) : "";
+  /* 머리글은 셋이다 — 「끼면 이렇게 된다」(V-133) · 「지금 낀 것과 견줌」(옛것) · 「빈 슬롯」. */
+  const ci = bag.findIndex(l => /끼면 이렇게 된다|견줌|빈 슬롯/.test(l));
+  /* ★ 이름으로 안 집는다 — 견줌 줄은 판이 쓰는 수치 이름을 쓴다(지팡이는 물건이
+     「본인 기본 공격력」인데 견줌은 「본인 공격력」이다 · 트리·강화와 같은 낱말).
+     상자 아래쪽에서 **화살표가 든 첫 줄**을 집으면 슬롯을 안 가린다. */
+  const cmpL = ci >= 0 ? (bag.slice(ci + 1).find(l => l.includes("→")) || "") : "";
   rows.push({ k, d, eqL, bagL, cmpL,
     dec: Math.max(decOf(eqL), decOf(bagL), decOf(cmpL)),
-    want: numOf(bagL) != null && numOf(eqL) != null ? +(numOf(bagL) - numOf(eqL)).toFixed(1) : null,
-    got: numOf(cmpL) });
+    화살: /→/.test(cmpL) && /\d/.test(cmpL.split("→")[0]) && /\d/.test(cmpL.split("→")[1] || "") });
 }
 await S("Target.closeTarget", { targetId });
 
 const badDec = rows.filter(r => r.dec > 1);
-const badCmp = rows.filter(r => r.want != null && r.got != null && Math.abs(r.want - r.got) > 0.15);
+const badCmp = rows.filter(r => !r.화살);
 console.log((OLD ? "【고치기 전】" : "【지금】") + " 툴팁 여섯 벌");
 for (const r of rows)
   console.log(`  ${NAME[r.k].padEnd(4)} 낀것「${r.eqL}」 가방「${r.bagL}」 견줌「${r.cmpL}」` +
-    `  → 소수 ${r.dec}자리 · 견줌 want ${r.want} got ${r.got}`);
+    `  → 소수 ${r.dec}자리 · 「지금→끼면」 ${r.화살 ? "있음" : "없음"}`);
 console.log(`  소수점이 두 자리 넘는 줄 : ${badDec.length}/6 (${badDec.map(r => NAME[r.k]).join("·") || "없음"})`);
-console.log(`  견줌이 두 줄과 어긋난 것 : ${badCmp.length}/6 (${badCmp.map(r => NAME[r.k]).join("·") || "없음"})`);
+console.log(`  견줌이 「지금→끼면」이 아닌 것 : ${badCmp.length}/6 (${badCmp.map(r => NAME[r.k]).join("·") || "없음"})`);
 fs.writeFileSync(`tmp/v121_num_${OLD ? "old" : "new"}.json`, JSON.stringify({ rows, badDec: badDec.length, badCmp: badCmp.length }, null, 1));
 /* ★ 판정을 말로 낸다 — 「우는 자리 0」만 적으면 자가 죽어도 통과처럼 읽힌다
-   (`old` 로 부르면 2 · 6 이 나와야 한다 · 보정 확인 완료). */
+   (`old` 로 부르면 ㉠ 2 · ㉡ 6 이 나와야 한다 — 문이 뺄셈 결을 되세우면 화살표가 사라진다). */
 const bad = badDec.length + badCmp.length;
 console.log(bad ? `미달 — 우는 자리 ${bad}` : "통과 — 여섯 벌 모두 맞다");
 process.exit(bad && !OLD ? 1 : 0);

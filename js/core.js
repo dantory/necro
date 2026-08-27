@@ -27,6 +27,13 @@ export const num = (v) => {
        : v < 999500   ? Math.round(v / 1000) + "k"
        : (v / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
 };
+/** 배수를 적는 꼴 — **화면 어디서나 하나**여야 한다. main.js 의 `mul()` 이 이것이고
+ *  견줌 줄(gearStatShow)도 이것을 쓴다. 한쪽만 자릿수를 고치면 같은 수가 둘로 읽힌다
+ *  ([[threshold-and-ruler-must-match]]). */
+export const mulShow = (v) => "×" + (v < 10   ? v.toFixed(2)
+                                   : v < 100  ? v.toFixed(1)
+                                   : v < 1000 ? String(Math.round(v))
+                                   :            num(v));
 
 /* ══ 조사(助詞) ══ 이름 뒤에 붙는 「이/가」를 **받침으로 고른다.**
    여태 화면에 `저주받은 왕 이(가) 지키는 중` 처럼 **괄호가 그대로** 떴다 — 관문에 들어설
@@ -2879,6 +2886,63 @@ export function upStats(id) {
       out.push({ n: st.n, k: st.k, base: v0, now: vr, next: moves ? vn : null, steps: moves ? steps : 0 });
     }
   } finally { META.up = had; }
+  return out;
+}
+
+/** ══ 물건을 **끼면 무엇이 얼마나 달라지는가** ══ (V-133 · 2026-08-27)
+ *  트리(V-123)·강화(V-124·V-132)에 세 번 박은 못을 **장비**로 옮긴다
+ *  ([[carry-fixes-forward]]). 여태 견줌 줄(`gearCmpHtml`)은 **물건에 적힌 수끼리** 뺐다 —
+ *  「최대 체력 +120」. 그런데 그 120 은 `bodyHp` **안쪽**의 수이고, 사람이 보는 체력은
+ *  거기서 천장(`floorDmg × EARLY_HITS × hpGrow`)을 지나 나온다. 실측(`tools/v133_look.mjs`
+ *  · Lv.30 · 강화 6/6/6/3 · 3등급 20층 장비) — **「+120」인데 실제로는 620 → 695 = +75.**
+ *  V-132 가 「생명력 +25 → 실제 +16」에서 고친 것과 **한 글자도 다르지 않은 결함**인데,
+ *  그때는 강화 넷에만 고쳤다.
+ *  ★ 식을 화면 쪽에 다시 적지 않는다 — 물건을 **그 슬롯에 잠깐 끼워 보고** 판이 쓰는
+ *    그 함수를 부른다. 그리고 **곧바로 되돌린다**(finally · `saveMeta` 를 안 부르므로
+ *    저장도 값도 규칙도 한 톨 안 바뀐다 · D 계열 잠금 밖이다).
+ *  ★ 어느 물건이 어느 수치를 건드리는지 **손으로 안 적는다** — 끼기 전과 견줘 달라지는
+ *    것만 고른다([[knob-that-does-nothing]]). 옵션을 새로 넣어도 저절로 따라온다. */
+export const GEAR_STATS = [
+  { n: "최대 체력",      k: "int",  f: () => Math.round(hpMaxOf()) },
+  { n: "최대 마나",      k: "int",  f: () => Math.round(mpMaxOf()) },
+  { n: "마나 회복",      k: "rate", f: () => mpRegenOf() },
+  { n: "군세 상한",      k: "int",  f: () => armyCap() },
+  /* ★ 트리·강화의 「본인 공격력」과 **한 글자도 다르지 않게** 적는다(battle.js 2037줄). */
+  { n: "본인 공격력",    k: "mul",  f: () => selfDmgMul() * (1 + gearVal("wand")) * wandMul() },
+  { n: "소환수 피해",    k: "mul",  f: () => minionDmgMul() },
+  { n: "소환수 걸음",    k: "mul",  f: () => minionSpd() },
+  /* ★ 능력치 창이 「금 획득 +39%」로 적는 자와 **같게** — 거기만 ×1.39 면 두 수가 된다. */
+  { n: "금 획득",        k: "gain", f: () => goldMulOf() },
+  { n: "경험치",         k: "mul",  f: () => xpMul() },
+  { n: "시체 획득",      k: "pct",  f: () => harvestPct() },
+  { n: "시체 폭발 피해", k: "mul",  f: () => novaDmgMul() },
+  /* 재사용만은 **작을수록 좋다** — 오르내림 빛깔이 뒤집힌다. */
+  { n: "스킬 재사용",    k: "mul",  f: () => cdMul(), lower: true },
+];
+/** 견줌 줄이 적는 꼴 — 능력치 창과 **같은 자**로 적는다(창은 ×8.22 인데 상자만 8.2 면
+ *  같은 수가 둘로 읽힌다 [[threshold-and-ruler-must-match]]). */
+export const gearStatShow = (k, v) =>
+  k === "mul"  ? mulShow(v)
+: k === "gain" ? (v >= 1 ? "+" : "−") + Math.round(Math.abs(v - 1) * 100) + "%"
+: k === "rate" ? v.toFixed(1) + "/초"
+: k === "pct"  ? Math.round(v * 100) + "%"
+:                Math.round(v).toLocaleString();
+/** 이 물건을 그 슬롯에 끼면 달라지는 수치들 — `[{n,k,now,next,up}]`.
+ *  ★ `META.equip` 을 갈아 끼우는 동안 **반드시 되돌린다**(finally). 읽기만 한다. */
+export function gearStats(it) {
+  if (typeof globalThis !== "undefined" && globalThis.__GEARFX_OLD) return [];   // 문 — V-133 «전»
+  if (!it || !GEAR[it.k]) return [];
+  const had = META.equip[it.k];
+  const back = () => { if (had) META.equip[it.k] = had; else delete META.equip[it.k]; };
+  const out = [];
+  try {
+    for (const st of GEAR_STATS) {
+      back();                     const a = st.f();
+      META.equip[it.k] = it;      const b = st.f();
+      if (a === b) continue;                      // 이 물건이 안 건드리는 수치다
+      out.push({ n: st.n, k: st.k, now: a, next: b, up: st.lower ? b < a : b > a });
+    }
+  } finally { back(); }
   return out;
 }
 

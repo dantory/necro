@@ -3,7 +3,7 @@ import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearSh
 import { gulpOf, durOf, KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 /* V-124 — 대장간 툴팁의 「지금 / 한 단계 더」. 트리(V-123)와 **같은 함수·같은 꼴**이다. */
-import { upStats, treeShow } from "./core.js";
+import { upStats, treeShow, gearStats, gearStatShow, mulShow } from "./core.js";
 /* V-127 — 오프라인 창고의 상한과 「차는 데 걸리는 분」. 식은 core 에만 산다. */
 import { CORPSE_BANK_MAX, OFFLINE_EFF, offlineCorpseFillMin } from "./core.js";
 /* V-125 — 운용 툴팁이 적는 「몇 구·몇 기」. 식은 core 한 곳뿐이고 auto() 도 같은 것을 부른다. */
@@ -46,10 +46,9 @@ export const FX_ART = {
    자리를 더 짜내는 대신 **값이 자랄수록 소수를 버린다**: 10 미만은 두 자리(초반엔
    ×1.12 처럼 자라는 게 소수에만 보인다), 100 미만은 한 자리(×19.5), 그 위는 정수,
    네 자리부터는 `num()` 과 **같은 자**로 줄인다(×1.2k) — 자가 둘이면 같은 값이 달라 보인다. */
-const mul = (v) => "×" + (v < 10   ? v.toFixed(2)
-                        : v < 100  ? v.toFixed(1)
-                        : v < 1000 ? String(Math.round(v))
-                        :            num(v));
+/* ★ 자릿수 규칙은 **core.mulShow 하나**다 — 견줌 줄(gearStatShow)도 그것을 쓴다.
+   여기 베껴 두면 한쪽만 고쳐져 같은 수가 둘로 읽힌다(V-133). */
+const mul = mulShow;
 
 /** ══ 캔버스 글자는 **9 의 배수**로만 ══
  *  Galmuri9 는 **9px 격자**의 픽셀 글꼴이라, 그 배수를 벗어난 크기로 그리면 획이
@@ -2879,7 +2878,25 @@ const gearCmpHtml = (bag) => {
     const av = id === "mp" ? Math.abs(d).toFixed(1) : Math.abs(d);
     rows.push([AFFIX[id].n, d, `${sgn(d)}${av}${AFFIX[id].u}`]);
   }
-  return `<div class="tipCmp"><div class="tipKind">${cur ? "지금 낀 것과 견줌" : "빈 슬롯 — 끼면 새로 걸린다"}</div>` +
+  /* ★★ **여기서 뺀 수는 «물건에 적힌 수»였다 — 사람이 보는 수가 아니다**(V-133).
+     「최대 체력 +120」의 120 은 `bodyHp` 안쪽 수이고, 화면의 체력은 거기서 천장을 지나
+     나온다 — 실측 620 → 695 = **+75**. 그래서 뺄셈을 그만두고 **물건을 잠깐 끼워 보고**
+     판이 쓰는 함수에서 앞뒤를 읽는다(core.gearStats). 트리(V-123)·강화(V-124·V-132)가
+     이미 쓰는 그 결이다([[carry-fixes-forward]] · [[probe-must-walk-the-real-path]]).
+     ★ 옵션 줄(`tipAf` · 「최대 체력 +120」)은 **그대로 둔다** — 그것은 «이 물건이 무엇인가»
+       이고, 여기는 «끼면 내가 어떻게 되는가»다. 두 자리는 서로 다른 것을 말한다.
+     ★ 문은 `__GEARFX_OLD`(gearStats 가 빈 줄을 내면 옛 뺄셈으로 떨어진다). */
+  const fx = gearStats(bag);
+  /* ★ 머리글도 바꾼다 — 새 줄은 «물건끼리의 차이»가 아니라 **내 몸이 어떻게 되는가**다.
+     바로 위 옵션 줄(「최대 체력 +924」)과 수가 다르므로, 무엇을 재는 줄인지 말해야
+     둘이 어긋난 것으로 안 읽힌다. */
+  const head = `<div class="tipKind">${fx.length ? "끼면 이렇게 된다" : cur ? "지금 낀 것과 견줌" : "빈 슬롯 — 끼면 새로 걸린다"}</div>`;
+  if (fx.length)
+    return `<div class="tipCmp">${head}` + fx.map((r) =>
+      `<div class="tipStat ${r.up ? "up" : "down"}"><span class="sN">${r.n}</span>` +
+      `<b>${gearStatShow(r.k, r.now)} <span class="tFxA">→</span> ${gearStatShow(r.k, r.next)}</b></div>`).join("") +
+      `</div>`;
+  return `<div class="tipCmp">${head}` +
     (rows.length
       ? rows.map(([n, d, t]) => `<div class="tipStat ${d > 0 ? "up" : "down"}">${n} <b>${t}</b></div>`).join("")
       : `<div class="tipStat">셈은 그대로다</div>`) +
