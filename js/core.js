@@ -838,7 +838,11 @@ export const offlineGoldPerMin   = (meta) => goldFor(Math.max(1, meta.deepest | 
 /** 분당 시체 — 그 깊이 한 층의 마릿수(floorN)만큼. 결정적. */
 export const offlineCorpsePerMin = (meta) => floorN(Math.max(1, meta.deepest | 0));
 /** ms 경과와 meta 만으로 정산을 뽑는 **순수 함수**(검수기가 직접 부른다).
- *  돌려주는 값 {min, gold, corpses, capped} — min 은 상한을 씌운 뒤의 정산 분이다. */
+ *  돌려주는 값 {min, awayMin, gold, corpses, capped} — min 은 상한을 씌운 뒤의 **정산** 분이고
+ *  awayMin 은 상한을 안 씌운 **실제로 비운** 분이다.
+ *  ★ V-119 — 이 둘은 **다른 것인데 하나만 내보내고 있었다.** 패널이 min 을 「자리를 비운
+ *    시간」으로 읽어, 사흘을 비우고 온 사람에게 「그동안 8시간 자리를 비웠다」고 적었다.
+ *    셈은 min 그대로다 — 여기서 느는 것은 **말할 재료**뿐이다(V-117 과 같은 결). */
 export function offlineGain(ms, meta) {
   const rawMin = Math.floor(Math.max(0, ms) / 60000);   // 음수·소수 분은 버린다(시계 되돌림 방어)
   const capped = rawMin > OFFLINE_CAP_MIN;
@@ -846,7 +850,7 @@ export function offlineGain(ms, meta) {
   const mul = relicMul();
   const gold    = Math.round(min * offlineGoldPerMin(meta)   * OFFLINE_EFF * mul);
   const corpses = Math.round(min * offlineCorpsePerMin(meta) * OFFLINE_EFF * mul);
-  return { min, gold, corpses, capped };
+  return { min, awayMin: rawMin, gold, corpses, capped };
 }
 /** lastSeen 을 읽어 경과를 정산해 META 에 넣는다. now(ms)는 밖에서 준다 — 함수 안에 시계가
  *  없어야 검수기가 시각을 밀어 넣어 검사할 수 있다. 1분 미만이면 정산할 것이 없어 null 을

@@ -3379,9 +3379,21 @@ function drawWipe() {
    준다. 상한(8시간)에 걸렸으면 그것도 알린다. 정산·환생과 같은 돌(winFoot·tip). */
 function drawOffline(off) {
   /* ★ 「8시간 0분」 — 상한(OFFLINE_CAP_MIN)에 걸린 판은 **언제나** 분이 0 이라
-     밤새 껐다 켠 사람이 늘 보는 줄이 이것이다. 분이 0 이면 시만 적는다. */
-  const hrs = Math.floor(off.min / 60), mins = off.min % 60;
-  const dur = hrs ? (mins ? `${hrs}시간 ${mins}분` : `${hrs}시간`) : `${mins}분`;
+     밤새 껐다 켠 사람이 늘 보는 줄이 이것이다. 분이 0 이면 시만 적는다.
+     ══ V-119 ══ **그 줄이 거짓말이었다.** 여기 쓰던 `off.min` 은 상한(8시간)을 씌운
+     **정산** 분이라, 사흘을 비우고 돌아온 사람에게도 「그동안 8시간 자리를 비웠다」고
+     적었다 — 자로 재니 상한을 넘긴 판 3/3 이 전부 틀렸다. 사람이 아는 사실(「어제
+     저녁에 껐다」)과 판이 적은 사실이 어긋나면, 바로 아래 「8시간까지만 쌓인다」도
+     무슨 말인지 모르게 된다. **비운 시간은 `awayMin`(상한 없는 실제 경과)으로 적고,
+     쌓인 몫이 8시간치라는 것은 상한 줄이 따로 말한다.**
+     ★ 값도 규칙도 안 건드린다 — 금·시체는 여전히 `off.min`(상한 씌운 것)으로 셈했다.
+     ★ 날을 넘기면 시간만으로는 못 읽는다(「77시간」) — 하루 위는 **일**로 적는다. */
+  const awayMin = (globalThis.__AWAYOLD ? off.min : (off.awayMin ?? off.min)) | 0;
+  const days = Math.floor(awayMin / 1440);
+  const hrs = Math.floor((awayMin % 1440) / 60), mins = awayMin % 60;
+  const dur = days ? (hrs ? `${days}일 ${hrs}시간` : `${days}일`)
+            : hrs  ? (mins ? `${hrs}시간 ${mins}분` : `${hrs}시간`)
+            : `${mins}분`;
   $("offBody").innerHTML =
     `<div class="tip">
        <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
