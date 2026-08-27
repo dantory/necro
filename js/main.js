@@ -4,6 +4,8 @@ import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 /* V-124 — 대장간 툴팁의 「지금 / 한 단계 더」. 트리(V-123)와 **같은 함수·같은 꼴**이다. */
 import { upStats, treeShow } from "./core.js";
+/* V-127 — 오프라인 창고의 상한과 「차는 데 걸리는 분」. 식은 core 에만 산다. */
+import { CORPSE_BANK_MAX, OFFLINE_EFF, offlineCorpseFillMin } from "./core.js";
 /* V-125 — 운용 툴팁이 적는 「몇 구·몇 기」. 식은 core 한 곳뿐이고 auto() 도 같은 것을 부른다. */
 import { novaNeedOf, tacticStats } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
@@ -3511,13 +3513,37 @@ function drawOffline(off) {
   const dur = days ? (hrs ? `${days}일 ${hrs}시간` : `${days}일`)
             : hrs  ? (mins ? `${hrs}시간 ${mins}분` : `${hrs}시간`)
             : `${mins}분`;
-  $("offBody").innerHTML =
+  /* ══ V-127 ══ **이 창의 시체 줄은 시간이 얼마든 늘 같은 수였다.**
+     켜서 셋을 찍어 보니(`tools/v127_look.mjs`) 30분·9시간·사흘이 **전부 「+140」** 이다 —
+     창고 상한(CORPSE_BANK_MAX)에 30분이면 이미 닿기 때문이다([[knob-that-does-nothing]]).
+     그런데 창은 ① 그 상한을 **「한 짐」이라는 크기 없는 말**로만 부르고(V-125 가 운용 창에서
+     거둔 바로 그 못 · [[carry-fixes-forward]]), ② 대신 **줄 수 없는 큰 수**(「12,000구를
+     벌었다」)를 가장 굵게 적고, ③ 「8시간까지만 쌓인다」를 시체 줄 **바로 밑**에 놓아
+     그 상한이 시체에도 걸리는 것처럼 읽혔다(시체는 8시간이 아니라 **몇 분**이면 찬다).
+     ★ **값도 규칙도 한 톨 안 건드린다** — 금·시체·상한은 그대로다. 느는 것은 말할 재료뿐이다
+       (V-117·V-119·V-125 와 같은 결). 상한은 `CORPSE_BANK_MAX`, 차는 시간은
+       `offlineCorpseFillMin` 으로 **core 에서 읽어** 온다([[threshold-and-ruler-must-match]]).
+     ★ 문은 `__OFFOLD` — 옛 글월을 그대로 다시 세운다(없애면 나란히 찍은 그림이
+       「없던 자리」를 보여 준다 · [[silent-zero-is-not-an-observation]]). */
+  /* 효율(OFFLINE_EFF)도 판 어디에도 안 적혀 있었다 — 금이 왜 「한 층 수입 × 분」보다
+     적은지 사람이 알 길이 없다. **상수에서 읽어** 적는다(0.5 가 아니게 되면 %로 적힌다). */
+  const EFF_WORD = OFFLINE_EFF === 0.5 ? "절반" : Math.round(OFFLINE_EFF * 100) + "%";
+  const cIn   = (off.corpsesIn ?? off.corpses) | 0;
+  const fillM = offlineCorpseFillMin(META);
+  const fill  = fillM >= 60 ? `${Math.round(fillM / 60)}시간` : `${fillM}분`;
+  $("offBody").innerHTML = globalThis.__OFFOLD ?
     `<div class="tip">
        <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
        <div class="tipStat">금 <b class="t3">+${off.gold.toLocaleString()}</b></div>
-       <div class="tipStat">시체 <b class="t3">+${(off.corpsesIn ?? off.corpses).toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
+       <div class="tipStat">시체 <b class="t3">+${cIn.toLocaleString()}</b> <span class="dim">다음 던전에 함께 내려간다</span></div>
        ${off.corpseFull ? `<div class="tipStat dim">시체는 <b>한 짐</b>까지만 지고 간다 — ${off.corpses.toLocaleString()}구를 벌었다</div>` : ""}
        ${off.capped ? `<div class="tipStat dim">${OFFLINE_CAP_MIN / 60}시간까지만 쌓인다</div>` : ""}
+     </div>` :
+    `<div class="tip">
+       <div class="tipStat">그동안 <b>${dur}</b> 자리를 비웠다</div>
+       <div class="tipStat">금 <b class="t3">+${off.gold.toLocaleString()}</b> <span class="dim">지켜보는 것의 ${EFF_WORD}씩${off.capped ? ` · ${OFFLINE_CAP_MIN / 60}시간까지만` : ""}</span></div>
+       <div class="tipStat">시체 <b class="t3">+${cIn.toLocaleString()}</b> <span class="dim">/ ${CORPSE_BANK_MAX} · 다음 던전에 함께 내려간다</span></div>
+       ${off.corpseFull ? `<div class="tipStat dim">창고가 <b>찼다</b> — 시체는 <b>${CORPSE_BANK_MAX}구</b>까지만 지고 간다. 이 깊이면 <b>${fill}</b>이면 찬다</div>` : ""}
      </div>`;
   $("offGold").textContent = (META.gold | 0).toLocaleString();
 }

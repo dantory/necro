@@ -271,6 +271,12 @@ const RULERS = [
      심은 날값을 못 잡으면 스스로 지고, `node tools/v126_scan.mjs old` 는 V-121 의
      문(`__NUMOLD`)으로 옛 결을 다시 세워 2 를 낸다([[silent-zero-is-not-an-observation]]). */
   { name: "v126_scan",     args: [],                             secs: 240, tier: "fast", expect: /판정/ },
+  /* V-127 — **돌아온 사람이 맨 처음 보는 창**(오프라인 정산)이 그 사람의 수로 말하는가.
+     창고 상한(140)·「찼다」·효율(절반)을 적고, 「8시간까지만」이 시체 줄 밑에 **홀로 서지**
+     않는가를 사람 다섯 × 화면 넷에서 본다. 심은 「한 짐」을 못 잡으면 스스로 지고,
+     `node tools/v127_off.mjs old` 는 문(`__OFFOLD`)으로 옛 결을 다시 세워 운다
+     ([[silent-zero-is-not-an-observation]] · 보정 확인 완료 0/20 · 8/20 · 0/20). */
+  { name: "v127_off",      args: [],                             secs: 300, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

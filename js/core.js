@@ -881,6 +881,16 @@ export const offlineCorpsePerMin = (meta) => floorN(Math.max(1, meta.deepest | 0
  *  ★ V-119 — 이 둘은 **다른 것인데 하나만 내보내고 있었다.** 패널이 min 을 「자리를 비운
  *    시간」으로 읽어, 사흘을 비우고 온 사람에게 「그동안 8시간 자리를 비웠다」고 적었다.
  *    셈은 min 그대로다 — 여기서 느는 것은 **말할 재료**뿐이다(V-117 과 같은 결). */
+/** **창고가 차는 데 걸리는 분** — 빈 창고에서 CORPSE_BANK_MAX 까지.
+ *  ★ V-127 — 이 수가 없으면 「한 짐까지만」이 **아무 크기도 없는 말**이 된다. 자로 재 보니
+ *    30분만 비워도 상한에 닿아서, 30분·9시간·사흘이 **전부 +140 으로 똑같았다**
+ *    ([[knob-that-does-nothing]] — 시간은 도는데 시체 눈금이 안 움직인다). 값은 안 건드리고
+ *    **그 사실을 창이 말하게** 한다. 식은 offlineGain 과 같은 곳에서만 산다
+ *    ([[threshold-and-ruler-must-match]]). */
+export function offlineCorpseFillMin(meta) {
+  const per = offlineCorpsePerMin(meta) * OFFLINE_EFF * relicMul();
+  return per > 0 ? Math.max(1, Math.ceil(CORPSE_BANK_MAX / per)) : 0;
+}
 export function offlineGain(ms, meta) {
   const rawMin = Math.floor(Math.max(0, ms) / 60000);   // 음수·소수 분은 버린다(시계 되돌림 방어)
   const capped = rawMin > OFFLINE_CAP_MIN;
