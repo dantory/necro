@@ -243,6 +243,9 @@ const RULERS = [
      확인 완료). ★ `__DOCLOCKOLD`(V-104) 가 아니라 `__DOCPICKOLD` 를 쓴다 — 앞엣것은
      배지 자체를 지워서 「눌리는가」를 못 잰다. */
   { name: "v113_docpick",  args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
+  /* V-121 — 물건 툴팁의 수(소수 자릿수 · 「견줌」이 두 대표 줄과 맞는가 · 여섯 슬롯).
+     `node tools/v121_num.mjs old` 로 부르면 운다(소수 2 · 어긋남 6 · 보정 확인 완료). */
+  { name: "v121_num",      args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

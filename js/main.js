@@ -2710,7 +2710,23 @@ const gearCmpHtml = (bag) => {
   const primDelta = (d) => gearDelta(bag.k, d);
   const sum = (arr, id) => (arr || []).filter((a) => a.id === id).reduce((s, a) => s + a.v, 0);
   const rows = [];
-  const dPrim = g.val[bag.tier] - (cur ? g.val[cur.tier] : 0);
+  /* ★★ **깊이 곱을 넣고 견준다**(V-121 · 2026-08-27). 여태는 «등급의 밑값»만 뺐는데,
+     바로 위 두 줄(낀 것의 대표 수 · 가방 것의 대표 수)은 둘 다 `× ilMul(il)` 을 곱해
+     적는다 — 그래서 **같은 창 안에서 세 줄이 서로 다른 말**을 했다(34층 투구가
+     「+52」라고 적히지만 두 줄의 차이는 +114). 여섯 슬롯 **전부** 어긋나 있었고
+     늘 «적게» 말했다. 이 줄 하나로 물건을 바꿀지 정하므로 손해가 그대로 결정에 간다
+     ([[threshold-and-ruler-must-match]]).
+     ★ 재련(META.plus)은 **슬롯에 남는다** — 물건을 바꿔도 안 따라가므로 차이에서 뺀다
+       (대표 수 두 줄도 같은 까닭으로 안 세고 있다). 문은 `__NUMOLD`. */
+  /* ★ 뺄셈을 **화면에 적힌 수**로 한다 — 두 대표 줄은 반올림해서 서고(gearShow) 차이만
+     날값으로 세면 「924 − 319 인데 604」 같은 한 칸짜리 어긋남이 남는다. 눈으로 셈이
+     맞아떨어져야 세 줄이 한 말을 한다. */
+  const pv = (it) => {
+    const v = g.val[it.tier] * (globalThis.__NUMOLD ? 1 : ilMul(it.il));
+    return globalThis.__NUMOLD ? v
+         : g.u === "pct" ? Math.round(v * 100) / 100 : g.u === "rate" ? +v.toFixed(1) : Math.round(v);
+  };
+  const dPrim = pv(bag) - (cur ? pv(cur) : 0);
   if (Math.abs(dPrim) > 1e-9) rows.push([g.d, dPrim, primDelta(dPrim)]);
   const ids = [...new Set([...(cur?.af || []).map((a) => a.id), ...bag.af.map((a) => a.id)])];
   for (const id of ids) {

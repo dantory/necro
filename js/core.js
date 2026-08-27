@@ -1535,14 +1535,20 @@ export const gearVal = (k) => GEAR[k].val[gearTier(k)] * ilMul(equipped(k)?.il)
                             + (META.plus[k] | 0) * reforgeStep(k);
 /** 값을 **보여 주는 꼴** — 단위(GEAR[k].u)에 맞춰 %·수·/초 로. 화면 셋(상점·상태창·견줌)이
  *  같은 자를 쓰게 한 곳에 둔다(예전엔 저마다 `k` 로 갈라, 슬롯을 늘릴 때마다 셋을 다 고쳤다). */
+/* ★ 「수」(flat)도 **반올림해서 적는다**(V-121 · 2026-08-27). 깊이 곱(ilMul)이 붙는 자리라
+ *  날값을 그대로 내면 `최대 마나 +197.9177682123602` 가 툴팁에서 가장 큰 글자로 선다 —
+ *  %·/초 는 이미 반올림하고 있었는데 **그 규칙을 flat 에 안 옮긴 것**이다
+ *  ([[carry-fixes-forward]]). 문은 `__NUMOLD`. */
 export const gearShow = (k, v) => {
   const u = GEAR[k].u;
-  return u === "pct" ? `+${Math.round(v * 100)}%` : u === "rate" ? `+${v.toFixed(1)}/초` : `+${v}`;
+  return u === "pct" ? `+${Math.round(v * 100)}%` : u === "rate" ? `+${v.toFixed(1)}/초`
+       : `+${globalThis.__NUMOLD ? v : Math.round(v)}`;
 };
 /** 견줌용 — 부호를 앞에(오르면 + · 내리면 −) 두고 절댓값을 같은 단위로. */
 export const gearDelta = (k, d) => {
   const s = d > 0 ? "+" : "−", a = Math.abs(d), u = GEAR[k].u;
-  return u === "pct" ? `${s}${Math.round(a * 100)}%` : u === "rate" ? `${s}${a.toFixed(1)}/초` : `${s}${a}`;
+  return u === "pct" ? `${s}${Math.round(a * 100)}%` : u === "rate" ? `${s}${a.toFixed(1)}/초`
+       : `${s}${globalThis.__NUMOLD ? a : Math.round(a)}`;
 };
 
 /* ══ 금은 저절로 쓰인다 ══ 방치형인데 **마을에 들러 손으로 눌러야만** 금이 줄었다.
