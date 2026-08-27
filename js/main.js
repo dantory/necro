@@ -3349,11 +3349,25 @@ function drawEnd() {
   /* ★ **문이 열린 날 한 번은 말해 준다**(ROADMAP D-15 ㉮). 이제 고르지 않아도 저절로
      깊은 데서 시작하므로, **말없이 그렇게 되면** 사람은 자기 판이 왜 65층에서 열리는지
      모른다. 정산 창은 죽은 직후 반드시 보는 자리라 여기서 한 번만 적는다. */
+  /* ★ V-130 — **이름은 «화면에 서 있는 것»의 이름이어야 한다.** 이 줄은 한 생에 딱
+     한 번 나가는 **유일한 안내**인데, 여기서만 「건너뛰기」라고 불렀다 — 그 낱말은
+     게임 화면 어디에도 없다(코드 주석에만 있다). 정작 그 기능은 마을에 **「웨이포인트」**
+     라는 이름표를 달고 서 있고, 창을 열면 스스로를 「표」라 부른다. 한 물건에 이름이 셋이라
+     안내를 읽은 사람이 무엇을 찾아야 하는지 모른다(V-114 「어둠의 길」과 같은 못
+     [[carry-fixes-forward]]). 아래 「마을 문」도 같은 결이다 — 문으로도 열리지만
+     **이름표가 붙은 물건**을 가리키는 편이 찾을 수 있는 말이다.
+     ★ 값도 규칙도 한 톨 안 건드린다(diveMax·diveTold·여는 문턱 그대로) — 낱말만 바뀐다.
+     문은 `__WAYNAME_OLD` — 자가 옛 이름을 그대로 다시 내게 한다. */
   if (diveMax() > 0 && !(META.diveTold | 0)) {
     META.diveTold = 1; saveMeta();
+    const 옛이름 = !!globalThis.__WAYNAME_OLD;
     $("endSub").innerHTML +=
-      `<div class="eWhere" style="color:#c8aa6e">건너뛰기가 열렸다 — 다음 판은 <b>${diveMax()}층</b>에서 시작한다`
-      + `<br><span style="opacity:.75;font-size:.9em">마을 문에서 바꿀 수 있다(처음부터도 고를 수 있다)</span></div>`;
+      `<div class="eWhere" style="color:#c8aa6e">`
+      + (옛이름 ? `건너뛰기가 열렸다` : `마을에 <b>웨이포인트</b>가 섰다`)
+      + ` — 다음 판은 <b>${diveMax()}층</b>에서 시작한다`
+      + `<br><span style="opacity:.75;font-size:.9em">`
+      + (옛이름 ? `마을 문에서 바꿀 수 있다` : `거기서 바꿀 수 있다`)
+      + `(처음부터도 고를 수 있다)</span></div>`;
   }
   $("endGold").textContent = (META.gold | 0).toLocaleString();
 }
@@ -3379,6 +3393,11 @@ function drawEnd() {
      깊은 것들을 남긴다**(맨 앞 하나 + 뒤에서 다섯). 지금 고른 칩은 잘려도 되살린다.
    ★ 아직 못 여는 구역도 **회색으로 보여 준다.** 안 보이면 「더 있다」를 모르고,
      보이면 그게 다음 목표가 된다(D2 의 회색 웨이포인트가 그 일을 한다). */
+/** ★ V-130 — **이 판에서 이 물건의 이름은 하나다.** 마을에 선 것의 이름표가
+ *  「웨이포인트」(town.js PLACES)이므로, 그것을 가리키는 모든 글월이 같은 낱말을 쓴다.
+ *  이름을 여기 한 자리에 둔 까닭은 이름표와 글월이 따로 늙지 않게 하려는 것이다.
+ *  문(`__WAYNAME_OLD`)은 옛 낱말(「표」)을 그대로 다시 낸다 — 자의 보정용. */
+const WAYN = () => (globalThis.__WAYNAME_OLD ? "표" : "웨이포인트");
 const zoneTo = (i) => (ZONES[i + 1] ? ZONES[i + 1].from - 1 : 0);
 /** 그 구역이 열리는 데 필요한 깊이 — diveMax() 를 거꾸로 푼 것(5눈금 + 두 관문). */
 const zoneNeed = (z) => DIVE_BACK + Math.ceil(z.from / DIVE_STEP) * DIVE_STEP;
@@ -3417,7 +3436,7 @@ function drawDive() {
     if (z.from > max) {                                 // 아직 안 열린 구역 — 회색으로 남겨 둔다
       const been = (META.deepest | 0) >= z.from;        // 걸어는 봤는데 표가 안 선 구역
       const say = (!globalThis.__WAYOLD && been)
-        ? `걸어는 봤다 — 표는 <b>가장 깊이보다 ${DIVE_BACK}층 뒤</b>에 선다(<b>${zoneNeed(z)}층</b>부터)`
+        ? `걸어는 봤다 — ${WAYN()}는 <b>가장 깊이보다 ${DIVE_BACK}층 뒤</b>에 선다(<b>${zoneNeed(z)}층</b>부터)`
         : `<b>${zoneNeed(z)}층</b>까지 내려가면 열린다`;
       return `<div class="wayZ lock${(!globalThis.__WAYOLD && been) ? " been" : ""}">${head}`
            + `<div class="wayLock">${say}</div></div>`;
@@ -3440,8 +3459,8 @@ function drawDive() {
     /* ★ V-108 — 처음 켠 사람에게는 **두 쪽이 다 거짓말**이다: 한 층도 안 걸었는데
        「가장 깊이 1층」이고, 표를 하나도 안 세웠는데 「표를 세운 데까지 1층」이다. */
     (!window.__DEEPOLD && neverDove()
-      ? `<div class="tipStat" style="margin-bottom:6px">아직 안 내려갔다 · 세워 둔 표 <b>없음</b></div>`
-      : `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · 표를 세운 데까지 <b>${max}층</b></div>`) +
+      ? `<div class="tipStat" style="margin-bottom:6px">아직 안 내려갔다 · 세워 둔 ${WAYN()} <b>없음</b></div>`
+      : `<div class="tipStat" style="margin-bottom:6px">가장 깊이 <b>${META.deepest | 0}층</b> · ${WAYN()}를 세운 데까지 <b>${max}층</b></div>`) +
     `<div class="wayList wScroll">${cards}</div>` +
     `<div class="tipStat" style="margin-top:8px;opacity:.75">건너뛴 층의 전리품·경험치는 없다 — 걷지 않은 길이므로.` +
     ((META.diveSet | 0) ? "" : `<br>고르지 않으면 <b>${max}층</b>부터 시작한다.`) + `</div>`;
@@ -3776,7 +3795,7 @@ $("stage").addEventListener("click", (e) => {
   if (id === "way") {
     closeAll();
     if (diveMax() > 0) { drawDive(); win("winDive", true); }
-    else { S.log.push(`표가 아직 잠들어 있다 — <b>${DIVE_MIN_DEEPEST}층</b>까지 내려가면 깨어난다`); }
+    else { S.log.push(`${WAYN()}가 아직 잠들어 있다 — <b>${DIVE_MIN_DEEPEST}층</b>까지 내려가면 깨어난다`); }
     return;
   }
   if (id === "shop")  { closeAll(); drawShop();  win("winShop", true); }

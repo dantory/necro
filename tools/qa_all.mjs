@@ -289,6 +289,12 @@ const RULERS = [
      세우면 울어야 한다 — 안 울면 스스로 진다(판정에 든다).
      ★ QUESTS 의 `d`·`goal`·`mode` 나 questNote 부르는 자리를 만지면 이 자부터 돌린다. */
   { name: "v129_quest",    args: [],                             secs: 180, tier: "fast", expect: /판정/ },
+  /* ★ 웨이포인트의 **이름** — 한 물건을 부르는 낱말이 화면 곳곳에서 갈리는지 본다.
+     이름을 손으로 안 적고 **town.js 의 이름표에서 뽑아** 견주므로, 이름표를 고치면
+     자가 저절로 따라간다. 문(`node tools/v130_wayname.mjs old`)으로 옛 낱말을 세우면
+     운다(「표」·「건너뛰기」 두 가지 · 보정 확인 완료).
+     ★ 마을 PLACES 의 이름표나 drawEnd·drawDive·마을 로그의 글월을 만지면 이 자부터. */
+  { name: "v130_wayname",  args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
