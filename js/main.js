@@ -2562,7 +2562,7 @@ function drawForge() {
   $("forgeTip").innerHTML =
     `<div class="tipName t2">${u.n} <span class="lv">+${lv}</span></div>
      <div class="tipKind">대장간</div>
-     <div class="tipStat tD">${u.d} <span class="lv">— 한 단계당</span></div>
+     <div class="tipStat tD">${upText(k)} <span class="lv">— 한 단계당</span></div>
      ${upFxHtml(k)}
      ${reRow}
      <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
@@ -2570,6 +2570,32 @@ function drawForge() {
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
+
+/** ══ 강화가 실제로 무엇을 얼마나 올리는가 ══ (V-132)
+ *  여태 강화 단추는 표에 **손으로 적어 둔 몫**(「+25」·「+8%」)을 그대로 보였다. 그런데 그
+ *  몫은 `bodyHp`·`dmgMulOf` **안쪽**의 값이라, 화면의 수가 그만큼 오르지 않는다 — 실측으로
+ *  체력은 25 가 아니라 **16**, 소환수 피해는 8% 가 아니라 **3.4%** 였다.
+ *  그래서 몫을 손으로 안 적고 **그 줄을 그리는 바로 그 함수**에서 뽑아 「지금 → 다음」으로
+ *  보인다([[threshold-and-ruler-must-match]]) — 레벨·장비·트리가 바뀌면 이 글도 따라온다.
+ *  ★ 상점의 장비가 이미 쓰는 결이다(`gearCmpHtml` 의 「지금↔다음」) — 새 꼴이 아니다
+ *    ([[carry-fixes-forward]]).
+ *  ★ 「다음」은 **META.up 을 한 급 올려 같은 함수를 부르고 곧바로 되돌려** 얻는다. 저장은
+ *    안 건드린다(`saveMeta` 를 안 부른다) — 값도 규칙도 한 톨 안 바뀐다. */
+const UP_ROW = {
+  hp:   () => num(hpMaxOf()),
+  mp:   () => num(mpMaxOf()),
+  dmg:  () => mul(minionDmgMul()),
+  army: () => String(armyCap()),
+};
+const upPreview = (k) => {
+  const f = UP_ROW[k]; if (!f) return "";
+  const now = f(), o = META.up[k] | 0;
+  META.up[k] = o + 1;
+  let next; try { next = f(); } finally { META.up[k] = o; }
+  return now === next ? now : `${now} → ${next}`;
+};
+/** 자를 위한 **문** — `__UPDOLD` 면 V-132 전의 손으로 적은 몫으로 되돌아간다. */
+const upText = (k) => globalThis.__UPDOLD ? UPS[k].dOld : `${UPS[k].d} ${upPreview(k)}`.trim();
 
 /** 자를 위한 **문** — `__SHOPUPOLD` 가 켜져 있으면 상인 창의 「다음」 줄이 V-122 **전**의
  *  **언제나 초록**(`tipStat up`)으로 되돌아가고 「못하다」 알림도 안 뜬다. 「초록인데 내려가는
@@ -2813,7 +2839,7 @@ const statNumbers = () => {
     return `<div class="tipStat"><span class="sN">${n}</span><b${눕힘}>${v}</b>` +
       (up
         ? `<button class="upBtn${can ? "" : " no"}" data-up="${up}"${can ? "" : " disabled"}
-             title="${UPS[up].n} 강화 — ${UPS[up].d} · ${c.toLocaleString()} 금">▲ ${num(c)}${옛값 ? "" : " 금"}</button>`
+             title="${UPS[up].n} 강화 — ${upText(up)} · ${c.toLocaleString()} 금">▲ ${num(c)}${옛값 ? "" : " 금"}</button>`
         : `<span class="upBtn none"></span>`) +
       `</div>`;
   }).join("")}</div>`;
