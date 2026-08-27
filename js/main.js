@@ -4,6 +4,8 @@ import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 /* V-124 — 대장간 툴팁의 「지금 / 한 단계 더」. 트리(V-123)와 **같은 함수·같은 꼴**이다. */
 import { upStats, treeShow } from "./core.js";
+/* V-125 — 운용 툴팁이 적는 「몇 구·몇 기」. 식은 core 한 곳뿐이고 auto() 도 같은 것을 부른다. */
+import { novaNeedOf, tacticStats } from "./core.js";
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, swingGain } from "./sprite8.js";
 import { drawOrb } from "./orb.js";
 import { watchPlate } from "./hudplate.js";
@@ -2251,8 +2253,11 @@ function auto() {
      꺼져 있으면 dc = {novaMul:1, keep:0} 이라 이 줄은 예전 식과 **한 톨도 안 다르다**.
      켜면 해골·구울 편성은 문턱이 높아지고 남길 몫(keep)이 생겨, 그 시체를 auto() **앞줄의
      소환**이 먼저 가져간다 — 값이 아니라 차례가 답을 만든다. */
-  const dc = docCorpseOf();
-  if (S.mobs.length && S.corpses - dc.keep >= CORPSE_MAX * tac.novaCorpse * dc.novaMul && (!tac.novaBossOnly || boss)) cast("nova");
+  /* ★ V-125 · 문턱을 **core 의 `novaNeedOf` 한 곳**에서 뽑는다 — 창(운용 툴팁)이 「몇 구에서
+     터지나」를 적으려면 같은 식을 봐야 하는데, 두 벌로 적으면 언젠가 갈린다
+     ([[threshold-and-ruler-must-match]]). `corpses - keep >= max×nc×mul` 과 **같은 판정**이다
+     (시체는 정수라 올림해도 갈림이 없다) — 즉 이 줄로 바뀌는 값은 한 톨도 없다. */
+  if (S.mobs.length && S.corpses >= novaNeedOf(tacticId(), CORPSE_MAX) && (!tac.novaBossOnly || boss)) cast("nova");
   if (!globalThis.__NOSINK && S.corpses >= CORPSE_MAX * 0.85 && S.mp < mpMaxOf() * 0.90) cast("burn");
   /* ㉤ **마른 마나에 문을 연다** (__BURN_MANA · 기본 0 = 꺼짐). 위 줄은 「시체가 넘칠 때」만
      연다 — 140 중 119구다. 그래서 마나가 벽인데 시체는 중간(46~72구)인 판에서는 이 출구가
@@ -2659,15 +2664,41 @@ function drawTactic() {
   }).join("") + (door ? '<div class="cell empty"></div>'.repeat(Math.max(0, 6 - TACTIC_IDS.length)) : "");
 
   const t = TACTIC[cur];
-  const nova = `시체 ${Math.round(t.novaCorpse * 100)}% 이상${t.novaBossOnly ? " · 보스 있을 때만" : ""}`;
-  const amp  = `${t.ampBossOnly ? "보스 있을 때 · " : ""}${t.ampCapped ? "군세가 상한일 때" : "상한을 안 기다림"}`;
+  /* ★ V-125 · 수는 전부 `core.tacticStats` 에서 나온다 — 이 파일에는 식이 한 줄도 없고,
+     auto() 도 같은 `novaNeedOf` 를 부른다(트리 V-123 · 대장간 V-124 와 같은 규칙).
+     `__TACFX_OLD` 는 고치기 **전** 결(「시체 20% 이상 · 저주 군세가 상한일 때」)을 그대로
+     다시 내는 문이다 — 없애지 않고 세워 둬야 자가 옛 결을 제대로 잰다
+     ([[silent-zero-is-not-an-observation]]). */
+  const st = tacticStats(cur, CORPSE_MAX), old = globalThis.__TACFX_OLD === 1;
+  /* **몇 %가 아니라 몇 구다.** 상한 140 은 화면 어디에도 없는 수라, 「20%」와 「85%」를
+     견주려면 사람이 볼 수 없는 값을 알아야 했다([[knob-that-does-nothing]] 의 이웃 —
+     손잡이는 도는데 눈금이 없던 자리). 상한도 같이 적어 둘을 이어 준다. */
+  const nova = old ? `시체 ${Math.round(t.novaCorpse * 100)}% 이상${t.novaBossOnly ? " · 보스 있을 때만" : ""}`
+    : `시체 <b>${st.novaNeed}구</b> 이상<span class="tacOf"> / ${st.corpseMax}</span>${st.novaBossOnly ? " · <b>관문에서만</b>" : ""}`;
+  /* 「군세가 상한일 때」도 세어 준다 — 상한은 트리·강화·정예 갈래가 다 곱해 놓은 수라
+     사람이 머리로 못 센다. 없으면 「몇 기부터 저주가 도나」를 알 길이 없다. */
+  const amp  = old ? `${t.ampBossOnly ? "보스 있을 때 · " : ""}${t.ampCapped ? "군세가 상한일 때" : "상한을 안 기다림"}`
+    : `${st.ampBossOnly ? "<b>관문에서만</b> · " : ""}${st.ampCapped ? `군세 <b>${st.ampCap}기</b>가 다 서면` : "<b>군세를 안 기다린다</b>"}`;
+  /* ★ **운용이 쥐는 저주는 «피해 증폭» 하나다.** V-4 가 약화·쇠약을 들이면서 그 둘의 「언제」를
+     몸 상태에 걸었는데(auto() — 몸 70%/50% 아래 또는 관문), 이 창은 여태 뭉뚱그려 「저주」라
+     적고 있었다. 그래서 「관문에서만」을 골라도 평지에서 약화가 도는 것이 **글월과 어긋났다**
+     ([[carry-fixes-forward]]). 찍은 사람에게만 한 줄로 덧붙인다 — 안 찍었으면 없는 얘기다. */
+  const selfCurse = SKILLS.filter((k) => k.id === "weaken" || k.id === "decrep").map((k) => k.n);
   $("tacNow").textContent = t.n;
   $("tacTip").innerHTML =
     `<div class="tipName t2">${t.n}</div>
      <div class="tipKind">운용 · 주술을 언제 쓰나</div>
-     <div class="tipStat">${t.d}</div>
-     <div class="tipStat up">폭발 <b>${nova}</b> · 저주 <b>${amp}</b></div>
-     <div class="tipNote sm">고르면 바로 바뀐다 — 되돌릴 수 있다(확인 창 없음)</div>`;
+     <div class="tipStat">${old ? (t.dOld || t.d) : t.d}</div>` +
+    (old
+      ? `<div class="tipStat up">폭발 <b>${nova}</b> · 저주 <b>${amp}</b></div>`
+      : `<div class="tFx tacFx">
+           <div class="tipStat up"><span class="sN">시체 폭발</span> <span>${nova}</span></div>
+           <div class="tipStat up"><span class="sN">피해 증폭</span> <span>${amp}</span></div>
+         </div>` +
+        (selfCurse.length
+          ? `<div class="tipNote lockNote">${selfCurse.join(" · ")}은 <b>운용이 쥐지 않는다</b> — 몸이 다치거나 관문일 때 저절로 걸린다</div>`
+          : "")) +
+    `<div class="tipNote sm">고르면 바로 바뀐다 — 되돌릴 수 있다(확인 창 없음)</div>`;
 }
 
 /* ══ 상태창 ══ 병수님: "왼쪽에 낀 것 셋, 오른쪽에 가방, 아래에 합쳐진 수치."

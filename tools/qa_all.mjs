@@ -259,6 +259,12 @@ const RULERS = [
      화면에서 움직이는 수가 없었다([[knob-that-does-nothing]] · [[carry-fixes-forward]]).
      `node tools/v124_forge.mjs old` 로 부르면 운다(0/24 · 보정 확인 완료). */
   { name: "v124_forge",    args: [],                             secs: 300, tier: "fast", expect: /판정/ },
+  /* V-125 — **운용 창이 「언제 도나」를 셀 수 있는 수로 말하는가.** 폭발 문턱을 %(상한 140 은
+     화면에 없는 수) 대신 구 수로, 저주 줄을 「저주」 대신 **피해 증폭**으로 적는지 센다. 문턱 식을
+     core 로 옮겼으므로 **옛 식과 판정이 갈리지 않는지도** 산수로 못 박는다
+     ([[threshold-and-ruler-must-match]]). `node tools/v125_tac.mjs old` 로 부르면 운다
+     (0/24 · 0/24 · 보정 확인 완료). */
+  { name: "v125_tac",      args: [],                             secs: 300, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */

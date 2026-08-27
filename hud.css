@@ -2091,3 +2091,21 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
   #winTree .tip .tipBuy{padding:4px 0 5px}
   #winTree .tip .tipBuy .btn{font-size:14px;padding:4px 12px}
 }
+
+/* ★ V-125 (2026-08-27) — **운용 툴팁의 두 줄**(「시체 폭발 / 피해 증폭」). 트리·대장간의
+   `.tFx` 와 **같은 판·같은 이름 폭**이라 세 창이 같은 결로 읽힌다([[carry-fixes-forward]]).
+   여기는 「지금 / 한 단계 더」가 아니라 **문턱 한 줄**이라 nowrap 을 안 건다 — 좁은 화면에서
+   「군세 8기가 다 서면」이 잘리는 대신 접히는 편이 낫다. */
+#winTactic .tacFx{margin-top:8px;padding-top:6px}
+#winTactic .tacFx .tipStat{display:flex;align-items:baseline;gap:6px;margin:1px 0;
+  font-size:12px;line-height:1.35;word-break:keep-all}
+#winTactic .tacFx .sN{flex:0 0 auto;min-width:62px;color:#8a7c60}
+#winTactic .tacFx .tacOf{color:#6b5f4e}
+/* 좁은 화면(1152×648)에서 새 줄 몫을 갚는다 — 트리·대장간과 같은 자리, 같은 방법
+   ([[floor-erases-the-ramp]]). 여기서 접는 것은 표의 **설명줄**이다(아래 두 줄이 그것을
+   수로 더 자세히 말한다). */
+@media (max-height: 700px){
+  #winTactic .tip .tipStat:has(+ .tacFx){display:none}
+  #winTactic .tacFx{margin-top:3px;padding-top:3px}
+  #winTactic .tacFx .tipStat{font-size:11px;line-height:1.2;margin:0}
+}

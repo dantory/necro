@@ -172,11 +172,22 @@ export const doctrineWants = (cap) => doctrineWantsOf(doctrineId(), cap);
        ampCapped    저주를 **군세가 상한일 때만**(false 면 상한을 안 기다린다)
        ampBossOnly  저주를 **보스가 있을 때만** */
 export const TACTIC_DEF = "steady";
+/* ★ V-125 · **글월에서도 「저주」를 뺐다.** 운용이 쥐는 저주는 «피해 증폭» 하나뿐인데(아래
+   툴팁 주석·main.js auto() 참조) 넷의 설명이 다 「저주」라 적혀 있어, 「관문에서만」을 고르면
+   약화·쇠약까지 관문에 묶이는 것처럼 읽혔다([[carry-fixes-forward]] — V-4 가 저주를 셋으로
+   늘리면서 이 표의 글월을 안 옮겼다). %(상한 140 은 화면 어디에도 없는 수)도 뺐다 — 그 수는
+   바로 아래 줄이 **구 수**로 말한다.
+   `dOld` 는 고치기 «전» 글월이다. 자가 옛 결을 나란히 찍을 때 **글월까지 그때 그대로**여야
+   그림이 「없던 자리」를 보여 주지 않는다([[silent-zero-is-not-an-observation]]). */
 export const TACTIC = {
-  steady: { n:"평시",       ico:"☯", d:"여태의 기본 — 시체가 차면 터뜨리고, 군세가 상한이면 저주한다",       novaCorpse:0.20, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
-  gate:   { n:"관문에서만", ico:"⚑", d:"평지에선 아꼈다 관문에서 몰아친다 — 폭발·저주를 보스가 있을 때만",  novaCorpse:0.20, novaBossOnly:true,  ampCapped:true,  ampBossOnly:true  },
-  hoard:  { n:"넘칠 때만",   ico:"⬢", d:"넘칠 때만 터뜨린다 — 폭발 문턱을 시체벽·제물과 같은 자리로(85%)",   novaCorpse:0.85, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
-  always: { n:"늘",         ico:"✷", d:"쉬지 않고 몰아친다 — 시체가 조금만 있어도 터뜨리고, 상한을 안 기다려 저주한다", novaCorpse:0.05, novaBossOnly:false, ampCapped:false, ampBossOnly:false },
+  steady: { n:"평시",       ico:"☯", d:"여태의 기본 — 시체가 차면 터뜨리고, 군세가 다 서면 증폭한다",
+            dOld:"여태의 기본 — 시체가 차면 터뜨리고, 군세가 상한이면 저주한다",       novaCorpse:0.20, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
+  gate:   { n:"관문에서만", ico:"⚑", d:"평지에선 아꼈다 관문에서 몰아친다 — 폭발과 증폭을 관문에서만",
+            dOld:"평지에선 아꼈다 관문에서 몰아친다 — 폭발·저주를 보스가 있을 때만",  novaCorpse:0.20, novaBossOnly:true,  ampCapped:true,  ampBossOnly:true  },
+  hoard:  { n:"넘칠 때만",   ico:"⬢", d:"넘칠 때만 터뜨린다 — 폭발 문턱을 시체벽·제물과 같은 자리로 올린다",
+            dOld:"넘칠 때만 터뜨린다 — 폭발 문턱을 시체벽·제물과 같은 자리로(85%)",   novaCorpse:0.85, novaBossOnly:false, ampCapped:true,  ampBossOnly:false },
+  always: { n:"늘",         ico:"✷", d:"쉬지 않고 몰아친다 — 시체가 조금만 있어도 터뜨리고, 군세를 안 기다리고 증폭한다",
+            dOld:"쉬지 않고 몰아친다 — 시체가 조금만 있어도 터뜨리고, 상한을 안 기다려 저주한다", novaCorpse:0.05, novaBossOnly:false, ampCapped:false, ampBossOnly:false },
 };
 export const TACTIC_IDS = Object.keys(TACTIC);
 /** 지금 세운 운용의 **id**. 머리 없는 자(검수기)를 위한 문 — `globalThis.__TACTIC` 이 있으면
@@ -188,6 +199,33 @@ export const tacticId = () => {
   return TACTIC[t] ? t : TACTIC_DEF;
 };
 export const tacticOf = () => TACTIC[tacticId()];
+
+/** ══ V-125 · 운용이 **몇 구·몇 기에서 도나** ══ auto() 가 보는 그 식이 여기 한 곳뿐이다.
+ *  창이 「이 운용을 고르면 언제 터지나」를 적으려면 **지금 세운 것이 아닌 운용도** 셈해야
+ *  하는데, 그 식을 화면 쪽에 베껴 두면 두 곳이 갈린다([[seam-not-values]] ·
+ *  `doctrineWantsOf` · `treeStats` · `upStats` 와 같은 결).
+ *  ★ 편성이 문턱을 흔드는 몫(`DOC_CORPSE` · novaMul·keep)까지 여기서 함께 센다 — 게이트가
+ *    꺼져 있으면 novaMul 1 · keep 0 이라 옛 식과 한 톨도 안 다르다.
+ *  ★ 시체는 낱개로만 늘어나므로 **올림**한다. `corpses - keep >= max×nc×mul` 과 정확히 같은
+ *    판정이다(정수 ≥ 실수 ⟺ 정수 ≥ 올림). auto() 도 이 함수를 부른다 — 자와 판이 같은 수를
+ *    봐야 한다([[threshold-and-ruler-must-match]]).
+ *  ★ `corpseMax` 를 받는 까닭 — 진짜 상한은 battle.js(`CORPSE_MAX`)에 있고 core 는 battle 을
+ *    못 부른다. 판(main.js)은 그 값을 넣어 부르고, 창은 여기 같은 값(`CORPSE_BANK_MAX` ·
+ *    갈리면 battle.js 가 콘솔에 운다)을 쓴다. */
+export const novaNeedOf = (id, corpseMax = CORPSE_BANK_MAX) => {
+  const t = TACTIC[id] || TACTIC[TACTIC_DEF], dc = docCorpseOf();
+  return Math.ceil(corpseMax * t.novaCorpse * dc.novaMul + dc.keep);
+};
+/** 운용 툴팁이 적을 것 — 「이 운용이 언제 무엇을 하나」를 **사람이 셀 수 있는 수**로.
+ *  ★ 저주 셋 중 운용이 쥐는 것은 **피해 증폭 하나**다(V-4 가 약화·쇠약을 들이면서 그 둘의
+ *    「언제」를 몸 상태에 걸었다 — auto() 참조). 창은 여태 그냥 「저주」라 적어, 「관문에서만」을
+ *    골라도 약화·쇠약이 평지에서 도는 것을 거짓말하고 있었다([[carry-fixes-forward]]). */
+export function tacticStats(id, corpseMax = CORPSE_BANK_MAX) {
+  const t = TACTIC[id] || TACTIC[TACTIC_DEF];
+  return { novaNeed: novaNeedOf(id, corpseMax), corpseMax,
+           novaBossOnly: !!t.novaBossOnly, ampCapped: !!t.ampCapped,
+           ampBossOnly: !!t.ampBossOnly, ampCap: armyCap() };
+}
 
 /** **적의 그림 높이.** 예전엔 `48 + (r-10)*2.6` 으로 충돌 반경에서 크기를 뽑아 썼다.
  *  그래서 반경을 그림에 맞추려 하면 그림이 따라 커지는 고리에 걸린다 — 갈라 둔다. */
