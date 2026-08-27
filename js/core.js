@@ -2697,4 +2697,78 @@ export const feedMul    = (u) => 1 + Math.min(FEED_MAX, u.fed | 0) * feedStep;
 export const unitH      = (e, dh = 44) => (e.h || dh) * feedMul(e) * (1 + 0.06 * (e.mg | 0));
 export const dominatePct = () => rank("dark") ? 0.30 : 0;
 
+/* ══════════════════════════════════════════════════════════════
+   ══ 트리 칸이 «지금» 무엇을 주고 있는가 ══ (V-123 · 2026-08-27)
+   ──────────────────────────────────────────────────────────────
+   트리 툴팁은 여태 `nd.d` **한 줄**뿐이었다 — 「소환수 피해 +10%」. 그 줄은 **한 점당**
+   이라, 8/8 을 찍은 사람도 **같은 「+10%」** 를 본다(지금 +80% 인데). 게다가 곱으로
+   깎이는 칸(`swift` 0.93^r · `cheap` 0.90^r)은 한 점당을 랭크로 **곱해 읽으면 틀린다**
+   — 7 단계 「-7%」는 -49% 가 아니라 **-40%** 다.
+
+   가방 툴팁(V-121)·상인 창(V-122)에서 이미 정한 못을 여기로 옮긴다
+   ([[carry-fixes-forward]]): **지금 값과 한 점 더 넣었을 때의 값을 나란히 적는다.**
+   ★ 식을 여기 다시 적지 않는다 — 랭크만 갈아 끼우고 **판이 쓰는 그 함수**를 그대로
+     부른다. 값을 베껴 두면 언젠가 갈라진다([[threshold-and-ruler-must-match]]).
+   ★ 어느 칸이 어느 수치를 건드리는지도 **손으로 안 적는다** — 랭크 0 과 견줘 **달라지는
+     것만** 고른다. 새 칸을 넣어도 저절로 따라온다([[knob-that-does-nothing]] — 손잡이를
+     만들고 아무도 안 읽는 일이 이 리포에서 이미 두 번 났다).
+   ══════════════════════════════════════════════════════════ */
+/** 판이 실제로 쓰는 수치들. `k` 는 적는 꼴이다(mul=배수 · int=수 · sec=초 · rate=%· flat=+수). */
+export const TREE_STATS = [
+  { n: "소환수 피해",      k: "mul",  f: () => minionDmgMul() },
+  { n: "소환수 체력",      k: "mul",  f: () => minionHpMul() },
+  /* ★ battle.js 가 본인 한 방에 곱하는 그대로다(2037줄) — 한 자리라도 빼면 화면과 판이 갈린다. */
+  { n: "본인 공격력",      k: "mul",  f: () => selfDmgMul() * (1 + gearVal("wand")) * wandMul() },
+  { n: "군세 상한",        k: "int",  f: () => armyCap() },
+  { n: "시체 폭발 피해",   k: "mul",  f: () => novaDmgMul() },
+  { n: "시체 폭발 범위",   k: "mul",  f: () => novaRadMul() },
+  { n: "스킬 마나 소모",   k: "mul",  f: () => mpCostMul() },
+  { n: "스킬 재사용",      k: "mul",  f: () => cdMul() },
+  { n: "저주 지속",        k: "sec",  f: () => ampSecs() },
+  { n: "저주 증폭",        k: "mul",  f: () => ampPower() },
+  /* 저주 이름은 안 붙인다 — 이름 칸이 길어지면 수가 세로줄을 잃는다. 어느 저주인지는
+     설명줄이 이미 말하고, 두 이름만으로도 안 헷갈린다(적이 «주는» 것 · 적의 «걸음»).
+     ★ `when` — **아직 안 연 저주의 몫은 적지 않는다.** 「깊은 저주」는 세 저주에 다 걸리는데
+       (weakenMul·decrepMul), 쇠약을 아직 못 연 사람에게 「적의 걸음 −2%」는 **지금 일어나지
+       않는 일**이다. 안 열린 것을 적으면 그 줄만큼 판단이 부풀려진다. */
+  { n: "적이 주는 피해",    k: "mul",  f: () => weakenMul(), when: () => rank("weaken") > 0 },
+  { n: "적의 걸음",        k: "mul",  f: () => decrepMul(), when: () => rank("decrep") > 0 },
+  { n: "시체 획득",        k: "rate", f: () => harvestPct() },
+  { n: "처치 시 마나",      k: "flat", f: () => spiritMp() },
+];
+/** 값을 **보여 주는 꼴** — 트리 쪽의 `gearShow`.
+ *  ★ **배수(mul)는 절대값으로 적지 않는다.** 소환수 피해에는 깊이(×7.3 · 34층)·레벨·장비가
+ *    다 곱해져 있어 「×63.44」가 되는데, 그 수는 **어느 칸을 골라도 똑같다** — 칸을 가리지
+ *    못하는 수는 툴팁에서 자리만 차지한다. 그래서 **이 칸의 몫**(랭크 0 대비)으로 적는다.
+ *    나머지(상한·초·%·수)는 그 자체가 사람이 세는 수라 절대값 그대로다. */
+export const treeShow = (k, v, base) =>
+  k === "mul"  ? (v >= base ? "+" : "−") + Math.round(Math.abs(v / base - 1) * 100) + "%"
+: k === "int"  ? String(v)
+: k === "sec"  ? v + "초"
+: k === "rate" ? Math.round(v * 100) + "%"
+:                (v > 0 ? "+" : "") + Math.round(v);
+/** 고른 칸이 건드리는 수치들 — `[{n,k,now,next}]`. `next` 는 한 점 더 넣었을 때(없으면 null).
+ *  ★ 랭크를 갈아 끼우는 동안 `META.tree` 를 **통째로 바꿨다가 반드시 되돌린다**(finally).
+ *    여기서 저장(`saveMeta`)이나 재계산(`syncSkills`)은 부르지 않는다 — 읽기만 한다. */
+export function treeStats(id) {
+  if (typeof globalThis !== "undefined" && globalThis.__TREEFX_OLD) return [];   // 문 — V-123 «전»
+  const nd = nodeOf(id); if (!nd) return [];
+  const had = META.tree, r = rank(id);
+  /* 갈래에서 닫힌 칸은 「한 점 더」가 거짓말이다 — 못 찍으니 그 수는 영영 안 온다. */
+  const canGrow = r < nd.max && !exclLockedBy(id);
+  const at = (v) => { META.tree = Object.assign({}, had, { [id]: v }); };
+  const out = [];
+  try {
+    for (const st of TREE_STATS) {
+      if (st.when && !st.when()) continue;           // 아직 안 열린 것은 적지 않는다
+      at(0);            const v0 = st.f();
+      at(r);            const vr = st.f();
+      at(Math.min(nd.max, r + 1)); const vn = st.f();
+      if (vr === v0 && vn === vr) continue;          // 이 칸이 안 건드리는 수치다
+      out.push({ n: st.n, k: st.k, base: v0, now: vr, next: canGrow && vn !== vr ? vn : null });
+    }
+  } finally { META.tree = had; }
+  return out;
+}
+
 syncSkills();

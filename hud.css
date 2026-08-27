@@ -2055,3 +2055,36 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
 .cell.pick.pv .cn{ color:#bdae90 }
 .cell.pick.pv.lock .cn{ color:#8d8371 }
 .cell.pick.pv.lock i{ filter:brightness(.62) saturate(.55) }
+
+/* ★ V-123 (2026-08-27) — **트리 툴팁의 「지금 / 한 점 더」.** 가방 툴팁의 견줌 줄과 같은
+   판(.tipCmp)을 쓰되, 줄이 셋까지 붙을 수 있어 한 줄을 촘촘히 눕힌다. 이름은 왼쪽에
+   고정 폭으로 세워 수가 세로로 줄을 맞춘다 — 안 그러면 셋이 들쭉날쭉해 못 읽는다. */
+#winTree .tFx{margin-top:8px;padding-top:6px}
+#winTree .tFx .tipStat{display:flex;align-items:baseline;gap:5px;margin:1px 0;
+  font-size:12px;line-height:1.35;white-space:nowrap}
+#winTree .tFx .sN{flex:0 0 auto;min-width:92px;color:#8a7c60}
+#winTree .tFx .tFxA{color:#6b5f4e}
+#winTree .tFx .tFxD{color:#8a7c60}
+
+/* ★★ 제일 낮은 화면(1152×648)에서 **「지금 / 한 점 더」가 칸을 밀어냈다**(V-123 · 2026-08-27).
+   잰 값: 툴팁 104 → 149px, 넘침 **27px**(「영혼 착취」가 잘린다). 칸(`--tS` 22px)도 칸 사이
+   (`--tV` 1px)도 이미 바닥이라 여기서는 더 못 깎는다 — 새 줄을 얹었으면 **그 값을 여기서
+   갚아야 한다**([[floor-erases-the-ramp]] · [[carry-fixes-forward]]).
+   갚는 자리는 **한 점당 설명줄**이다: 「소환수 피해 +10%」는 아래 「이 칸이 +80% → 한 점 더
+   +90%」가 더 자세히 말하는 것이라, 좁은 창에서 둘 중 하나를 접어야 하면 접을 것은 앞줄이다.
+   ★ `:has(+ .tFx)` — **수치 줄이 실제로 붙었을 때만** 접는다. 해금 칸(구울·골렘·저주 셋·
+     잔치·지배)은 설명줄이 유일한 말이라 그대로 남는다. */
+@media (max-height: 700px){
+  #winTree .tip .tipStat.tD:has(+ .tFx){display:none}
+  #winTree .tFx{margin-top:3px;padding-top:3px}
+  #winTree .tFx .tipStat{font-size:11px;line-height:1.2;margin:0}
+  /* ★ 그래도 14px 이 남았다(잰 값). 툴팁에서 제일 두꺼운 것은 글이 아니라 **단추 줄**이다
+     (53px — 밑에 깔린 그늘 여백 9+11 과 단추 안쪽 7+7). 읽을 것을 더 깎는 대신 **여백을**
+     깎는다 — 글자와 칸은 여기서도 안 줄인다(위 900/820 층이 세워 둔 결). */
+  /* ★ 한 칸이 네 수치를 건드리면(깊은 저주·어둠의 장막) 넉 줄이라 여기서도 21px 이 넘쳤다.
+     좁은 것은 **높이지 폭이 아니다** — 툴팁은 창 폭을 다 쓰므로 두 칸으로 눕히면 넉 줄이
+     두 줄이 된다(넘침 0). 넉넉한 화면은 한 줄에 하나씩 그대로다. */
+  #winTree .tFx{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
+  #winTree .tip .tipBuy{padding:4px 0 5px}
+  #winTree .tip .tipBuy .btn{font-size:14px;padding:4px 12px}
+}

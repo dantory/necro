@@ -11,7 +11,7 @@
    그래서 목록이 아니라 **판**으로 그린다. 상인·대장간과 같은 결(칸 + 툴팁)이되,
    칸이 격자가 아니라 **줄기**로 서 있는 것만 다르다.
    ══════════════════════════════════════════════════════════ */
-import { $, exclLockedBy, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, spUsed, syncSkills, take, takeWhy } from "./core.js";
+import { $, exclLockedBy, META, TREE, nodeOf, rank, saveMeta, spLeft, spTotal, spUsed, syncSkills, take, takeWhy, treeShow, treeStats } from "./core.js";
 
 let pick = "bone";                 // 고른 칸
 
@@ -24,6 +24,29 @@ const treeSpOld = () => typeof globalThis !== "undefined" && globalThis.__TREESP
    칸이 빈칸이어도 통과가 났다는 뜻이다(2026-08-13). 자는 사람이 지나는 길로 가야 한다. */
 window.__TREE_IDS = Object.fromEntries(TREE.flatMap((c) => c.nodes.map((n) => [n.id, n.max])));
 
+
+/** ★★ **「지금 얼마인가」를 적는다**(V-123 · 2026-08-27).
+ *  여태 이 창의 유일한 수는 `nd.d` 의 **한 점당** 하나였다 — 8/8 을 찍은 사람도
+ *  「소환수 피해 +10%」를 읽는다(지금 +80% 인데). 그리고 곱으로 깎이는 칸은 한 점당을
+ *  랭크로 곱해 읽으면 **틀린다**(`swift` 7 단계는 -49% 가 아니라 -40%).
+ *  가방 툴팁(V-121)·상인 창(V-122)이 이미 「지금 / 다음」을 나란히 적으므로 같은 못을
+ *  여기로 옮긴다([[carry-fixes-forward]]). 수는 **판이 쓰는 함수**(core.treeStats)에서
+ *  그대로 나온다 — 이 파일에는 식이 한 줄도 없다. */
+const fxHtml = (id) => {
+  const rows = treeStats(id);
+  if (!rows.length) return "";                     // 수치를 안 건드리는 칸(해금 칸 등)은 조용히
+  /* 배수는 **이 칸의 몫**이라 「이 칸이 +80%」로, 나머지는 판 전체의 수라 「지금 6」으로
+     적는다 — 두 말을 섞으면 「+80%」가 총량인지 몫인지 안 갈린다. */
+  return `<div class="tipCmp tFx">` + rows.map((r) => {
+    /* ★ 아직 한 점도 안 넣은 칸의 「이 칸이 **+0%**」는 뜻이 없다 — 그런 0 이 이 게임에서
+       가장 밝은 글자가 되곤 했다(V-102·V-112). 그 줄은 **한 점 더**만 적는다. */
+    const born = r.k !== "mul" || r.now !== r.base;
+    const now = born ? `${r.k === "mul" ? "이 칸이" : "지금"} <b>${treeShow(r.k, r.now, r.base)}</b>` : "";
+    const nxt = r.next == null ? ""
+      : `${born ? ` <span class="tFxA">→ 한 점 더</span>` : `<span class="tFxA">한 점 더</span>`} <b>${treeShow(r.k, r.next, r.base)}</b>`;
+    return `<div class="tipStat"><span class="sN">${r.n}</span> ${now}${nxt}</div>`;
+  }).join("") + `</div>`;
+};
 
 /** 판을 다시 그린다. **상태에서 통째로 뽑는다** — 부분 갱신은 어긋날 자리를 만든다. */
 export function drawTree() {
@@ -89,7 +112,7 @@ export function drawTree() {
     `<div class="tipName ${maxed ? "t4" : r ? "t2" : "t0"}">${nd.n}
        <span class="lv">${r}/${nd.max}</span></div>
      <div class="tipKind">요구 레벨 ${nd.lv}${nd.req ? ` · 선행 ${nodeOf(nd.req).n}` : ""}</div>
-     <div class="tipStat">${nd.d}</div>${forkNote}` +
+     <div class="tipStat tD">${nd.d}</div>${fxHtml(pick)}${forkNote}` +
     (maxed
       ? `<div class="tipNote">최대 단계 · 더 올릴 수 없음</div>`
       : `<div class="tipBuy"><span class="cost${why ? " no" : ""}">${whyTxt || "점수 1 소모"}</span>
