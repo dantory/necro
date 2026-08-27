@@ -265,6 +265,12 @@ const RULERS = [
      ([[threshold-and-ruler-must-match]]). `node tools/v125_tac.mjs old` 로 부르면 운다
      (0/24 · 0/24 · 보정 확인 완료). */
   { name: "v125_tac",      args: [],                             secs: 300, tier: "fast", expect: /판정/ },
+  /* V-126 — **날값이 화면에 서지 않는가**를 창 여덟에서 한꺼번에 지킨다. V-121 은
+     `gearShow` 한 자리를 고쳤는데, 반올림을 안 옮긴 가지가 또 생기면 여기서 운다
+     ([[carry-fixes-forward]]). 「0」이 관찰이 되도록 **두 겹으로 보정**한다 —
+     심은 날값을 못 잡으면 스스로 지고, `node tools/v126_scan.mjs old` 는 V-121 의
+     문(`__NUMOLD`)으로 옛 결을 다시 세워 2 를 낸다([[silent-zero-is-not-an-observation]]). */
+  { name: "v126_scan",     args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
