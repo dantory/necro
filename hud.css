@@ -408,8 +408,21 @@ body.in-town #belt{ opacity:.45; pointer-events:none; transition:opacity .25s }
    지우면 「단계가 있다」는 것 자체를 모른다. */
 .cell .q.off{color:#8a7c60;text-shadow:0 1px 0 #000}
 /* 재련 단계 — 등급 숫자(오른쪽 아래)·옵션 점(왼쪽 아래)과 안 겹치게 왼쪽 위 */
+/* ★ V-118 — **딱지에 «받침»을 준다.** 여기 그늘은 `0 1px 0 #000` 한 겹뿐이라 밑에
+   깔린 그림이 밝으면 금색 글자가 통째로 먹혔다 — 해골 투구 위에서 **1.53:1**(문턱 3.0).
+   ★ 먼저 `.q` 와 같은 번짐 그늘(`0 0 3px #000c`)을 줘 봤는데 **1.82:1 로 끝났다.**
+     번짐은 아주 밝은 그림 위에서 얇게 퍼질 뿐이라 문턱을 못 넘는다 — 값으로 못 맞추는
+     이음매다([[seam-not-values]]). 그래서 글자 뒤에 **제 바닥을 깔아** 무슨 그림 위에
+     앉든 같은 바탕을 보게 한다(ARPG 딱지가 다 그렇게 한다).
+   ★ 자리·색·글꼴은 그대로다 — 느는 것은 **글자 뒤 받침**뿐이라, 이미 어두운 그림 위
+     (지팡이·반지 7~8:1)에서는 눈에 띄는 변화가 없다.
+   ★ `.cell` 이 쥔 모든 칸(장비 인형 · 가방 · 좌판 · 대장간)에 한꺼번에 든다 — 한 곳만
+     고치면 다음에 밝은 그림이 오는 칸에서 같은 흠이 되살아난다([[carry-fixes-forward]]). */
 .cell .plusBadge{position:absolute;left:2px;top:1px;font-size:11px;line-height:1;
-  color:var(--gold);text-shadow:0 1px 0 #000}
+  color:var(--gold);text-shadow:0 1px 0 #000;
+  padding:1px 2px;border-radius:2px;background:#0a0705d9;box-shadow:0 0 0 1px #00000080}
+/* 옛 결로 되돌리는 문 — 자가 **같은 판을 두 번** 재도록(`body.qold` 와 같은 결) */
+body.plusold .cell .plusBadge{padding:0;background:none;box-shadow:none;border-radius:0}
 .tipName .plus{color:var(--gold)}
 .cell .lvl{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   font-size:18px;color:var(--gold);font-weight:400}
