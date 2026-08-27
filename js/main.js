@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearNum, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_DEF, DOCTRINE_IDS, doctrineId, doctrineWants, doctrineWantsOf, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -2397,6 +2397,21 @@ function drawShop() {
   const it = equipped(k), t = gearTier(k), nx = gearNext(k), max = g.tiers.length - 1;
   const fmt = (v) => gearShow(k, v);
   const cost = nx === null ? 0 : g.cost[nx], can = META.gold >= cost;
+  /* ★★ **「다음」 줄의 빛깔을 «방향»으로 정한다**(V-122 · 2026-08-27). 여태는 늘
+     `tipStat up` — **언제나 초록**이었다. 그런데 낀 것에는 깊이 곱(`ilMul`)이 붙고
+     상인이 파는 것에는 안 붙으므로, 깊이 들어간 사람에게는 **다음 등급이 더 나쁘다.**
+     34층(×1.65)에서 다섯 줄, 50층(×1.96)에서 열네 줄이 그렇다 — 예컨대 반지는
+     「금 획득 +53%」 아래에 「+50%」를 **초록으로** 적어 두고 3,200 금을 부른다.
+     사면 낀 것이 가방으로 빠지므로 **돈을 내고 약해진다.** 가방 창의 견줌 줄은
+     이미 오르면 `up` · 내리면 `down` 으로 가르는데(V-121) **그 규칙이 이 창에만
+     안 왔다**([[carry-fixes-forward]]).
+     · 셈은 **화면에 적히는 수**(gearNum)로 한다 — 날값으로 세면 눈에 같아 보이는 두
+       줄이 「올랐다」가 된다([[threshold-and-ruler-must-match]]).
+     · **값도 규칙도 안 건드린다** — 단추는 그대로 살아 있고(사고 싶으면 산다) 여기서
+       느는 것은 **적는 것**뿐이다. D 계열 잠금 밖이다.
+     · 문은 `__SHOPUPOLD` — 늘 초록이던 옛 결을 그 자리서 되세운다. */
+  const dir = (nx === null) ? 0 : __SHOPUPOLD() ? 1
+    : Math.sign(gearNum(k, g.val[nx]) - gearNum(k, g.val[t] * ilMul(it?.il)));
   /* ★ **빈 칸에는 등급을 붙이지 않는다** (V-102). 처음 켠 사람은 열 칸이 전부 비어 있는데
      첫 줄이 흰색(`--t0`) 「없음」 + 등급표 「일반」이었다 — D2 에서 그 빛깔과 그 낱말은
      **가진 물건**의 표시라, 아무것도 없는 칸이 「일반 등급 물건을 낀 칸」으로 읽혔다.
@@ -2420,8 +2435,12 @@ function drawShop() {
     (nx === null
       ? `<div class="tipNote">최고 등급 · 더 살 것 없음</div>`
       : `<div class="tipNext ${TIER_CLS[nx]}">다음 · ${g.tiers[nx]}</div>
-         <div class="tipStat up">${g.d} <b>${fmt(g.val[nx])}</b></div>
-         <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
+         <div class="tipStat ${dir > 0 ? "up" : dir < 0 ? "down" : ""}">${g.d} <b>${fmt(g.val[nx])}</b></div>` +
+        (dir > 0 || __SHOPUPOLD() ? "" :
+          `<div class="tipNote sm">${dir < 0 ? "지금 낀 것보다 <b>못하다</b>" : "지금 낀 것과 <b>같다</b>"}` +
+          (it?.il > 0 ? ` — ${it.il}층에서 주운 것이라 깊이 <b>×${ilMul(it.il).toFixed(2)}</b>가 붙어 있다` : "") +
+          ` · 상인 것엔 깊이가 안 붙는다</div>`) +
+        `<div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
            <button class="btn" data-buy="${k}" ${can ? "" : "disabled"}>사기</button></div>`);
 }
 
@@ -2484,6 +2503,11 @@ function drawForge() {
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
 }
 
+/** 자를 위한 **문** — `__SHOPUPOLD` 가 켜져 있으면 상인 창의 「다음」 줄이 V-122 **전**의
+ *  **언제나 초록**(`tipStat up`)으로 되돌아가고 「못하다」 알림도 안 뜬다. 「초록인데 내려가는
+ *  줄이 몇이냐」를 고치기 전 값과 나란히 재려면 옛 꼴을 그 자리서 다시 세울 수 있어야 한다
+ *  ([[silent-zero-is-not-an-observation]] · V-120 의 `__WAYOLD` 와 같은 결). */
+const __SHOPUPOLD = () => typeof globalThis !== "undefined" && globalThis.__SHOPUPOLD === 1;
 /** 자를 위한 **문** — `body.noPickName` 이 붙어 있으면 칸이 이름을 안 대고 빈 칸을 채우던
  *  옛 모습으로 그린다(V-28 전). 고치기 전과 후를 **같은 자**로 재려면 이것이 있어야 한다
  *  — 상인 창의 `body.noSticky`(V-27)와 같은 결이다. 사람이 켜는 길에는 안 붙는다. */

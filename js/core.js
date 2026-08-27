@@ -1544,6 +1544,15 @@ export const gearShow = (k, v) => {
   return u === "pct" ? `+${Math.round(v * 100)}%` : u === "rate" ? `+${v.toFixed(1)}/초`
        : `+${globalThis.__NUMOLD ? v : Math.round(v)}`;
 };
+/** 화면에 **적히는 수** 그대로를 «수»로 돌려준다 — `gearShow` 가 찍는 글자와 짝이다.
+ *  두 줄을 견줄 때 날값으로 세면 「53% 와 50% 인데 «올랐다»」 같은 어긋남이 남는다
+ *  (V-121 에서 견줌 줄이 배운 것 · 이제 상인 창도 같은 자를 쓴다
+ *  [[threshold-and-ruler-must-match]]). 문은 `__NUMOLD`. */
+export const gearNum = (k, v) => {
+  const u = GEAR[k].u;
+  if (globalThis.__NUMOLD) return v;
+  return u === "pct" ? Math.round(v * 100) / 100 : u === "rate" ? +v.toFixed(1) : Math.round(v);
+};
 /** 견줌용 — 부호를 앞에(오르면 + · 내리면 −) 두고 절댓값을 같은 단위로. */
 export const gearDelta = (k, d) => {
   const s = d > 0 ? "+" : "−", a = Math.abs(d), u = GEAR[k].u;

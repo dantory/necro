@@ -246,6 +246,10 @@ const RULERS = [
   /* V-121 — 물건 툴팁의 수(소수 자릿수 · 「견줌」이 두 대표 줄과 맞는가 · 여섯 슬롯).
      `node tools/v121_num.mjs old` 로 부르면 운다(소수 2 · 어긋남 6 · 보정 확인 완료). */
   { name: "v121_num",      args: [],                             secs: 180, tier: "fast", expect: /통과|미달/ },
+  /* V-122 — 상인 창의 「다음」 줄이 **초록인데 내려가는가**. 깊이가 깊어질수록 늘어나므로
+     (34층 5 · 50층 8) 새 슬롯이나 새 등급을 넣으면 여기서 먼저 운다.
+     `node tools/v122_shop.mjs old` 로 부르면 운다(13/30 · 보정 확인 완료). */
+  { name: "v122_shop",     args: [],                             secs: 240, tier: "fast", expect: /판정/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
