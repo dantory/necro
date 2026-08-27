@@ -1,7 +1,9 @@
 /* V-131 견줌 — **같은 사람 · 같은 순간**에 문(`__TIPOLD`)만 여닫아 벨트 칸의 툴팁을 나란히 찍는다.
    ★ 브라우저의 **제 툴팁은 화면에 안 찍힌다**(OS 가 그린다). 그래서 칸의 `title` 을
      **그대로 읽어** 칸 위에 같은 글로 얹어 찍는다 — 글자는 손으로 안 적고 DOM 에서 뽑는다.
-   위 = 고치기 전 · 아래 = 지금.  → tmp/v131_cmp.png */
+   위 = 고치기 전 · 아래 = 지금.  → tmp/v131_cmp.png
+   ★ 칸을 골라 찍는다: `node tools/v131_cmp.mjs [스킬id] [이름]` (기본 nova/v131).
+     V-131c 는 저주 칸을 본다 — `node tools/v131_cmp.mjs amp v131c`. */
 import fs from "node:fs";
 const CDP = "http://127.0.0.1:9333", URL = "http://127.0.0.1:8774/index.html";
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -11,10 +13,14 @@ const raw = (m, p = {}, s) => { const i = ++id; bws.send(JSON.stringify({ id: i,
 bws.addEventListener("message", e => { const m = JSON.parse(e.data); if (m.id && pend.has(m.id)) { const p = pend.get(m.id); pend.delete(m.id); return m.error ? p.rej(new Error(JSON.stringify(m.error))) : p.res(m.result); } });
 await new Promise(r => bws.addEventListener("open", r));
 const wait = ms => new Promise(r => setTimeout(r, ms));
+const SK = process.argv[2] || "nova", TAG = process.argv[3] || "v131";
 
 const SEED = `(()=>{const C=globalThis.__C,M=C.META;
   M.lv=30;M.gold=182400;M.deepest=20;M.best=20;M.corpses=140;M.runs=30;
-  M.tree={bone:8,armor:8,ghoul:1,golem:1,rot:8,harvest:8,cheap:6,chain:5,pyre:6,wand:8,swift:4};
+  /* 저주 셋을 열고 「깊은 저주」를 3급 찍는다 — 지속이 바닥값 8 이 아니라 17 이어야
+     칸이 트리를 따라오는지가 그림에서 보인다(V-131c). 다른 칸의 글월은 안 바뀐다. */
+  M.tree={bone:8,armor:8,ghoul:1,golem:1,rot:8,harvest:8,cheap:6,chain:5,pyre:6,wand:8,swift:4,
+          weaken:1,decrep:1,deep:3};
   C.saveMeta();return 1})()`;
 
 async function shoot(old, out) {
@@ -35,7 +41,7 @@ async function shoot(old, out) {
   await ev(`window.__toDungeon()`); await wait(7000);
   /* 칸의 title 을 **그대로** 읽어 그 칸 위에 얹는다(브라우저 툴팁과 같은 자리·같은 글). */
   await ev(`(()=>{
-    const el=document.querySelector('#belt [data-sk="nova"]'); const r=el.getBoundingClientRect();
+    const el=document.querySelector('#belt [data-sk="${SK}"]'); const r=el.getBoundingClientRect();
     const d=document.createElement('div'); d.id='__tipShot';
     d.textContent = el.title.replace(/&#10;/g,'\\n');
     d.style.cssText='position:fixed;left:'+Math.round(r.left-40)+'px;top:'+Math.round(r.top-78)+'px;'
@@ -56,6 +62,6 @@ async function shoot(old, out) {
   console.log("  찍음 " + out);
   await raw("Target.closeTarget", { targetId });
 }
-await shoot(true,  "tmp/v131_old.png");
-await shoot(false, "tmp/v131_new.png");
+await shoot(true,  `tmp/${TAG}_old.png`);
+await shoot(false, `tmp/${TAG}_new.png`);
 bws.close(); process.exit(0);

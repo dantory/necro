@@ -1105,6 +1105,13 @@ export function corpseNeedOf(sk, over) {
 export const gulpOf = (sk) => sk.id === "nova"
   ? { n: novaGulp(), upto: true }
   : { n: corpseNeedOf(sk, false), upto: false };
+/** **이 저주가 버티는 초** — 거는 자리(아래 `cast` 의 amp·weaken·decrep)와 **같은 식**을
+ *  본다. 셋 다 `ampSecs()` 하나로 살고, 「깊은 저주」가 급마다 +3초를 얹는다.
+ *  여태 칸의 글월은 「일정 시간」이라 적었다 — 거짓말은 아니지만 점수를 찍어도 **늘어난
+ *  초가 화면 어디에도 안 떴다**([[knob-that-does-nothing]]). 저주가 아닌 칸은 0.
+ *  ★ 손으로 8 을 적지 않는다 — 그러면 트리를 찍는 순간 칸만 옛말을 한다
+ *    ([[threshold-and-ruler-must-match]]). */
+export const durOf = (sk) => (sk.id === "amp" || sk.id === "weaken" || sk.id === "decrep") ? ampSecs() : 0;
 /** 이번 폭발이 먹을 시체 수. */
 function novaGulp() {
   /* ★ 못 크기와 끊은 한 입(위 NOVA_GULP_FLAT). 있는 만큼만 문다 — 모자라면 남은 것을
