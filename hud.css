@@ -1617,6 +1617,10 @@ html.inkOld .wScroll::after{ background:linear-gradient(to top,#050403 55%,#0504
 /* 지금 고른 층이 선 구역 — 고른 칩과 **같은 약속의 색**이다(위 .diveOpt.on). */
 .wayZ.on { border-color: #6b5626; background: #1e1a11; }
 .wayZ.lock { opacity: .48; }
+/* ══ V-120 ══ **걸어는 본 구역은 «모르는 곳»이 아니다** — 표만 아직 안 섰다.
+   .48 로 통째로 죽여 두면 「왜 아직 안 서는가」를 적은 그 줄이 같이 안 읽힌다
+   (V-91 에서 글자 밝기를 다투던 그 자리다). 안 가 본 구역은 그대로 .48. */
+.wayZ.lock.been { opacity: .72; }
 .wayHead { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .wayN { font-size: 15px; }
 .wayF { font-size: 12px; color: #8b8271; }

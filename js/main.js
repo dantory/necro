@@ -3299,9 +3299,24 @@ function drawDive() {
     const tint = z.tint || "#c8aa6e";
     const head = `<div class="wayHead"><span class="wayN" style="color:${tint}">${z.n}</span>`
                + `<span class="wayF">${span}</span></div>`;
+    /* ══ V-120 ══ **자기가 지금 걷고 있는 구역이 「아직 못 온 곳」처럼 적혀 있었다.**
+       표는 가장 깊이보다 `DIVE_BACK`(10)층 뒤에 서므로, 26~39층 구역은 **40층까지**
+       내려가야 열린다 — 그런데 그 구역에 서 있는 34층 사람에게도 같은 줄이 나갔다:
+       「26~39층 · 40층까지 내려가면 열린다」. 내가 지금 싸우는 자리를 두고 「내려가면」
+       이라 하니, 사람이 아는 사실과 판이 적은 사실이 어긋난다(V-119 와 같은 결).
+       ★ 잠깐 스치는 자리가 아니다 — **구역에 발을 들인 순간부터 열릴 때까지 내내**
+       이 줄이다(어둠의 성소는 26~39층 열넷 전부, 잿빛 야영터는 16~29층 열넷).
+       ★ 값도 규칙도 안 건드린다 — 여는 문턱(`zoneNeed`)은 한 톨도 그대로고, 여기서
+       느는 것은 **적는 것**뿐이다. 이미 걸어 본 구역에는 「왜 아직 안 서는가」를 적는다
+       — 그 «왜»(가장 깊이보다 열 층 뒤)는 이 판 어디에도 없던 말이다.
+       문은 `__WAYOLD` — 자가 옛 줄을 그대로 다시 내게 한다. */
     if (z.from > max) {                                 // 아직 안 열린 구역 — 회색으로 남겨 둔다
-      return `<div class="wayZ lock">${head}`
-           + `<div class="wayLock"><b>${zoneNeed(z)}층</b>까지 내려가면 열린다</div></div>`;
+      const been = (META.deepest | 0) >= z.from;        // 걸어는 봤는데 표가 안 선 구역
+      const say = (!globalThis.__WAYOLD && been)
+        ? `걸어는 봤다 — 표는 <b>가장 깊이보다 ${DIVE_BACK}층 뒤</b>에 선다(<b>${zoneNeed(z)}층</b>부터)`
+        : `<b>${zoneNeed(z)}층</b>까지 내려가면 열린다`;
+      return `<div class="wayZ lock${(!globalThis.__WAYOLD && been) ? " been" : ""}">${head}`
+           + `<div class="wayLock">${say}</div></div>`;
     }
     const who = [...new Set(z.kinds)].map((k) => MOB_N[k] || k).join(" · ");
     const drop = Object.entries(z.bias || {}).filter(([, v]) => v > 1)
