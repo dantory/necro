@@ -1097,6 +1097,14 @@ export function corpseNeedOf(sk, over) {
   const base = sk.corpse + (step > 0 && isRaise(sk.id) ? Math.floor(armyN() / step) : 0);
   return base * (over ? 3 : 1);                        // ㉡ 초과 세우기는 세 곱
 }
+/** **이 스킬이 한 번에 «물려는» 시체 수** — 판이 무는 값과 벨트 칸이 «적는» 값을 한
+ *  자리에서 낸다. 여태 칸은 표의 `sk.corpse`(폭발 1)를 적고 판은 `novaGulp()`(16)를
+ *  물어서, **가장 많이 쓰는 스킬 하나가 열여섯 배를 거짓말**하고 있었다.
+ *  자와 화면이 같은 식을 봐야 한다([[threshold-and-ruler-must-match]]).
+ *  `upto` — 있는 만큼만 무는 것(폭발). 못이 얕으면 그보다 적게 먹는다. */
+export const gulpOf = (sk) => sk.id === "nova"
+  ? { n: novaGulp(), upto: true }
+  : { n: corpseNeedOf(sk, false), upto: false };
 /** 이번 폭발이 먹을 시체 수. */
 function novaGulp() {
   /* ★ 못 크기와 끊은 한 입(위 NOVA_GULP_FLAT). 있는 만큼만 문다 — 모자라면 남은 것을

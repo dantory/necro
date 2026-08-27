@@ -1,6 +1,6 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearNum, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearNum, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, cdMul, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_DEF, DOCTRINE_IDS, doctrineId, doctrineWants, doctrineWantsOf, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
-import { KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
+import { gulpOf, KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
 /* V-124 — 대장간 툴팁의 「지금 / 한 단계 더」. 트리(V-123)와 **같은 함수·같은 꼴**이다. */
 import { upStats, treeShow } from "./core.js";
@@ -1818,6 +1818,31 @@ const BELT_SLOTS = 6;
 /* 벨트 칸을 찾아 둔 자리 — belt() 가 채우고 beltState() 가 매 프레임 읽는다. */
 let beltEls = [];
 
+/** **칸에 손을 얹으면 뜨는 글** — 이 판에서 스킬 값을 말하는 **유일한 자리**다(V-131).
+ *  여태 `${s.n} — ${s.d}` 뿐이라 셋이 틀렸다:
+ *  ㉠ 표의 글월을 그대로 적어 **「시체 1 → 주위 광역 피해」**라 했는데 폭발은 16구를 문다.
+ *  ㉡ 글월 안의 `<b>` 가 **날것으로 떴다** — title 은 평문이라 태그가 글자로 보인다
+ *     (「일정 시간 적이 <b>받는</b> 피해 증가」).
+ *  ㉢ **마나·재사용이 아예 없었다** — 칸이 죽어도(`beltState`) 왜인지 알 길이 없다.
+ *  ★ 값은 **판이 쓰는 그 함수에서** 뽑는다(`mpCost` · `cdMul` · `gulpOf`) — 손으로 적으면
+ *    트리(값싼 죽음 −10%/급 · 신속)를 찍는 순간 칸만 옛말을 한다
+ *    ([[threshold-and-ruler-must-match]]). 띠는 `treeChanged` 마다 다시 그려진다.
+ *  ★ 여기서 느는 것은 **적는 것뿐**이다 — 마나도 재사용도 시체도 한 톨 안 건드렸다. */
+const skTip = (s) => {
+  /* 문 — 고치기 «전» 글월을 그대로 세운다(`node tools/v131_skilltip.mjs old`).
+     안 울면 자가 스스로 진다([[silent-zero-is-not-an-observation]]). */
+  if (globalThis.__TIPOLD) return `${s.n} — ${s.dOld || s.d}`;
+  const g = gulpOf(s);
+  const cd = s.cd * cdMul();
+  const cost = [
+    s.mp ? `마나 ${mpCost(s)}` : "",
+    `재사용 ${cd < 10 ? (Math.round(cd * 10) / 10) : Math.round(cd)}초`,
+    g.n ? `시체 ${g.upto ? "최대 " : ""}${g.n}구` : "",
+  ].filter(Boolean).join(" · ");
+  /* 태그는 **떼고** 적는다(㉡). `<b>` 는 글월을 쓴 사람이 창(트리)을 보고 넣은 것이라
+     지우지 않고, 평문으로 흘러가는 이 길에서만 벗긴다 — 진실은 여전히 한 자리다. */
+  return `${s.n} — ${s.d.replace(/<[^>]*>/g, "")}&#10;${cost}`;
+};
 function belt() {
   const empty = Array.from({ length: Math.max(0, BELT_SLOTS - SKILLS.length) }, (_, j) =>
     `<div class="slot empty"><canvas class="fr"></canvas><span class="k">${SKILLS.length + j + 1}</span></div>`).join("");
@@ -1827,7 +1852,7 @@ function belt() {
        별로"). 아직 안 구워진 것은 background 가 안 뜰 뿐이라 칸이 깨지지 않는다. */
     /* ★ 칸의 **테두리도 캔버스가 그린다**(js/frame.js). `border:1px solid` 는 언제나
        정확히 1px 이라 픽셀아트 옆에서 매끈하게 튄다. */
-    `<div class="slot" data-sk="${s.id}" title="${s.n} — ${s.d}"><canvas class="fr"></canvas><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
+    `<div class="slot" data-sk="${s.id}" title="${skTip(s)}"><canvas class="fr"></canvas><i style="background-image:url(assets/ui/icon/${s.id}.png)"></i><span class="k">${i + 1}</span>
       <div class="cd" data-cd="${s.id}" style="height:0"></div></div>`).join("") + empty;
   /* ★ 칸을 **한 번만 찾아 둔다**(아래 beltState 의 ★ 참고). 띠를 다시 그리면
      옛 노드는 버려지므로 여기서 같이 갈아 끼운다. */

@@ -295,6 +295,13 @@ const RULERS = [
      운다(「표」·「건너뛰기」 두 가지 · 보정 확인 완료).
      ★ 마을 PLACES 의 이름표나 drawEnd·drawDive·마을 로그의 글월을 만지면 이 자부터. */
   { name: "v130_wayname",  args: [],                             secs: 240, tier: "fast", expect: /판정/ },
+  /* ★ 벨트 칸의 툴팁 — 스킬 값을 말하는 **유일한 자리**다. 적힌 시체 수를 손으로 안 적고
+     **실제로 `cast()` 를 불러** 줄어든 구수와 견주므로(무는 식을 고치면 자가 따라온다),
+     새 스킬이 생겨도 그 칸까지 같이 지킨다([[probe-must-walk-the-real-path]]).
+     문(`node tools/v131_skilltip.mjs old`)으로 옛 글월을 세우면 운다
+     (폭발 1↔16 · 태그 날것 1 · 값 없음 8 · 보정 확인 완료).
+     ★ ALL_SKILLS 의 `mp`·`cd`·`corpse`·`d` 나 novaGulp·mpCost·cdMul 을 만지면 이 자부터. */
+  { name: "v131_skilltip", args: [],                             secs: 240, tier: "fast", expect: /판정|통과|운다/ },
   { name: "arena_qa",     args: [],                             secs: 150, tier: "fast", expect: /판정/ },
   /* 브라우저 없이 core.js 식을 두드리는 자 — 몇 초면 끝나므로 fast 에 둔다.
      ★ 「제일 싼 것부터」로 되돌아가면 여기가 운다(보정 확인 완료). */
