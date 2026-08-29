@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor } from "./map.js";
-import { rollItem, resetUniques } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix } from "./loot.js";
 
 const cv = document.getElementById("board");
 const ctx = cv.getContext("2d");
@@ -13,10 +13,14 @@ const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운�
 const PLAYER_BASE = "char/necro";
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 96;
+// 칸(자리) 저울 (V-146) — 해골 1칸 · 거대 해골 3칸 · 뼈 거인 6칸.
+// 등급이 오르면 «칸당» 효율이 살짝 손해다(hpMul/dmgMul 이 slot 배보다 작다). 대신 하나로
+// 뭉쳐 안 죽고 안 흩어진다. atkMul>1(느린 손) · spdMul<1(무거운 발) · shake(때릴 때 흔들림).
+// 수치는 tools/hs_p4.mjs 로 재서 정했다(ROADMAP V-149). ring=발밑 링 굵기.
 const SKEL_TIERS = [
-  { scale: 1.00, slot: 1, hpMul: 1.0, dmgMul: 1.0, spdDrop: 0, label: "해골", filt: null },
-  { scale: 1.35, slot: 2, hpMul: 2.2, dmgMul: 1.9, spdDrop: 26, label: "강화 해골", filt: "brightness(0.9) saturate(1.5) sepia(0.28) hue-rotate(-8deg)" },
-  { scale: 1.70, slot: 3, hpMul: 3.6, dmgMul: 3.0, spdDrop: 52, label: "거대 해골", filt: "brightness(0.82) saturate(1.9) sepia(0.5) hue-rotate(-16deg)" },
+  { key: "skel",   scale: 1.00, slot: 1, hpMul: 1.00, dmgMul: 1.00, atkMul: 1.00, spdMul: 1.00, cleave: 0,   ring: 2.5, ringCol: "#3d78c8", shake: 0, label: "해골",      filt: null },
+  { key: "giant",  scale: 1.55, slot: 3, hpMul: 3.00, dmgMul: 2.15, atkMul: 1.22, spdMul: 0.84, cleave: 60, ring: 4.0, ringCol: "#5fa0e6", shake: 4, label: "거대 해골", filt: "brightness(0.9) saturate(1.4) sepia(0.3) hue-rotate(-10deg)" },
+  { key: "titan",  scale: 2.20, slot: 6, hpMul: 6.20, dmgMul: 4.30, atkMul: 1.45, spdMul: 0.74, cleave: 96, ring: 5.5, ringCol: "#8fd0ff", shake: 8, label: "뼈 거인",   filt: "brightness(0.82) saturate(1.8) sepia(0.5) hue-rotate(-18deg)" },
 ];
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
@@ -50,7 +54,8 @@ function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
     maxhp: 3315, hp: 3315, maxmana: 2286, mana: 2286, spd: 268, level: 1,
-    mult: { dmg: 1, body: 1 }, uniques: new Set(), slots: 8, enhance: 0,
+    mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: 8,
+    grade: 0, maxGrade: 0, levelPoints: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0;
@@ -66,7 +71,7 @@ function fresh(floor, carry) {
 
 function start(floor, carry) {
   G = fresh(floor, carry);
-  window.G = G; window.cam = cam; window.HSZ = Z;
+  window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
   document.getElementById("dead").style.display = "none";
 }
@@ -114,7 +119,13 @@ function fireSpear(p, tx, ty) {
 function handleSkills() {
   const p = G.player;
   if (keys.has("q") && !p._q) { p._q = true; raiseSkeleton(); } if (!keys.has("q")) p._q = false;
+  for (let i = 0; i < 3; i++) {
+    const k = "" + (i + 1);
+    if (keys.has(k) && !p["_g" + k]) { p["_g" + k] = true; selectGrade(i); } if (!keys.has(k)) p["_g" + k] = false;
+  }
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
+  if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
+  if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
   if (G.dead && keys.has("r")) start(1, null);
 }
@@ -132,23 +143,56 @@ function nearestCorpse(x, y, rad) {
 
 function slotsUsed() { let s = 0; for (const m of G.minions) s += m.slot; return s; }
 
+function selectGrade(i) {
+  const p = G.player;
+  if (i > p.maxGrade) {
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: SKEL_TIERS[i].label + " — 아직 잠김 (X로 해금)", col: "#e0663c" });
+    return;
+  }
+  p.grade = i;
+  raiseSkeleton();
+}
+
 function raiseSkeleton() {
   const p = G.player;
-  const tier = Math.min(p.enhance, SKEL_TIERS.length - 1);
+  const tier = Math.min(p.grade, p.maxGrade, SKEL_TIERS.length - 1);
   const T = SKEL_TIERS[tier];
   if (slotsUsed() + T.slot > p.slots) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.1, txt: "자리가 없다", col: "#e0663c" });
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: `자리가 부족하다 (${T.label} ${T.slot}칸)`, col: "#e0663c" });
     return;
   }
   const ci = nearestCorpse(p.x, p.y, 300);
-  if (ci < 0) return;
+  if (ci < 0) {
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.0, txt: "가까운 시체가 없다", col: "#c8a04a" });
+    return;
+  }
   const c = G.corpses[ci]; c.used = true;
-  const hp = (120 + G.floor * 40) * T.hpMul;
+  const hp = (200 + G.floor * 40) * T.hpMul;
   G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
-    dmg: (22 + G.floor * 8) * T.dmgMul, spd: 250 - T.spdDrop, r: 15 * T.scale, h: SKEL_H * T.scale,
-    tier, slot: T.slot, filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
+    dmg: (22 + G.floor * 8) * T.dmgMul * p.mult.minionDmg, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
+    r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
+    filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
   const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
-  for (let i = 0; i < 12 + tier * 5; i++) burst(c.x, c.y - 20, col, 120 + tier * 40);
+  for (let i = 0; i < 12 + tier * 6; i++) burst(c.x, c.y - 20, col, 120 + tier * 50);
+  if (T.shake) cam.shake = Math.max(cam.shake, T.shake);
+}
+
+function spendPoint(kind) {
+  const p = G.player;
+  if (p.levelPoints <= 0) {
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.0, txt: "레벨업 점수가 없다", col: "#c8a04a" });
+    return;
+  }
+  if (kind === "slot") {
+    p.levelPoints--; p.slots += 1;
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.4, txt: "자리 +1", col: "#7fe6a0" });
+  } else if (p.maxGrade < SKEL_TIERS.length - 1) {
+    p.levelPoints--; p.maxGrade++; p.grade = p.maxGrade;
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.6, txt: SKEL_TIERS[p.maxGrade].label + " 해금", col: "#e8a24a" });
+  } else {
+    p.levelPoints--; p.mult.minionDmg *= 1.08;
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.4, txt: "소환수 피해 +8%", col: "#e8a24a" });
+  }
 }
 
 function corpseNova() {
@@ -239,7 +283,15 @@ function stepMinions(dt) {
       const d = Math.sqrt(bd) || 1;
       s.dx = (target.x - s.x) / d; s.dy = (target.y - s.y) / d;
       if (d > s.r + target.r + 6) { s.x += s.dx * s.spd * dt; s.y += s.dy * s.spd * dt; s.state = "walk"; s.anim += dt * 10; }
-      else { s.state = "attack"; s.anim += dt * 10; if (s.atk <= 0) { s.atk = 0.6; hurtEnemy(target, s.dmg, s.dx, s.dy); } }
+      else {
+        s.state = "attack"; s.anim += dt * 10;
+        if (s.atk <= 0) {
+          s.atk = s.atkCd || 0.6;
+          if (s.cleave) forEachEnemy((m) => { if ((m.x - s.x) ** 2 + (m.y - s.y) ** 2 < s.cleave * s.cleave) hurtEnemy(m, s.dmg, m.x - s.x, m.y - s.y); });
+          else hurtEnemy(target, s.dmg, s.dx, s.dy);
+          if (s.shake) cam.shake = Math.max(cam.shake, s.shake);
+        }
+      }
     } else {
       const dd = Math.hypot(p.x - s.x, p.y - s.y);
       if (dd > 90) { s.dx = (p.x - s.x) / dd; s.dy = (p.y - s.y) / dd; s.x += s.dx * s.spd * dt; s.y += s.dy * s.spd * dt; s.state = "walk"; s.anim += dt * 10; }
@@ -278,7 +330,10 @@ function killEnemy(m) {
   m.alive = false;
   G.kills++;
   G.xp += m.elite ? 40 : 10;
-  if (G.xp >= G.player.level * 500) { G.player.level++; }
+  if (G.xp >= G.player.level * 500) {
+    G.player.level++; G.player.levelPoints++;
+    G.floats.push({ x: G.player.x, y: G.player.y - 108, t: 1.8, txt: `레벨 ${G.player.level} — Z 자리 / X 등급`, col: "#e8cf52" });
+  }
   cam.shake = Math.max(cam.shake, m.elite ? 10 : 5);
   for (let i = 0; i < (m.elite ? 16 : 9); i++) burst(m.x, m.y - m.h * 0.4, "#e8e2d2", 150);
   addCorpse(m);
@@ -306,10 +361,7 @@ function dropLoot(m) {
 }
 
 function dropBuild(x, y) {
-  const slot = Math.random() < 0.5;
-  const item = slot
-    ? { name: "+1 소환 자리", rarity: { color: "#7fe6a0" }, build: { kind: "slot" } }
-    : { name: "소환수 강화 +1단계", rarity: { color: "#e8a24a" }, build: { kind: "enhance" } };
+  const item = rollBuildAffix();
   const a = Math.random() * 6.283, s = 40 + Math.random() * 70;
   G.items.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item, t: 0 });
 }
@@ -343,8 +395,8 @@ function pickItem(it) {
   it.got = true;
   const p = G.player;
   if (it.item.build) {
-    if (it.item.build.kind === "slot") p.slots += 1;
-    else p.enhance = Math.min(SKEL_TIERS.length - 1, p.enhance + 1);
+    if (it.item.build.kind === "slot") p.slots += it.item.build.n || 1;
+    else p.mult.minionDmg *= it.item.build.mul || 1.3;
     G.picks++;
     G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
     if (G.pickLog.length > 6) G.pickLog.pop();
@@ -551,12 +603,12 @@ function warmGlow(x, y, r, a) {
 function actorDir(a) { return dirName(a.dx ?? 0, a.dy ?? 1); }
 function frame(a, base) { const st = a.state === "idle" ? "idle" : a.state; const n = frameCount(base, st === "attack" ? "attack" : "walk"); return st === "idle" ? 0 : Math.floor(a.anim) % n; }
 
-function drawShadow(x, y, w, col) {
+function drawShadow(x, y, w, col, lw) {
   ctx.globalAlpha = 0.4; ctx.fillStyle = "#000";
   ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.4, 0, 0, 6.283); ctx.fill();
   ctx.globalAlpha = 1;
   if (col) {
-    ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
     ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
     ctx.globalAlpha = 1;
   }
@@ -570,7 +622,7 @@ function drawPlayer() {
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
-  drawShadow(s.x, s.y, s.r, "#3d78c8");
+  drawShadow(s.x, s.y, s.r, s.ringCol || "#3d78c8", s.ring || 2.5);
   if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, s.filt || null))
     fallbackBlob(s.x, s.y, s.h, "#d8e8d0");
 }
@@ -701,7 +753,8 @@ function updateHUD() {
   const slotsEl = el("slots");
   slotsEl.textContent = `자리 ${used} / ${p.slots}`;
   slotsEl.classList.toggle("full", used >= p.slots);
-  el("enh").textContent = `강화 ${p.enhance}단계`;
+  const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
+  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ×${p.mult.minionDmg.toFixed(2)}` : "") + (p.levelPoints ? ` · 점수 ${p.levelPoints}` : "");
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }

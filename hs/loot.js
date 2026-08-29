@@ -34,6 +34,12 @@ function rollRarity(floor, lucky) {
 let uniquePool = [];
 export function resetUniques() { uniquePool = [...UNIQUES]; }
 
+export function rollBuildAffix() {
+  return Math.random() < 0.5
+    ? { name: "+2 소환 자리", rarity: { color: "#7fe6a0" }, build: { kind: "slot", n: 2 } }
+    : { name: "소환수 피해 +30%", rarity: { color: "#e8a24a" }, build: { kind: "minionDmg", mul: 1.3 } };
+}
+
 export function rollItem(floor, lucky) {
   const r = rollRarity(floor, lucky);
   if (r.key === "gold" && uniquePool.length) {
