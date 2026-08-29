@@ -520,11 +520,15 @@ function drawWorld() {
   for (const ch of G.chests) drawChest(ch);
 
   const drawList = [];
-  drawList.push({ y: G.player.y, fn: drawPlayer });
-  for (const s of G.minions) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE) });
-  forEachEnemy((m) => drawList.push({ y: m.y, fn: () => drawEnemy(m) }));
+  for (const s of G.minions) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
+  forEachEnemy((m) => drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }));
   drawList.sort((a, b) => a.y - b.y);
-  for (const d of drawList) d.fn();
+  for (const d of drawList) {
+    if (d.near) ctx.globalAlpha = 0.45;   // 내 앞을 가리는 소환수는 비쳐 보이게
+    d.fn();
+    ctx.globalAlpha = 1;
+  }
+  drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
 
   for (const sp of G.spears) {
     ctx.strokeStyle = "#dfeee0"; ctx.lineWidth = 3;
@@ -709,9 +713,14 @@ function drawShadow(x, y, w, col, lw) {
   }
 }
 
+// 플레이어 몸통을 가리는 자리(앞·근접)인지
+function nearPlayer(s) {
+  const p = G.player;
+  return s.y > p.y - 6 && Math.abs(s.x - p.x) < 46 && s.y - p.y < 74;
+}
 function drawPlayer() {
   const p = G.player;
-  drawShadow(p.x, p.y, 34);
+  drawShadow(p.x, p.y, 34, "#e8cf52", 3);
   const st = p.state;
   if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
