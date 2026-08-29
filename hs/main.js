@@ -327,7 +327,10 @@ function stepDrops(dt) {
   G.golds = G.golds.filter((g) => !g.got);
   for (const it of G.items) {
     it.t += dt; it.x += it.vx * dt; it.y += it.vy * dt; it.vx *= 0.8; it.vy *= 0.8;
-    if (Math.hypot(p.x - it.x, p.y - it.y) < 30) pickItem(it);
+    // 금과 같은 «자석» — 밟아서 닿기엔 30px 가 좁아 한 판에 하나도 못 줍던 것(V-147)
+    const d = Math.hypot(p.x - it.x, p.y - it.y);
+    if (it.t > 0.35 && d < 110) { it.x += (p.x - it.x) * Math.min(1, dt * 9); it.y += (p.y - it.y) * Math.min(1, dt * 9); }
+    if (d < 46) pickItem(it);
   }
   G.items = G.items.filter((it) => !it.got);
 }
