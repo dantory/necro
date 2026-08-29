@@ -30,7 +30,7 @@ const SKEL_TIERS = [
 ];
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
-  "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png"];
+  "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png"];
 
 let VW = 0, VH = 0;
 function resize() {
@@ -851,7 +851,20 @@ function drawChest(ch) {
   g.addColorStop(1, "rgba(240,200,90,0)");
   ctx.fillStyle = g; ctx.fillRect(ch.x - 130, ch.y - 142, 260, 260);
   ctx.globalCompositeOperation = "source-over";
-  const bw = 28, bh = 34;
+  // 옆에 선 화로·관·항아리는 전부 구운 픽셀아트인데 **상자만 fillRect** 여서, 던전에서
+  // 제일 눈에 띄어야 할 것이 제일 싸구려로 보였다(V-155). 소품과 같은 길로 그린다.
+  // 그림이 아직 없으면 옛 네모로 떨어진다 — 에셋 하나 때문에 상자가 사라지면 안 된다.
+  const bh = 34;
+  const im = tex("decor/chest.png");
+  if (im && im.width) {
+    const h = 62, w = h * (im.width / im.height);
+    ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(ch.x, ch.y, w * 0.34, w * 0.13, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(im, ch.x - w / 2, ch.y - h, w, h);
+    return;
+  }
+  const bw = 28;
   ctx.fillStyle = "#4a3113"; ctx.fillRect(ch.x - bw, ch.y - bh, bw * 2, bh);
   ctx.fillStyle = "#7a5220"; ctx.fillRect(ch.x - bw, ch.y - bh, bw * 2, bh * 0.4);
   ctx.fillStyle = "#5a3c18"; ctx.fillRect(ch.x - bw, ch.y - bh * 0.6, bw * 2, bh * 0.6);

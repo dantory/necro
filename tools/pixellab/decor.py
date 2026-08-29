@@ -68,12 +68,38 @@ PARTS = {
           "round wide belly, narrow neck, heavy chipped lid tilted on top, "
           "dark empty crack down one side, cold and unlit", 48, 64),
   #   ★ V-155 — 소품 열 장 중 **상자만 빠져 있었다**(코드가 fillRect 로 그리고 있었다).
-  #     던전에서 제일 눈에 띄어야 할 물건이니 **금빛 테**를 못박고, 열린 게 아니라 **닫힌**
-  #     것임을 말한다(안 그러면 뚜껑 열린 빈 상자가 온다).
-  "chest": (f"{TONE}, {ONE}, a closed wooden treasure chest bound with tarnished iron bands "
-            "and a heavy gold lock plate on the front, domed lid shut tight, standing on the "
-            "ground seen from above at an angle, worn planks, glints of gold on the fittings, "
-            "no coins spilling out, no open lid", 64, 56),
+  #     1차 굽기(05:02)가 **파란 강철 테 + 발밑 잔디**로 왔다 — 「tarnished iron」이 청강철을
+  #     부르고, 굽는 쪽은 늘 **제 바닥판을 달아 보낸다**([[sprite-brings-its-own-ground]]).
+  #     그래서 이것만 **제 색을 맨 앞에 따로** 세우고(공용 TONE 의 회색을 덮는다),
+  #     바닥에 붙는 것들을 낱말로 하나씩 끊는다.
+  "chest": ("DARK BROWN WOOD AND WARM BRASS, desaturated, moderate contrast, evenly lit, "
+            "no vignette, no shadows baked in, "
+            "absolutely no blue, no steel blue, no purple, no violet, no teal, no green, "
+            f"Diablo 2 crypt, grim gothic pixel art, {ONE}, "
+            "a closed treasure chest of dark brown planks bound with warm brass bands "
+            "and a heavy brass lock plate on the front, domed lid shut tight, "
+            "seen from above at an angle, worn planks, dull brass fittings, "
+            "floating alone on empty transparent background, "
+            "no grass, no dirt, no soil, no plants, no moss, no stones, no rocks, "
+            "no ground, no floor, no base under it, no coins spilling out, no open lid",
+            64, 56),
+  #   ★ V-156 — 상자를 고치다 **계단도 같은 네모**인 것을 봤다(drawStairs 가 strokeRect
+  #     + 초록 줄). 층마다 **반드시 찾아야 하는 것**인데 상자보다도 싸구려다
+  #     ([[carry-fixes-forward]] — 한 번 고친 규칙은 옆 것에도 옮긴다).
+  #     내려가는 구멍이라 **위에서 내려다본** 결이어야 하고, 바닥판을 달고 오면 안 된다.
+  "stairs": ("MEDIUM GREY STONE, desaturated, moderate contrast, evenly lit, "
+             "no vignette, no shadows baked in, "
+             "absolutely no blue, no purple, no violet, no teal, no green, "
+             f"Diablo 2 crypt, grim gothic pixel art, {ONE}, "
+             # 1차(05:33)는 「directly above」로 굽더니 **계단이 없는 시커먼 문짝**을 줬다.
+             # 계단으로 읽히려면 **디딤판 하나하나가 보여야** 한다 — 비스듬히, 단을 세어 준다.
+             "a flight of about six worn stone steps going down below the floor, seen from "
+             "above at a three quarter angle, each individual step clearly visible as a "
+             "separate slab with a lit top face and a shaded riser, the steps getting darker "
+             "toward the bottom where they disappear into shadow, chipped stone edges, "
+             "floating alone on empty transparent background, "
+             "no grass, no dirt, no plants, no moss, no surrounding floor, no railing, no door",
+             72, 72),
   #   ★ 석상은 기둥과 키가 같아 **머리 없는 사람 모양**이라야 갈린다.
   "statue": (f"{TONE}, {ONE}, a weathered stone statue of a hooded mourning figure standing "
              "on a square plinth, the head broken off leaving a jagged stump at the neck, "

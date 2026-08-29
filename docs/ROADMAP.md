@@ -15399,3 +15399,18 @@ V-154 뒤의 컷(`tmp/hs_p6_dungeon|corridor|chest|run_end.png`)을 **직접 열
       **눈에 띄어야 할 것**이 제일 싸구려로 보인다. `assets/decor/` 에 chest.png 가
       아예 없다(10장 중 상자만 빠졌다). → decor.py 에 `chest` 를 넣어 굽고 소품과
       같은 길(`tex`/`drawSprite8`)로 그린다. 빛무리·빛기둥·마름모는 그대로 둔다.
+
+### V-156 — 상자·계단이 «프로그래머 네모»다 (감시 세션 2026-08-30 05:3x)
+V-155 가 상자를 찾아 `decor.py` 에 조리법만 넣고 끝났다 — **굽기는 파랗게 나왔고
+코드는 아직 `fillRect` 였다.** 컷을 다시 열어 보니 옆 것도 같은 병이다.
+- [x] **상자 — 끝냈다(05:35).** 1차 굽기(05:02)가 **청강철 테 + 발밑 잔디**로 왔다. 「tarnished iron」이
+      청강철을 부르고, 굽는 쪽은 늘 제 바닥판을 달아 보낸다([[sprite-brings-its-own-ground]]).
+      → 색을 **맨 앞에 따로**(DARK BROWN WOOD AND WARM BRASS, 공용 TONE 의 회색을 덮는다),
+      바닥에 붙는 낱말을 하나씩 끊어 재굽기. `drawChest` 는 `tex("decor/chest.png")` 로
+      소품과 같은 길로 그리되 **그림이 없으면 옛 네모로 떨어진다**(에셋 하나에 상자가
+      사라지면 안 된다).
+- [ ] **계단** — `drawStairs` 도 `strokeRect` + 초록 줄이다(`run_end` 컷 왼쪽의 초록 네모).
+      층마다 **반드시 찾아야 하는 것**인데 상자보다 싸구려다 — 같은 고침을 옮긴다
+      ([[carry-fixes-forward]]).
+      **2차는 통과** — 갈색 널 + 놋쇠 테, 바닥판 없음. `assets/decor/chest.png` 로 넣고
+      컷 `tmp/hs_p7_chest.png` 에서 좀비가 위에 서 있어도 상자로 읽힌다(마름모는 그대로).
