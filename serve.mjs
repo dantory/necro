@@ -14,7 +14,19 @@ const TYPES = {
 };
 
 createServer(async (req, res) => {
-  const p = req.url === "/" ? "/index.html" : decodeURIComponent(req.url.split("?")[0]);
+  /* ★ 2026-08-29 병수님: 「기존에 떠 있는 서버는 종료하고 이걸로 아예 대체할 수 없니?」
+     — 이제 이 리포의 본 게임은 「hs/」(직접 조작 핵앤슬래시)다. 뿌리(/)가 그것을 연다.
+     옛 방치형 판은 지우지 않고 「/old/」 로 남긴다(여섯 주치 자료가 거기 물려 있다). */
+  // ★ 뿌리는 «옮겨 보낸다»(파일을 그대로 주지 않는다) — hs/index.html 이 hud.css·main.js 를
+  //    상대 경로로 부르므로, 주소가 / 이면 옛 판의 같은 이름 파일을 읽어 통째로 깨진다.
+  if (req.url === "/" || req.url === "") {
+    res.writeHead(302, { location: "/hs/" }); res.end(); return;
+  }
+  if (req.url === "/old" ) { res.writeHead(302, { location: "/old/" }); res.end(); return; }
+  let p = decodeURIComponent(req.url.split("?")[0]);
+  if (p === "/hs/") p = "/hs/index.html";
+  else if (p === "/old/") p = "/index.html";
+  else if (p.startsWith("/old/")) p = p.slice(4);
   const ext = p.slice(p.lastIndexOf("."));
   // 에셋은 리포 루트의 assets/ 에 둔다 — GitHub Pages 가 루트를 그대로 서빙하므로
   // 로컬 서버와 배포본이 같은 경로를 쓴다(경로가 갈리면 한쪽이 반드시 깨진다).
