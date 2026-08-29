@@ -51,7 +51,10 @@ for (const d of [16, 34, 50]) {
       if(!document.querySelector('#shopGrid [data-pick="'+k+'"]').classList.contains('sel'))
         throw new Error('누름이 안 먹었다: '+k);
       const tip=document.getElementById('shopTip');
-      const st=[...tip.querySelectorAll('.tipStat')];
+      /* V-134 가 툴팁 밑에 「사면 내 몸이 이렇게 된다」(.tipCmp)를 붙였고 그 줄도
+         .tipStat 이다 — 걸러내지 않으면 마지막 줄이 「다음」이 아니라 **몸의 수**가 되어
+         이 자가 서 있는 채로 운다(2026-08-29). 이 자가 보는 것은 「다음」 칸뿐이다. */
+      const st=[...tip.querySelectorAll('.tipStat')].filter(e=>!e.closest('.tipCmp'));
       const nextRow=st[st.length-1]; const nowRow=st[0];
       if(!nextRow||nextRow===nowRow) continue;          // 최고 등급 — 「다음」이 없다
       const nowV=num(nowRow.querySelector('b')?.textContent);
