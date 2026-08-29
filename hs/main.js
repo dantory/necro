@@ -30,7 +30,7 @@ const SKEL_TIERS = [
 ];
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
-  "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png"];
+  "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png", "decor/stairs.png"];
 
 let VW = 0, VH = 0;
 function resize() {
@@ -823,14 +823,41 @@ function drawEnemy(m) {
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
 
+// 계단도 상자와 같은 병이었다 — `strokeRect` + 초록 줄(V-156, [[carry-fixes-forward]]).
+// 굽기를 세 번 했지만 **디딤판이 있는 «내려가는» 계단**은 끝내 안 나왔다(검은 문짝 ·
+// 위로 오르는 아이소메트릭 · 계단 없는 구덩이). 그래서 **반만 굽는다** — 굽은 것은
+// 돌 테두리(구덩이 입)로 쓰고, 디딤판은 그 안에 코드로 넣는다. 아래로 갈수록(화면
+// 위쪽) 어두워져 «내려간다»가 읽힌다.
 function drawStairs() {
   const s = G.stairs;
-  ctx.fillStyle = "#0c0c10"; ctx.strokeStyle = "#4a7a5a"; ctx.lineWidth = 3;
-  ctx.fillRect(s.x - 34, s.y - 24, 68, 48); ctx.strokeRect(s.x - 34, s.y - 24, 68, 48);
-  for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(120,200,150,${0.15 + i * 0.12})`; ctx.fillRect(s.x - 28 + i * 6, s.y - 18 + i * 9, 56 - i * 12, 8); }
+  const im = tex("decor/stairs.png");
+  if (im && im.width) {
+    const h = 104, w = h * (im.width / im.height);
+    const x0 = s.x - w / 2, y0 = s.y - h * 0.78;
+    ctx.drawImage(im, x0, y0, w, h);
+    const ix = x0 + w * 0.15, iw = w * 0.70;            // 테두리 안쪽
+    const iy = y0 + h * 0.14, ih = h * 0.72;
+    ctx.fillStyle = "#08070a"; ctx.fillRect(ix, iy, iw, ih);
+    const N = 5;
+    for (let i = N - 1; i >= 0; i--) {                  // 깊은 것부터(위쪽) 깔아 겹친다
+      const t = i / (N - 1);                            // 0 = 제일 깊다(어둡다)
+      const sh = ih / (N + 0.6), sy = iy + ih - (i + 1) * sh;
+      const pad = (N - 1 - i) * iw * 0.028;
+      const lit = Math.round(30 + t * 78), rise = Math.round(14 + t * 34);
+      ctx.fillStyle = `rgb(${lit},${lit - 4},${Math.round(lit * 0.86)})`;
+      ctx.fillRect(ix + pad, sy, iw - pad * 2, sh * 0.62);
+      ctx.fillStyle = `rgb(${rise},${rise - 2},${Math.round(rise * 0.86)})`;
+      ctx.fillRect(ix + pad, sy + sh * 0.62, iw - pad * 2, sh * 0.38);
+    }
+  } else {
+    ctx.fillStyle = "#0c0c10"; ctx.strokeStyle = "#4a7a5a"; ctx.lineWidth = 3;
+    ctx.fillRect(s.x - 34, s.y - 24, 68, 48); ctx.strokeRect(s.x - 34, s.y - 24, 68, 48);
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(120,200,150,${0.15 + i * 0.12})`; ctx.fillRect(s.x - 28 + i * 6, s.y - 18 + i * 9, 56 - i * 12, 8); }
+  }
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
-  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - 32);
+  // 그림이 y-81 까지 올라오므로 글자를 그 **위로** 뺀다(안 그러면 디딤판 위에 얹힌다).
+  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - (tex("decor/stairs.png")?.width ? 90 : 32));
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을

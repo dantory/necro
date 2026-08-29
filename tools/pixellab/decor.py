@@ -89,16 +89,17 @@ PARTS = {
   #     내려가는 구멍이라 **위에서 내려다본** 결이어야 하고, 바닥판을 달고 오면 안 된다.
   "stairs": ("MEDIUM GREY STONE, desaturated, moderate contrast, evenly lit, "
              "no vignette, no shadows baked in, "
-             "absolutely no blue, no purple, no violet, no teal, no green, "
+             "absolutely no blue, no steel blue, no purple, no violet, no teal, no green, "
              f"Diablo 2 crypt, grim gothic pixel art, {ONE}, "
-             # 1차(05:33)는 「directly above」로 굽더니 **계단이 없는 시커먼 문짝**을 줬다.
-             # 계단으로 읽히려면 **디딤판 하나하나가 보여야** 한다 — 비스듬히, 단을 세어 준다.
-             "a flight of about six worn stone steps going down below the floor, seen from "
-             "above at a three quarter angle, each individual step clearly visible as a "
-             "separate slab with a lit top face and a shaded riser, the steps getting darker "
-             "toward the bottom where they disappear into shadow, chipped stone edges, "
+             # 1차는 「directly above」로 **계단 없는 시커먼 문짝**, 2차는 「three quarter」로
+             # **위로 올라가는 아이소메트릭 계단**을 줬다. 셋째는 「구멍」을 주어로 세우고
+             # 계단을 그 안에 넣는다 — 우리에게 필요한 건 «내려가는 자리»다.
+             "a dark rectangular pit opening in a stone floor, top down view, three worn stone "
+             "steps leading down into the pit and receding away from the viewer, each step "
+             "darker than the one above it, the deepest step swallowed by black shadow, "
+             "heavy chipped stone lip framing all four sides of the opening, "
              "floating alone on empty transparent background, "
-             "no grass, no dirt, no plants, no moss, no surrounding floor, no railing, no door",
+             "no grass, no dirt, no plants, no moss, no railing, no door, no arch, no text",
              72, 72),
   #   ★ 석상은 기둥과 키가 같아 **머리 없는 사람 모양**이라야 갈린다.
   "statue": (f"{TONE}, {ONE}, a weathered stone statue of a hooded mourning figure standing "

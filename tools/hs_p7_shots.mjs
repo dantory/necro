@@ -78,6 +78,19 @@ log("  chest:", c);
 await wait(700);
 await shot("tmp/hs_p7_chest.png");
 
+// 계단 컷 — 계단 옆에 플레이어를 세운다(V-156: 초록 네모였던 자리).
+const STAIRS = `window.__stairs=function(){
+  const s=G.stairs; if(!s) return 'no-stairs';
+  G.player.x=s.x-110; G.player.y=s.y+60; G.player.dx=1; G.player.dy=0; G.player.state='idle';
+  G.minions=[]; G.packs=[];
+  cam.x=Math.max(0,Math.min(G.W-innerWidth/HSZ, s.x-innerWidth/(2*HSZ)));
+  cam.y=Math.max(0,Math.min(G.H-innerHeight/HSZ, s.y-innerHeight/(2*HSZ)));
+  return {x:s.x,y:s.y}; };`;
+await ev(STAIRS);
+log("  stairs:", await ev("JSON.stringify(__stairs())"));
+await wait(700);
+await shot("tmp/hs_p7_stairs.png");
+
 await raw("Target.closeTarget", { targetId });
 const list = await (await fetch(CDP + "/json/list")).json();
 for (const t of list) if (t.type === "page") { try { await fetch(CDP + "/json/close/" + t.id); } catch {} }
