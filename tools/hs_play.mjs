@@ -64,6 +64,8 @@ for (let i = 0; i < 16; i++) {
   await wait(500);
   if (i % 6 === 3) { await key("q","KeyQ",true); await wait(40); await key("q","KeyQ",false); }
   if (i % 6 === 5) { await key("e","KeyE",true); await wait(40); await key("e","KeyE",false); }
+  const aim = await ev(`(()=>{const p=G.player;let b=null,bd=1e9;for(const pk of G.packs){if(!pk.awake)continue;for(const e of pk.enemies){if(!e.alive)continue;const d=Math.hypot(e.x-p.x,e.y-p.y);if(d<bd){bd=d;b=e;}}}return b?JSON.stringify([Math.round(b.x-cam.x),Math.round(b.y-cam.y)]):null})()`);
+  if (aim) { const [ax,ay]=JSON.parse(aim); await S("Input.dispatchMouseEvent",{type:"mouseMoved",x:ax,y:ay,buttons:1}); }
   const st = await ev(`JSON.stringify({en:G.packs.reduce((a,pk)=>a+pk.enemies.filter(e=>e.alive).length,0),g:G.golds.length,gold:G.gold,it:G.items.length,k:G.kills})`);
   const s = JSON.parse(st);
   if (i % 4 === 0) console.log(`  t=${(i*0.5).toFixed(1)}s 적${s.en} 금알갱이${s.g} 지갑${s.gold} 바닥템${s.it} 처치${s.k}`);
