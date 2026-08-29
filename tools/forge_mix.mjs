@@ -22,6 +22,13 @@
           오늘 새벽에도 같은 것에 걸렸다(arena_qa ④). 이번엔 «재기 전에» 봤다.
      ㉣ **재련이 안 굶는다** — 같은 금에서 재련 계급 합이 고치기 전의 60% 이상
    브라우저 없이 `core.js` 를 그대로 불러 식을 두드린다(up_knobs·tree_knobs 와 같은 결). */
+/* ★ V-139b — 이 자가 재는 것은 **자동 규칙(FORGE_W 몫)** 이다. 그런데 08-29 부터
+   강화 넷은 **사람 손**으로 넘어갔고(`autoForgeOn()`), 문을 안 켜면 `autoForge()` 가
+   재련만 산다 — 계급이 넷 다 0 이라 이 자는 「폭 0」으로 울었다.
+   여기서 켜는 것이 옳다: 재려는 것이 사람의 지갑이 아니라 «자의 규칙»이라서다
+   ([[probe-must-walk-the-real-path]] — 자가 걷는 길이 재려는 길과 같아야 한다).
+   ★ 사람의 지갑은 따로 재야 한다 — ROADMAP V-139c. */
+globalThis.__AUTO_FORGE = 1;
 const C = await import("../js/core.js");
 const KEYS = Object.keys(C.UPS);
 

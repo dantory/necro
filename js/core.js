@@ -1691,9 +1691,30 @@ export function forgeWeights() {
   w.mp = Math.max(w.mp || 1, MP_FLOOR);
   return w;
 }
+/* ══ V-139b — **금을 «내가» 쓴다** ══ (병수님 2026-08-29 16:01 「그냥 놓아두면 깨지는 느낌」)
+   여태 `autoForge()` 는 **강화 넷과 재련을 다 저절로** 샀다. 곧 이 게임에서 금을 어디에
+   쓸지 정하는 것이 사람이 아니라 기계였고, 「투자해서 벽을 넘는다」가 설 자리가 없었다.
+   ★ 가르는 자리는 **고를 것이 있느냐**다:
+     · **강화 넷**(생명력·기력·어둠의 힘·군세) = 축이 넷이라 **고르는 것** → 손에 남긴다.
+     · **재련** = 슬롯 여섯을 고루 올리는 무한 축, 고를 것이 없다 → 그대로 저절로.
+   ★ **자는 여태처럼 굴러야 한다** — 안 그러면 지난 측정과 이어지지 않는다
+     ([[same-seed-is-not-same-run]] 의 짝: 자가 딴 몸이 되면 A/B 가 성립을 안 한다).
+     그래서 문을 **`__AUTO_TREE` 에 매단다** — 「본보기 빌드로 구르는 자」는 금도 본보기로
+     쓴다. 손잡이를 따로 박고 싶으면 `__AUTO_FORGE` 로 덮어쓴다(트리 문과 같은 꼴).
+     여태의 검수기는 **한 줄도 안 고쳐도** 그대로 이어진다. */
+export const AUTO_FORGE_DEF = 0;      // 사람 — 강화 넷은 손으로
+export function autoForgeOn() {
+  const g = typeof globalThis !== "undefined" ? globalThis : {};
+  if (g.__AUTO_FORGE != null) return +g.__AUTO_FORGE ? 1 : 0;
+  return g.__AUTO_TREE === 1 ? 1 : AUTO_FORGE_DEF;   // 자는 본보기 빌드 = 본보기 지갑
+}
 function forgeReserve() {
   let r = 0;
   for (const k of GEAR_KEYS) { const nx = gearNext(k); if (nx !== null) r = Math.max(r, GEAR[k].cost[nx]); }
+  /* ★ V-139b — 강화가 손으로 넘어가면 **그 몫도 남겨야 한다.** 안 그러면 무한 축인
+     재련이 위를 다 훑어 가서, 마을에 들른 사람은 늘 「금이 모자란 대장간」을 본다
+     (상점에서 이미 한 번 겪은 그 결함이다 — 위 forgeReserve 주석). */
+  if (!autoForgeOn()) for (const k in UPS) r = Math.max(r, upCost(k));
   return r;
 }
 /** 살 수 있는 만큼 산다(한 번에 `max` 개까지 — 후반에 금이 폭주해도 한 틱이 안 길어진다).
@@ -1707,7 +1728,9 @@ export function autoForge(max = 8) {
     /* ① 강화 넷 중 **몫 대비 제일 뒤처진** 것. 값이 아니라 «얼마나 밀렸나»로 고른다.
        같으면 싼 쪽(결정적이어야 검수기의 A/B 가 성립한다 — 난수 한 톨 없다). */
     let pick = null, lo = Infinity, reforge = false, need = Infinity;
-    for (const k in UPS) {
+    /* ★ V-139b — 사람이 굴리는 판에서는 **강화 넷을 건드리지 않는다.** 자(`__AUTO_TREE`)만
+       여태처럼 산다. 아래 재련은 양쪽 다 그대로다. */
+    if (autoForgeOn()) for (const k in UPS) {
       const n = ((META.up[k] | 0) + 1) / (W[k] || 1), c = upCost(k);
       if (n < need || (n === need && c < lo)) { need = n; lo = c; pick = k; reforge = false; }
     }
