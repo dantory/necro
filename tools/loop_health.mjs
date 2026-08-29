@@ -52,6 +52,11 @@ await S("Page.addScriptToEvaluateOnNewDocument", { source:
         「AUTO_PLAN 대로 찍은 사람」이고, 그것은 take() 로 가는 **같은 길**이다.
         손으로 안 찍은 판을 보고 싶으면 `LH_AUTOTREE=0`. */""}
    globalThis.__AUTO_TREE = ${process.env.LH_AUTOTREE != null ? (+process.env.LH_AUTOTREE ? 1 : 0) : 1};
+   ${/* ★ V-140 — **강화 넷을 자가 사느냐**를 따로 가른다. `autoForgeOn()` 은 기본으로
+        `__AUTO_TREE` 를 따라오므로(V-139b) 여태 자는 늘 사 왔다. 「사람이 안 사면
+        판이 얼마나 달라지는가」= 사람이 고르는 축의 «무게»를 재려면 이 문이 있어야 한다.
+        안 넘기면 한 톨도 안 바뀐다(예전 그대로). */""}
+   ${process.env.LH_AUTOFORGE != null ? `globalThis.__AUTO_FORGE = ${+process.env.LH_AUTOFORGE ? 1 : 0};` : ""}
    ${/* ★ 갈래의 **반대쪽**을 재는 팔(ROADMAP B). `LH_FORK=elite` 면 본보기 빌드가
         `legion` 자리에 `elite` 를 찍는다 — 목록은 그대로 두고 이름만 바뀐다. */""}
    ${process.env.LH_FORK ? `globalThis.__AUTO_FORK = ${JSON.stringify(process.env.LH_FORK)};` : ""}
