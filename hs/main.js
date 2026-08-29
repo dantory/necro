@@ -11,6 +11,11 @@ const WAKE = 540;
 const CULL = 1400;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
 const PLAYER_BASE = "char/necro";
+// ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
+//   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
+//   주변 잡몹(≈100px)·해골(96)보다 혼자 1.5 배라 「사람만 확대된」 그림이었다.
+//   104 로 내린다 — 해골보다 살짝 크되 무리 속에 같이 서는 크기.
+const PLAYER_H = 104;
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 96;
 // 칸(자리) 저울 (V-146) — 해골 1칸 · 거대 해골 3칸 · 뼈 거인 6칸.
@@ -659,7 +664,7 @@ function drawPlayer() {
   const p = G.player;
   drawShadow(p.x, p.y, 34);
   const st = p.state;
-  if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, 146, p.hurt > 0 ? "brightness(2.2)" : null))
+  if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
