@@ -2130,6 +2130,26 @@ body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content
 #winShop .tip:has(.tFx) .tipNext{margin-top:6px;padding-top:5px}
 #winShop .tFx{margin-top:5px;padding-top:3px}
 #winShop .tFx .fxK b{color:#9d907a;font-weight:400}
+/* ★★ V-141d (2026-08-29) — **상인 툴팁은 열두 칸이 «전부» 넘치고 있었다.**
+   V-134 의 「1512 에서 딱 맞아 있다」는 **1512×700 을 보고 한 말**이고, 병수님이 실제로
+   쓰는 창(1512×863)은 여태 한 번도 안 쟀다([[probe-must-walk-the-real-path]]).
+   재 보니 열두 칸 전부가 넘친다 — 863 에서 **20px** · 700 에서 77px · 620 에서 123px.
+   넘치면 「더 있다」 그늘 띠가 켜지고, 그 띠가 맨 아랫줄을 덮는다: 863 에서
+   `본인 공격력` 1.74:1 · `→` 1.41:1 (v91_ink · 문 2.2). 색이 아니라 **덮개**다
+   (V-91 이 능력치 창에서 겪은 것과 같은 자리 · [[cause-written-in-the-item-is-a-guess]]).
+   ★ 고침은 **트리·대장간이 이미 세워 둔 것을 옮겨 온 것**이다([[carry-fixes-forward]]) —
+     둘은 좁은 창에서 `.tFx` 를 두 칸으로 눕혀 넉 줄을 두 줄로 만든다(V-123·V-124).
+     상인만 그 줄을 못 받았다. 여기서는 **창 높이를 안 따진다** — 툴팁은 창 폭을 다 쓰므로
+     (776px) 「본인 공격력 +12% → +14%」 같은 짧은 줄에 한 줄을 통째로 주는 것이
+     넓은 창에서도 낭비다. 잰 값: 863 에서 넘침 20 → **0**(열두 칸 전부).
+   ★ `.tipPips` 의 머리 여백 14 → 8 도 **줄이 실제로 붙었을 때만** 갚는다 — 위
+     `.tipBuy`·`.tipNext` 와 같은 결이다(`:has(.tFx)`). 두 칸만으로는 6px 이 모자랐다.
+   ※ 700·620 은 아직 65·109px 넘친다 — 그쪽은 V-134b 로 남는다. */
+#winShop .tFx{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}
+/* 머리글은 **온 줄을 가로지른다** — 안 그러면 「사면 내 몸이 이렇게 된다」 옆칸에 수치
+   한 줄이 붙어 머리글이 수치처럼 읽힌다(찍어서 봤다). */
+#winShop .tFx .fxK{grid-column:1 / -1}
+#winShop .tip:has(.tFx) .tipPips{margin-top:8px}
 /* 이름과 값이 **붙어** 「최대 체력620 → 772」로 읽히던 것을 띄운다(V-133 이 가방 툴팁에
    남긴 것 — 트리는 flex+gap 이라 안 겪었다). 띄우는 자리는 한 곳이면 된다. */
 .tipCmp .tipStat .sN{margin-right:7px;color:#8a7c60}
