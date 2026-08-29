@@ -742,6 +742,7 @@ function spriteFoot(im, key) {
   return box;
 }
 
+const PROP_WARM = "sepia(0.55) saturate(1.35) hue-rotate(-8deg)";
 function drawProps() {
   const vis = G.props.filter((pr) => onScreen(pr.x, pr.y, 200));
   vis.sort((a, b) => a.y - b.y);
@@ -756,7 +757,15 @@ function drawProps() {
     ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.ellipse(sx, sy, rx, Math.min(rx * 0.4, pr.h * 0.18), 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
+    // ★ V-159 — V-158 이 «찬 회색 돌»을 계단 테두리에서만 고쳤다. 같은 병이 소품 전부에
+    //   있었다 — 화면에서 재보니 누운 기둥 R−B +2 · 항아리 −6(파랑이다) 인데
+    //   바닥은 +21~31 이라, 소품만 따뜻한 방 안에서 푸른기로 떠 있었다.
+    //   밝기는 건드리지 않고(이미 어둡다) 색조만 따뜻한 돌로 태운다.
+    //   불을 달고 오는 화로(brazier)는 뺀다 — 거기에 쓰면 불꽃이 죽는다.
+    //   ([[carry-fixes-forward]] — 한 번 고친 규칙을 새 요소에 안 옮긴 바로 그 결이다.)
+    if (!pr.brazier) ctx.filter = PROP_WARM;
     ctx.drawImage(im, pr.x - w / 2, pr.y - pr.h, w, pr.h);
+    ctx.filter = "none";
   }
 }
 
