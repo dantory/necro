@@ -67,6 +67,13 @@ PARTS = {
   "urn": (f"{TONE}, {ONE}, a cracked stone burial urn standing upright on the ground, "
           "round wide belly, narrow neck, heavy chipped lid tilted on top, "
           "dark empty crack down one side, cold and unlit", 48, 64),
+  #   ★ V-155 — 소품 열 장 중 **상자만 빠져 있었다**(코드가 fillRect 로 그리고 있었다).
+  #     던전에서 제일 눈에 띄어야 할 물건이니 **금빛 테**를 못박고, 열린 게 아니라 **닫힌**
+  #     것임을 말한다(안 그러면 뚜껑 열린 빈 상자가 온다).
+  "chest": (f"{TONE}, {ONE}, a closed wooden treasure chest bound with tarnished iron bands "
+            "and a heavy gold lock plate on the front, domed lid shut tight, standing on the "
+            "ground seen from above at an angle, worn planks, glints of gold on the fittings, "
+            "no coins spilling out, no open lid", 64, 56),
   #   ★ 석상은 기둥과 키가 같아 **머리 없는 사람 모양**이라야 갈린다.
   "statue": (f"{TONE}, {ONE}, a weathered stone statue of a hooded mourning figure standing "
              "on a square plinth, the head broken off leaving a jagged stump at the neck, "
