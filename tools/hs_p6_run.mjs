@@ -133,7 +133,7 @@ async function runFloor(sess, seed, floor) {
   const { ev, key, tap, mouse } = sess;
   // 이 층이 실제로 올라올 때까지
   for (let i = 0; i < 30 && (await ev("G.floor")) !== floor; i++) await wait(120);
-  await ev("window.__ft.length=0");
+  await ev("window.__ft.length=0; window.__prof && window.__prof.reset();");
   const info = JSON.parse(await ev(`JSON.stringify({W:G.W,H:G.H,rooms:G.rooms.length-1,chests:G.chests.length,packs:G.packs.length})`));
   const picksStart = await ev("G.picks");
   const t0 = Date.now();
@@ -181,6 +181,7 @@ async function runFloor(sess, seed, floor) {
   }
   const ft = JSON.parse(await ev("JSON.stringify(window.__ft)")).sort((a, b) => a - b);
   const p95 = ft.length ? ft[Math.floor(ft.length * 0.95)] : 0;
+  const prof = JSON.parse(await ev("JSON.stringify(window.__prof ? window.__prof.summary() : null)") || "null");
   const picked = snap.picks - picksStart;
   const tSec = (Date.now() - t0) / 1000;
   const rec = {
@@ -190,11 +191,16 @@ async function runFloor(sess, seed, floor) {
     picked, dropped: picked + snap.itemsGround, chests: `${snap.chestsOpened}/${info.chests}`,
     kills: snap.kills, walkDist: Math.round(walkDist), fightTime: +fightTime.toFixed(1),
     moveTime: +moveTime.toFixed(1), fightPerKpx: +(fightTime / Math.max(0.1, walkDist / 1000)).toFixed(2),
-    fp95: +p95.toFixed(1),
+    fp95: +p95.toFixed(1), prof,
   };
   log(`  [씨앗 ${seed} · B${floor}] ${rec.t}s · 방 ${rec.rooms} · 깨움 ${rec.woke}/${rec.packsTotal} · ` +
     `주움 ${rec.picked}/${rec.dropped} · 상자 ${rec.chests} · 처치 ${rec.kills} · ${rec.descended ? "내려감" : rec.died ? "죽음" : "예산끝"} · ` +
     `걸음 ${rec.walkDist}px · 싸움 ${rec.fightTime}s(비 ${rec.fightPerKpx}) · fp95 ${rec.fp95}ms`);
+  if (prof) {
+    const ph = prof.phase, ds = prof.drawSub;
+    log(`    · prof sim ${ph.sim.p95} / draw ${ph.draw.p95} / hud ${ph.hud.p95} (p95ms) · ` +
+      Object.entries(ds).map(([k, v]) => `${k} ${v.p95}`).join(" · "));
+  }
   return rec;
 }
 

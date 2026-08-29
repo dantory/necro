@@ -9,6 +9,7 @@ const mctx = mini.getContext("2d");
 
 const WAKE = 540;
 const CULL = 1400;
+const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
@@ -54,6 +55,28 @@ cv.addEventListener("contextmenu", (e) => e.preventDefault());
 const cam = { x: 0, y: 0, shake: 0 };
 let flash = 0, flashColor = "255,255,255";
 let G = null;
+
+// ── 프레임 프로파일러 (V-154 C) ─────────────────────────────────────────────
+// fp95 가 «어디서» 드는지 재려는 계기다 — 짐작으로 손대지 않기 위해서. 단계마다
+// performance.now() 를 몇 번 부를 뿐이라 오버헤드는 무시할 수준. hs_p6_run 이
+// 층 끝에 window.__prof.summary() 를 함께 적어, 프레임 시간을 sim/draw/hud 와
+// 그리기 하위 단계로 갈라 본다.
+const PROF = {
+  buf: { total: [], sim: [], draw: [], hud: [] },
+  sub: {},
+  mark: 0,
+  seg(name) { const t = performance.now(); (this.sub[name] ||= []).push(t - this.mark); this.mark = t; },
+  push(k, v) { const a = this.buf[k]; a.push(v); if (a.length > 2000) a.shift(); },
+  pct(a, p) { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return +s[Math.min(s.length - 1, Math.floor(s.length * p))].toFixed(2); },
+  summary() {
+    const o = { n: this.buf.total.length, phase: {}, drawSub: {} };
+    for (const k of ["total", "sim", "draw", "hud"]) o.phase[k] = { p50: this.pct(this.buf[k], 0.5), p95: this.pct(this.buf[k], 0.95) };
+    for (const k in this.sub) o.drawSub[k] = { p50: this.pct(this.sub[k], 0.5), p95: this.pct(this.sub[k], 0.95) };
+    return o;
+  },
+  reset() { for (const k in this.buf) this.buf[k] = []; this.sub = {}; },
+};
+window.__prof = PROF;
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -278,9 +301,45 @@ function markRoomCleared(ri) {
   if (!any && G.rooms[ri]) G.rooms[ri].cleared = true;
 }
 
+// ── 소환수 대형 (V-154 A) ───────────────────────────────────────────────────
+// 옛 로직은 적이 없으면 소환수를 «플레이어 90px 안»으로만 몰아, 21마리가 발밑에
+// 겹쳐 «군세»가 아니라 «얼룩»으로 보였다(run_end 컷). 이제 각자 «제자리»가 있다 —
+// 플레이어 뒤·둘레의 여러 겹 줄. 뒤부터 채워 플레이어가 선두에 서고, 수가 늘면
+// 반경이 커져 무리가 퍼진다. 세로는 눌러(0.64) 위에서 내려다본 결을 맞춘다. 마지막에
+// 서로 밀어내(separation) 완전히 포개지지 않게 한다.
+let formAng = Math.PI / 2;
+function angTo(target, cur) { let d = (target - cur) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; }
+function minionRingRadius(r) { return 34 + r * 40; }
+function minionRingCap(r) { return Math.max(3, Math.floor(2 * Math.PI * minionRingRadius(r) / 40)); }
+function formSpot(p, i, backAng) {
+  let r = 1, base = 0, cap = minionRingCap(1);
+  while (i >= base + cap) { base += cap; r++; cap = minionRingCap(r); }
+  const k = i - base;
+  const rad = minionRingRadius(r);
+  const ang = backAng + ((k + (r % 2) * 0.5) / cap) * Math.PI * 2;
+  return { x: p.x + Math.cos(ang) * rad, y: p.y + Math.sin(ang) * rad * 0.64 };
+}
+function separateMinions() {
+  const a = G.minions, n = a.length, MIN = 34;
+  for (let i = 0; i < n; i++) {
+    const s = a[i];
+    for (let j = i + 1; j < n; j++) {
+      const t = a[j];
+      const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
+      if (d2 === 0) { t.x += 0.5; continue; }
+      if (d2 >= MIN * MIN) continue;
+      const d = Math.sqrt(d2), push = (MIN - d) * 0.5 / d;
+      s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
+    }
+  }
+}
 function stepMinions(dt) {
   const p = G.player;
-  for (const s of G.minions) {
+  if (p.state === "walk" && (p.dx || p.dy)) formAng += angTo(Math.atan2(p.dy, p.dx), formAng) * Math.min(1, dt * 6);
+  const backAng = formAng + Math.PI;
+  const N = G.minions.length;
+  for (let i = 0; i < N; i++) {
+    const s = G.minions[i];
     let target = null, bd = 520 * 520;
     forEachEnemy((m) => { const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
     s.atk = Math.max(0, s.atk - dt);
@@ -298,11 +357,13 @@ function stepMinions(dt) {
         }
       }
     } else {
-      const dd = Math.hypot(p.x - s.x, p.y - s.y);
-      if (dd > 90) { s.dx = (p.x - s.x) / dd; s.dy = (p.y - s.y) / dd; s.x += s.dx * s.spd * dt; s.y += s.dy * s.spd * dt; s.state = "walk"; s.anim += dt * 10; }
+      const spot = formSpot(p, i, backAng);
+      const dx = spot.x - s.x, dy = spot.y - s.y, dd = Math.hypot(dx, dy);
+      if (dd > 12) { s.dx = dx / dd; s.dy = dy / dd; const step = Math.min(dd, s.spd * dt); s.x += s.dx * step; s.y += s.dy * step; s.state = "walk"; s.anim += dt * 10; }
       else { s.state = "idle"; s.anim += dt * 5; }
     }
   }
+  separateMinions();
 }
 
 function killMinion(s) { const i = G.minions.indexOf(s); if (i >= 0) G.minions.splice(i, 1); }
@@ -472,6 +533,7 @@ let floorPat = null;
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
 function drawWorld() {
+  PROF.mark = performance.now();
   ctx.fillStyle = "#050307";
   ctx.fillRect(0, 0, VW, VH);
   const shx = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
@@ -502,9 +564,11 @@ function drawWorld() {
     insetShadow(r);
     doorArches(r, WT);
   }
+  PROF.seg("terrain");
 
   drawDecals();
   drawProps();
+  PROF.seg("props");
   for (const c of G.corpses) {
     if (!onScreen(c.x, c.y, 120)) continue;
     ctx.globalAlpha = 0.5; ctx.fillStyle = "#3a0d0d";
@@ -512,8 +576,10 @@ function drawWorld() {
     ctx.globalAlpha = 1;
     drawSprite8(ctx, c.base, c.dir, "idle", 0, c.x, c.y + 4, c.h * 0.7, "grayscale(0.6) brightness(0.5)");
   }
+  PROF.seg("corpses");
 
   drawLight();
+  PROF.seg("light");
 
   for (const g of G.golds) { ctx.beginPath(); ctx.arc(g.x, g.y, 3, 0, 6.283); ctx.fillStyle = "#e8c84a"; ctx.fill(); }
   drawStairs();
@@ -529,6 +595,8 @@ function drawWorld() {
     ctx.globalAlpha = 1;
   }
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
+  for (const ch of G.chests) drawChestBeacon(ch);
+  PROF.seg("actors");
 
   for (const sp of G.spears) {
     ctx.strokeStyle = "#dfeee0"; ctx.lineWidth = 3;
@@ -536,6 +604,7 @@ function drawWorld() {
   }
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
   ctx.globalAlpha = 1;
+  PROF.seg("fx");
 
   ctx.restore();
 
@@ -546,6 +615,7 @@ function drawWorld() {
 
   drawItems();
   drawFloats();
+  PROF.seg("overlay");
 }
 
 function stoneRim(x, y, w, h) {
@@ -763,27 +833,51 @@ function drawStairs() {
   ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - 32);
 }
 
+// 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을
+// 키우고(반너비 28·높이 34), 빛무리를 넓혀 밝힌다. 위치 표식(빛기둥·마름모)은 유닛을
+// 다 그린 뒤 drawChestBeacon 이 얹어, 무엇에 가려도 어디 있는지 보인다.
 function drawChest(ch) {
   if (ch.opened) {
-    ctx.fillStyle = "#160e07"; ctx.fillRect(ch.x - 18, ch.y - 15, 36, 8);
-    ctx.fillStyle = "#2a1c10"; ctx.fillRect(ch.x - 18, ch.y - 8, 36, 15);
+    ctx.fillStyle = "#160e07"; ctx.fillRect(ch.x - 26, ch.y - 16, 52, 9);
+    ctx.fillStyle = "#2a1c10"; ctx.fillRect(ch.x - 26, ch.y - 8, 52, 16);
     return;
   }
-  if (Math.hypot(G.player.x - ch.x, G.player.y - ch.y) < 60) openChest(ch);
+  if (Math.hypot(G.player.x - ch.x, G.player.y - ch.y) < CHEST_OPEN_R) openChest(ch);
   const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 320);
   ctx.globalCompositeOperation = "lighter";
-  const g = ctx.createRadialGradient(ch.x, ch.y - 8, 0, ch.x, ch.y - 8, 72);
-  g.addColorStop(0, `rgba(240,200,90,${0.14 + pulse * 0.16})`); g.addColorStop(1, "rgba(240,200,90,0)");
-  ctx.fillStyle = g; ctx.fillRect(ch.x - 72, ch.y - 80, 144, 144);
+  const g = ctx.createRadialGradient(ch.x, ch.y - 12, 0, ch.x, ch.y - 12, 130);
+  g.addColorStop(0, `rgba(248,210,110,${0.22 + pulse * 0.22})`);
+  g.addColorStop(0.5, `rgba(232,150,60,${0.10 + pulse * 0.10})`);
+  g.addColorStop(1, "rgba(240,200,90,0)");
+  ctx.fillStyle = g; ctx.fillRect(ch.x - 130, ch.y - 142, 260, 260);
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "#5a3c18"; ctx.fillRect(ch.x - 19, ch.y - 17, 38, 25);
-  ctx.fillStyle = "#7a5220"; ctx.fillRect(ch.x - 19, ch.y - 17, 38, 9);
-  ctx.fillStyle = "#d8b45a"; ctx.fillRect(ch.x - 19, ch.y - 9, 38, 3);
-  ctx.fillStyle = "#e8c860"; ctx.fillRect(ch.x - 3, ch.y - 12, 6, 8);
-  ctx.strokeStyle = "#241505"; ctx.lineWidth = 2; ctx.strokeRect(ch.x - 19, ch.y - 17, 38, 25);
-  const sx = ch.x + Math.cos(performance.now() / 500) * 15, sy = ch.y - 22 + Math.sin(performance.now() / 400) * 6;
-  ctx.globalAlpha = pulse; ctx.fillStyle = "#fff6d8";
-  ctx.fillRect(sx - 1, sy - 3, 2, 6); ctx.fillRect(sx - 3, sy - 1, 6, 2); ctx.globalAlpha = 1;
+  const bw = 28, bh = 34;
+  ctx.fillStyle = "#4a3113"; ctx.fillRect(ch.x - bw, ch.y - bh, bw * 2, bh);
+  ctx.fillStyle = "#7a5220"; ctx.fillRect(ch.x - bw, ch.y - bh, bw * 2, bh * 0.4);
+  ctx.fillStyle = "#5a3c18"; ctx.fillRect(ch.x - bw, ch.y - bh * 0.6, bw * 2, bh * 0.6);
+  ctx.fillStyle = "#d8b45a"; ctx.fillRect(ch.x - bw, ch.y - bh, bw * 2, 3);
+  ctx.fillStyle = "#d8b45a"; ctx.fillRect(ch.x - bw, ch.y - bh * 0.62, bw * 2, 4);
+  ctx.fillStyle = "#e8c860"; ctx.fillRect(ch.x - 5, ch.y - bh * 0.6 - 3, 10, 12);
+  ctx.fillStyle = "#3a2405"; ctx.fillRect(ch.x - 2, ch.y - bh * 0.6 + 1, 4, 4);
+  ctx.strokeStyle = "#241505"; ctx.lineWidth = 2.5; ctx.strokeRect(ch.x - bw, ch.y - bh, bw * 2, bh);
+}
+function drawChestBeacon(ch) {
+  if (ch.opened || !onScreen(ch.x, ch.y, 180)) return;
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 320);
+  ctx.globalCompositeOperation = "lighter";
+  const beam = ctx.createLinearGradient(0, ch.y - 170, 0, ch.y - 6);
+  beam.addColorStop(0, "rgba(248,214,120,0)");
+  beam.addColorStop(1, `rgba(248,210,120,${0.10 + pulse * 0.13})`);
+  ctx.fillStyle = beam;
+  const bw = 13 + pulse * 5;
+  ctx.fillRect(ch.x - bw, ch.y - 170, bw * 2, 164);
+  ctx.globalCompositeOperation = "source-over";
+  const by = ch.y - 104 - Math.sin(performance.now() / 300) * 6;
+  ctx.save(); ctx.translate(ch.x, by); ctx.rotate(Math.PI / 4);
+  const s = 8;
+  ctx.fillStyle = `rgba(255,242,190,${0.72 + pulse * 0.28})`; ctx.fillRect(-s, -s, s * 2, s * 2);
+  ctx.strokeStyle = "#7a4e10"; ctx.lineWidth = 1.6; ctx.strokeRect(-s, -s, s * 2, s * 2);
+  ctx.restore();
 }
 function openChest(ch) {
   ch.opened = true;
@@ -893,7 +987,12 @@ function drawMini() {
     mctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
   }
   for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
-  for (const ch of G.chests) if (!ch.opened) { mctx.fillStyle = "#e8c84a"; mctx.fillRect(ch.x * sx - 1.5, ch.y * sy - 1.5, 3, 3); }
+  for (const ch of G.chests) if (!ch.opened) {
+    const pr = 0.5 + 0.5 * Math.sin(performance.now() / 320), d = 2.2 + pr;
+    mctx.save(); mctx.translate(ch.x * sx, ch.y * sy); mctx.rotate(Math.PI / 4);
+    mctx.fillStyle = "#ffd24a"; mctx.fillRect(-d, -d, d * 2, d * 2);
+    mctx.restore();
+  }
   mctx.fillStyle = "#7fe6a0"; mctx.beginPath(); mctx.arc(G.stairs.x * sx, G.stairs.y * sy, 3, 0, 6.283); mctx.fill();
   mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(G.player.x * sx, G.player.y * sy, 2.5, 0, 6.283); mctx.fill();
 }
@@ -913,6 +1012,7 @@ function loop(now) {
     if (LOAD.total > 20 && LOAD.done >= LOAD.total) { loadingDone = true; el("loading").style.display = "none"; }
     requestAnimationFrame(loop); return;
   }
+  const _t0 = performance.now();
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
     stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepDrops(dt);
@@ -921,8 +1021,12 @@ function loop(now) {
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
   flash = Math.max(0, flash - dt * 1.4);
+  const _t1 = performance.now();
   drawWorld();
+  const _t2 = performance.now();
   updateHUD();
+  const _t3 = performance.now();
+  PROF.push("sim", _t1 - _t0); PROF.push("draw", _t2 - _t1); PROF.push("hud", _t3 - _t2); PROF.push("total", _t3 - _t0);
   requestAnimationFrame(loop);
 }
 
