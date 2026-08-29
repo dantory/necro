@@ -603,6 +603,47 @@ function warmGlow(x, y, r, a) {
 function actorDir(a) { return dirName(a.dx ?? 0, a.dy ?? 1); }
 function frame(a, base) { const st = a.state === "idle" ? "idle" : a.state; const n = frameCount(base, st === "attack" ? "attack" : "walk"); return st === "idle" ? 0 : Math.floor(a.anim) % n; }
 
+// ── V-150: 편(팀)을 «스프라이트 색»으로 가른다 — 링에 기대지 않는다 ──────────
+// 아군 소환수는 차가운 뼈-푸름, 적은 붉은/재빛으로 통째 물들인다. 같은 원본(해골)이
+// 양쪽에 서도 멀리서 갈린다. CSS filter 한 줄을 sprite.js 의 filtered() 가 캐시하므로
+// 매 프레임 값이 새로 들지 않는다. hs_p5.mjs 가 앞뒤를 같은 자로 잰다.
+const ALLY_TINT  = "grayscale(0.42) sepia(0.5) hue-rotate(178deg) saturate(1.8) brightness(1.14)"; // 차가운 뼈-푸름
+const FOE_TINT   = "grayscale(0.32) sepia(0.6) hue-rotate(-26deg) saturate(2) brightness(0.86)";   // 붉은 재빛
+const ELITE_TINT = "grayscale(0.14) sepia(0.62) hue-rotate(-14deg) saturate(2.3) brightness(1.08)"; // 밝은 핏빛(챔피언)
+const teamTintOn = () => window.__teamTint !== false;   // hs_p5 의 앞/뒤 토글
+const ringsOn = () => window.__rings !== false;         // 링을 끄고 «스프라이트만으로» 갈리나 확인
+
+// 등급 셋의 실루엣을 뼈로 덧그려 가른다(뿔·뿔관·큰 뼈도끼). 새 에셋 없이 코드로만.
+// 거대 해골(tier 1) = 뿔 한 쌍 · 뼈 거인(tier 2) = 뿔관 + 큰 뼈도끼. 크기에 비례(sc).
+function drawTierCrest(s, base) {
+  const fm = footMetrics(base);
+  const top = s.y - s.h + (fm ? s.h * fm.footFrac : 0);        // 그린 이미지의 위끝
+  const headY = top + (fm ? s.h * fm.headFrac : s.h * 0.06);   // 두개골 꼭대기
+  const cx = s.x, sc = s.h / SKEL_H, bone = "#ece5d2", edge = "#221a12";
+  ctx.lineJoin = "round";
+  if (s.tier === 1) {
+    horn(cx - 6 * sc, headY + 4 * sc, -1, 15 * sc, bone, edge);
+    horn(cx + 6 * sc, headY + 4 * sc, 1, 15 * sc, bone, edge);
+  } else if (s.tier >= 2) {
+    horn(cx - 12 * sc, headY + 3 * sc, -1, 16 * sc, bone, edge);
+    horn(cx - 5 * sc, headY - 2 * sc, -0.5, 19 * sc, bone, edge);
+    horn(cx + 5 * sc, headY - 2 * sc, 0.5, 19 * sc, bone, edge);
+    horn(cx + 12 * sc, headY + 3 * sc, 1, 16 * sc, bone, edge);
+    const shY = top + s.h * 0.32;
+    horn(cx - s.h * 0.17, shY, -1, 13 * sc, bone, edge);
+    horn(cx + s.h * 0.17, shY, 1, 13 * sc, bone, edge);
+  }
+}
+function horn(x, y, dir, len, bone, edge) {
+  ctx.beginPath();
+  ctx.moveTo(x - 2.4, y);
+  ctx.quadraticCurveTo(x + dir * 3.5, y - len * 0.6, x + dir * 3, y - len);
+  ctx.quadraticCurveTo(x + dir * 5.5, y - len * 0.46, x + 2.4, y);
+  ctx.closePath();
+  ctx.fillStyle = bone; ctx.fill();
+  ctx.lineWidth = 1.3; ctx.strokeStyle = edge; ctx.stroke();
+}
+
 function drawShadow(x, y, w, col, lw) {
   ctx.globalAlpha = 0.4; ctx.fillStyle = "#000";
   ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.4, 0, 0, 6.283); ctx.fill();
@@ -622,13 +663,17 @@ function drawPlayer() {
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
-  drawShadow(s.x, s.y, s.r, s.ringCol || "#3d78c8", s.ring || 2.5);
-  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, s.filt || null))
+  drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
+  const filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
+  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, filt))
     fallbackBlob(s.x, s.y, s.h, "#d8e8d0");
+  if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
 }
 function drawEnemy(m) {
-  drawShadow(m.x, m.y, m.r, m.elite ? "#f0902a" : "#c0342c");
-  const filt = m.hit > 0 ? "brightness(3)" : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
+  drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null);
+  const rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINT)
+    : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
+  const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
   const bw = m.r * 2.2, hpf = Math.max(0, m.hp / m.maxhp);

@@ -42,7 +42,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;
 .cleared{font-size:12px;color:#8a7c60;background:var(--panel);border:1px solid var(--edge2);padding:2px 8px}
 
 #bl{position:absolute;left:14px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
-#picklog{display:flex;flex-direction:column;gap:2px;font-size:14px;text-shadow:0 1px 2px #000;min-height:0}
+#picklog{display:flex;flex-direction:column;gap:2px;font-size:14px;min-height:0}
+/* V-150: 전리품 로그가 어두운 바닥에 묻혔다 — 반투명 판 + 검은 외곽선으로 어느 배경에서도 읽히게. */
+#picklog div{align-self:flex-start;padding:1px 9px 2px;
+  background:linear-gradient(90deg,rgba(6,4,5,.82),rgba(6,4,5,.40));
+  box-shadow:0 1px 3px #000,inset 0 0 0 1px rgba(0,0,0,.55);
+  text-shadow:-1px 0 0 #000,1px 0 0 #000,0 -1px 0 #000,0 1px 0 #000,0 2px 3px #000}
+body.noreadchip #picklog div{background:none;box-shadow:none;padding:0;text-shadow:0 1px 2px #000}
 .army{display:flex;align-items:baseline;gap:12px;padding:3px 12px;
   background:var(--panel);border:2px solid var(--edge);box-shadow:inset 0 0 0 1px var(--edge2),0 2px 6px #000}
 #slots{color:var(--gold);font-size:19px;letter-spacing:.04em;text-shadow:0 1px 0 #000}
