@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>Necro — Hack &amp; Slash</title>
+<link rel="stylesheet" href="hud.css">
+</head>
+<body>
+<canvas id="board"></canvas>
+
+<div id="loading">
+  <div class="ltitle">NECROMANCER</div>
+  <div class="lsub">뼈를 일으키는 중…</div>
+  <div class="ltrack"><div id="loadbar"></div></div>
+</div>
+
+<div id="hud">
+  <div id="tl">
+    <div class="portrait"><img src="../assets/ui/doll_necro.png" onerror="this.style.display='none'"><div id="lvl" class="shield">1</div></div>
+    <div class="bars">
+      <div class="cls">Necromancer</div>
+      <div class="bar hp"><div id="hpbar" class="fill"></div><span id="hptxt" class="btxt">0 / 0</span></div>
+      <div class="bar mp"><div id="mpbar" class="fill"></div><span id="mptxt" class="btxt">0 / 0</span></div>
+      <div id="mult" class="mult"></div>
+    </div>
+  </div>
+
+  <div id="tr">
+    <div class="region">
+      <div id="region1">Crypt of the Dead</div>
+      <div id="region2">Level B1</div>
+      <div id="region3">Nightmare</div>
+      <div id="region4">Zone Level 82</div>
+    </div>
+    <canvas id="mini" width="190" height="130"></canvas>
+    <div id="cleared" class="cleared">방 0 / 0</div>
+  </div>
+
+  <div id="bl">
+    <div id="picklog"></div>
+    <div class="beltwrap">
+      <div class="purse"><span class="coin">◈</span><span id="gold">0</span><div class="xptrack"><div id="xpbar"></div></div><span id="xp" class="xpn">0</span></div>
+      <div id="belt"></div>
+    </div>
+  </div>
+
+  <div id="hint">WASD 이동 · 마우스 좌클릭 뼈창 · Q 해골 · E 시체폭발 · F 계단</div>
+</div>
+
+<div id="dead">
+  <div class="dbox">
+    <div class="dtitle">YOU DIED</div>
+    <div class="dstat"></div>
+    <div class="dhint">R — 다시</div>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>
