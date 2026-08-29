@@ -714,6 +714,34 @@ function drawDecals() {
   ctx.globalAlpha = 1;
 }
 
+// ★ V-158 — 넘어진 기둥 밑에 «검은 웅덩이»가 떠 있었다. 그림자를 그림 «파일»의 크기로
+//   재고 있었는데, 구운 PNG 는 투명 여백을 달고 온다 — 여백까지 세니 폭이 부풀고,
+//   바닥선(pr.y)이 실제 그림 밑동보다 아래라 그림자가 물체에서 떨어져 나갔다.
+//   그림이 «실제로 찬 자리»(불투명 픽셀의 경계)를 한 번 재서 캐시하고 거기에 맞춘다.
+const _footCache = new Map();
+function spriteFoot(im, key) {
+  if (_footCache.has(key)) return _footCache.get(key);
+  let box = null;
+  try {
+    const cv = document.createElement("canvas");
+    cv.width = im.width; cv.height = im.height;
+    const g = cv.getContext("2d", { willReadFrequently: true });
+    g.drawImage(im, 0, 0);
+    const d = g.getImageData(0, 0, im.width, im.height).data;
+    let x0 = im.width, x1 = -1, y1 = -1;
+    for (let y = 0; y < im.height; y++)
+      for (let x = 0; x < im.width; x++)
+        if (d[(y * im.width + x) * 4 + 3] > 24) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y > y1) y1 = y;
+        }
+    if (x1 >= x0) box = { cx: (x0 + x1 + 1) / 2 / im.width, w: (x1 + 1 - x0) / im.width, b: (y1 + 1) / im.height };
+  } catch (e) { box = null; }
+  _footCache.set(key, box);
+  return box;
+}
+
 function drawProps() {
   const vis = G.props.filter((pr) => onScreen(pr.x, pr.y, 200));
   vis.sort((a, b) => a.y - b.y);
@@ -721,8 +749,12 @@ function drawProps() {
     const im = tex(pr.img);
     if (!im || !im.width) continue;
     const w = pr.h * (im.width / im.height);
+    const fo = spriteFoot(im, pr.img);
+    const sx = fo ? pr.x - w / 2 + fo.cx * w : pr.x;
+    const sy = fo ? pr.y - pr.h + fo.b * pr.h : pr.y;
+    const rx = (fo ? fo.w * w : w) * 0.34;
     ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(pr.x, pr.y, w * 0.34, w * 0.13, 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(sx, sy, rx, Math.min(rx * 0.4, pr.h * 0.18), 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
     ctx.drawImage(im, pr.x - w / 2, pr.y - pr.h, w, pr.h);
   }
@@ -816,7 +848,10 @@ function nearPlayer(s) {
 //   `filtered` 가 실루엣 한 장을 캐시하므로 프레임마다 새로 만들지 않는다.
 //   순백은 스티커처럼 떠서, 발밑 고리와 같은 금빛으로 맞춘다(테가 아니라 「빛」으로 읽히게).
 const RIM_OFF = [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4], [-1, -1], [1, -1], [-1, 1], [1, 1]];
-const RIM_FILTER = "brightness(0) invert(1) sepia(1) saturate(4) hue-rotate(-14deg)";
+// ★ V-158 — 「금빛으로 맞췄다」고 적었지만 화면에서는 흰 스티커로 왔다. sepia 를 «흰색»에
+//   먹이면 R 이 1.0 을 넘겨 잘려 나가 색이 안 남는다(1.35→1.0). 먼저 어둡게 눌러
+//   여유를 준 뒤 sepia 를 태워야 금빛이 선다 — 결과 ≒ #ffd45d, 발밑 고리(#e8cf52)와 같은 급.
+const RIM_FILTER = "brightness(0) invert(1) brightness(0.7) sepia(1) saturate(2.5)";
 function drawPlayer() {
   const p = G.player;
   drawShadow(p.x, p.y, 34, "#e8cf52", 3);
@@ -867,20 +902,33 @@ function drawStairs() {
   if (im && im.width) {
     const h = 104, w = h * (im.width / im.height);
     const x0 = s.x - w / 2, y0 = s.y - h * 0.78;
+    // ★ V-158 — 구운 테두리가 «찬 밝은 회색»이라 던전의 따뜻한 갈색 위에서 창틀/쇠살처럼
+    //   떴다. 돌로 읽히게 눌러서 따뜻하게 태운다(다시 굽지 않고 칠하는 쪽으로).
+    ctx.filter = "brightness(0.62) sepia(0.42) saturate(1.3)";
     ctx.drawImage(im, x0, y0, w, h);
+    ctx.filter = "none";
     const ix = x0 + w * 0.15, iw = w * 0.70;            // 테두리 안쪽
     const iy = y0 + h * 0.14, ih = h * 0.72;
     ctx.fillStyle = "#08070a"; ctx.fillRect(ix, iy, iw, ih);
-    const N = 5;
-    for (let i = N - 1; i >= 0; i--) {                  // 깊은 것부터(위쪽) 깔아 겹친다
-      const t = i / (N - 1);                            // 0 = 제일 깊다(어둡다)
-      const sh = ih / (N + 0.6), sy = iy + ih - (i + 1) * sh;
-      const pad = (N - 1 - i) * iw * 0.028;
-      const lit = Math.round(30 + t * 78), rise = Math.round(14 + t * 34);
-      ctx.fillStyle = `rgb(${lit},${lit - 4},${Math.round(lit * 0.86)})`;
-      ctx.fillRect(ix + pad, sy, iw - pad * 2, sh * 0.62);
-      ctx.fillStyle = `rgb(${rise},${rise - 2},${Math.round(rise * 0.86)})`;
-      ctx.fillRect(ix + pad, sy + sh * 0.62, iw - pad * 2, sh * 0.38);
+    // ★ V-158 — 디딤판이 «같은 높이·같은 폭»이라 계단이 아니라 **쇠살창**으로 읽혔다.
+    //   원근이 빠졌던 것이다. 깊어질수록(화면 위쪽) 단을 ①얇게 ②좁게 ③어둡게 만들어
+    //   소실점을 준다 — 셋이 같이 가야 「아래로 내려간다」가 보인다.
+    const N = 6, KH = 0.70, KW = 0.855, KL = 0.62;
+    const base = ih * (1 - KH) / (1 - Math.pow(KH, N));  // 등비로 쌓아 정확히 ih 를 채운다
+    let yb = iy + ih;                                    // 가까운 쪽(아래)부터 쌓는다
+    const steps = [];
+    for (let i = 0; i < N; i++) {                        // i = 0 이 제일 가깝다
+      const sh = base * Math.pow(KH, i), hw = iw * 0.5 * Math.pow(KW, i);
+      steps.push({ sh, hw, y: yb - sh, lit: 122 * Math.pow(KL, i) });
+      yb -= sh;
+    }
+    const cx = ix + iw / 2;
+    for (let i = N - 1; i >= 0; i--) {                   // 깊은 것부터 깔아 가까운 것이 덮게
+      const st = steps[i], lit = Math.round(st.lit), rise = Math.round(st.lit * 0.42);
+      ctx.fillStyle = `rgb(${lit},${Math.round(lit * 0.94)},${Math.round(lit * 0.82)})`;
+      ctx.fillRect(cx - st.hw, st.y, st.hw * 2, st.sh * 0.6);
+      ctx.fillStyle = `rgb(${rise},${Math.round(rise * 0.94)},${Math.round(rise * 0.82)})`;
+      ctx.fillRect(cx - st.hw, st.y + st.sh * 0.6, st.hw * 2, st.sh * 0.4);
     }
   } else {
     ctx.fillStyle = "#0c0c10"; ctx.strokeStyle = "#4a7a5a"; ctx.lineWidth = 3;
