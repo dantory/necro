@@ -472,7 +472,7 @@ let floorPat = null;
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
 function drawWorld() {
-  ctx.fillStyle = "#070406";
+  ctx.fillStyle = "#050307";
   ctx.fillRect(0, 0, VW, VH);
   const shx = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
   const shy = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
@@ -482,22 +482,25 @@ function drawWorld() {
   const tile = tex("floor/crypt_tile.png");
   if (tile && tile.width && !floorPat) floorPat = ctx.createPattern(tile, "repeat");
 
-  ctx.fillStyle = "#241f1b"; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z);
-  if (floorPat) { ctx.globalAlpha = 0.5; ctx.fillStyle = floorPat; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z); ctx.globalAlpha = 1; }
-  ctx.fillStyle = "rgba(8,5,6,0.34)"; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z);
-
-  for (const c of G.corridors) {
-    if (c.x - cam.x > VW || c.x + c.w - cam.x < 0 || c.y - cam.y > VH || c.y + c.h - cam.y < 0) continue;
-    if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(c.x, c.y, c.w, c.h); }
-    ctx.fillStyle = "rgba(78,52,32,0.36)"; ctx.fillRect(c.x, c.y, c.w, c.h);
-  }
-  for (const r of G.rooms) {
-    if (r.x - cam.x > VW || r.x + r.w - cam.x < 0 || r.y - cam.y > VH || r.y + r.h - cam.y < 0) continue;
-    if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(r.x, r.y, r.w, r.h); }
-    ctx.fillStyle = r.cleared ? "rgba(44,74,52,0.36)" : "rgba(100,68,42,0.42)";
-    ctx.fillRect(r.x, r.y, r.w, r.h);
+  // ── 던전을 «던전으로» 그린다 — 방·복도만 바닥, 나머지는 벽/공허 (V-151 B) ──────
+  // 옛 판은 화면 전체를 바닥으로 깔아 방·복도·공허가 다 같은 갈색이었다. 이제 걷는
+  // 칸(방+복도)에만 바닥을 깔고 둘레에 돌벽을 세운다. 위쪽 벽은 두껍게 그려 «높이»를
+  // 준다. 복도 바닥이 벽을 뚫고 지나가 문이 저절로 뚫린다. 안 밝힌 방은 어둡게 물들여
+  // 「여기는 안 훑었다」가 판 위에서도 보인다(미니맵에만 있던 정보를 판에 올린다).
+  const WT = 15, WTOP = 30;
+  const vx = cam.x, vy = cam.y, vw = VW / Z, vh = VH / Z;
+  const seen = (o, pad) => !(o.x - vx > vw + pad || o.x + o.w - vx < -pad || o.y - vy > vh + pad || o.y + o.h - vy < -pad);
+  const cvis = G.corridors.filter((c) => seen(c, WT + 6));
+  const rvis = G.rooms.filter((r) => seen(r, WTOP + 6));
+  for (const c of cvis) stoneRim(c.x - WT, c.y - WT, c.w + 2 * WT, c.h + 2 * WT);
+  for (const r of rvis) stoneRim(r.x - WT, r.y - WTOP, r.w + 2 * WT, r.h + WT + WTOP);
+  for (const r of rvis) northWall(r, WT, WTOP);           // 북쪽 벽면(돌 위) — 복도가 이 다음에 뚫는다
+  for (const c of cvis) floorFill(c.x, c.y, c.w, c.h, "rgba(52,38,26,0.5)");   // 복도 바닥이 벽·북벽을 뚫어 문을 낸다
+  for (const r of rvis) {                                 // 방 바닥이 복도를 덮어 복도는 방 사이에만 남는다
+    const tint = !r.visited ? "rgba(6,5,11,0.6)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
+    floorFill(r.x, r.y, r.w, r.h, tint);
     insetShadow(r);
-    ctx.strokeStyle = "#140b08"; ctx.lineWidth = 6; ctx.strokeRect(r.x, r.y, r.w, r.h);
+    doorArches(r, WT);
   }
 
   drawDecals();
@@ -541,6 +544,52 @@ function drawWorld() {
   drawFloats();
 }
 
+function stoneRim(x, y, w, h) {
+  if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); }
+  ctx.fillStyle = "rgba(26,23,22,0.94)"; ctx.fillRect(x, y, w, h);
+}
+function floorFill(x, y, w, h, tint) {
+  ctx.fillStyle = "#241f1b"; ctx.fillRect(x, y, w, h);
+  if (floorPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
+  ctx.fillStyle = tint; ctx.fillRect(x, y, w, h);
+}
+function northWall(r, WT, WTOP) {
+  const y0 = r.y - WTOP, x0 = r.x - WT, w = r.w + 2 * WT;
+  const g = ctx.createLinearGradient(0, y0, 0, r.y);
+  g.addColorStop(0, "rgba(88,79,68,0.96)"); g.addColorStop(0.55, "rgba(54,47,40,0.94)"); g.addColorStop(1, "rgba(18,13,10,0.96)");
+  ctx.fillStyle = g; ctx.fillRect(x0, y0, w, WTOP);
+  ctx.fillStyle = "rgba(150,140,122,0.45)"; ctx.fillRect(x0, y0, w, 2);
+  ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x0, r.y - 3, w, 4);
+}
+// 방 벽을 지나는 복도마다 입구에 돌기둥 한 쌍(문틀)을 세운다 — 「방에 들어왔다」가 느껴지게.
+function doorArches(r, WT) {
+  for (const c of G.corridors) {
+    const cyMid = c.y + c.h / 2, cxMid = c.x + c.w / 2;
+    const hitsV = cxMid > r.x - WT && cxMid < r.x + r.w + WT;
+    const hitsH = cyMid > r.y - WT && cyMid < r.y + r.h + WT;
+    if (c.horiz && hitsH) {
+      if (Math.abs(c.x - r.x) < WT + 8 || (c.x < r.x && c.x + c.w > r.x)) post(r.x, cyMid, c.h);
+      if (Math.abs(c.x + c.w - (r.x + r.w)) < WT + 8 || (c.x < r.x + r.w && c.x + c.w > r.x + r.w)) post(r.x + r.w, cyMid, c.h);
+    } else if (!c.horiz && hitsV) {
+      if (c.y < r.y && c.y + c.h > r.y) postH(cxMid, r.y, c.w);
+      if (c.y < r.y + r.h && c.y + c.h > r.y + r.h) postH(cxMid, r.y + r.h, c.w);
+    }
+  }
+}
+function post(edgeX, cy, gap) {
+  for (const s of [-1, 1]) {
+    const py = cy + s * (gap / 2 + 3);
+    ctx.fillStyle = "rgba(78,70,60,0.95)"; ctx.fillRect(edgeX - 5, py - 5, 10, 10);
+    ctx.fillStyle = "rgba(140,130,112,0.5)"; ctx.fillRect(edgeX - 5, py - 5, 10, 2);
+  }
+}
+function postH(cx, edgeY, gap) {
+  for (const s of [-1, 1]) {
+    const px = cx + s * (gap / 2 + 3);
+    ctx.fillStyle = "rgba(78,70,60,0.95)"; ctx.fillRect(px - 5, edgeY - 5, 10, 10);
+    ctx.fillStyle = "rgba(140,130,112,0.5)"; ctx.fillRect(px - 5, edgeY - 5, 10, 2);
+  }
+}
 function insetShadow(r) {
   const d = 26;
   let g = ctx.createLinearGradient(0, r.y, 0, r.y + d);
@@ -706,12 +755,26 @@ function drawStairs() {
 }
 
 function drawChest(ch) {
-  if (ch.opened) { ctx.fillStyle = "#2a1c10"; ctx.fillRect(ch.x - 16, ch.y - 10, 32, 18); return; }
-  const near = Math.hypot(G.player.x - ch.x, G.player.y - ch.y) < 60;
-  if (near && !ch.opened) openChest(ch);
-  ctx.fillStyle = "#6a4a1e"; ctx.fillRect(ch.x - 18, ch.y - 16, 36, 24);
-  ctx.fillStyle = "#c8a04a"; ctx.fillRect(ch.x - 18, ch.y - 8, 36, 4);
-  ctx.strokeStyle = "#2a1a0c"; ctx.lineWidth = 2; ctx.strokeRect(ch.x - 18, ch.y - 16, 36, 24);
+  if (ch.opened) {
+    ctx.fillStyle = "#160e07"; ctx.fillRect(ch.x - 18, ch.y - 15, 36, 8);
+    ctx.fillStyle = "#2a1c10"; ctx.fillRect(ch.x - 18, ch.y - 8, 36, 15);
+    return;
+  }
+  if (Math.hypot(G.player.x - ch.x, G.player.y - ch.y) < 60) openChest(ch);
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 320);
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(ch.x, ch.y - 8, 0, ch.x, ch.y - 8, 72);
+  g.addColorStop(0, `rgba(240,200,90,${0.14 + pulse * 0.16})`); g.addColorStop(1, "rgba(240,200,90,0)");
+  ctx.fillStyle = g; ctx.fillRect(ch.x - 72, ch.y - 80, 144, 144);
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#5a3c18"; ctx.fillRect(ch.x - 19, ch.y - 17, 38, 25);
+  ctx.fillStyle = "#7a5220"; ctx.fillRect(ch.x - 19, ch.y - 17, 38, 9);
+  ctx.fillStyle = "#d8b45a"; ctx.fillRect(ch.x - 19, ch.y - 9, 38, 3);
+  ctx.fillStyle = "#e8c860"; ctx.fillRect(ch.x - 3, ch.y - 12, 6, 8);
+  ctx.strokeStyle = "#241505"; ctx.lineWidth = 2; ctx.strokeRect(ch.x - 19, ch.y - 17, 38, 25);
+  const sx = ch.x + Math.cos(performance.now() / 500) * 15, sy = ch.y - 22 + Math.sin(performance.now() / 400) * 6;
+  ctx.globalAlpha = pulse; ctx.fillStyle = "#fff6d8";
+  ctx.fillRect(sx - 1, sy - 3, 2, 6); ctx.fillRect(sx - 3, sy - 1, 6, 2); ctx.globalAlpha = 1;
 }
 function openChest(ch) {
   ch.opened = true;
