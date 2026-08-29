@@ -82,15 +82,42 @@ export function genFloor(floor) {
       enemies: [makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true)] });
   }
 
-  return { W, H, rooms, corridors, packs, chests, stairs, startX, startY };
+  const { decals, props } = scatter(rooms);
+  return { W, H, rooms, corridors, packs, chests, stairs, startX, startY, decals, props };
 }
 
+const DEC_IMG = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png"];
+const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
+  "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
+
+function scatter(rooms) {
+  const decals = [], props = [];
+  for (const room of rooms) {
+    const area = room.w * room.h;
+    for (let i = 0; i < Math.round(area / 40000); i++) {
+      decals.push({ x: rint(room.x + 30, room.x + room.w - 30), y: rint(room.y + 30, room.y + room.h - 30),
+        img: DEC_IMG[(Math.random() * DEC_IMG.length) | 0], s: rint(48, 100), a: 0.42 + Math.random() * 0.34 });
+    }
+    for (let i = 0; i < Math.round(area / 150000); i++) {
+      const onX = Math.random() < 0.5;
+      const px = onX ? rint(room.x + 26, room.x + room.w - 26) : (Math.random() < 0.5 ? room.x + rint(24, 64) : room.x + room.w - rint(24, 64));
+      const py = onX ? (Math.random() < 0.5 ? room.y + rint(24, 64) : room.y + room.h - rint(24, 64)) : rint(room.y + 26, room.y + room.h - 26);
+      const brazier = Math.random() < 0.3;
+      props.push({ x: px, y: py, img: brazier ? "decor/brazier.png" : PROP_IMG[(Math.random() * PROP_IMG.length) | 0], h: rint(76, 132), brazier });
+    }
+  }
+  return { decals, props };
+}
+
+// ★ 스프라이트가 작아 보여서(task 5) 몸을 1.4배 키운다. 충돌 반지름은 살짝만(1.15) —
+//   너무 키우면 서로 밀려나 무리가 흩어진다.
+const BODY = 1.4, HITR = 1.15;
 function makeMob(t, x, y, scale, id, elite) {
   const em = elite ? 3.2 : 1;
   return {
     id, base: t.base, x, y, hp: t.hp * scale * em, maxhp: t.hp * scale * em,
-    dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * (elite ? 1.25 : 1),
-    r: t.r * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
+    dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
+    r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: 0, alive: true,
   };
 }

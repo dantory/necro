@@ -41,8 +41,13 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;
 #mini{background:rgba(8,5,5,0.8);border:2px solid var(--edge);box-shadow:inset 0 0 0 1px var(--edge2);image-rendering:pixelated}
 .cleared{font-size:12px;color:#8a7c60;background:var(--panel);border:1px solid var(--edge2);padding:2px 8px}
 
-#bl{position:absolute;left:14px;bottom:12px;display:flex;flex-direction:column;gap:6px}
+#bl{position:absolute;left:14px;bottom:12px;display:flex;flex-direction:column;gap:6px;align-items:flex-start}
 #picklog{display:flex;flex-direction:column;gap:2px;font-size:14px;text-shadow:0 1px 2px #000;min-height:0}
+.army{display:flex;align-items:baseline;gap:12px;padding:3px 12px;
+  background:var(--panel);border:2px solid var(--edge);box-shadow:inset 0 0 0 1px var(--edge2),0 2px 6px #000}
+#slots{color:var(--gold);font-size:19px;letter-spacing:.04em;text-shadow:0 1px 0 #000}
+#slots.full{color:#e08a4a}
+.enh{color:#c98a5a;font-size:13px;letter-spacing:.03em}
 .beltwrap{display:flex;align-items:flex-end;gap:12px;
   background:var(--panel);border:2px solid var(--edge);box-shadow:inset 0 0 0 1px var(--edge2),0 2px 8px #000;padding:8px 12px}
 .purse{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-width:96px}

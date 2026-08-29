@@ -11,7 +11,15 @@ const WAKE = 540;
 const CULL = 1400;
 const PLAYER_BASE = "char/necro";
 const SKEL_BASE = "minion/skel";
-const SKEL_CAP = 8;
+const SKEL_H = 96;
+const SKEL_TIERS = [
+  { scale: 1.00, slot: 1, hpMul: 1.0, dmgMul: 1.0, spdDrop: 0, label: "해골", filt: null },
+  { scale: 1.35, slot: 2, hpMul: 2.2, dmgMul: 1.9, spdDrop: 26, label: "강화 해골", filt: "brightness(0.9) saturate(1.5) sepia(0.28) hue-rotate(-8deg)" },
+  { scale: 1.70, slot: 3, hpMul: 3.6, dmgMul: 3.0, spdDrop: 52, label: "거대 해골", filt: "brightness(0.82) saturate(1.9) sepia(0.5) hue-rotate(-16deg)" },
+];
+const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
+  "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
+  "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png"];
 
 let VW = 0, VH = 0;
 function resize() {
@@ -41,7 +49,7 @@ function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
     maxhp: 3315, hp: 3315, maxmana: 2286, mana: 2286, spd: 268, level: 1,
-    mult: { dmg: 1, body: 1 }, uniques: new Set(),
+    mult: { dmg: 1, body: 1 }, uniques: new Set(), slots: 8, enhance: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0;
@@ -121,16 +129,25 @@ function nearestCorpse(x, y, rad) {
   return best;
 }
 
+function slotsUsed() { let s = 0; for (const m of G.minions) s += m.slot; return s; }
+
 function raiseSkeleton() {
   const p = G.player;
-  const cap = SKEL_CAP + (p.uniques.has("moreSkel") ? 4 : 0);
-  if (G.minions.length >= cap) return;
+  const tier = Math.min(p.enhance, SKEL_TIERS.length - 1);
+  const T = SKEL_TIERS[tier];
+  if (slotsUsed() + T.slot > p.slots) {
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.1, txt: "자리가 없다", col: "#e0663c" });
+    return;
+  }
   const ci = nearestCorpse(p.x, p.y, 300);
   if (ci < 0) return;
   const c = G.corpses[ci]; c.used = true;
-  G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp: 120 + G.floor * 40, maxhp: 120 + G.floor * 40,
-    dmg: 22 + G.floor * 8, spd: 250, r: 15, h: 78, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
-  for (let i = 0; i < 10; i++) burst(c.x, c.y - 20, "#9fe6c8", 120);
+  const hp = (120 + G.floor * 40) * T.hpMul;
+  G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
+    dmg: (22 + G.floor * 8) * T.dmgMul, spd: 250 - T.spdDrop, r: 15 * T.scale, h: SKEL_H * T.scale,
+    tier, slot: T.slot, filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
+  const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
+  for (let i = 0; i < 12 + tier * 5; i++) burst(c.x, c.y - 20, col, 120 + tier * 40);
 }
 
 function corpseNova() {
@@ -281,6 +298,16 @@ function dropLoot(m) {
   const chance = m.elite ? 1 : 0.55;
   const rolls = m.elite ? 3 : 1;
   for (let i = 0; i < rolls; i++) if (Math.random() < chance || (m.elite)) spawnItem(m.x, m.y, m.elite);
+  if (m.elite || Math.random() < 0.16) dropBuild(m.x, m.y);
+}
+
+function dropBuild(x, y) {
+  const slot = Math.random() < 0.5;
+  const item = slot
+    ? { name: "+1 소환 자리", rarity: { color: "#7fe6a0" }, build: { kind: "slot" } }
+    : { name: "소환수 강화 +1단계", rarity: { color: "#e8a24a" }, build: { kind: "enhance" } };
+  const a = Math.random() * 6.283, s = 40 + Math.random() * 70;
+  G.items.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item, t: 0 });
 }
 
 function spawnItem(x, y, lucky) {
@@ -308,6 +335,16 @@ function stepDrops(dt) {
 function pickItem(it) {
   it.got = true;
   const p = G.player;
+  if (it.item.build) {
+    if (it.item.build.kind === "slot") p.slots += 1;
+    else p.enhance = Math.min(SKEL_TIERS.length - 1, p.enhance + 1);
+    G.picks++;
+    G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
+    if (G.pickLog.length > 6) G.pickLog.pop();
+    flash = Math.max(flash, 0.18); flashColor = it.item.build.kind === "slot" ? "127,230,160" : "232,162,74";
+    G.floats.push({ x: it.x, y: it.y - 46, t: 1.6, txt: it.item.name, col: it.item.rarity.color });
+    return;
+  }
   p.mult.dmg *= it.item.dmg; p.mult.body *= it.item.body;
   p.maxhp = Math.round(3315 * p.mult.body); p.maxmana = Math.round(2286 * p.mult.body);
   p.hp = Math.min(p.maxhp, p.hp + p.maxhp * 0.06);
@@ -316,6 +353,7 @@ function pickItem(it) {
   if (G.pickLog.length > 6) G.pickLog.pop();
   if (it.item.unique) {
     p.uniques.add(it.item.unique.key);
+    if (it.item.unique.key === "moreSkel") p.slots += 4;
     flash = 0.5; flashColor = "216,147,74";
     G.floats.push({ x: it.x, y: it.y - 60, t: 2.2, txt: it.item.name, big: true, col: "#e8a24a" });
     G.floats.push({ x: it.x, y: it.y - 34, t: 2.2, txt: it.item.unique.note, big: false, col: "#d8b45a" });
@@ -367,8 +405,10 @@ function stepFloats(dt) {
 }
 
 let floorPat = null;
+function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW + pad || y - cam.y < -pad || y - cam.y > VH + pad); }
+
 function drawWorld() {
-  ctx.fillStyle = "#0a0607";
+  ctx.fillStyle = "#070406";
   ctx.fillRect(0, 0, VW, VH);
   const sx = -cam.x + (cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0);
   const sy = -cam.y + (cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0);
@@ -377,28 +417,38 @@ function drawWorld() {
 
   const tile = tex("floor/crypt_tile.png");
   if (tile && tile.width && !floorPat) floorPat = ctx.createPattern(tile, "repeat");
+
+  ctx.fillStyle = "#241f1b"; ctx.fillRect(cam.x, cam.y, VW, VH);
+  if (floorPat) { ctx.globalAlpha = 0.5; ctx.fillStyle = floorPat; ctx.fillRect(cam.x, cam.y, VW, VH); ctx.globalAlpha = 1; }
+  ctx.fillStyle = "rgba(8,5,6,0.34)"; ctx.fillRect(cam.x, cam.y, VW, VH);
+
+  for (const c of G.corridors) {
+    if (c.x - cam.x > VW || c.x + c.w - cam.x < 0 || c.y - cam.y > VH || c.y + c.h - cam.y < 0) continue;
+    if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(c.x, c.y, c.w, c.h); }
+    ctx.fillStyle = "rgba(78,52,32,0.36)"; ctx.fillRect(c.x, c.y, c.w, c.h);
+  }
   for (const r of G.rooms) {
     if (r.x - cam.x > VW || r.x + r.w - cam.x < 0 || r.y - cam.y > VH || r.y + r.h - cam.y < 0) continue;
     if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(r.x, r.y, r.w, r.h); }
-    ctx.fillStyle = r.cleared ? "rgba(20,40,30,0.30)" : "rgba(30,16,14,0.35)";
+    ctx.fillStyle = r.cleared ? "rgba(44,74,52,0.36)" : "rgba(100,68,42,0.42)";
     ctx.fillRect(r.x, r.y, r.w, r.h);
-    ctx.strokeStyle = "#2a1a16"; ctx.lineWidth = 4; ctx.strokeRect(r.x, r.y, r.w, r.h);
-  }
-  for (const c of G.corridors) {
-    if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(c.x, c.y, c.w, c.h); }
-    ctx.fillStyle = "rgba(24,14,12,0.5)"; ctx.fillRect(c.x, c.y, c.w, c.h);
+    insetShadow(r);
+    ctx.strokeStyle = "#140b08"; ctx.lineWidth = 6; ctx.strokeRect(r.x, r.y, r.w, r.h);
   }
 
+  drawDecals();
+  drawProps();
   for (const c of G.corpses) {
+    if (!onScreen(c.x, c.y, 120)) continue;
     ctx.globalAlpha = 0.5; ctx.fillStyle = "#3a0d0d";
     ctx.beginPath(); ctx.ellipse(c.x, c.y, c.h * 0.28, c.h * 0.14, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
-    if (!drawSprite8(ctx, c.base, c.dir, "idle", 0, c.x, c.y + 4, c.h * 0.7, "grayscale(0.6) brightness(0.5)")) { }
+    drawSprite8(ctx, c.base, c.dir, "idle", 0, c.x, c.y + 4, c.h * 0.7, "grayscale(0.6) brightness(0.5)");
   }
 
-  ctx.fillStyle = "#3a2f10";
-  for (const g of G.golds) { ctx.beginPath(); ctx.arc(g.x, g.y, 3, 0, 6.283); ctx.fillStyle = "#e8c84a"; ctx.fill(); }
+  drawLight();
 
+  for (const g of G.golds) { ctx.beginPath(); ctx.arc(g.x, g.y, 3, 0, 6.283); ctx.fillStyle = "#e8c84a"; ctx.fill(); }
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
 
@@ -421,10 +471,73 @@ function drawWorld() {
   ctx.restore();
 
   if (flash > 0) { ctx.globalAlpha = flash; ctx.fillStyle = `rgb(${flashColor})`; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
-  ctx.fillStyle = "rgba(0,0,0,0)";
-  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.4, VW / 2, VH / 2, VH * 0.9);
-  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.55)");
+  const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VH * 0.95);
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.34)");
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+}
+
+function insetShadow(r) {
+  const d = 26;
+  let g = ctx.createLinearGradient(0, r.y, 0, r.y + d);
+  g.addColorStop(0, "rgba(0,0,0,0.55)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(r.x, r.y, r.w, d);
+  g = ctx.createLinearGradient(0, r.y + r.h, 0, r.y + r.h - d);
+  g.addColorStop(0, "rgba(0,0,0,0.45)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(r.x, r.y + r.h - d, r.w, d);
+  g = ctx.createLinearGradient(r.x, 0, r.x + d, 0);
+  g.addColorStop(0, "rgba(0,0,0,0.5)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(r.x, r.y, d, r.h);
+  g = ctx.createLinearGradient(r.x + r.w, 0, r.x + r.w - d, 0);
+  g.addColorStop(0, "rgba(0,0,0,0.5)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.fillRect(r.x + r.w - d, r.y, d, r.h);
+}
+
+function drawDecals() {
+  for (const d of G.decals) {
+    if (!onScreen(d.x, d.y, 120)) continue;
+    const im = tex(d.img);
+    if (!im || !im.width) continue;
+    const w = d.s, h = d.s * (im.height / im.width);
+    ctx.globalAlpha = d.a;
+    ctx.drawImage(im, d.x - w / 2, d.y - h / 2, w, h);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawProps() {
+  const vis = G.props.filter((pr) => onScreen(pr.x, pr.y, 200));
+  vis.sort((a, b) => a.y - b.y);
+  for (const pr of vis) {
+    const im = tex(pr.img);
+    if (!im || !im.width) continue;
+    const w = pr.h * (im.width / im.height);
+    ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(pr.x, pr.y, w * 0.34, w * 0.13, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.drawImage(im, pr.x - w / 2, pr.y - pr.h, w, pr.h);
+  }
+}
+
+function drawLight() {
+  const p = G.player;
+  const lg = ctx.createRadialGradient(p.x, p.y - 20, 110, p.x, p.y - 20, 520);
+  lg.addColorStop(0, "rgba(0,0,0,0)");
+  lg.addColorStop(0.55, "rgba(4,2,3,0.16)");
+  lg.addColorStop(1, "rgba(2,1,2,0.52)");
+  ctx.fillStyle = lg;
+  ctx.fillRect(cam.x - 40, cam.y - 40, VW + 80, VH + 80);
+  ctx.globalCompositeOperation = "lighter";
+  warmGlow(p.x, p.y - 20, 320, 0.11);
+  for (const pr of G.props) {
+    if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
+    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, 0.22);
+  }
+  ctx.globalCompositeOperation = "source-over";
+}
+function warmGlow(x, y, r, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(240,150,60,${a})`); g.addColorStop(1, "rgba(240,150,60,0)");
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
 }
 
 function actorDir(a) { return dirName(a.dx ?? 0, a.dy ?? 1); }
@@ -434,14 +547,14 @@ function drawShadow(x, y, w) { ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ct
 
 function drawPlayer() {
   const p = G.player;
-  drawShadow(p.x, p.y, 26);
+  drawShadow(p.x, p.y, 34);
   const st = p.state;
-  if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, 104, p.hurt > 0 ? "brightness(2.2)" : null))
-    fallbackBlob(p.x, p.y, 104, "#cfc7b0");
+  if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, 146, p.hurt > 0 ? "brightness(2.2)" : null))
+    fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
   drawShadow(s.x, s.y, s.r);
-  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h))
+  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, s.filt || null))
     fallbackBlob(s.x, s.y, s.h, "#d8e8d0");
 }
 function drawEnemy(m) {
@@ -487,15 +600,34 @@ function openChest(ch) {
 
 function drawItems() {
   ctx.textAlign = "center";
-  for (const it of G.items) {
-    const r = it.item.rarity;
-    ctx.font = "13px 'Times New Roman',serif";
-    const w = ctx.measureText(it.item.name).width + 14;
-    ctx.fillStyle = "rgba(6,4,4,0.82)"; ctx.fillRect(it.x - w / 2, it.y - 10, w, 16);
-    ctx.strokeStyle = r.color + "66"; ctx.lineWidth = 1; ctx.strokeRect(it.x - w / 2, it.y - 10, w, 16);
-    ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(it.x, it.y + 8, 3, 0, 6.283); ctx.fill();
-    ctx.fillStyle = r.color; ctx.fillText(it.item.name, it.x, it.y + 2);
+  const sorted = [...G.items].sort((a, b) => a.y - b.y || a.x - b.x);
+  const placed = [];
+  for (const it of sorted) {
+    if (!onScreen(it.x, it.y, 160)) continue;
+    let ly = it.y, moved = true, guard = 0;
+    while (moved && guard++ < 24) {
+      moved = false;
+      for (const q of placed) {
+        if (Math.abs(q.x - it.x) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; }
+      }
+    }
+    if (ly < it.y - 18 * 8) continue;
+    placed.push({ x: it.x, ly });
+    drawItemLabel(it, ly);
   }
+}
+function drawItemLabel(it, ly) {
+  const r = it.item.rarity;
+  ctx.font = "13px 'Times New Roman',serif";
+  const w = ctx.measureText(it.item.name).width + 16;
+  if (ly < it.y - 2) {
+    ctx.strokeStyle = r.color + "44"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(it.x, it.y + 4); ctx.lineTo(it.x, ly + 6); ctx.stroke();
+  }
+  ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(it.x - w / 2, ly - 10, w, 16);
+  ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(it.x - w / 2, ly - 10, w, 16);
+  ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(it.x, it.y + 8, 3, 0, 6.283); ctx.fill();
+  ctx.fillStyle = r.color; ctx.fillText(it.item.name, it.x, ly + 2);
 }
 function drawFloats() {
   ctx.textAlign = "center";
@@ -542,6 +674,11 @@ function updateHUD() {
   el("region3").textContent = G.floor < 2 ? "Nightmare" : "Hell";
   el("region4").textContent = `Zone Level ${G.floor * 40 + 42}`;
   el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
+  const used = slotsUsed();
+  const slotsEl = el("slots");
+  slotsEl.textContent = `자리 ${used} / ${p.slots}`;
+  slotsEl.classList.toggle("full", used >= p.slots);
+  el("enh").textContent = `강화 ${p.enhance}단계`;
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
@@ -596,6 +733,7 @@ function loop(now) {
   resetUniques();
   preload([PLAYER_BASE, SKEL_BASE, "mob/fallen", "mob/zombie", "mob/skelarch", "mob/shaman", "mob/brute", "mob/boss"]);
   tex("floor/crypt_tile.png");
+  for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
   start(1, null);
   requestAnimationFrame(loop);
