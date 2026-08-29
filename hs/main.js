@@ -9,6 +9,7 @@ const mctx = mini.getContext("2d");
 
 const WAKE = 540;
 const CULL = 1400;
+const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
 const PLAYER_BASE = "char/necro";
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 96;
@@ -65,8 +66,8 @@ function fresh(floor, carry) {
 
 function start(floor, carry) {
   G = fresh(floor, carry);
-  window.G = G; window.cam = cam;
-  cam.x = G.player.x - VW / 2; cam.y = G.player.y - VH / 2;
+  window.G = G; window.cam = cam; window.HSZ = Z;
+  cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
   document.getElementById("dead").style.display = "none";
 }
 
@@ -85,7 +86,7 @@ function stepPlayer(dt) {
     p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
   } else { p.state = "idle"; p.anim += dt * 6; }
 
-  const tx = cam.x + mouse.x, ty = cam.y + mouse.y;
+  const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   p.spearCd -= dt;
   if (mouse.down && p.spearCd <= 0) {
     fireSpear(p, tx, ty);
@@ -94,10 +95,10 @@ function stepPlayer(dt) {
   if (p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 60 * dt);
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
 
-  cam.x += (p.x - VW / 2 - cam.x) * Math.min(1, dt * 8);
-  cam.y += (p.y - VH / 2 - cam.y) * Math.min(1, dt * 8);
-  cam.x = Math.max(0, Math.min(G.W - VW, cam.x));
-  cam.y = Math.max(0, Math.min(G.H - VH, cam.y));
+  cam.x += (p.x - VW / (2 * Z) - cam.x) * Math.min(1, dt * 8);
+  cam.y += (p.y - VH / (2 * Z) - cam.y) * Math.min(1, dt * 8);
+  cam.x = Math.max(0, Math.min(G.W - VW / Z, cam.x));
+  cam.y = Math.max(0, Math.min(G.H - VH / Z, cam.y));
 }
 
 function fireSpear(p, tx, ty) {
@@ -153,7 +154,7 @@ function raiseSkeleton() {
 function corpseNova() {
   const p = G.player;
   if (p.mana < 30) return;
-  const tx = cam.x + mouse.x, ty = cam.y + mouse.y;
+  const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   const ci = nearestCorpse(tx, ty, 200);
   if (ci < 0) return;
   p.mana -= 30;
@@ -197,6 +198,7 @@ function stepEnemies(dt) {
     for (const m of pk.enemies) {
       if (!m.alive) continue;
       live++;
+      if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
       for (const s of G.minions) {
         const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
@@ -264,7 +266,7 @@ function stepSpears(dt) {
 }
 
 function hurtEnemy(m, dmg, dx, dy) {
-  m.hp -= dmg; m.hit = 0.12;
+  m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
   const l = Math.hypot(dx, dy) || 1;
   m.kb.x += (dx / l) * 240; m.kb.y += (dy / l) * 240;
   floatDmg(m.x, m.y - m.h * 0.7, Math.round(dmg), m.elite ? "#ffd060" : "#ffffff");
@@ -277,6 +279,8 @@ function killEnemy(m) {
   G.kills++;
   G.xp += m.elite ? 40 : 10;
   if (G.xp >= G.player.level * 500) { G.player.level++; }
+  cam.shake = Math.max(cam.shake, m.elite ? 10 : 5);
+  for (let i = 0; i < (m.elite ? 16 : 9); i++) burst(m.x, m.y - m.h * 0.4, "#e8e2d2", 150);
   addCorpse(m);
   dropLoot(m);
 }
@@ -408,22 +412,22 @@ function stepFloats(dt) {
 }
 
 let floorPat = null;
-function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW + pad || y - cam.y < -pad || y - cam.y > VH + pad); }
+function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
 function drawWorld() {
   ctx.fillStyle = "#070406";
   ctx.fillRect(0, 0, VW, VH);
-  const sx = -cam.x + (cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0);
-  const sy = -cam.y + (cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0);
+  const shx = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
+  const shy = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
   ctx.save();
-  ctx.translate(sx, sy);
+  ctx.setTransform(Z, 0, 0, Z, (-cam.x + shx) * Z, (-cam.y + shy) * Z);
 
   const tile = tex("floor/crypt_tile.png");
   if (tile && tile.width && !floorPat) floorPat = ctx.createPattern(tile, "repeat");
 
-  ctx.fillStyle = "#241f1b"; ctx.fillRect(cam.x, cam.y, VW, VH);
-  if (floorPat) { ctx.globalAlpha = 0.5; ctx.fillStyle = floorPat; ctx.fillRect(cam.x, cam.y, VW, VH); ctx.globalAlpha = 1; }
-  ctx.fillStyle = "rgba(8,5,6,0.34)"; ctx.fillRect(cam.x, cam.y, VW, VH);
+  ctx.fillStyle = "#241f1b"; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z);
+  if (floorPat) { ctx.globalAlpha = 0.5; ctx.fillStyle = floorPat; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z); ctx.globalAlpha = 1; }
+  ctx.fillStyle = "rgba(8,5,6,0.34)"; ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z);
 
   for (const c of G.corridors) {
     if (c.x - cam.x > VW || c.x + c.w - cam.x < 0 || c.y - cam.y > VH || c.y + c.h - cam.y < 0) continue;
@@ -469,14 +473,15 @@ function drawWorld() {
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
   ctx.globalAlpha = 1;
 
-  drawItems();
-  drawFloats();
   ctx.restore();
 
   if (flash > 0) { ctx.globalAlpha = flash; ctx.fillStyle = `rgb(${flashColor})`; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
   const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VH * 0.95);
   vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.34)");
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
+
+  drawItems();
+  drawFloats();
 }
 
 function insetShadow(r) {
@@ -523,12 +528,12 @@ function drawProps() {
 
 function drawLight() {
   const p = G.player;
-  const lg = ctx.createRadialGradient(p.x, p.y - 20, 110, p.x, p.y - 20, 520);
+  const lg = ctx.createRadialGradient(p.x, p.y - 20, 110 / Z, p.x, p.y - 20, 520 / Z);
   lg.addColorStop(0, "rgba(0,0,0,0)");
   lg.addColorStop(0.55, "rgba(4,2,3,0.16)");
   lg.addColorStop(1, "rgba(2,1,2,0.52)");
   ctx.fillStyle = lg;
-  ctx.fillRect(cam.x - 40, cam.y - 40, VW + 80, VH + 80);
+  ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
   ctx.globalCompositeOperation = "lighter";
   warmGlow(p.x, p.y - 20, 320, 0.11);
   for (const pr of G.props) {
@@ -546,7 +551,16 @@ function warmGlow(x, y, r, a) {
 function actorDir(a) { return dirName(a.dx ?? 0, a.dy ?? 1); }
 function frame(a, base) { const st = a.state === "idle" ? "idle" : a.state; const n = frameCount(base, st === "attack" ? "attack" : "walk"); return st === "idle" ? 0 : Math.floor(a.anim) % n; }
 
-function drawShadow(x, y, w) { ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.4, 0, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1; }
+function drawShadow(x, y, w, col) {
+  ctx.globalAlpha = 0.4; ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.4, 0, 0, 6.283); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (col) {
+    ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
 
 function drawPlayer() {
   const p = G.player;
@@ -556,12 +570,12 @@ function drawPlayer() {
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
-  drawShadow(s.x, s.y, s.r);
+  drawShadow(s.x, s.y, s.r, "#3d78c8");
   if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, s.filt || null))
     fallbackBlob(s.x, s.y, s.h, "#d8e8d0");
 }
 function drawEnemy(m) {
-  drawShadow(m.x, m.y, m.r);
+  drawShadow(m.x, m.y, m.r, m.elite ? "#f0902a" : "#c0342c");
   const filt = m.hit > 0 ? "brightness(3)" : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
@@ -571,7 +585,11 @@ function drawEnemy(m) {
     ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 6);
     ctx.fillStyle = m.elite ? "#e8cf52" : "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
   }
-  if (m.elite) { ctx.fillStyle = "#8ac06a"; ctx.font = "10px 'Times New Roman',serif"; ctx.textAlign = "center"; ctx.fillText("CHAMPION", m.x, by - 5); }
+  if (m.elite) {
+    ctx.save(); ctx.translate(m.x, by - 5); ctx.scale(1 / Z, 1 / Z);
+    ctx.fillStyle = "#8ac06a"; ctx.font = "10px 'Times New Roman',serif"; ctx.textAlign = "center";
+    ctx.fillText("CHAMPION", 0, 0); ctx.restore();
+  }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
 
@@ -606,41 +624,43 @@ function drawItems() {
   const sorted = [...G.items].sort((a, b) => a.y - b.y || a.x - b.x);
   const placed = [];
   for (const it of sorted) {
-    if (!onScreen(it.x, it.y, 160)) continue;
-    let ly = it.y, moved = true, guard = 0;
+    const sx = (it.x - cam.x) * Z, sy = (it.y - cam.y) * Z;
+    if (sx < -40 || sx > VW + 40 || sy < -20 || sy > VH + 20) continue;
+    let ly = sy, moved = true, guard = 0;
     while (moved && guard++ < 24) {
       moved = false;
       for (const q of placed) {
-        if (Math.abs(q.x - it.x) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; }
+        if (Math.abs(q.x - sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; }
       }
     }
-    if (ly < it.y - 18 * 8) continue;
-    placed.push({ x: it.x, ly });
-    drawItemLabel(it, ly);
+    if (ly < sy - 18 * 8) continue;
+    placed.push({ x: sx, ly });
+    drawItemLabel(it, sx, sy, ly);
   }
 }
-function drawItemLabel(it, ly) {
+function drawItemLabel(it, sx, sy, ly) {
   const r = it.item.rarity;
   ctx.font = "13px 'Times New Roman',serif";
   const w = ctx.measureText(it.item.name).width + 16;
-  if (ly < it.y - 2) {
+  if (ly < sy - 2) {
     ctx.strokeStyle = r.color + "44"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(it.x, it.y + 4); ctx.lineTo(it.x, ly + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, ly + 6); ctx.stroke();
   }
-  ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(it.x - w / 2, ly - 10, w, 16);
-  ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(it.x - w / 2, ly - 10, w, 16);
-  ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(it.x, it.y + 8, 3, 0, 6.283); ctx.fill();
-  ctx.fillStyle = r.color; ctx.fillText(it.item.name, it.x, ly + 2);
+  ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(sx - w / 2, ly - 10, w, 16);
+  ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(sx - w / 2, ly - 10, w, 16);
+  ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(sx, sy + 8, 3, 0, 6.283); ctx.fill();
+  ctx.fillStyle = r.color; ctx.fillText(it.item.name, sx, ly + 2);
 }
 function drawFloats() {
   ctx.textAlign = "center";
   for (const f of G.floats) {
-    if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y + 30, f.ring, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    const sx = (f.x - cam.x) * Z, sy = (f.y - cam.y) * Z;
+    if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx, sy + 30 * Z, f.ring * Z, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
     if (!f.txt) continue;
     ctx.globalAlpha = Math.min(1, f.t * 1.5);
     ctx.font = (f.big ? "bold 26px " : "16px ") + "'Times New Roman',serif";
-    ctx.fillStyle = "#000"; ctx.fillText(f.txt, f.x + 1, f.y + 1);
-    ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, f.x, f.y);
+    ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
+    ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
     ctx.globalAlpha = 1;
   }
 }
