@@ -2026,6 +2026,40 @@ body.noPickName #docGrid, body.noPickName #tacGrid{ grid-template-columns:repeat
 /* 문 — 자가 고치기 전 꼴(여섯 칸 격자 + 빈 칸 넷)을 그 자리에서 다시 세운다 */
 body.noPickName #forgeGrid{ grid-template-columns:repeat(6,1fr); justify-content:stretch; gap:6px }
 
+/* ══ V-141 · 재련 슬롯 줄 ══ 강화 넷 아래에 슬롯 여섯을 각각 고르는 줄을 붙였다.
+   슬롯이 여섯이라 여섯 칸 1fr 로 쫙 편다(대장간 넷과 달리 «가운데 모으기»가 필요 없다).
+   ★ #forgeGrid 의 낮은-창 좁히기(max-height 800/700)를 **같이 옮긴다** — 창이 세로로
+     길어졌으므로 이 줄이 안 좁혀지면 낮은 창(1280×620)에서 격자가 설명칸을 먹는다
+     (#forgeGrid 가 이미 한 번 겪어 고친 그 자리다). */
+#forgeReGrid{ grid-template-columns:repeat(6,minmax(0,1fr)); gap:6px }
+@media (max-height:800px){ #forgeReGrid{ gap:5px } }
+@media (max-height:700px){ #forgeReGrid{ gap:4px } }
+
+/* ★★ V-141 · 낮은 창에서 **재련 줄이 설명칸을 굶기지 않게** ══ 대장간에 격자가 둘이 되면서
+   생긴 새 덫이다. 낮은-창 규칙(위 max-height:800)은 `.win .frame > .grid` 를 죄다
+   flex:1 1 auto·min 126px 로 만드는데, 이제 그런 격자가 **둘**이라(강화·재련) 둘이서
+   252px 를 미리 물어 설명칸(.tip)이 234px 짜리 제 내용을 못 담는다. 그러면 설명칸이
+   구르기(.wScroll)로 접히고 **「더 있다」 그늘 띠(::after)가 밑줄들을 덮어** 대비가
+   1.5:1 로 꺼진다(v91_ink 가 잡았다 — 강화 툴팁의 「최대 체력」·「→ 한 단계 더」).
+   내용은 한 톨도 안 건드렸다 — **그늘이 글자를 가린 것**이라 자리 다툼만 고치면 된다.
+   결: 강화 줄(한 줄, 늘 든다)은 **제 키로 박고**(안 구른다), 재련 줄만 남는 자리에서
+   구르게 두고, 설명칸엔 **바닥(240px)**을 준다 — 제 내용을 담고 남으니 그늘이 안 뜬다.
+   1366×700 에서 밑줄이 그늘 밖으로 나온다.
+   ★ 그런데 **바닥(240px)은 아무 데서나 주면 안 된다** — 1280×620 에서 재니 값·단추와
+     「나가기」가 든 밑자락(.winFoot)이 상자 밖으로 **55px** 밀려 나갔다(footBot 664 >
+     frameBot 609 · 고치기 전엔 들어 있었다). 620 짜리 창은 상자 자체가 560px 이라
+     격자 둘 + 240px 설명칸 + 밑자락이 애초에 안 들어간다. **문을 못 닫는 창**은 그늘보다
+     나쁘다 — 그래서 바닥은 **648px 위에서만** 준다(V-90c 가 「648 아래는 2단을 다 써도
+     모자란다」고 이미 그은 그 금이다). 648 아래에서는 윗줄의 일반 규칙(min 104px)대로
+     설명칸이 구르고, 밑자락은 제자리에 남는다. */
+@media (max-height:800px){
+  #winForge .frame > #forgeGrid{ flex:0 0 auto; min-height:0; overflow:visible }
+  #winForge .frame > #forgeReGrid{ flex:1 1 auto; min-height:88px; overflow-y:auto }
+}
+@media (max-height:800px) and (min-height:648px){
+  #winForge .frame > .tip{ min-height:240px }
+}
+
 /* ══ V-104 · **편성 창이 «못 세우는 몸»을 이름만 내걸고 침묵하던 것** ══
    처음 켠 사람은 해골밖에 못 세우는데(구울 Lv.6 · 골렘 Lv.10 언저리에서 트리가 열어 준다),
    편성 창은 넷을 다 멀쩡한 칸으로 세우고 「벽(골렘) 1 · 몸(구울) 1」을 가장 밝은 값으로

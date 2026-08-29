@@ -1711,10 +1711,12 @@ export function autoForgeOn() {
 function forgeReserve() {
   let r = 0;
   for (const k of GEAR_KEYS) { const nx = gearNext(k); if (nx !== null) r = Math.max(r, GEAR[k].cost[nx]); }
-  /* ★ V-139b — 강화가 손으로 넘어가면 **그 몫도 남겨야 한다.** 안 그러면 무한 축인
-     재련이 위를 다 훑어 가서, 마을에 들른 사람은 늘 「금이 모자란 대장간」을 본다
-     (상점에서 이미 한 번 겪은 그 결함이다 — 위 forgeReserve 주석). */
-  if (!autoForgeOn()) for (const k in UPS) r = Math.max(r, upCost(k));
+  /* ★ V-141 — V-139b 가 여기 두었던 「강화 몫도 남기기」(`if(!autoForgeOn()) …upCost…`)를
+     지웠다. 그건 **사람 판**에서 무한 축(재련)이 강화 살 금까지 훑지 않게 남기던 것인데,
+     이제 autoForge 는 사람 판에서 **맨 위에서 빈 손으로 돌아간다**(아무것도 안 산다) —
+     그러니 그 보태기가 닿을 자리가 없어졌다. 자동 판(autoForgeOn())에서는 애초에 그 `if`
+     가 거짓이라 여태도 안 탔다: 셈은 **한 톨도 안 갈린다**. 장비 한 벌 값을 남기는 윗줄은
+     그대로다(자동 판이 상점 몫을 훑지 않게). */
   return r;
 }
 /** 살 수 있는 만큼 산다(한 번에 `max` 개까지 — 후반에 금이 폭주해도 한 틱이 안 길어진다).
@@ -1723,14 +1725,19 @@ function forgeReserve() {
  *    1.55 라 저절로 번갈아 오르고, 재련이 무한 축이라 대장간이 다 차도 금이 계속 쓰인다.
  *    forgeReserve() 를 그대로 존중해 상점(손으로 사는 축) 몫은 남긴다. */
 export function autoForge(max = 8) {
+  /* ★ V-141 — **사람 판에서는 아무것도 안 산다.** V-139b 가 강화 넷을 손으로 넘겼는데
+     재련은 「슬롯 여섯을 고루 올릴 뿐」이라며 자동으로 남겨 두었다. 그런데 슬롯은 서로
+     다른 일을 한다(지팡이=피해·망토=몸·부적=마나) — 곧 **고를 것이 있었다**(buyReforge).
+     그래서 문을 강화와 **한 자리**로 모은다: autoForgeOn() 이 0 이면 여기서 즉시 빈 손으로
+     돌아간다. 자(`__AUTO_TREE`/`__AUTO_FORGE`)만 아래로 내려가 강화·재련을 여태처럼 다
+     산다 — 지난 측정(forge_mix)이 **한 톨도 안 갈린다**([[same-seed-is-not-same-run]]). */
+  if (!autoForgeOn()) return [];
   const bought = [], keep = forgeReserve(), W = forgeWeights();
   for (let i = 0; i < max; i++) {
     /* ① 강화 넷 중 **몫 대비 제일 뒤처진** 것. 값이 아니라 «얼마나 밀렸나»로 고른다.
        같으면 싼 쪽(결정적이어야 검수기의 A/B 가 성립한다 — 난수 한 톨 없다). */
     let pick = null, lo = Infinity, reforge = false, need = Infinity;
-    /* ★ V-139b — 사람이 굴리는 판에서는 **강화 넷을 건드리지 않는다.** 자(`__AUTO_TREE`)만
-       여태처럼 산다. 아래 재련은 양쪽 다 그대로다. */
-    if (autoForgeOn()) for (const k in UPS) {
+    for (const k in UPS) {
       const n = ((META.up[k] | 0) + 1) / (W[k] || 1), c = upCost(k);
       if (n < need || (n === need && c < lo)) { need = n; lo = c; pick = k; reforge = false; }
     }
@@ -1747,6 +1754,19 @@ export function autoForge(max = 8) {
     bought.push({ k: pick, cost: lo, reforge });
   }
   return bought;
+}
+
+/* ══ 손으로 사는 재련 ══ (V-141) 자동이 재련도 저절로 사던 것을 사람에게 넘긴다. 슬롯 여섯은
+   서로 다른 일을 해서(지팡이=피해·망토=몸·부적=마나) 「어디에 부을지」가 고를 것이 된다 —
+   무한 축(reforgeCost 밑 1.55)이라 후반에 금이 갈 곳이 된다.
+   ★ 상점(buy)·강화(data-up)의 손으로 사는 길과 **같은 결**: 살 수 있으면 금을 깎고 참, 못
+     사면 거짓. 사는 셈(reforgeCost)은 autoForge 와 **한 자**를 쓴다(값이 갈릴 자리가 없다).
+     저장(saveMeta)은 부르는 쪽이 쥔다 — 강화 단추(data-up)와 같은 자리. */
+export function buyReforge(k) {
+  if (!GEAR_KEYS.includes(k) || META.gold < reforgeCost(k)) return false;
+  META.gold -= reforgeCost(k);
+  META.plus[k] = (META.plus[k] | 0) + 1;
+  return true;
 }
 
 /* ══ 본인도 **그 층의 격**만큼은 버틴다 ══

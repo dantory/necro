@@ -1,4 +1,4 @@
-import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearNum, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, upCost, reforgeCost, UPS, xpNeed, mpCost, cdMul, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
+import { $, num, CORPSE_TINT, GEAR, GEAR_KEYS, MOB_H, gearNext, gearTier, gearShow, gearNum, gearDelta, equipped, equipFromBag, mkItem, nameOf, rarityOf, RARITY, afText, scoreOf, AFFIX, hpMaxOf, isGate, META, MINIONS, mpMaxOf, mpRegenOf, goldMulOf, depthMul, selfDmgMul, minionDmgMul, S, saveMeta, SKILLS, armyCap, autoForge, autoForgeOn, buyReforge, upCost, reforgeCost, reforgeStep, UPS, xpNeed, mpCost, cdMul, spLeft, syncSkills, feedMul, unitH, armyN, thrallN, armyCapEff, CAP_MERGE_OF, RAISE_SPILL_OF, BURN_MANA_OF, BURN_KEEP, BAG_MAX, BAG_COLS, BAG_ROWS, bagPack, bagUsed, LASTRUN, digCost, digDraw, dropTierCap, ilMul, zoneOf, canRebirth, rebirth, rebirthPreview, neverDove, relicMul, REBIRTH_MIN, applyOffline, OFFLINE_CAP_MIN, bootSeen, autoSpend,
  diveMax, diveAt, DIVE_STEP, DIVE_BACK, DIVE_MIN_DEEPEST, ZONES, MOB_N, clanOf, startFloor, wipeSave, UNIQUE, UNIQ_BY_ID, mkUnique, uniqOf, QUESTS, questProg, questDone, DOCTRINE, DOCTRINE_DEF, DOCTRINE_IDS, doctrineId, doctrineWants, doctrineWantsOf, TACTIC, TACTIC_IDS, tacticId, tacticOf, docCorpseOf } from "./core.js";
 import { gulpOf, durOf, KILL_BY, KILL_DMG, KILL_AT, TAINT, NOVA, RAISE_TALLY, RAISE_CHOKE, LOST_BY, LOST_DMG, LOST_HITS, LOST_KINDS, HERO_TALLY, TOUCH_K_DEF, registerAutoTick, rushOn, say, retreat, ARRIVE_T, BOSSRING_T, bossH, mobKindsFor, cast, corpseNeedOf, slotYield, CORE_R, CORPSE_FADE, CORPSE_MAX, DEATH_T, DEATHLOG, die, IMPACT_AT, newRun, PILE_FADE, RING_HOLD, RING_SPAWN, RISE_T, sayReset, step, SWING_T } from "./battle.js";
 import { SQUASH_VIEW as SQUASH_VIEW_C, gripMul, GRIP } from "./core.js";
@@ -2574,6 +2574,30 @@ function drawForge() {
      좁힌다. 빈 칸은 **자를 위한 문**(noPickName)에서만 되살아난다. */
     + (pickDoor() ? '<div class="cell empty"></div>'.repeat(4) : "");
 
+  /* ★ V-141 — 재련은 슬롯 여섯을 **각각** 고른다(강화 넷과 다른 격자). 칸 꼴은 상인 좌판과
+     같게 아이콘 + 오른쪽 아래 배지(지금 +N) · 고른 칸에 sel. 고르기는 기존 `data-fpick`
+     길을 그대로 쓰되 `re:` 를 붙여 강화 칸과 가른다(누름 처리는 아래 fpick 하나가 쥔다). */
+  $("forgeReGrid").innerHTML = GEAR_KEYS.map((k) => {
+    const pl = META.plus[k] | 0;
+    return `<div class="cell${forgePick === `re:${k}` ? " sel" : ""}" data-fpick="re:${k}">
+      <i class="gear-${k}"></i><span class="q ${qCls(pl, "t2")}">+${pl}</span></div>`;
+  }).join("");
+
+  /* 고른 것이 재련 슬롯이면 **재련 설명**을 그린다 — 강화 칸을 고른 때의 아래 툴팁과 다른 결.
+     한 단계당 얼마나 오르는가는 그 슬롯의 단위(gearDelta)로 적고, 값·단추는 재련(data-re). */
+  if (forgePick.startsWith("re:")) {
+    const rk = forgePick.slice(3), g = GEAR[rk], pl = META.plus[rk] | 0;
+    const cost = reforgeCost(rk), can = META.gold >= cost;
+    $("forgeTip").innerHTML =
+      `<div class="tipName t2">${g.n} <span class="lv">+${pl}</span></div>
+       <div class="tipKind">재련</div>
+       <div class="tipStat tD">${g.d} <span class="lv">— 한 단계당</span> <b>${gearDelta(rk, reforgeStep(rk))}</b></div>
+       <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
+         <button class="btn" data-re="${rk}" ${can ? "" : "disabled"}>재련</button></div>`;
+    $("forgeGold").textContent = (META.gold | 0).toLocaleString();
+    return;
+  }
+
   const k = forgePick, u = UPS[k], lv = META.up[k] | 0;
   const cost = upCost(k), can = META.gold >= cost;
   const pl = META.plus, reNext = GEAR_KEYS.reduce((a, b) => reforgeCost(b) < reforgeCost(a) ? b : a, GEAR_KEYS[0]);
@@ -2598,7 +2622,7 @@ function drawForge() {
      <div class="tipStat tD">${upText(k)} <span class="lv">— 한 단계당</span></div>
      ${upFxHtml(k)}
      ${reRow}
-     <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b> <span class="lv">— 저절로 산다</span></div>
+     <div class="tipStat">다음 재련 <b>${reforgeCost(reNext).toLocaleString()} 금</b>${autoForgeOn() ? ` <span class="lv">— 저절로 산다</span>` : ""}</div>
      <div class="tipBuy"><span class="cost${can ? "" : " no"}">${gnum(cost)} 금</span>
        <button class="btn" data-up="${k}" ${can ? "" : "disabled"}>강화</button></div>`;
   $("forgeGold").textContent = (META.gold | 0).toLocaleString();
@@ -3814,6 +3838,12 @@ document.addEventListener("click", (e) => {
        값이 그대로라 「안 눌린다」로 보인다(눌리긴 눌렸다 — 그림만 안 왔다). */
     if ($("winStat").classList.contains("on")) drawStat(); else drawForge();
     hud();
+  }
+  /* ★ V-141 — 손으로 사는 재련. 셈은 core(buyReforge) 하나가 쥐고, 여기는 저장·다시 그리기만
+     — 강화 단추(data-up)와 같은 결. 재련은 대장간 창에만 있으므로 drawForge 만 그린다. */
+  const re = t.getAttribute && t.getAttribute("data-re");
+  if (re) {
+    if (buyReforge(re)) { saveMeta(); drawForge(); hud(); }
   }
 });
 
