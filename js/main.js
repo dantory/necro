@@ -2620,15 +2620,22 @@ const UP_ROW = {
   dmg:  () => mul(minionDmgMul()),
   army: () => String(armyCap()),
 };
-const upPreview = (k) => {
-  const f = UP_ROW[k]; if (!f) return "";
+/** 「한 급 더 사면 이 수가 어떻게 되는가」 — `META.up` 을 잠깐 올려 보고 되돌린다. */
+const previewOf = (k, f) => {
   const now = f(), o = META.up[k] | 0;
   META.up[k] = o + 1;
   let next; try { next = f(); } finally { META.up[k] = o; }
   return now === next ? now : `${now} → ${next}`;
 };
+const upPreview = (k) => { const f = UP_ROW[k]; return f ? previewOf(k, f) : ""; };
+/** ★ V-139 — **한 칸이 두 수를 올리는 자리**. 기력은 최대 마나«와» 회복을 같이 올리는데
+ *  칸의 글월은 최대 마나만 적었다(회복이 바닥에 삼켜져 안 움직였으니 여태는 맞는 말이었다).
+ *  이제 움직이므로 적는다 — `v132_upgrade` 의 ㉡ 이 바로 이 「말 안 하고 같이 올린 줄」을
+ *  잡는 자다. 화살(`175 → 183`)을 앞에 두어 그 자가 읽는 몫은 그대로 둔다. */
+const UP_MORE = { mp: () => `마나 회복 ${previewOf("mp", () => mpRegenOf().toFixed(2))}/초` };
 /** 자를 위한 **문** — `__UPDOLD` 면 V-132 전의 손으로 적은 몫으로 되돌아간다. */
-const upText = (k) => globalThis.__UPDOLD ? UPS[k].dOld : `${UPS[k].d} ${upPreview(k)}`.trim();
+const upText = (k) => globalThis.__UPDOLD ? UPS[k].dOld
+  : [`${UPS[k].d} ${upPreview(k)}`.trim(), UP_MORE[k] && UP_MORE[k]()].filter(Boolean).join(" · ");
 
 /** 자를 위한 **문** — `__SHOPUPOLD` 가 켜져 있으면 상인 창의 「다음」 줄이 V-122 **전**의
  *  **언제나 초록**(`tipStat up`)으로 되돌아가고 「못하다」 알림도 안 뜬다. 「초록인데 내려가는

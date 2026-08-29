@@ -1881,11 +1881,17 @@ export const MANA_WALL_DEF = 0.75;
 const MANA_WALL_OF = () => (typeof globalThis !== "undefined" && globalThis.__MANA_WALL != null)
   ? +globalThis.__MANA_WALL : MANA_WALL_DEF;
 const RAISE_MP = ALL_SKILLS.find(s => s.id === "raise").mp;
-/** 마나가 차는 속도 — 부적이 올린다. */
+/** 마나가 차는 속도 — 부적이 올린다.
+ *  ★ V-139 — 바닥은 **맨몸에만** 건다. 여태는 `max(맨몸+투자, 바닥)` 이라 바닥(4.5)이
+ *  투자를 통째로 삼켰다: 기력을 **아홉 급(누적 2,299금) 살 때까지 회복이 4.5 에서 한 톨도
+ *  안 움직였다**(잰 표는 ROADMAP V-139). 최대 마나만 오르고 회복은 안 오르니 화면의
+ *  「마나 회복 4.5/초」가 사는 내내 그대로다 — [[knob-that-does-nothing]] 그 자체다.
+ *  그래서 **사람이 넣은 몫은 바닥 «위에» 얹는다**. 맨몸(투자 0)은 여전히 정확히 4.5 라
+ *  여태 잰 것(자는 강화를 안 산다)은 한 톨도 안 달라지고, 산 만큼은 그 자리서 듣는다. */
 export const mpRegenOf = () => {
-  const base = 2.2 + (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
+  const inv = (META.up.mp | 0) * 0.25 + gearVal("charm") + afSum("mp");
   const w = MANA_WALL_OF();
-  return w ? Math.max(base, RAISE_MP * w) : base;
+  return (w ? Math.max(2.2, RAISE_MP * w) : 2.2) + inv;
 };
 /** ══ 깊이가 힘이다 ══ 적 체력은 `floorHp` 로 층마다 **1.19배**씩 자라는데 한 판 안에서
  *  내 힘은 그만큼 안 자랐다. 그래서 층마다 쓰는 시간이 곱절로 커지고
@@ -2849,6 +2855,10 @@ export function treeStats(id) {
 export const UP_STATS = [
   { n: "최대 체력",   k: "int", f: () => Math.round(hpMaxOf()) },
   { n: "최대 마나",   k: "int", f: () => Math.round(mpMaxOf()) },
+  /* ★ V-139 — 여태 이 줄이 없었다. 회복이 바닥(4.5)에 삼켜져 **아홉 급까지 안 움직였기**
+     때문이고, 안 움직이는 것을 적으면 그 자리서 거짓말이 된다고 V-132b 에 적어 두었다.
+     바닥을 맨몸에만 걸고 나니 급마다 +0.25/초로 듣는다 — 그러니 이제 적는다. */
+  { n: "마나 회복",   k: "rate", f: () => mpRegenOf() },
   { n: "소환수 피해", k: "mul", f: () => minionDmgMul() },
   /* ★ 트리의 「본인 공격력」과 **한 글자도 다르지 않게** 적는다 — battle.js 가 본인 한 방에
      곱하는 그대로다. 두 창이 같은 수를 다르게 세면 그건 두 수가 된다. */
