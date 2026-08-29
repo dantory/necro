@@ -556,7 +556,7 @@ function drawWorld() {
   const rvis = G.rooms.filter((r) => seen(r, WTOP + 6));
   for (const c of cvis) stoneRim(c.x - WT, c.y - WT, c.w + 2 * WT, c.h + 2 * WT);
   for (const r of rvis) stoneRim(r.x - WT, r.y - WTOP, r.w + 2 * WT, r.h + WT + WTOP);
-  for (const r of rvis) northWall(r, WT, WTOP);           // 북쪽 벽면(돌 위) — 복도가 이 다음에 뚫는다
+  for (const r of rvis) { northWall(r, WT, WTOP); sideWalls(r, WT, WTOP); }  // 네 면 다 벽 — 복도가 이 다음에 뚫는다
   for (const c of cvis) floorFill(c.x, c.y, c.w, c.h, "rgba(52,38,26,0.5)");   // 복도 바닥이 벽·북벽을 뚫어 문을 낸다
   for (const r of rvis) {                                 // 방 바닥이 복도를 덮어 복도는 방 사이에만 남는다
     const tint = !r.visited ? "rgba(6,5,11,0.6)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
@@ -634,6 +634,28 @@ function northWall(r, WT, WTOP) {
   ctx.fillStyle = g; ctx.fillRect(x0, y0, w, WTOP);
   ctx.fillStyle = "rgba(150,140,122,0.45)"; ctx.fillRect(x0, y0, w, 2);
   ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x0, r.y - 3, w, 4);
+}
+// ★ V-157 — 북쪽만 벽면이 있어서 방이 «검정 위에 뜬 바닥 섬»으로 보였다. 디아블로의 방은
+//   네 면이 다 벽으로 닫혀 있어 「안에 있다」가 읽힌다. 왼쪽·오른쪽·아래도 돌 면을 세운다.
+//   빛은 위에서 오므로 바깥 모서리가 밝고 방 안쪽으로 갈수록 어두워진다(북벽과 같은 결).
+//   남쪽 벽은 위에서 내려다보면 «윗면»만 보이므로 안쪽이 밝고 바깥이 어둡다 — 반대로 준다.
+function sideWalls(r, WT, WTOP) {
+  const yTop = r.y, hh = r.h;
+  for (const [x0, inner] of [[r.x - WT, r.x], [r.x + r.w, r.x + r.w + WT]]) {
+    const g = ctx.createLinearGradient(x0 < r.x ? x0 : inner, 0, x0 < r.x ? inner : x0, 0);
+    g.addColorStop(0, "rgba(84,76,65,0.96)"); g.addColorStop(0.6, "rgba(46,40,34,0.95)");
+    g.addColorStop(1, "rgba(16,12,10,0.96)");
+    ctx.fillStyle = g; ctx.fillRect(Math.min(x0, inner), yTop, WT, hh);
+  }
+  // 남쪽 — 벽의 윗면. 방 쪽 모서리에 밝은 선을 얹어 「여기서 벽이 시작한다」를 보인다.
+  const sy = r.y + r.h, sx = r.x - WT, sw = r.w + 2 * WT;
+  const gs = ctx.createLinearGradient(0, sy, 0, sy + WT);
+  gs.addColorStop(0, "rgba(74,67,57,0.96)"); gs.addColorStop(1, "rgba(20,15,12,0.96)");
+  ctx.fillStyle = gs; ctx.fillRect(sx, sy, sw, WT);
+  ctx.fillStyle = "rgba(150,140,122,0.38)"; ctx.fillRect(sx, sy, sw, 2);
+  // 좌·우 벽의 바깥 모서리에도 같은 밝은 선 — 벽 두께가 눈에 잡힌다.
+  ctx.fillStyle = "rgba(150,140,122,0.30)";
+  ctx.fillRect(r.x - WT, yTop, 2, hh); ctx.fillRect(r.x + r.w + WT - 2, yTop, 2, hh);
 }
 // 방 벽을 지나는 복도마다 입구에 돌기둥 한 쌍(문틀)을 세운다 — 「방에 들어왔다」가 느껴지게.
 function doorArches(r, WT) {
@@ -788,11 +810,22 @@ function nearPlayer(s) {
   const p = G.player;
   return s.y > p.y - 6 && Math.abs(s.x - p.x) < 46 && s.y - p.y < 74;
 }
+// ★ V-157 — 21 마리 속에서 주인공을 찾는 근거가 «금빛 고리 하나»뿐이었다. 로브의 보라가
+//   해골의 푸른빛과 명도가 비슷해 실루엣이 안 섰다. 사람에게만 얇은 밝은 테를 두른다 —
+//   같은 그림을 여덟 방향으로 1.5px 밀어 흰 실루엣으로 깔고 그 위에 진짜 그림을 얹는다.
+//   `filtered` 가 실루엣 한 장을 캐시하므로 프레임마다 새로 만들지 않는다.
+//   순백은 스티커처럼 떠서, 발밑 고리와 같은 금빛으로 맞춘다(테가 아니라 「빛」으로 읽히게).
+const RIM_OFF = [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+const RIM_FILTER = "brightness(0) invert(1) sepia(1) saturate(4) hue-rotate(-14deg)";
 function drawPlayer() {
   const p = G.player;
   drawShadow(p.x, p.y, 34, "#e8cf52", 3);
-  const st = p.state;
-  if (!drawSprite8(ctx, PLAYER_BASE, actorDir(p), st, frame(p, PLAYER_BASE), p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
+  const st = p.state, dir = actorDir(p), fr = frame(p, PLAYER_BASE);
+  ctx.globalAlpha = 0.62;
+  for (const [dx, dy] of RIM_OFF)
+    drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x + dx, p.y + dy, PLAYER_H, RIM_FILTER);
+  ctx.globalAlpha = 1;
+  if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
 function drawActor(s, base) {
