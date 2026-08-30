@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, itemScore, SLOT_LABEL } from "./loot.js";
 
 const cv = document.getElementById("board");
 const ctx = cv.getContext("2d");
@@ -11,6 +11,7 @@ const WAKE = 540;
 const CULL = 1400;
 const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
+const BASE_HP = 3315, BASE_MANA = 2286, BASE_SPD = 268, SPEAR_CD = 0.16;
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
@@ -81,9 +82,11 @@ window.__prof = PROF;
 function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
-    maxhp: 3315, hp: 3315, maxmana: 2286, mana: 2286, spd: 268, level: 1,
+    maxhp: BASE_HP, hp: BASE_HP, maxmana: BASE_MANA, mana: BASE_MANA, spd: BASE_SPD, level: 1,
     mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: 8,
     grade: 0, maxGrade: 0, levelPoints: 0,
+    bag: [], equipped: {},
+    dmgMul: 1, minionMul: 1, atkCd: SPEAR_CD, goldMul: 1, novaMul: 1,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0;
@@ -101,6 +104,7 @@ function start(floor, carry) {
   G = fresh(floor, carry);
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
+  recalc();
   document.getElementById("dead").style.display = "none";
 }
 
@@ -123,7 +127,7 @@ function stepPlayer(dt) {
   p.spearCd -= dt;
   if (mouse.down && p.spearCd <= 0) {
     fireSpear(p, tx, ty);
-    p.spearCd = 0.16;
+    p.spearCd = p.atkCd;
   }
   if (p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 60 * dt);
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
@@ -136,7 +140,7 @@ function stepPlayer(dt) {
 
 function fireSpear(p, tx, ty) {
   const a = Math.atan2(ty - p.y, tx - p.x);
-  const dmg = 42 * p.mult.dmg;
+  const dmg = 42 * p.dmgMul;
   const split = p.uniques.has("splitSpear");
   const angs = split ? [a - 0.16, a + 0.16] : [a];
   for (const ang of angs)
@@ -197,7 +201,7 @@ function raiseSkeleton() {
   const c = G.corpses[ci]; c.used = true;
   const hp = (200 + G.floor * 40) * T.hpMul;
   G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
-    dmg: (22 + G.floor * 8) * T.dmgMul * p.mult.minionDmg, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
+    dmg: (22 + G.floor * 8) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
     r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
     filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
   const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
@@ -218,7 +222,7 @@ function spendPoint(kind) {
     p.levelPoints--; p.maxGrade++; p.grade = p.maxGrade;
     G.floats.push({ x: p.x, y: p.y - 100, t: 1.6, txt: SKEL_TIERS[p.maxGrade].label + " 해금", col: "#e8a24a" });
   } else {
-    p.levelPoints--; p.mult.minionDmg *= 1.08;
+    p.levelPoints--; p.mult.minionDmg *= 1.08; recalc();
     G.floats.push({ x: p.x, y: p.y - 100, t: 1.4, txt: "소환수 피해 +8%", col: "#e8a24a" });
   }
 }
@@ -232,7 +236,7 @@ function corpseNova() {
   p.mana -= 30;
   const c = G.corpses[ci]; c.used = true;
   const times = p.uniques.has("doubleNova") ? 2 : 1;
-  for (let t = 0; t < times; t++) explode(c.x, c.y, 150 * p.mult.dmg, 150, t * 0.09);
+  for (let t = 0; t < times; t++) explode(c.x, c.y, 150 * p.dmgMul, 150 * p.novaMul, t * 0.09);
 }
 
 function explode(x, y, dmg, rad, delay) {
@@ -413,8 +417,8 @@ function addCorpse(m) {
 }
 
 function dropLoot(m) {
-  const goldMul = G.player.uniques.has("goldRush") ? 2 : 1;
-  const gn = (m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul;
+  const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
+  const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
   const grains = Math.min(15, Math.max(5, Math.round(gn / 3)));
   for (let i = 0; i < grains; i++) {
     const a = Math.random() * 6.283, s = 40 + Math.random() * 90;
@@ -457,33 +461,60 @@ function stepDrops(dt) {
   G.items = G.items.filter((it) => !it.got);
 }
 
+// ★ V-181 — 착용에서 스탯으로 가는 한 문. equipped 일곱 슬롯을 sumAffixes 로 합쳐
+//   파생 배수를 다시 편다. 빌드 옵션(p.mult)·유니크·레벨 강화가 바뀔 때도 이 문을 지난다.
+function recalc() {
+  const p = G.player;
+  const g = sumAffixes(Object.values(p.equipped).filter(Boolean));
+  p.gear = g;
+  p.dmgMul = p.mult.dmg * (1 + g.dmg / 100);
+  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100);
+  p.spd = BASE_SPD * (1 + g.moveSpeed / 100);
+  p.atkCd = SPEAR_CD / (1 + g.atkSpeed / 100);
+  p.goldMul = 1 + g.gold / 100;
+  p.novaMul = 1 + g.novaRadius / 100;
+  p.maxhp = Math.round((BASE_HP + g.maxHp) * p.mult.body);
+  p.maxmana = Math.round(BASE_MANA * p.mult.body);
+  if (p.hp > p.maxhp) p.hp = p.maxhp;
+  if (p.mana > p.maxmana) p.mana = p.maxmana;
+}
+
 function pickItem(it) {
   it.got = true;
   const p = G.player;
+  G.picks++;
+  G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
+  if (G.pickLog.length > 6) G.pickLog.pop();
+
+  // 빌드 옵션(초록/주황)은 지금 판 그대로 «집는 순간» 켜진다(가방 물건이 아니다).
   if (it.item.build) {
     if (it.item.build.kind === "slot") p.slots += it.item.build.n || 1;
     else p.mult.minionDmg *= it.item.build.mul || 1.3;
-    G.picks++;
-    G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
-    if (G.pickLog.length > 6) G.pickLog.pop();
+    recalc();
     flash = Math.max(flash, 0.18); flashColor = it.item.build.kind === "slot" ? "127,230,160" : "232,162,74";
     G.floats.push({ x: it.x, y: it.y - 46, t: 1.6, txt: it.item.name, col: it.item.rarity.color });
     return;
   }
-  p.mult.dmg *= it.item.dmg; p.mult.body *= it.item.body;
-  p.maxhp = Math.round(3315 * p.mult.body); p.maxmana = Math.round(2286 * p.mult.body);
-  p.hp = Math.min(p.maxhp, p.hp + p.maxhp * 0.06);
-  G.picks++;
-  G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
-  if (G.pickLog.length > 6) G.pickLog.pop();
-  if (it.item.unique) {
-    p.uniques.add(it.item.unique.key);
-    if (it.item.unique.key === "moreSkel") p.slots += 4;
+
+  // 장비는 «가방»에 들어간다. 유니크 규칙은 집는 순간 켠다(지금 판 규칙 유지).
+  const gear = it.item;
+  p.bag.push(gear);
+  if (gear.unique) {
+    p.uniques.add(gear.unique.key);
+    if (gear.unique.key === "moreSkel") p.slots += 4;
+  }
+  // 자동 착용 — 같은 슬롯에 더 좋은 게 오면 갈아 끼운다(«좋다»는 옵션 값 합).
+  if (itemScore(gear) > itemScore(p.equipped[gear.slot])) {
+    p.equipped[gear.slot] = gear;
+    recalc();
+  }
+  p.hp = Math.min(p.maxhp, p.hp + p.maxhp * 0.04);
+  if (gear.unique) {
     flash = 0.5; flashColor = "216,147,74";
-    G.floats.push({ x: it.x, y: it.y - 60, t: 2.2, txt: it.item.name, big: true, col: "#e8a24a" });
-    G.floats.push({ x: it.x, y: it.y - 34, t: 2.2, txt: it.item.unique.note, big: false, col: "#d8b45a" });
+    G.floats.push({ x: it.x, y: it.y - 60, t: 2.2, txt: gear.name, big: true, col: "#d8934a" });
+    G.floats.push({ x: it.x, y: it.y - 34, t: 2.2, txt: gear.unique.note, big: false, col: "#d8934a" });
   } else {
-    G.floats.push({ x: it.x, y: it.y - 40, t: 1.0, txt: it.item.name, col: it.item.rarity.color });
+    G.floats.push({ x: it.x, y: it.y - 40, t: 1.0, txt: gear.name, col: gear.rarity.color });
   }
 }
 
@@ -530,6 +561,7 @@ function stepFloats(dt) {
 }
 
 let floorPat = null;
+let itemLabels = [];   // V-181: 바닥 이름표의 «화면» 사각들 — 툴팁 마우스 판정이 쓴다
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
 function drawWorld() {
@@ -1099,6 +1131,7 @@ function openChest(ch) {
 
 function drawItems() {
   ctx.textAlign = "center";
+  itemLabels = [];
   const sorted = [...G.items].sort((a, b) => a.y - b.y || a.x - b.x);
   const placed = [];
   for (const it of sorted) {
@@ -1128,6 +1161,7 @@ function drawItemLabel(it, sx, sy, ly) {
   ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(sx - w / 2, ly - 10, w, 16);
   ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(sx, sy + 8, 3, 0, 6.283); ctx.fill();
   ctx.fillStyle = r.color; ctx.fillText(it.item.name, sx, ly + 2);
+  itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it });
 }
 function drawFloats() {
   ctx.textAlign = "center";
@@ -1144,6 +1178,46 @@ function drawFloats() {
 }
 
 const el = (id) => document.getElementById(id);
+
+// ── V-181 툴팁 — 바닥 이름표에 마우스를 얹으면 뜬다 ──────────────────────────
+// 이름표 사각(itemLabels)은 이미 «화면» 좌표라 mouse(x,y)와 곧장 견준다. 창은 커서
+// 오른쪽에 두고, 화면 밖으로 나면 왼쪽으로 뒤집는다. HTML 은 물건이 바뀔 때만 다시 짠다.
+const SLOT_ORDER = ["weapon", "helm", "armor", "gloves", "boots", "ring", "amulet"];
+function esc(s) { return ("" + s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function tooltipHTML(it) {
+  if (it.build) return `<div class="tipname">${esc(it.name)}</div><div class="tipmod">즉시 적용 — 집으면 켜진다</div>`;
+  const nameClass = it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
+  const rows = [`<div class="tipname ${nameClass}">${esc(it.name)}</div>`];
+  rows.push(`<div class="tipsub">${it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
+  rows.push(`<div class="tiprule"></div>`);
+  if (it.affixes && it.affixes.length)
+    for (const a of it.affixes) rows.push(`<div class="tipaffix">${esc(a.label)}</div>`);
+  else rows.push(`<div class="tipbase">옵션 없음</div>`);
+  if (it.unique) {
+    rows.push(`<div class="tipmod">${esc(it.unique.note)}</div>`);
+    rows.push(`<div class="tiprule"></div>`);
+    rows.push(`<div class="tiplore">"${esc(it.unique.lore)}"</div>`);
+  }
+  return rows.join("");
+}
+let tipItem = null;
+function updateTooltip() {
+  const tip = el("tooltip");
+  if (!tip) return;
+  let hit = null;
+  for (const b of itemLabels)
+    if (mouse.x >= b.x0 && mouse.x <= b.x1 && mouse.y >= b.y0 && mouse.y <= b.y1) { hit = b; break; }
+  if (!hit || G.dead) { if (tipItem) { tip.style.display = "none"; tipItem = null; } return; }
+  if (hit.it.item !== tipItem) { tip.innerHTML = tooltipHTML(hit.it.item); tipItem = hit.it.item; tip.style.display = "block"; }
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = mouse.x + 18, y = mouse.y + 16;
+  if (x + w > VW - 6) x = mouse.x - 18 - w;
+  if (y + h > VH - 6) y = VH - 6 - h;
+  if (y < 6) y = 6;
+  tip.style.left = Math.max(6, x) + "px";
+  tip.style.top = y + "px";
+}
+
 function buildBelt() {
   const rows = [["Q", "raise"], ["E", "nova"], ["R", "decrep"], ["V", ""], null,
     ["1", ""], ["2", ""], ["3", ""], ["4", ""], ["U", ""], ["T", ""], ["C", ""]];
@@ -1169,7 +1243,7 @@ function updateHUD() {
   el("gold").textContent = comma(G.gold);
   el("xp").textContent = comma(G.xp);
   el("xpbar").style.width = ((G.xp % 500) / 5) + "%";
-  el("mult").innerHTML = `피해 <b>×${p.mult.dmg.toFixed(2)}</b> · 몸 <b>×${p.mult.body.toFixed(2)}</b>`;
+  el("mult").innerHTML = `피해 <b>×${p.dmgMul.toFixed(2)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
   el("region1").textContent = "Crypt of the Dead";
   el("region2").textContent = `Level B${G.floor}`;
   el("region3").textContent = G.floor < 2 ? "Nightmare" : "Hell";
@@ -1184,7 +1258,20 @@ function updateHUD() {
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
+  renderGear();
   drawMini();
+}
+function renderGear() {
+  const g = el("gear"); if (!g) return;
+  const eq = G.player.equipped;
+  g.innerHTML = "";
+  for (const s of SLOT_ORDER) {
+    const it = eq[s];
+    const span = document.createElement("span");
+    span.textContent = SLOT_LABEL[s];
+    if (it) { span.style.color = it.rarity.color; span.title = it.name; }
+    g.appendChild(span);
+  }
 }
 function drawMini() {
   const w = mini.width, h = mini.height;
@@ -1235,6 +1322,7 @@ function loop(now) {
   drawWorld();
   const _t2 = performance.now();
   updateHUD();
+  updateTooltip();
   const _t3 = performance.now();
   PROF.push("sim", _t1 - _t0); PROF.push("draw", _t2 - _t1); PROF.push("hud", _t3 - _t2); PROF.push("total", _t3 - _t0);
   requestAnimationFrame(loop);
