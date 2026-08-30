@@ -367,7 +367,10 @@ function stepEnemies(dt) {
         if (d < td) { td = d; tx = s.x; ty = s.y; }
       }
       const dist = Math.sqrt(td) || 1;
-      m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+      // ★ V-193 (나) — 목표에 개체별 고정 오프셋(m.ox/oy)을 얹어 이동한다. 전원이 한 점으로 모여
+      //   균일 격자가 되던 것을 흩는다. 사거리·공격 대상 판정은 오프셋 없는 참 거리(dist)로 그대로.
+      const gx = tx + m.ox, gy = ty + m.oy, gd = Math.hypot(gx - m.x, gy - m.y) || 1;
+      m.dx = (gx - m.x) / gd; m.dy = (gy - m.y) / gd;
       m.atk -= dt; m.hit = Math.max(0, m.hit - dt);
       if (dist > m.r + 30) {
         m.x += m.dx * m.spd * dt; m.y += m.dy * m.spd * dt;

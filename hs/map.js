@@ -252,12 +252,22 @@ function scatter(rooms, stairs, chests) {
 // ★ 스프라이트가 작아 보여서(task 5) 몸을 1.4배 키운다. 충돌 반지름은 살짝만(1.15) —
 //   너무 키우면 서로 밀려나 무리가 흩어진다.
 const BODY = 1.4, HITR = 1.15;
+// ★★ V-193 — 배치 «모양»을 잰 자(tools/hs_v193_shape.mjs)로 갈랐다: 스폰(잠든) 팩 CV 0.37 인데
+//   깨어나 쫓는 무리는 CV 0.29 로 «떨어졌다» → (나) 「전원이 같은 속도·같은 목표라 상대 간격이
+//   추격 중 굳는다」. separateEnemies 가 최근접 거리를 죄다 r합으로 밀어 붙여 균일 격자가 된다.
+//   처방(밸런스 불변): 개체마다 ①속도에 개인차(평균 1.0 유지, 분산만) ②목표 지점에 개인 오프셋.
+//   씨앗 재현성은 이 파일 전체와 같이 Math.random(자가 seedSrc 로 덮어쓴 시드 RNG)으로 지킨다.
+const SPD_JIT = 0.36;        // 속도 배수 = 0.82 + U*0.36 → 평균 1.0 · ±18%
+const AIM_OFF = 58;          // 개인 목표 오프셋 반경(px) — 무리가 한 점에 포개지지 않게 흩는다
 function makeMob(t, x, y, scale, id, elite) {
   const em = elite ? 3.2 : 1;
+  const sj = 0.82 + Math.random() * SPD_JIT;                 // 평균 1.0 · 분산만
+  const oa = Math.random() * Math.PI * 2, orad = Math.sqrt(Math.random()) * AIM_OFF;  // 원 안 균일
   return {
     id, base: t.base, x, y, hp: t.hp * scale * em, maxhp: t.hp * scale * em,
-    dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
+    dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1) * sj, h: t.h * BODY * (elite ? 1.25 : 1),
     r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
+    ox: Math.cos(oa) * orad, oy: Math.sin(oa) * orad,        // 개인 목표 오프셋(고정)
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: 0, alive: true,
     name: elite ? rollEliteName(t.base) : null,
   };
