@@ -723,18 +723,24 @@ function drawDecals() {
 //   ① column2 는 부러진 끝이 원근으로 오른쪽-아래로 삐죽 내려가, 최하단 픽셀이 몸통이
 //   아니라 그 얇은 꼬리 밑에 찍힌다. ② 화로 다리·항아리 굽 끝의 «어두운 돌»(밝기 19~44)은
 //   어두운 바닥에 묻혀 눈엔 안 보이는데 알파로는 세어진다. 둘 다 그림자를 아래로 끌었다.
-//   → 접지선을 «바닥에서 실제로 보이는» 픽셀(불투명 && 밝기>FOOT_LUM)의 밑변으로 잡는다.
+//   → 접지선을 «실루엣(불투명 픽셀)»의 밑변으로 잡는다. (V-163 에서 밝기 조건을 걷어냈다)
 //   행별 그런 픽셀이 FOOT_VIS 개 이상인 마지막 행이 발밑. 얇은 원근 꼬리(픽셀 수 부족)와
 //   어두워 안 보이는 굽(밝기 부족)이 같이 걸러진다. 화로 다리는 가장자리에 빛을 받아
 //   밝은 픽셀이 발끝까지 남으므로 살아난다. 중심·폭은 그 발밑 띠(맨 아래 15%)의 보이는
 //   픽셀 x 범위로 재, 원근 꼬리가 중심을 옆으로 못 끌게 한다.
 //   실측(minN=4·LUM50): 기둥 -3.4px · 화로 화면에서 다리 밑 · 항아리 +2.2px (다 ≤4px).
 const _footCache = new Map();
-const FOOT_LUM = 50, FOOT_VIS = 4;
+// ★★ V-163 (2026-08-30 10:08 병수님 「붕 떠 있는 건 아직도 그런 듯?」) — **밝기로 밑변을
+//   잡던 것이 뜨게 만든 범인이었다.** FOOT_LUM=50 은 「어두운 픽셀은 안 보이는 것」으로 쳤는데,
+//   던전 소품의 **밑동은 원래 어둡다**(화로 다리 밑 밝기 30~45). 그래서 밑변이 다리 중간으로
+//   잡히고, 그림을 그 자리에 맞춰 올리니 **그림만 위로 뜨고 그림자는 제자리**에 남았다.
+//   ★ 두 번 「고쳤다」고 적고도 안 고쳐진 까닭이 이것이다 — 고친 곳은 그림자였고,
+//     틀린 곳은 **밑변을 정하는 자**였다([[cause-written-in-the-item-is-a-guess]]).
+//   이제 밑변도 **실루엣(알파)** 으로 잡는다. 얇은 꼬리는 FOOT_VIS 개수 문턱이 거른다.
+const FOOT_VIS = 4;
 function spriteFoot(im, key) {
   if (_footCache.has(key)) return _footCache.get(key);
   let box = null;
-  const seen = (i) => 0.299 * i[0] + 0.587 * i[1] + 0.114 * i[2] > FOOT_LUM;
   try {
     const cv = document.createElement("canvas");
     cv.width = im.width; cv.height = im.height;
@@ -745,7 +751,7 @@ function spriteFoot(im, key) {
     let yAlpha = -1;
     for (let y = 0; y < H; y++) {
       let v = 0;
-      for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 24) { if (y > yAlpha) yAlpha = y; if (seen([d[i], d[i + 1], d[i + 2]])) v++; } }
+      for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 24) { if (y > yAlpha) yAlpha = y; v++; } }
       vis[y] = v;
     }
     if (yAlpha >= 0) {
@@ -788,8 +794,9 @@ function drawProps() {
     const dx = pr.x - (fo ? fo.cx * w : w / 2);          // 보이는 가로중심 → pr.x
     const dy = pr.y - (fo ? fo.b * pr.h : pr.h);         // 보이는 밑변     → pr.y
     const rx = (fo ? fo.w * w : w) * 0.34;
-    ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(pr.x, pr.y, rx, Math.min(rx * 0.4, pr.h * 0.18), 0, 0, 6.283); ctx.fill();
+    // ★ V-163 — 어두운 바닥 위에서 42% 검정은 **안 보인다**(항아리는 그림자가 없는 줄 알았다).
+    //   진하게 하되 번지지 않게 — 안쪽은 짙고 가장자리는 사라지는 결로.
+    groundMark(pr.x, pr.y, rx, Math.max(4, Math.min(rx * 0.42, pr.h * 0.2)));
     ctx.globalAlpha = 1;
     ctx.drawImage(im, dx, dy, w, pr.h);
   }
@@ -861,10 +868,29 @@ function horn(x, y, dir, len, bone, edge) {
   ctx.lineWidth = 1.3; ctx.strokeStyle = edge; ctx.stroke();
 }
 
+/* ★★ V-163 — **어두운 바닥 위에서 「검정 그림자」는 보이지 않는다.** 컷을 다시 찍어 보니
+   항아리·기둥·석상에 그림자가 «없는» 줄 알았는데, 있는데 안 보이는 것이었다(바닥이 이미
+   검정에 가까워 검정을 얹어도 차이가 없다). 그래서 접지를 **두 겹**으로 그린다:
+     ① 어두운 코어 — 빛이 닿는 자리에서 그림자 노릇을 한다
+     ② 그 **위 가장자리의 얇은 밝은 접촉선** — 물체와 바닥의 «경계»라 **빛과 무관하게** 읽힌다
+   ②가 있어야 횃불 밖 어둠에서도 「땅에 닿았다」가 보인다.
+   ★ 소품·사람·소환수·적 **전부** 이 하나를 쓴다 — 한쪽만 고쳐 두 번 어긋난 자리다
+     ([[carry-fixes-forward]]). */
+function groundMark(x, y, rx, ry) {
+  ry = ry || rx * 0.4;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
+  g.addColorStop(0, "rgba(0,0,0,0.58)"); g.addColorStop(0.68, "rgba(0,0,0,0.30)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.283); ctx.fill();
+  // 접촉선 — 위 반원만. ★ 0.30/1.2px 로는 어둠에서 여전히 안 보였다(컷으로 확인).
+  //   빛(drawLight)이 이 위를 덮으므로 **덮이고도 남을 만큼** 진해야 한다.
+  ctx.strokeStyle = "rgba(226,198,146,0.55)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y, rx * 0.92, ry * 0.92, 0, Math.PI, 0); ctx.stroke();
+}
+
 function drawShadow(x, y, w, col, lw) {
-  ctx.globalAlpha = 0.4; ctx.fillStyle = "#000";
-  ctx.beginPath(); ctx.ellipse(x, y, w, w * 0.4, 0, 0, 6.283); ctx.fill();
-  ctx.globalAlpha = 1;
+  groundMark(x, y, w);
   if (col) {
     ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
     ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
