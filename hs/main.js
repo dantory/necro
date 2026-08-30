@@ -11,7 +11,14 @@ const mctx = mini.getContext("2d");
 // ★ V-183 — 깨우는 반경 540 → 900. 화면(가로 1008 월드)보다 좁던 반경을 넓혀,
 //   한 방에 든 팩(V-183 map.js 에서 2~3개)이 함께 깨어나 한 자리로 몰려들게 한다.
 //   한 팩만 깨면 화면이 빈다 — V-183 자로 재니 깬 팩 8인데 화면 안은 p50 0 이었다.
-const WAKE = 850;
+// ★ V-192 — 850 에선 화면 안 적 p50 이 1 이었다(자 hs_v192_dense · 카메라 사각 · 죽음형 3분).
+//   봉우리(p95 32)는 넉넉한데 팩과 팩 사이 이동 구간이 통째로 비어 중앙값을 1 로 끌어내렸다.
+//   1600 으로 넓혔더니 mean 은 11~14 로 올랐지만 p50 은 3 뿐 — 컷 넷 중 셋이 적 0 이었다.
+//   까닭은 «플레이어가 제 무리를 앞질러» 달아나기 때문이다(플레이어 268 vs 적 138~178).
+//   앞쪽 팩이 깨어도 이동이 빨라 사이가 벌어진다. 프레임은 p95 1.5ms 로 예산(16.7) 11배
+//   남으니, 반경을 층 크기 언저리(3000)로 키워 온 층이 곧 깨어 «늘» 무리가 몰려들게 한다 —
+//   뒤에 처진 무리도 카메라가 플레이어를 좇아 화면 뒤쪽에 남아 골(중앙값)을 메운다.
+const WAKE = 3000;
 const CULL = 1400;
 const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
@@ -92,7 +99,7 @@ window.__prof = PROF;
 // window 에 붙여 판이 새로 서도(죽어 R) 안 지워진다. 자(probe)가 재기 전에 Object.assign 으로
 // 제자리에서 0 으로 비운다(재대입하면 아래 const 참조가 옛 것을 가리켜 못 비운다).
 const METRIC = (window.__hsMetric = window.__hsMetric ||
-  { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0 });
+  { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0, grains: 0 });
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -540,6 +547,7 @@ function dropLoot(m) {
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
   const grains = Math.min(15, Math.max(5, Math.round(gn / 3)));
+  METRIC.grains += grains;   // V-192 계측 — 처치당 알갱이(㉢). 연출 아닌 순수 계수(V-189 METRIC 결).
   for (let i = 0; i < grains; i++) {
     const a = Math.random() * 6.283, s = 40 + Math.random() * 90;
     G.golds.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, val: Math.max(1, Math.round(gn / grains)), t: 0 });
@@ -1358,6 +1366,7 @@ function openChest(ch) {
 // 기본은 감추고 표시(점)만 남긴다 · ALT 누르는 동안만 다 보인다 · 늘 하나(마우스가 얹힌
 // 것, 없으면 가장 가까운 것)는 보인다 · 켜도 개수 상한(12)·쌓임 상한(3층)을 둔다.
 const LABEL_CAP = 12;
+const DEFAULT_CAP = 6;   // V-192 — ALT 안 눌러도 늘 보이는 등급1+ 이름표 상한(레퍼런스 ②의 여섯).
 const LABEL_STACK = 3;
 const COMMON_FADE = 8;
 function itemRank(it) {
@@ -1387,10 +1396,18 @@ function drawItems() {
     picks.sort((a, b) => b.rank - a.rank || a.d - b.d);
     picks = picks.slice(0, LABEL_CAP);
   } else {
-    let one = null, bm = 44;
-    for (const o of vis) if (o.dm < bm) { bm = o.dm; one = o; }
-    if (!one) { let bd = 1e18; for (const o of vis) if (o.d < bd) { bd = o.d; one = o; } }
-    picks = one ? [one] : [];
+    // ★ V-192 — 레퍼런스 ②는 바닥 이름표 «여섯»을 늘 보여 준다(HS_STYLE). V-184 가 기본을
+    //   하나로 줄여 놓아(자 hs_v192_dense: p50 1·max 1) 「바닥이 곧 루팅」이 안 읽혔다 —
+    //   화면엔 물건이 p50 126·등급1+ 49 나 쌓이는데 이름표는 하나뿐이었다. 등급 있는 것
+    //   (파랑+)을 가까운 순으로 DEFAULT_CAP 개까지 늘 세우고, 마우스 얹은 것 하나를 끼운다.
+    //   흔한 것(흰)은 여전히 점만 — 개수 상한·겹침 상한(LABEL_STACK)이 V-184 의 난장을 막는다.
+    const named = vis.filter((o) => o.rank >= 1);
+    named.sort((a, b) => b.rank - a.rank || a.d - b.d);
+    picks = named.slice(0, DEFAULT_CAP);
+    let hover = null, bm = 44;
+    for (const o of vis) if (o.dm < bm) { bm = o.dm; hover = o; }
+    if (hover && !picks.includes(hover)) picks.push(hover);
+    if (!picks.length) { let bd = 1e18, one = null; for (const o of vis) if (o.d < bd) { bd = o.d; one = o; } if (one) picks = [one]; }
   }
   const placed = [];
   for (const o of picks) {
