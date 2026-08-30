@@ -235,14 +235,18 @@ function raiseSkeleton() {
 //   기력 sta → maxmana                            +40/pt
 //   방어 def → dr       (받는 피해 감소, 상한 75%) +1.2%/pt
 //   활력 vit → maxhp                              +120/pt
+// per: 한 점의 몫(단일 출처) · unit: "%"면 배수 계열(칸에 +N%), ""면 더하기 계열(+N) ·
+// cap: 상한 퍼센트(방어만). recalc() 도 attrLive() 도 이 수를 읽는다 — 두 자리에 안 적는다
+// (V-187: 스탯 칸이 통합 배수를 물어 지능 1점에 ×553 이 떴다 → 칸엔 «그 스탯의 순수 몫»만).
 const ATTRS = [
-  { key: "str", name: "힘",   col: "#d86a5a", moves: "뼈창·시체폭발 피해 +3%", field: "dmgMul" },
-  { key: "dex", name: "민첩", col: "#6fd0a0", moves: "공격 속도 +2%",          field: "atkCd" },
-  { key: "int", name: "지능", col: "#6fa8ff", moves: "소환수 피해 +2%",        field: "minionMul" },
-  { key: "sta", name: "기력", col: "#c89be6", moves: "최대 마나 +40",          field: "maxmana" },
-  { key: "def", name: "방어", col: "#c8b06a", moves: "받는 피해 -1.2% (≤75%)", field: "dr" },
-  { key: "vit", name: "활력", col: "#e0664c", moves: "최대 생명 +120",         field: "maxhp" },
+  { key: "str", name: "힘",   col: "#d86a5a", moves: "뼈창·시체폭발 피해 +3%", field: "dmgMul",    per: 3,   unit: "%" },
+  { key: "dex", name: "민첩", col: "#6fd0a0", moves: "공격 속도 +2%",          field: "atkCd",     per: 2,   unit: "%" },
+  { key: "int", name: "지능", col: "#6fa8ff", moves: "소환수 피해 +2%",        field: "minionMul", per: 2,   unit: "%" },
+  { key: "sta", name: "기력", col: "#c89be6", moves: "최대 마나 +40",          field: "maxmana",   per: 40,  unit: "" },
+  { key: "def", name: "방어", col: "#c8b06a", moves: "받는 피해 -1.2% (≤75%)", field: "dr",        per: 1.2, unit: "%", cap: 75 },
+  { key: "vit", name: "활력", col: "#e0664c", moves: "최대 생명 +120",         field: "maxhp",     per: 120, unit: "" },
 ];
+const ATTR = Object.fromEntries(ATTRS.map((a) => [a.key, a]));
 // 스킬트리 두 갈래. prereq: 앞 칸을 한 점이라도 안 찍으면 뒤 칸이 잠긴다.
 // syn: 「Receives Bonuses From:」 시너지 목록(초록 제목 · 항목마다 +N% per level).
 const SKILL_TREES = {
@@ -572,21 +576,21 @@ function recalc() {
   // V-186 — 스탯·스킬도 이 문을 지난다(표는 ATTRS / SKILL_TREES 정의부에).
   const a = p.attr, s = p.skill;
   const curse = 1 + s.curse * 0.04;
-  p.dmgMul = p.mult.dmg * (1 + g.dmg / 100) * (1 + a.str * 0.03) * curse;
+  p.dmgMul = p.mult.dmg * (1 + g.dmg / 100) * (1 + a.str * ATTR.str.per / 100) * curse;
   p.spearMul = 1 + s.spear * 0.10;
   p.novaDmgMul = 1 + s.nova * 0.12;
-  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * 0.02) * (1 + s.mdmg * 0.08) * curse;
+  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * ATTR.int.per / 100) * (1 + s.mdmg * 0.08) * curse;
   p.minionHpMul = 1 + s.mhp * 0.10;
   p.slots = BASE_SLOTS + s.slot + p.buildSlots;
   p.maxGrade = s.grade;
   if (p.grade > p.maxGrade) p.grade = p.maxGrade;
   p.spd = BASE_SPD * (1 + g.moveSpeed / 100);
-  p.atkCd = SPEAR_CD / (1 + g.atkSpeed / 100) / (1 + a.dex * 0.02);
+  p.atkCd = SPEAR_CD / (1 + g.atkSpeed / 100) / (1 + a.dex * ATTR.dex.per / 100);
   p.goldMul = 1 + g.gold / 100;
   p.novaMul = 1 + g.novaRadius / 100;
-  p.dr = Math.min(0.75, a.def * 0.012);
-  p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * 120) * p.mult.body);
-  p.maxmana = Math.round((BASE_MANA + a.sta * 40) * p.mult.body);
+  p.dr = Math.min(ATTR.def.cap / 100, a.def * ATTR.def.per / 100);
+  p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * ATTR.vit.per) * p.mult.body);
+  p.maxmana = Math.round((BASE_MANA + a.sta * ATTR.sta.per) * p.mult.body);
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
 }
@@ -1555,7 +1559,17 @@ function toggleChar() {
 }
 function invReleaseTips() { el("chartip").style.display = "none"; }
 function star(col) { return `<span class="star" style="background:${col}"></span>`; }
+function attrTrim(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(2)); }
 function attrLive(p, key) {
+  const a = ATTR[key], lv = p.attr[key];
+  if (a.unit === "%") {
+    const v = lv * a.per;
+    if (a.cap != null && v >= a.cap) return `+${a.cap}% (상한)`;
+    return `+${attrTrim(v)}%`;
+  }
+  return `+${attrTrim(lv * a.per)}`;
+}
+function attrTotal(p, key) {
   if (key === "str") return `×${p.dmgMul.toFixed(2)}`;
   if (key === "dex") return `${(1 / p.atkCd).toFixed(1)}/s`;
   if (key === "int") return `×${p.minionMul.toFixed(2)}`;
@@ -1564,12 +1578,18 @@ function attrLive(p, key) {
   if (key === "vit") return `${p.maxhp}`;
   return "";
 }
+function statTipHTML(a) {
+  const p = G.player;
+  return `<div class="tipname">${a.name}</div><div class="tipsub">lv ${p.attr[a.key]}</div>` +
+    `<div class="tiprule"></div><div class="tipaffix">이 스탯: ${attrLive(p, a.key)}</div>` +
+    `<div class="tipmod">합계: ${attrTotal(p, a.key)}</div>`;
+}
 function renderChar() {
   const p = G.player;
   let h = `<div class="invtitle">성장</div><div class="charcols">`;
   h += `<div class="statcol"><div class="ptsleft">Points Left: <b>${p.attrPts}</b></div>`;
   for (const a of ATTRS) {
-    h += `<div class="statrow"><span class="starw">${star(a.col)}</span>` +
+    h += `<div class="statrow" data-stip="${a.key}"><span class="starw">${star(a.col)}</span>` +
       `<span class="statname">${a.name}</span><span class="statlv">${p.attr[a.key]}</span>` +
       `<span class="statval">${attrLive(p, a.key)}</span>` +
       `<button class="plus" data-a="${a.key}">+</button></div>`;
@@ -1607,6 +1627,33 @@ function skillTipHTML(n) {
   }
   return h;
 }
+function rectsHit(x, y, w, h, b) { return x < b.right && x + w > b.left && y < b.bottom && y + h > b.top; }
+function unionRect(nodes) {
+  let r = null;
+  for (const e of nodes) {
+    const b = e.getBoundingClientRect();
+    if (!b.width && !b.height) continue;
+    r = r ? { left: Math.min(r.left, b.left), top: Math.min(r.top, b.top), right: Math.max(r.right, b.right), bottom: Math.max(r.bottom, b.bottom) }
+          : { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+  }
+  return r;
+}
+function placeCharTip(tip, r) {
+  const gap = 8, w = tip.offsetWidth, h = tip.offsetHeight;
+  let x = r.right + gap;
+  if (x + w > VW - 6) x = r.left - gap - w;
+  x = Math.max(6, Math.min(x, VW - 6 - w));
+  let y = Math.max(6, Math.min(r.top, VH - 6 - h));
+  const btns = unionRect(el("char").querySelectorAll(".charbtns button"));
+  if (btns && rectsHit(x, y, w, h, btns)) {
+    const up = btns.top - gap - h;
+    if (up >= 6) y = up;
+    else if (btns.left - gap - w >= 6) x = btns.left - gap - w;
+    else if (btns.right + gap + w <= VW - 6) x = btns.right + gap;
+    else y = Math.max(6, up);
+  }
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
 function bindChar() {
   const root = el("char");
   root.addEventListener("click", (e) => {
@@ -1620,14 +1667,13 @@ function bindChar() {
     if (charOpen) renderChar();
   });
   root.addEventListener("mouseover", (e) => {
-    const n = e.target.closest("[data-tip]"); const tip = el("chartip");
-    if (!n) { tip.style.display = "none"; return; }
-    tip.innerHTML = skillTipHTML(skillNode(n.dataset.tip));
+    const tip = el("chartip");
+    const sk = e.target.closest("[data-tip]"), st = e.target.closest("[data-stip]");
+    const anchor = sk || st;
+    if (!anchor) { tip.style.display = "none"; return; }
+    tip.innerHTML = sk ? skillTipHTML(skillNode(sk.dataset.tip)) : statTipHTML(ATTR[st.dataset.stip]);
     tip.style.display = "block";
-    const r = n.getBoundingClientRect();
-    let x = r.right + 8; if (x + tip.offsetWidth > VW - 6) x = r.left - 8 - tip.offsetWidth;
-    tip.style.left = Math.max(6, x) + "px";
-    tip.style.top = Math.min(VH - 6 - tip.offsetHeight, r.top) + "px";
+    placeCharTip(tip, anchor.getBoundingClientRect());
   });
   root.addEventListener("mouseout", (e) => { if (!e.relatedTarget || !el("char").contains(e.relatedTarget)) el("chartip").style.display = "none"; });
 }
