@@ -1018,10 +1018,17 @@ function drawChest(ch) {
   const im = tex("decor/chest.png");
   if (im && im.width) {
     const h = 62, w = h * (im.width / im.height);
-    ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(ch.x, ch.y, w * 0.34, w * 0.13, 0, 0, 6.283); ctx.fill();
+    // ★★ V-170 — 상자만 «그림 밑변»을 바닥선에 놓고 있었다. `chest.png` 는 아래에 투명
+    //   여백이 8px(14.3%) 있어서, 그림자는 ch.y 에 찍히는데 궤짝은 그 위 **8.9px 에 떠
+    //   있었다.** 소품은 V-162 에 이미 «보이는 밑변»으로 고쳤는데 상자에 안 옮겼다.
+    //   ★ [[carry-fixes-forward]] — 소품·상자 둘 다 같은 `spriteFoot` 길로 그린다.
+    const fo = spriteFoot(im, "decor/chest.png");
+    const dx = ch.x - (fo ? fo.cx * w : w / 2);
+    const dy = ch.y - (fo ? fo.b * h : h);
+    const rx = (fo ? fo.w * w : w) * 0.34;
+    groundMark(ch.x, ch.y, rx, Math.max(4, Math.min(rx * 0.42, h * 0.2)));
     ctx.globalAlpha = 1;
-    ctx.drawImage(im, ch.x - w / 2, ch.y - h, w, h);
+    ctx.drawImage(im, dx, dy, w, h);
     return;
   }
   const bw = 28;
