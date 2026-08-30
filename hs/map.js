@@ -112,7 +112,11 @@ export function genFloor(floor) {
 //   어둡게 할수록 속 대비가 오히려 커져 밝기 축으로는 영영 안 들어왔다.
 //   고친 것은 밝기가 아니라 **꼴**이다 — 통과한 `stain` 과 같은 «뭉친 덩어리» 로
 //   다시 구웠다(조리법에서 "pale"·"scattered"·"grit" 을 뺐다). 평균 −4.1 · 봉우리 −0.1.
-const DEC_IMG = ["decal/stain.png", "decal/crack.png", "decal/dust.png"];
+// ★ V-179 — `pebble` 을 되돌렸다. 옛 장은 V-164 가 잡은 «둥근 회색 접시» 그대로였고
+//   (봉우리 +16.2), V-178 의 «꼴» 처방을 그대로 옮겨 한 판에 들어왔다(봉우리 −0.1).
+//   덤으로 새 자(`hs_decaldiff.py`)가 걸린 것: 지금 살아 있는 `stain`·`dust` 가
+//   실루엣 겹침 **0.781** 로 이미 «같은 그림»이다. pebble 은 0.58 이라 오히려 더 다르다.
+const DEC_IMG = ["decal/stain.png", "decal/crack.png", "decal/dust.png", "decal/pebble.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 

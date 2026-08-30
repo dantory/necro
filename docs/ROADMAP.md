@@ -16251,7 +16251,7 @@ V-178 이 남긴 항목은 「`pebble`(+16.2) · `grass`(+36.6) 도 같은 자�
       V-172~V-173b 가 `dust`·`stain` 에 두 판을 태운 그 자리다. **마을을 만들 때 함께 굽는다.**
       · `path`(+41.6) 는 덧붙여, **밝은 게 맞다** — 조리법이 "slightly lighter than the
         surrounding ground" 로 그렇게 시키고 있다. 자에 걸리는 게 아니라 자가 잘못 겨눈다.
-- [ ] **`pebble` 은 굽는다** — 통과하면 `DEC_IMG` 에 넣어 크립트 얼룩이 3종 → **4종**이 된다.
+- [x] **`pebble` 은 굽는다** — 통과하면 `DEC_IMG` 에 넣어 크립트 얼룩이 3종 → **4종**이 된다.
       즉 이건 화면이 바뀌는 고침이다. 지금 조리법이 V-178 이 무너뜨린 **그 실패꼴**이다:
       `"a faint scatter of fine grit and stone dust ... tiny specks, no volume"` (봉우리 +16.2).
       → `"a dark patch of coarse gravel worn into the stone floor, one connected patch with
@@ -16261,3 +16261,34 @@ V-178 이 남긴 항목은 「`pebble`(+16.2) · `grass`(+36.6) 도 같은 자�
       · 스테이징 `assets/decalbake_v179` → 깃털 `_soft`. 자 넷을 다 돌린다
         (밝기 전/꼴/밝기 후/회귀). **화면 판정은 깃털 «후»** 로 한다(V-178 이 정한 대로).
       · 18:0x 착수 · `tools/hs_v179_run.sh` · 로그 `tmp/necro_hs_v179_run.log`
+      · **한 판에 들어왔다.** 깃털 전 봉우리 **−5.8** · 깃털 후 **−0.1**(띠 +14) ·
+        평균 −3.5(띠 ±8). 꼴 자 `comp` **2.97** — 지금 판에서 제일 너덜하다
+        (crack 0.87 · stain 0.95 · dust 1.85). V-178 의 처방이 그대로 옮겨졌다.
+      · **갈아 끼웠다** — `assets/decal/pebble.png` ← `_soft` 판,
+        `DEC_IMG` 에 넣어 크립트 얼룩 **3종 → 4종**. `assets/decal` 통과 4/7 → **5/7**.
+      · 실제 화면 회귀(`hs_floorflat.mjs` + `hs_flatruler.py`): 반복 **0.165** ·
+        결σ **2.74** (V-178 의 0.159 · 2.73 과 같은 자리). 컷(`tmp/v179_floorcrop.png`)에
+        허연 얼룩 **0개**.
+
+- [x] **★ 새 자 — `tools/hs_decaldiff.py`. 「얼룩끼리 서로 다른가」를 잰다.**
+      컷을 열어 보고서야 걸린 것이다. 자 둘이 여태 얼룩을 **바닥과만** 견줬더니,
+      통과한 것들이 **전부 같은 「부드러운 검은 얼룩」으로 수렴**해 있었다. 자는 그때도
+      셋 다 OK 를 냈다. 과녁이 「바닥에 녹아듦」 하나뿐이면 **그 축의 끝이 곧 «다 같은 얼룩»** 이다.
+      ★ [[threshold-and-ruler-must-match]] 의 새 칸.
+      · 잰 값(알파 실루엣 IoU, 0.7 넘으면 「같은 그림」):
+        | 짝 | IoU |
+        | `stain` ↔ `dust` | **0.781 ★ 겹침** |
+        | `dust` ↔ `pebble` | 0.581 |
+        | `stain` ↔ `pebble` | 0.570 |
+        | `crack` ↔ 나머지 | 0.12~0.21 |
+      · **판정이 뒤집혔다.** 눈으로는 「새 pebble 이 dust 랑 똑같다」고 봤는데, 재 보니
+        **이미 화면에 나가 있던 `stain`↔`dust` 가 더 겹친다**(0.781). pebble 을 넣는 것이
+        오히려 여럿을 갈라 놓는다 — 그래서 넣었다. ★ [[cause-written-in-the-item-is-a-guess]]
+
+- [ ] **남음: `stain`↔`dust` 겹침 0.781 을 푼다.** 둘 중 하나를 «다른 꼴»로 다시 굽는다
+      (예: `stain` 을 길쭉한 흘러내린 자국으로). V-178 이 dust 를 stain 과 **같은 꼴**로
+      말해서 통과시킨 것이 그대로 이 겹침을 만들었다 — 통과의 대가였다.
+- [ ] **남음: 속 결이 안 살았다.** pebble 조리법에 "rough grainy texture" 를 넣었는데
+      속 결 값이 **6.06** 으로 `stain`(6.07)과 같다 — 거친 결은 한 픽셀도 안 왔다.
+      `darker=0.62` + 깃털이 결을 뭉갠다. 결을 원하면 손잡이 쪽을 봐야 한다.
+- [ ] **남음: `grass`·`path`·`mud` 는 마을을 만들 때** (V-179 가 자에서 뺐다).
