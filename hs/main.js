@@ -850,6 +850,7 @@ function drawWorld() {
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
   const drawList = [];
+  barRects = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   drawList.sort((a, b) => a.y - b.y);
@@ -858,6 +859,7 @@ function drawWorld() {
     d.fn();
     ctx.globalAlpha = 1;
   }
+  window.__barRects = barRects;
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
   for (const ch of G.chests) drawChestBeacon(ch);
   PROF.seg("actors");
@@ -1225,6 +1227,32 @@ function drawPlayer() {
   if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
 }
+// ── V-196 — 머리 위 체력바를 «그려진 실루엣의 불투명 위끝»에 건다 ─────────────────
+// spriteFoot 이 발밑에 한 일을 머리 위에 그대로: footMetrics 의 (footFrac+headFrac)로
+// 그려진 이미지의 불투명 머리끝을 구한다([[sprite-brings-its-own-ground]]). m.h(이름값)에
+// 걸면 투명 여백만큼 바가 허공에 뜬다. 자(hs_v196_bars)는 barRects «실제로 그린 사각»만 읽는다.
+let barRects = [];   // V-196: 이 프레임에 실제로 그린 체력바 사각(월드좌표) + 그 몹의 불투명 위끝
+function opaqueHeadTop(base, y, h) {
+  const fm = footMetrics(base);
+  // 그려진 이미지 위끝 = y - h + h*footFrac, 그 안 불투명 위끝은 + h*headFrac.
+  return y - h + (fm ? h * (fm.footFrac + fm.headFrac) : 0);
+}
+// 겹치는 바는 위로 어긋낸다(drawFloats 의 세로 밀어내기와 같은 결 · 물리 아님). top 을 돌려준다.
+function pushBarUp(x, halfW, top, totalH) {
+  for (let g = 0; g < 40; g++) {
+    const x0 = x - halfW, x1 = x + halfW;
+    const hit = barRects.find((q) => x0 < q.x1 && x1 > q.x0 && top < q.y1 && top + totalH > q.y0);
+    if (!hit) break;
+    top = hit.y0 - totalH - 1;   // 겹친 바 바로 위로 올린다
+  }
+  return top;
+}
+// 그린 바 사각을 기록한다. anchorBottom = 밀어내기 전 «머리에 건» 바 아래끝(㉠ 눈금이 읽는다).
+function recordBar(m, halfW, top, totalH, headTop, anchorBottom, dir) {
+  barRects.push({ x0: m.x - halfW, y0: top, x1: m.x + halfW, y1: top + totalH,
+    headTop, anchorBottom, base: m.base, dir, tb: m.__tb, elite: !!m.elite });
+}
+
 function drawActor(s, base) {
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
   const filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
@@ -1236,11 +1264,14 @@ function drawEnemy(m) {
   drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null);
   const rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINT)
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
+  m.__tb = m.elite ? "E" : 0;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
   const hpf = Math.max(0, m.hp / m.maxhp);
+  const headTop = opaqueHeadTop(m.base, m.y, m.h);
   const by = m.y - m.h - 8;
+  const dir = actorDir(m);
   // ★ V-183 — 네임드는 머리 위에 **굴린 이름표(초록 대문자) + 늘 보이는 체력바**(HS_STYLE ③).
   //   잡몹은 다칠 때만 붉은 바. 이름은 map.js 가 굴린 m.name, 색은 HS 의 초록.
   if (m.elite) {
@@ -1252,10 +1283,12 @@ function drawEnemy(m) {
     ctx.fillStyle = "#000"; ctx.fillText(m.name || "CHAMPION", 0.6, 0.6);
     ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "CHAMPION", 0, 0);
     ctx.restore();
+    recordBar(m, bw / 2 + 1, by - 1, 7, headTop, by + 5, dir);
   } else if (hpf < 1) {
     const bw = m.r * 2.2;
     ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 6);
     ctx.fillStyle = "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
+    recordBar(m, bw / 2 + 1, by - 1, 6, headTop, by + 4, dir);
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
