@@ -16,6 +16,7 @@ const CULL = 1400;
 const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
 const BASE_HP = 3315, BASE_MANA = 2286, BASE_SPD = 268, SPEAR_CD = 0.16;
+const BASE_SLOTS = 8;   // V-186 — 자리 밑값. 위로 「군세」 스킬 자리 노드가 쌓인다.
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
@@ -62,6 +63,7 @@ let flash = 0, flashColor = "255,255,255";
 let killStreak = 0, lastKillT = 0;   // V-183 처치 연쇄 — 짧은 시간 안에 몰살하면 연출이 커진다
 let G = null;
 let invOpen = false;
+let charOpen = false;
 let hoverItem = null, hoverRect = null;   // 창 안에서 마우스를 얹은 물건 — 툴팁·비교가 쓴다
 
 // ── 프레임 프로파일러 (V-154 C) ─────────────────────────────────────────────
@@ -90,10 +92,14 @@ function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
     maxhp: BASE_HP, hp: BASE_HP, maxmana: BASE_MANA, mana: BASE_MANA, spd: BASE_SPD, level: 1,
-    mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: 8,
-    grade: 0, maxGrade: 0, levelPoints: 0,
+    mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: BASE_SLOTS,
+    grade: 0, maxGrade: 0,
+    attr: { str: 0, dex: 0, int: 0, sta: 0, def: 0, vit: 0 },
+    skill: { slot: 0, grade: 0, mdmg: 0, mhp: 0, spear: 0, nova: 0, curse: 0 },
+    attrPts: 0, sklPts: 0, buildSlots: 0,
     bag: [], equipped: {},
-    dmgMul: 1, minionMul: 1, atkCd: SPEAR_CD, goldMul: 1, novaMul: 1,
+    dmgMul: 1, spearMul: 1, novaDmgMul: 1, minionMul: 1, minionHpMul: 1,
+    atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0;
@@ -111,6 +117,7 @@ function start(floor, carry) {
   G = fresh(floor, carry);
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
+  window.toggleChar = toggleChar;   // 검수기가 창을 열게(찍기는 창의 + 단추 실클릭으로)
   cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";
@@ -133,7 +140,7 @@ function stepPlayer(dt) {
 
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   p.spearCd -= dt;
-  if (mouse.down && p.spearCd <= 0 && !invOpen) {
+  if (mouse.down && p.spearCd <= 0 && !invOpen && !charOpen) {
     fireSpear(p, tx, ty);
     p.spearCd = p.atkCd;
   }
@@ -148,7 +155,7 @@ function stepPlayer(dt) {
 
 function fireSpear(p, tx, ty) {
   const a = Math.atan2(ty - p.y, tx - p.x);
-  const dmg = 42 * p.dmgMul;
+  const dmg = 42 * p.dmgMul * p.spearMul;
   const split = p.uniques.has("splitSpear");
   const angs = split ? [a - 0.16, a + 0.16] : [a];
   for (const ang of angs)
@@ -168,6 +175,7 @@ function handleSkills() {
   if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
+  if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
   if (G.dead && keys.has("r")) start(1, null);
 }
 
@@ -209,7 +217,7 @@ function raiseSkeleton() {
     return;
   }
   const c = G.corpses[ci]; c.used = true;
-  const hp = (200 + G.floor * 40) * T.hpMul;
+  const hp = (200 + G.floor * 40) * T.hpMul * p.minionHpMul;
   G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
     dmg: (22 + G.floor * 8) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
     r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
@@ -219,22 +227,72 @@ function raiseSkeleton() {
   if (T.shake) cam.shake = Math.max(cam.shake, T.shake);
 }
 
-function spendPoint(kind) {
+// ── V-186 성장 자료 (HS_STYLE ⑤) ────────────────────────────────────────────
+// 스탯 여섯 → 실제 수를 움직이는 표. recalc() 한 문이 이 표를 편다.
+//   힘 str  → dmgMul   (뼈창·시체폭발 기본 피해)  +3%/pt
+//   민첩 dex → atkCd    (공격 속도, 낮을수록 빠름)  +2%/pt
+//   지능 int → minionMul(소환수 피해)             +2%/pt
+//   기력 sta → maxmana                            +40/pt
+//   방어 def → dr       (받는 피해 감소, 상한 75%) +1.2%/pt
+//   활력 vit → maxhp                              +120/pt
+const ATTRS = [
+  { key: "str", name: "힘",   col: "#d86a5a", moves: "뼈창·시체폭발 피해 +3%", field: "dmgMul" },
+  { key: "dex", name: "민첩", col: "#6fd0a0", moves: "공격 속도 +2%",          field: "atkCd" },
+  { key: "int", name: "지능", col: "#6fa8ff", moves: "소환수 피해 +2%",        field: "minionMul" },
+  { key: "sta", name: "기력", col: "#c89be6", moves: "최대 마나 +40",          field: "maxmana" },
+  { key: "def", name: "방어", col: "#c8b06a", moves: "받는 피해 -1.2% (≤75%)", field: "dr" },
+  { key: "vit", name: "활력", col: "#e0664c", moves: "최대 생명 +120",         field: "maxhp" },
+];
+// 스킬트리 두 갈래. prereq: 앞 칸을 한 점이라도 안 찍으면 뒤 칸이 잠긴다.
+// syn: 「Receives Bonuses From:」 시너지 목록(초록 제목 · 항목마다 +N% per level).
+const SKILL_TREES = {
+  army: { title: "군세", col: "#6fa8ff", nodes: [
+    { key: "slot",  name: "소환 자리",   max: 8,  per: "자리 +1",         field: "slots",       syn: [] },
+    { key: "grade", name: "소환 등급",   max: 2,  per: "상위 소환 해금",   field: "maxGrade",    prereq: "slot", syn: [{ from: "소환 자리", pct: 0 }] },
+    { key: "mdmg",  name: "소환수 피해", max: 20, per: "소환수 피해 +8%",  field: "minionMul",   prereq: "grade", syn: [{ from: "지능", pct: 2 }] },
+    { key: "mhp",   name: "소환수 생명", max: 20, per: "소환수 생명 +10%", field: "minionHpMul", prereq: "mdmg", syn: [{ from: "활력", pct: 3 }] },
+  ] },
+  death: { title: "죽음", col: "#d86a5a", nodes: [
+    { key: "spear", name: "뼈창",       max: 20, per: "뼈창 피해 +10%",   field: "spearMul",   syn: [{ from: "힘", pct: 3 }] },
+    { key: "nova",  name: "시체폭발",   max: 20, per: "시체폭발 피해 +12%", field: "novaDmgMul", prereq: "spear", syn: [{ from: "힘", pct: 3 }] },
+    { key: "curse", name: "저주",       max: 10, per: "모든 피해 +4%",    field: "dmgMul",     prereq: "nova", syn: [{ from: "지능", pct: 2 }] },
+  ] },
+};
+function skillNode(key) { for (const t of Object.values(SKILL_TREES)) for (const n of t.nodes) if (n.key === key) return n; return null; }
+function skillLocked(node) { return !!node.prereq && G.player.skill[node.prereq] < 1; }
+
+function spendAttr(key) {
   const p = G.player;
-  if (p.levelPoints <= 0) {
-    floatNote("레벨업 점수가 없다", "#c8a04a", 1.0);
-    return;
-  }
-  if (kind === "slot") {
-    p.levelPoints--; p.slots += 1;
-    floatNote("자리 +1", "#7fe6a0", 1.4);
-  } else if (p.maxGrade < SKEL_TIERS.length - 1) {
-    p.levelPoints--; p.maxGrade++; p.grade = p.maxGrade;
-    floatNote(SKEL_TIERS[p.maxGrade].label + " 해금", "#e8a24a", 1.6);
-  } else {
-    p.levelPoints--; p.mult.minionDmg *= 1.08; recalc();
-    floatNote("소환수 피해 +8%", "#e8a24a", 1.4);
-  }
+  if (p.attrPts <= 0) { floatNote("스탯 점수가 없다", "#c8a04a", 1.0); return false; }
+  p.attrPts--; p.attr[key]++; recalc();
+  return true;
+}
+function spendSkill(key) {
+  const p = G.player, node = skillNode(key);
+  if (p.sklPts <= 0) { floatNote("스킬 점수가 없다", "#c8a04a", 1.0); return false; }
+  if (skillLocked(node)) { floatNote(node.name + " — 앞 칸을 먼저 찍어라", "#e0663c", 1.2); return false; }
+  if (p.skill[key] >= node.max) { floatNote(node.name + " — 최대", "#c8a04a", 1.0); return false; }
+  p.sklPts--; p.skill[key]++;
+  if (key === "grade") p.grade = p.skill.grade;
+  recalc();
+  return true;
+}
+function resetAttrs() {
+  const p = G.player; let back = 0;
+  for (const k in p.attr) { back += p.attr[k]; p.attr[k] = 0; }
+  p.attrPts += back; recalc();
+}
+function resetSkills() {
+  const p = G.player; let back = 0;
+  for (const k in p.skill) { back += p.skill[k]; p.skill[k] = 0; }
+  p.sklPts += back; p.grade = 0; recalc();
+}
+// 빠른 손(Z/X) — 창과 «같은 자료»를 고친다. Z: 군세 자리 · X: 등급(다 열면 소환수 피해).
+function spendPoint(kind) {
+  if (kind === "slot") { if (spendSkill("slot")) floatNote("자리 +1", "#7fe6a0", 1.4); return; }
+  const p = G.player;
+  if (p.skill.grade < 2) { if (spendSkill("grade")) floatNote(SKEL_TIERS[p.grade].label + " 해금", "#e8a24a", 1.6); }
+  else if (spendSkill("mdmg")) floatNote("소환수 피해 +8%", "#e8a24a", 1.4);
 }
 
 function corpseNova() {
@@ -246,7 +304,7 @@ function corpseNova() {
   p.mana -= 30;
   const c = G.corpses[ci]; c.used = true;
   const times = p.uniques.has("doubleNova") ? 2 : 1;
-  for (let t = 0; t < times; t++) explode(c.x, c.y, 150 * p.dmgMul, 150 * p.novaMul, t * 0.09);
+  for (let t = 0; t < times; t++) explode(c.x, c.y, 150 * p.dmgMul * p.novaDmgMul, 150 * p.novaMul, t * 0.09);
 }
 
 function explode(x, y, dmg, rad, delay) {
@@ -432,8 +490,8 @@ function killEnemy(m) {
   G.kills++;
   G.xp += m.elite ? 40 : 10;
   if (G.xp >= G.player.level * 500) {
-    G.player.level++; G.player.levelPoints++;
-    floatNote(`레벨 ${G.player.level} — Z 자리 / X 등급`, "#e8cf52", 0.9, { sz: 12 });
+    G.player.level++; G.player.attrPts++; G.player.sklPts++;
+    floatNote(`레벨 ${G.player.level} — C 창 · 스탯/스킬 점수 +1`, "#e8cf52", 0.9, { sz: 12 });
   }
   // ★ V-183 — 처치 연쇄. 350ms 안에 잇달아 죽을수록 흔들림이 커지고, 다섯 이상이면
   //   흰 번쩍임이 얹힌다(몰살감). 상한 있음(chain ≤ 14 · flash ≤ 0.32) — 파티클은 burst
@@ -511,14 +569,24 @@ function recalc() {
   for (const it of eq) if (it.unique) p.uniques.add(it.unique.key);
   const g = sumAffixes(eq);
   p.gear = g;
-  p.dmgMul = p.mult.dmg * (1 + g.dmg / 100);
-  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100);
+  // V-186 — 스탯·스킬도 이 문을 지난다(표는 ATTRS / SKILL_TREES 정의부에).
+  const a = p.attr, s = p.skill;
+  const curse = 1 + s.curse * 0.04;
+  p.dmgMul = p.mult.dmg * (1 + g.dmg / 100) * (1 + a.str * 0.03) * curse;
+  p.spearMul = 1 + s.spear * 0.10;
+  p.novaDmgMul = 1 + s.nova * 0.12;
+  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * 0.02) * (1 + s.mdmg * 0.08) * curse;
+  p.minionHpMul = 1 + s.mhp * 0.10;
+  p.slots = BASE_SLOTS + s.slot + p.buildSlots;
+  p.maxGrade = s.grade;
+  if (p.grade > p.maxGrade) p.grade = p.maxGrade;
   p.spd = BASE_SPD * (1 + g.moveSpeed / 100);
-  p.atkCd = SPEAR_CD / (1 + g.atkSpeed / 100);
+  p.atkCd = SPEAR_CD / (1 + g.atkSpeed / 100) / (1 + a.dex * 0.02);
   p.goldMul = 1 + g.gold / 100;
   p.novaMul = 1 + g.novaRadius / 100;
-  p.maxhp = Math.round((BASE_HP + g.maxHp) * p.mult.body);
-  p.maxmana = Math.round(BASE_MANA * p.mult.body);
+  p.dr = Math.min(0.75, a.def * 0.012);
+  p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * 120) * p.mult.body);
+  p.maxmana = Math.round((BASE_MANA + a.sta * 40) * p.mult.body);
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
 }
@@ -532,7 +600,7 @@ function pickItem(it) {
     G.picks++;
     G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
     if (G.pickLog.length > 6) G.pickLog.pop();
-    if (it.item.build.kind === "slot") p.slots += it.item.build.n || 1;
+    if (it.item.build.kind === "slot") p.buildSlots += it.item.build.n || 1;
     else p.mult.minionDmg *= it.item.build.mul || 1.3;
     recalc();
     flash = Math.max(flash, 0.18); flashColor = it.item.build.kind === "slot" ? "127,230,160" : "232,162,74";
@@ -578,7 +646,7 @@ function pickItem(it) {
 
 function hurtPlayer(dmg) {
   const p = G.player;
-  p.hp -= dmg; p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
+  p.hp -= dmg * (1 - p.dr); p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
   flash = Math.max(flash, 0.14); flashColor = "180,40,40";
   if (p.hp <= 0 && !G.dead) die();
 }
@@ -1476,6 +1544,94 @@ function dropItemFromBag(gear) {
   if (invOpen) renderInv();
 }
 
+// ── V-186 스킬·스탯 창 (C) — HS_STYLE ⑤ ─────────────────────────────────────
+// 좌: 스탯 여섯(오각별) + Points Left. 우: 스킬트리 두 갈래(선으로 이음·앞칸 잠금).
+// 스탯/스킬 찍기는 전부 spendAttr/spendSkill → recalc() 한 문을 지난다. 창이 열려도 게임은 돈다.
+function toggleChar() {
+  charOpen = !charOpen;
+  el("char").classList.toggle("on", charOpen);
+  el("chartip").style.display = "none";
+  if (charOpen) renderChar(); else invReleaseTips();
+}
+function invReleaseTips() { el("chartip").style.display = "none"; }
+function star(col) { return `<span class="star" style="background:${col}"></span>`; }
+function attrLive(p, key) {
+  if (key === "str") return `×${p.dmgMul.toFixed(2)}`;
+  if (key === "dex") return `${(1 / p.atkCd).toFixed(1)}/s`;
+  if (key === "int") return `×${p.minionMul.toFixed(2)}`;
+  if (key === "sta") return `${p.maxmana}`;
+  if (key === "def") return `${Math.round(p.dr * 100)}%`;
+  if (key === "vit") return `${p.maxhp}`;
+  return "";
+}
+function renderChar() {
+  const p = G.player;
+  let h = `<div class="invtitle">성장</div><div class="charcols">`;
+  h += `<div class="statcol"><div class="ptsleft">Points Left: <b>${p.attrPts}</b></div>`;
+  for (const a of ATTRS) {
+    h += `<div class="statrow"><span class="starw">${star(a.col)}</span>` +
+      `<span class="statname">${a.name}</span><span class="statlv">${p.attr[a.key]}</span>` +
+      `<span class="statval">${attrLive(p, a.key)}</span>` +
+      `<button class="plus" data-a="${a.key}">+</button></div>`;
+  }
+  h += `</div><div class="treecols">`;
+  for (const tk of ["army", "death"]) {
+    const t = SKILL_TREES[tk];
+    h += `<div class="treecol"><div class="treetitle" style="color:${t.col}">${t.title}</div><div class="treenodes">`;
+    t.nodes.forEach((n, i) => {
+      const lv = p.skill[n.key], locked = skillLocked(n);
+      h += `${i ? `<div class="sconn ${locked ? "off" : ""}"></div>` : ""}` +
+        `<div class="snode ${locked ? "locked" : ""}" data-tip="${n.key}">` +
+        `<div class="scount">${lv}<span class="smax">/${n.max}</span></div>` +
+        `<div class="sname">${n.name}</div>` +
+        `<button class="splus" data-s="${n.key}">+</button>` +
+        `${locked ? `<div class="slock">🔒</div>` : ""}</div>`;
+    });
+    h += `</div></div>`;
+  }
+  h += `</div><div class="skpts">Skill Points: <b>${p.sklPts}</b></div>`;
+  h += `<div class="charbtns">` +
+    `<button data-reset="attr">Reset Attributes</button>` +
+    `<button data-reset="skill">Reset Skills</button>` +
+    `<button data-close="1">Close</button></div>`;
+  el("char").innerHTML = h;
+}
+function skillTipHTML(n) {
+  const p = G.player, lv = p.skill[n.key];
+  let h = `<div class="tipname">${n.name}</div><div class="tipsub">lv ${lv} / ${n.max}</div>` +
+    `<div class="tiprule"></div><div class="tipaffix">${n.per}</div>`;
+  if (n.prereq) h += `<div class="tipmod">앞: ${skillNode(n.prereq).name} (1점 이상)</div>`;
+  if (n.syn && n.syn.length) {
+    h += `<div class="tiprule"></div><div class="synhead">Receives Bonuses From:</div>`;
+    for (const s of n.syn) h += `<div class="synrow">${s.from} — +${s.pct}% per level</div>`;
+  }
+  return h;
+}
+function bindChar() {
+  const root = el("char");
+  root.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    e.stopPropagation();
+    if (b.dataset.a) spendAttr(b.dataset.a);
+    else if (b.dataset.s) spendSkill(b.dataset.s);
+    else if (b.dataset.reset === "attr") resetAttrs();
+    else if (b.dataset.reset === "skill") resetSkills();
+    else if (b.dataset.close) toggleChar();
+    if (charOpen) renderChar();
+  });
+  root.addEventListener("mouseover", (e) => {
+    const n = e.target.closest("[data-tip]"); const tip = el("chartip");
+    if (!n) { tip.style.display = "none"; return; }
+    tip.innerHTML = skillTipHTML(skillNode(n.dataset.tip));
+    tip.style.display = "block";
+    const r = n.getBoundingClientRect();
+    let x = r.right + 8; if (x + tip.offsetWidth > VW - 6) x = r.left - 8 - tip.offsetWidth;
+    tip.style.left = Math.max(6, x) + "px";
+    tip.style.top = Math.min(VH - 6 - tip.offsetHeight, r.top) + "px";
+  });
+  root.addEventListener("mouseout", (e) => { if (!e.relatedTarget || !el("char").contains(e.relatedTarget)) el("chartip").style.display = "none"; });
+}
+
 let _prevHover = null, _prevShift = false;
 function updateInvTip() {
   const t1 = el("tooltip"), t2 = el("tooltip2");
@@ -1549,7 +1705,8 @@ function updateHUD() {
   slotsEl.textContent = `자리 ${used} / ${cap}`;
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
-  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ×${p.mult.minionDmg.toFixed(2)}` : "") + (p.levelPoints ? ` · 점수 ${p.levelPoints}` : "");
+  const pts = p.attrPts + p.sklPts;
+  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ×${p.mult.minionDmg.toFixed(2)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "");
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
@@ -1631,6 +1788,7 @@ function loop(now) {
   tex("floor/crypt_tile.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
+  bindChar();
   start(1, null);
   requestAnimationFrame(loop);
 })();

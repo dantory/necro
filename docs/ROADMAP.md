@@ -16518,7 +16518,18 @@ V-180 이 얼룩 축을 닫고 보니, **V-153~V-180b 스물여덟 판이 한 �
         (dt 가 벽시계, [[same-seed-is-not-same-run]]). 더 줄이려면 DMG_CAP(14)을 건드려야 하는데
         **피해 숫자는 핵앤슬래시의 손맛**이라 여기서 멈추고 병수님 판단을 받는다.
 
-- [ ] **V-186. HS_STYLE ⑤ 「스킬·스탯 창」이 통째로 없다 — 성장이 «두 키»로 끝난다.**
+- [x] **V-186. HS_STYLE ⑤ 「스킬·스탯 창」을 세웠다 — 성장이 이제 창에서 갈린다(C 키).** ★ 잰 값
+      (`node tools/hs_v186_tree.mjs 60 7`, 씨앗 7): **손잡이 13/13 다 실제 수를 움직였다**(창의 + 단추를
+      실클릭해서 · 힘→dmgMul 1→1.03 · 민첩→atkCd 0.160→0.157 · 지능→minionMul · 기력→maxmana 2286→2326 ·
+      방어→dr 0→0.012 · 활력→maxhp 3315→3435 · 군세 자리→slots · 등급→maxGrade · 소환수 피해/생명 · 죽음 뼈창/
+      시체폭발/저주) · **잠금 지켜짐**(앞칸 0점에 뒤칸 클릭 no-op) · **Reset 정확**(무작위 40점 → Reset 뒤 모든 파생
+      수가 처음과 동일 · 점수 40/40 전부 반환) · **창 연 채 전투 계속**(60초에 창 37번 여닫으며 창 연 구간 처치 +199) ·
+      레벨 9까지 실제 플레이로 스탯 8/스킬 8점 획득 · **frame p95 1.8ms** · **콘솔 오류 0**. 컷: `tmp/v186_stats.png`·
+      `tmp/v186_tree.png`·`tmp/v186_tip.png`(툴팁 「Receives Bonuses From: 힘 — +3% per level」). 고친 파일: `hs/main.js`
+      (spendPoint→ATTRS/SKILL_TREES·spendAttr/spendSkill/resetAttrs/resetSkills·recalc 확장·toggleChar/renderChar/bindChar·
+      hurtPlayer dr·fireSpear spearMul·explode novaDmgMul·raiseSkeleton minionHpMul) · `hs/hud.css`(.charwin 규격) ·
+      `hs/index.html`(#char/#chartip) · `tools/hs_v186_tree.mjs`(새 자). Z/X 는 그대로 살아 «같은 스킬 자료»(군세 자리/등급)를
+      고친다 — 두 길이 한 상태다. 남음: 스탯→전투 수의 «균형»(계수)은 초안이다(D 계열에서 다시 잰다).
       V-181~185 로 물건·가방·툴팁·떼·화면 글은 섰는데, **자란 것을 쓰는 자리**가 없다.
       지금 `spendPoint()`(`hs/main.js:222`)가 하는 일이 전부다 — `Z` 자리 +1 · `X` 등급 해금,
       등급을 다 열면 남는 점수는 전부 「소환수 피해 +8%」로 녹는다. 고를 것이 없으니
@@ -16529,4 +16540,10 @@ V-180 이 얼룩 축을 닫고 보니, **V-153~V-180b 스물여덟 판이 한 �
       ★ **자부터**: 창을 여닫고 점수를 찍는 길이 `recalc()` 한 문을 지나는지 · 찍은 것이
       실제 전투 수(피해·생명·군세)를 움직이는지를 **수로** 잰다 — 안 움직이는 손잡이 금지
       ([[knob-that-does-nothing]] · [[probe-must-walk-the-real-path]]).
+
+- [ ] **V-187. 성장창 스탯 옆 «현재 값»이 빌드 드롭 배수와 섞여 읽힌다.** V-186 컷에서 눈에 걸렸다 —
+      지능 옆에 `×553.66` 이 떴다. 지능 1점의 몫(+2%)이 아니라 `minionMul` 통값이라, 파밍 중 주운 「소환수 피해」
+      빌드 드롭(`p.mult.minionDmg`, HUD 엔 `피해 ×542.80`)이 스탯 칸에까지 얹혀 「이 스탯이 이만큼 준다」로
+      오독된다. 스탯 칸엔 **그 스탯의 순수 기여**(예: 지능 → `+지능×2%`)만 보이고, 통합 배수는 좌상단 HUD 에
+      남기자. 자: 지능 0→1 로 올릴 때 칸 표시가 정확히 «한 점 몫»만큼만 바뀌는지 수로 확인.
 
