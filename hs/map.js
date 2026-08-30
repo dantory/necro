@@ -107,11 +107,12 @@ export function genFloor(floor) {
 //   고친 것이다. ★ [[knob-that-does-nothing]] · [[carry-fixes-forward]]
 //   → 그리는 것을 좋은 둘로 바꾼다. `crack`·`pebble`·`mud` 는 «원형 접시»를 벗겨 다시
 //     구울 때까지 뺀다(파일은 `assets/decal/` 에 그대로 있다).
-// ★ V-176 — `dust` 를 뺐다. 얼룩을 1.6배로 키우자 컷에 **허연 얼룩**이 떴는데,
-//   화면에서 재니 봉우리가 바닥보다 **+29.5**(띠 +14)다. 평균은 +7.6 이라 옛 자가
-//   내내 OK 를 줬다 — 작을 때는 티끌이라 안 보였을 뿐 결함은 처음부터 있었다.
-//   봉우리 자를 `hs_decalcheck.py` 에 넣었고(V-176), 다시 구워 띠 안에 들면 되돌린다.
-const DEC_IMG = ["decal/stain.png", "decal/crack.png"];
+// ★ V-176 — `dust` 를 뺐다(봉우리 +29.5, 띠 +14). ★ V-178 — 되돌렸다.
+//   V-176 은 배경 어둡기 한 손잡이로 두 판을 태웠다 — dust 가 「흩뿌린 점」이라
+//   어둡게 할수록 속 대비가 오히려 커져 밝기 축으로는 영영 안 들어왔다.
+//   고친 것은 밝기가 아니라 **꼴**이다 — 통과한 `stain` 과 같은 «뭉친 덩어리» 로
+//   다시 구웠다(조리법에서 "pale"·"scattered"·"grit" 을 뺐다). 평균 −4.1 · 봉우리 −0.1.
+const DEC_IMG = ["decal/stain.png", "decal/crack.png", "decal/dust.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 
