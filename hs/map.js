@@ -97,6 +97,10 @@ const DEC_IMG = ["decal/crack.png", "decal/pebble.png", "decal/mud.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 
+// 방 한가운데에 놓아도 싸움을 안 가리는 «낮은» 소품 (V-169)
+const LOW_PROP = new Set(["decor/bones.png", "decor/bones2.png", "decor/urn.png",
+  "decor/rubble.png", "decor/coffin.png"]);
+
 function scatter(rooms) {
   const decals = [], props = [];
   for (const room of rooms) {
@@ -105,12 +109,27 @@ function scatter(rooms) {
       decals.push({ x: rint(room.x + 30, room.x + room.w - 30), y: rint(room.y + 30, room.y + room.h - 30),
         img: DEC_IMG[(Math.random() * DEC_IMG.length) | 0], s: rint(48, 100), a: 0.42 + Math.random() * 0.34 });
     }
-    for (let i = 0; i < Math.round(area / 150000); i++) {
-      const onX = Math.random() < 0.5;
-      const px = onX ? rint(room.x + 26, room.x + room.w - 26) : (Math.random() < 0.5 ? room.x + rint(24, 64) : room.x + room.w - rint(24, 64));
-      const py = onX ? (Math.random() < 0.5 ? room.y + rint(24, 64) : room.y + room.h - rint(24, 64)) : rint(room.y + 26, room.y + room.h - 26);
-      const brazier = Math.random() < 0.3;
-      props.push({ x: px, y: py, img: brazier ? "decor/brazier.png" : PROP_IMG[(Math.random() * PROP_IMG.length) | 0], h: rint(76, 132), brazier });
+    // ★ V-169 — 소품을 벽에만 붙여 놨더니 카메라가 방 가운데를 볼 때 **화면 밖**이었다.
+    //   재 보니 방당 2.11개인데 화면에 보이는 건 평균 1.30개, 16% 자리에서는 하나도 안 보였다.
+    //   아홉 종을 굽고도 화면에 안 나오면 없는 것과 같다(V-167a).
+    //   · 수를 올린다(150000 → 60000).
+    //   · **키 큰 것은 벽에, 낮은 것은 방 안쪽에.** 기둥·석상·화로가 방 한가운데 서면
+    //     싸움을 가린다 — 뼈·잔해·항아리·관처럼 발밑에 눕는 것만 안쪽으로 보낸다.
+    for (let i = 0; i < Math.round(area / 60000); i++) {
+      const brazier = Math.random() < 0.22;
+      const img = brazier ? "decor/brazier.png" : PROP_IMG[(Math.random() * PROP_IMG.length) | 0];
+      const low = !brazier && LOW_PROP.has(img);
+      const inner = low && Math.random() < 0.62;      // 낮은 것만 방 안쪽으로
+      let px, py;
+      if (inner) {
+        px = rint(room.x + 70, room.x + room.w - 70);
+        py = rint(room.y + 70, room.y + room.h - 70);
+      } else {
+        const onX = Math.random() < 0.5;
+        px = onX ? rint(room.x + 26, room.x + room.w - 26) : (Math.random() < 0.5 ? room.x + rint(24, 64) : room.x + room.w - rint(24, 64));
+        py = onX ? (Math.random() < 0.5 ? room.y + rint(24, 64) : room.y + room.h - rint(24, 64)) : rint(room.y + 26, room.y + room.h - 26);
+      }
+      props.push({ x: px, y: py, img, h: rint(76, 132), brazier });
     }
   }
   return { decals, props };
