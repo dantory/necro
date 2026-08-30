@@ -1136,6 +1136,14 @@ function frame(a, base) { const st = a.state === "idle" ? "idle" : a.state; cons
 // 매 프레임 값이 새로 들지 않는다. hs_p5.mjs 가 앞뒤를 같은 자로 잰다.
 const ALLY_TINT  = "grayscale(0.42) sepia(0.5) hue-rotate(178deg) saturate(1.8) brightness(1.14)"; // 차가운 뼈-푸름
 const FOE_TINT   = "grayscale(0.32) sepia(0.6) hue-rotate(-26deg) saturate(2) brightness(0.86)";   // 붉은 재빛
+// V-196 — 같은 그림의 벽을 지운다: 개체마다 이 넷 중 하나로 미세히 흔든다(m.tb=id&3). 새 에셋
+// 없이 이미 있는 스프라이트에 거는 tint 라 허용(무지개 금지 — 명도 0.80~0.92·색상 ±6° 안).
+const FOE_TINTS = [
+  FOE_TINT,
+  "grayscale(0.30) sepia(0.58) hue-rotate(-20deg) saturate(1.9) brightness(0.92)",
+  "grayscale(0.34) sepia(0.62) hue-rotate(-32deg) saturate(2.1) brightness(0.80)",
+  "grayscale(0.32) sepia(0.6) hue-rotate(-28deg) saturate(2.05) brightness(0.88)",
+];
 const ELITE_TINT = "grayscale(0.14) sepia(0.62) hue-rotate(-14deg) saturate(2.3) brightness(1.08)"; // 밝은 핏빛(챔피언)
 const teamTintOn = () => window.__teamTint !== false;   // hs_p5 의 앞/뒤 토글
 const ringsOn = () => window.__rings !== false;         // 링을 끄고 «스프라이트만으로» 갈리나 확인
@@ -1262,33 +1270,37 @@ function drawActor(s, base) {
 }
 function drawEnemy(m) {
   drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null);
-  const rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINT)
+  const tb = m.tb & 3;
+  const rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
-  m.__tb = m.elite ? "E" : 0;
+  m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
   const hpf = Math.max(0, m.hp / m.maxhp);
+  // ★ V-196 — 바를 «불투명 위끝»에 건다(m.h 이름값 아님). GAP=2 월드만큼 위, 겹치면 밀어낸다.
   const headTop = opaqueHeadTop(m.base, m.y, m.h);
-  const by = m.y - m.h - 8;
   const dir = actorDir(m);
+  const BAR_GAP = 2;
   // ★ V-183 — 네임드는 머리 위에 **굴린 이름표(초록 대문자) + 늘 보이는 체력바**(HS_STYLE ③).
   //   잡몹은 다칠 때만 붉은 바. 이름은 map.js 가 굴린 m.name, 색은 HS 의 초록.
   if (m.elite) {
-    const bw = m.r * 2.8;
-    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 7);
+    const bw = m.r * 2.8, halfW = bw / 2 + 1, totalH = 7;
+    const top = pushBarUp(m.x, halfW, headTop - BAR_GAP - totalH, totalH), by = top + 1;
+    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, totalH);
     ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
     ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
     ctx.font = "bold 11px 'Times New Roman',serif"; ctx.textAlign = "center";
     ctx.fillStyle = "#000"; ctx.fillText(m.name || "CHAMPION", 0.6, 0.6);
     ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "CHAMPION", 0, 0);
     ctx.restore();
-    recordBar(m, bw / 2 + 1, by - 1, 7, headTop, by + 5, dir);
+    recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
   } else if (hpf < 1) {
-    const bw = m.r * 2.2;
-    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 6);
+    const bw = m.r * 2.2, halfW = bw / 2 + 1, totalH = 6;
+    const top = pushBarUp(m.x, halfW, headTop - BAR_GAP - totalH, totalH), by = top + 1;
+    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, totalH);
     ctx.fillStyle = "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
-    recordBar(m, bw / 2 + 1, by - 1, 6, headTop, by + 4, dir);
+    recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
