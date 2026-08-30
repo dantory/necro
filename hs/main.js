@@ -718,31 +718,52 @@ function drawDecals() {
 //   재고 있었는데, 구운 PNG 는 투명 여백을 달고 온다 — 여백까지 세니 폭이 부풀고,
 //   바닥선(pr.y)이 실제 그림 밑동보다 아래라 그림자가 물체에서 떨어져 나갔다.
 //   그림이 «실제로 찬 자리»(불투명 픽셀의 경계)를 한 번 재서 캐시하고 거기에 맞춘다.
+// ★ V-160 — V-158 이 «최하단 불투명 픽셀»(y1)을 접지선으로 삼았는데, 그 자리가 실제
+//   발밑보다 아래였다(넘어진 기둥 38px · 화로·항아리 ~20px). 까닭 둘, 화면에서 잰 것:
+//   ① column2 는 부러진 끝이 원근으로 오른쪽-아래로 삐죽 내려가, 최하단 픽셀이 몸통이
+//   아니라 그 얇은 꼬리 밑에 찍힌다. ② 화로 다리·항아리 굽 끝의 «어두운 돌»(밝기 19~44)은
+//   어두운 바닥에 묻혀 눈엔 안 보이는데 알파로는 세어진다. 둘 다 그림자를 아래로 끌었다.
+//   → 접지선을 «바닥에서 실제로 보이는» 픽셀(불투명 && 밝기>FOOT_LUM)의 밑변으로 잡는다.
+//   행별 그런 픽셀이 FOOT_VIS 개 이상인 마지막 행이 발밑. 얇은 원근 꼬리(픽셀 수 부족)와
+//   어두워 안 보이는 굽(밝기 부족)이 같이 걸러진다. 화로 다리는 가장자리에 빛을 받아
+//   밝은 픽셀이 발끝까지 남으므로 살아난다. 중심·폭은 그 발밑 띠(맨 아래 15%)의 보이는
+//   픽셀 x 범위로 재, 원근 꼬리가 중심을 옆으로 못 끌게 한다.
+//   실측(minN=4·LUM50): 기둥 -3.4px · 화로 화면에서 다리 밑 · 항아리 +2.2px (다 ≤4px).
 const _footCache = new Map();
+const FOOT_LUM = 50, FOOT_VIS = 4;
 function spriteFoot(im, key) {
   if (_footCache.has(key)) return _footCache.get(key);
   let box = null;
+  const seen = (i) => 0.299 * i[0] + 0.587 * i[1] + 0.114 * i[2] > FOOT_LUM;
   try {
     const cv = document.createElement("canvas");
     cv.width = im.width; cv.height = im.height;
     const g = cv.getContext("2d", { willReadFrequently: true });
     g.drawImage(im, 0, 0);
-    const d = g.getImageData(0, 0, im.width, im.height).data;
-    let x0 = im.width, x1 = -1, y1 = -1;
-    for (let y = 0; y < im.height; y++)
-      for (let x = 0; x < im.width; x++)
-        if (d[(y * im.width + x) * 4 + 3] > 24) {
-          if (x < x0) x0 = x;
-          if (x > x1) x1 = x;
-          if (y > y1) y1 = y;
-        }
-    if (x1 >= x0) box = { cx: (x0 + x1 + 1) / 2 / im.width, w: (x1 + 1 - x0) / im.width, b: (y1 + 1) / im.height };
+    const W = im.width, H = im.height, d = g.getImageData(0, 0, W, H).data;
+    const vis = new Array(H).fill(0);
+    let yAlpha = -1;
+    for (let y = 0; y < H; y++) {
+      let v = 0;
+      for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 24) { if (y > yAlpha) yAlpha = y; if (seen([d[i], d[i + 1], d[i + 2]])) v++; } }
+      vis[y] = v;
+    }
+    if (yAlpha >= 0) {
+      let yb = H - 1;
+      while (yb > 0 && vis[yb] < FOOT_VIS) yb--;
+      if (vis[yb] < FOOT_VIS) yb = yAlpha;
+      const band = Math.max(1, Math.round(H * 0.15)), y0 = Math.max(0, yb - band + 1);
+      let x0 = W, x1 = -1;
+      for (let y = y0; y <= yb; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 24 && seen([d[i], d[i + 1], d[i + 2]])) { if (x < x0) x0 = x; if (x > x1) x1 = x; } }
+      if (x1 < x0) for (let y = y0; y <= yb; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+      if (x1 >= x0) box = { cx: (x0 + x1 + 1) / 2 / W, w: (x1 + 1 - x0) / W, b: (yb + 1) / H };
+    }
   } catch (e) { box = null; }
   _footCache.set(key, box);
   return box;
 }
 
-const PROP_WARM = "sepia(0.55) saturate(1.35) hue-rotate(-8deg)";
+const PROP_WARM = "sepia(0.9) saturate(1.55) hue-rotate(-12deg)";
 function drawProps() {
   const vis = G.props.filter((pr) => onScreen(pr.x, pr.y, 200));
   vis.sort((a, b) => a.y - b.y);
@@ -900,54 +921,41 @@ function drawEnemy(m) {
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
 
-// 계단도 상자와 같은 병이었다 — `strokeRect` + 초록 줄(V-156, [[carry-fixes-forward]]).
-// 굽기를 세 번 했지만 **디딤판이 있는 «내려가는» 계단**은 끝내 안 나왔다(검은 문짝 ·
-// 위로 오르는 아이소메트릭 · 계단 없는 구덩이). 그래서 **반만 굽는다** — 굽은 것은
-// 돌 테두리(구덩이 입)로 쓰고, 디딤판은 그 안에 코드로 넣는다. 아래로 갈수록(화면
-// 위쪽) 어두워져 «내려간다»가 읽힌다.
+// ★ V-160 — 굽은 계단 테두리(stairs.png)가 «네 면이 닫힌 사각»이라, 아래까지 돌 막대가
+//   가로질러 벽에 걸린 «액자/환풍구»로 읽혔다(화면 R−B: 테 +11~15 vs 바닥 +42 — 게다가
+//   차가웠다). 굽기는 버리고 통째로 코드로 그린다:
+//   ① «구덩이 입»을 사다리꼴로 — 가까운(아래) 쪽이 넓고 먼(위) 쪽이 좁다.
+//   ② 테두리는 좌·우·위 세 면만(아래는 열어 «내려가는 입»이 되게). 액자의 아랫막대를 없앤다.
+//   ③ 디딤판을 «맞붙게» 깔고(사이 검은 틈 없앰 → 살창 아닌 계단), 단마다 위 모서리에
+//      얇은 어두운 턱선(라이저)을 넣어 «턱»이 보이게. 가까울수록 넓·밝·두껍고 멀수록 좁·어둡·얇다.
+//   ④ 돌빛을 바닥과 같은 결로(B ≈ 0.56·R → R−B ≈ 0.44·lum). 실측으로 디딤판·테 R−B ≥ +20 확인.
 function drawStairs() {
   const s = G.stairs;
-  const im = tex("decor/stairs.png");
-  if (im && im.width) {
-    const h = 104, w = h * (im.width / im.height);
-    const x0 = s.x - w / 2, y0 = s.y - h * 0.78;
-    // ★ V-158 — 구운 테두리가 «찬 밝은 회색»이라 던전의 따뜻한 갈색 위에서 창틀/쇠살처럼
-    //   떴다. 돌로 읽히게 눌러서 따뜻하게 태운다(다시 굽지 않고 칠하는 쪽으로).
-    ctx.filter = "brightness(0.62) sepia(0.42) saturate(1.3)";
-    ctx.drawImage(im, x0, y0, w, h);
-    ctx.filter = "none";
-    const ix = x0 + w * 0.15, iw = w * 0.70;            // 테두리 안쪽
-    const iy = y0 + h * 0.14, ih = h * 0.72;
-    ctx.fillStyle = "#08070a"; ctx.fillRect(ix, iy, iw, ih);
-    // ★ V-158 — 디딤판이 «같은 높이·같은 폭»이라 계단이 아니라 **쇠살창**으로 읽혔다.
-    //   원근이 빠졌던 것이다. 깊어질수록(화면 위쪽) 단을 ①얇게 ②좁게 ③어둡게 만들어
-    //   소실점을 준다 — 셋이 같이 가야 「아래로 내려간다」가 보인다.
-    const N = 6, KH = 0.70, KW = 0.855, KL = 0.62;
-    const base = ih * (1 - KH) / (1 - Math.pow(KH, N));  // 등비로 쌓아 정확히 ih 를 채운다
-    let yb = iy + ih;                                    // 가까운 쪽(아래)부터 쌓는다
-    const steps = [];
-    for (let i = 0; i < N; i++) {                        // i = 0 이 제일 가깝다
-      const sh = base * Math.pow(KH, i), hw = iw * 0.5 * Math.pow(KW, i);
-      steps.push({ sh, hw, y: yb - sh, lit: 122 * Math.pow(KL, i) });
-      yb -= sh;
-    }
-    const cx = ix + iw / 2;
-    for (let i = N - 1; i >= 0; i--) {                   // 깊은 것부터 깔아 가까운 것이 덮게
-      const st = steps[i], lit = Math.round(st.lit), rise = Math.round(st.lit * 0.42);
-      ctx.fillStyle = `rgb(${lit},${Math.round(lit * 0.94)},${Math.round(lit * 0.82)})`;
-      ctx.fillRect(cx - st.hw, st.y, st.hw * 2, st.sh * 0.6);
-      ctx.fillStyle = `rgb(${rise},${Math.round(rise * 0.94)},${Math.round(rise * 0.82)})`;
-      ctx.fillRect(cx - st.hw, st.y + st.sh * 0.6, st.hw * 2, st.sh * 0.4);
-    }
-  } else {
-    ctx.fillStyle = "#0c0c10"; ctx.strokeStyle = "#4a7a5a"; ctx.lineWidth = 3;
-    ctx.fillRect(s.x - 34, s.y - 24, 68, 48); ctx.strokeRect(s.x - 34, s.y - 24, 68, 48);
-    for (let i = 0; i < 4; i++) { ctx.fillStyle = `rgba(120,200,150,${0.15 + i * 0.12})`; ctx.fillRect(s.x - 28 + i * 6, s.y - 18 + i * 9, 56 - i * 12, 8); }
+  const cx = s.x, yN = s.y + 16, yF = s.y - 76;          // yN=가까운(아래) · yF=먼(위)
+  const HWn = 52, HWf = 27;                              // 반너비: 원근으로 위가 좁다
+  const hwAt = (y) => HWf + (HWn - HWf) * (y - yF) / (yN - yF);
+  const warm = (l) => `rgb(${Math.round(l)},${Math.round(l * 0.78)},${Math.round(l * 0.56)})`;
+  const trap = (yb, yt, ib, it) => { ctx.beginPath(); ctx.moveTo(cx - ib, yb); ctx.lineTo(cx + ib, yb); ctx.lineTo(cx + it, yt); ctx.lineTo(cx - it, yt); ctx.closePath(); };
+  trap(yN, yF, HWn, HWf); ctx.fillStyle = "#0a0806"; ctx.fill();   // 구덩이 어둠(바탕)
+  const N = 6, KH = 0.74, totalH = yN - yF;
+  const h0 = totalH * (1 - KH) / (1 - Math.pow(KH, N));
+  let yb = yN;
+  for (let i = 0; i < N; i++) {                          // i=0 이 가장 가깝다(아래)
+    const sh = h0 * Math.pow(KH, i), yt = yb - sh;
+    const lit = 100 * Math.pow(0.76, i) + 22;            // 가까울수록 밝다(122→48)
+    trap(yb, yt, hwAt(yb), hwAt(yt)); ctx.fillStyle = warm(lit); ctx.fill();
+    ctx.fillStyle = warm(lit * 0.4);                     // 단 위 모서리의 턱선(라이저 그림자)
+    ctx.fillRect(cx - hwAt(yt), yt, hwAt(yt) * 2, Math.max(1, sh * 0.2));
+    yb = yt;
   }
+  ctx.lineJoin = "round";                                // 구덩이 입 테 — 좌·우·위 세 면(아래 열림)
+  ctx.beginPath(); ctx.moveTo(cx - HWn - 2, yN + 1); ctx.lineTo(cx - HWf - 2, yF - 1);
+  ctx.lineTo(cx + HWf + 2, yF - 1); ctx.lineTo(cx + HWn + 2, yN + 1);
+  ctx.strokeStyle = warm(96); ctx.lineWidth = 6; ctx.stroke();
+  ctx.strokeStyle = warm(150); ctx.lineWidth = 2; ctx.stroke();   // 안쪽 밝은 모서리(빛 받는 턱)
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
-  // 그림이 y-81 까지 올라오므로 글자를 그 **위로** 뺀다(안 그러면 디딤판 위에 얹힌다).
-  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - (tex("decor/stairs.png")?.width ? 90 : 32));
+  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, yF - 12);
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을
