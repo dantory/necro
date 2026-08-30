@@ -27,11 +27,39 @@ for _a in sys.argv[1:]:
     if _a.startswith("--out="):
         OUT = os.path.abspath(os.path.join(ROOT, _a[6:]))
 
-TONE = ("MEDIUM GREY STONE AND BONE, desaturated, moderate contrast, evenly lit, "
-        "no vignette, no shadows baked in, "
-        "absolutely no blue, no purple, no violet, no teal, no green, "
-        "Diablo 2 crypt, grim gothic pixel art")
-ONE  = ("ONE single object only, centered, transparent background, "
+# ── 색 ──────────────────────────────────────────────────────────────────────
+# ★★ V-160(병수님 2026-08-30 08:33 「에셋 픽셀랩 써서 제대로 뽑아라」) —
+#   지금까지 열 장을 **찬 회색**으로 구워 놓고 화면에서 `PROP_WARM` 필터로 덧칠해 왔다.
+#   그건 고침이 아니라 **분칠**이다. 소품 R−B 를 재 보면 사실이 그대로 나온다:
+#       바닥  crypt +3.7 · bone +31.7 · rot +31.2   ← 따뜻하다
+#       소품  기둥 −13.9 · 항아리 −27.5 · 관 −23.2 · 잡석 −21.0   ← **파랗다**
+#   그런데 같은 파이프라인으로 구운 상자 +47.0 · 화로 +51.8 은 따뜻하다.
+#   갈린 자리는 하나뿐이다 — **그 둘만 제 색을 맨 앞 대문자로 세웠다.**
+#   그래서 `--warm` 은 공용 회색을 버리고 상자가 통한 그 꼴을 그대로 쓴다.
+#   (「grey」를 남겨 두면 굽는 쪽이 그것을 청회색으로 읽는다 — 낱말째 뺀다.)
+TONE_COLD = ("MEDIUM GREY STONE AND BONE, desaturated, moderate contrast, evenly lit, "
+             "no vignette, no shadows baked in, "
+             "absolutely no blue, no purple, no violet, no teal, no green, "
+             "Diablo 2 crypt, grim gothic pixel art")
+# ★ 1차 --warm 이 **넘어갔다**(09:4x): R−B 를 +47~+79 로 올렸는데 바닥은 +3.7~+31.7 이다.
+#   컷을 열어 보니 벽이 붉은 벽돌 · 누운 기둥이 주황 파이프 · 해골이 금박이 됐다.
+#   문턱만 두고 **천장을 안 둔** 자 탓이다 — 따뜻하게가 아니라 «바닥과 같은 온도로».
+TONE_WARM = ("WEATHERED BROWN GREY STONE AND OLD YELLOWED BONE, dusty warm grey, "
+             "muted earth tones, dark and grimy, low saturation, faded, "
+             "moderate contrast, evenly lit, no vignette, no shadows baked in, "
+             "absolutely no blue, no steel blue, no grey blue, no cold grey, "
+             "no purple, no violet, no teal, no green, "
+             "not orange, not gold, not yellow, not bright, not clean, not new, "
+             "Diablo 2 crypt, grim gothic pixel art")
+WARM = "--warm" in sys.argv
+TONE = TONE_WARM if WARM else TONE_COLD
+# ★ 굽는 쪽은 늘 **제 바닥판을 달아 보낸다**([[sprite-brings-its-own-ground]]).
+#   1차 굽기에서 항아리·잡석 밑에 흙·자갈이 딸려 왔다 — 그게 접지선을 아래로 끈다.
+#   상자 조리법에만 있던 부정어를 **전부에 옮긴다**([[carry-fixes-forward]]).
+ONE  = ("ONE single object only, centered, "
+        "floating alone on empty transparent background, "
+        "no grass, no dirt, no soil, no plants, no moss, no scattered pebbles, "
+        "no ground, no floor, no base under it, "
         "not a sheet, no grid of items, no duplicates, no text, no numbers")
 
 PARTS = {
@@ -39,13 +67,15 @@ PARTS = {
   "wall": (f"{TONE}, {ONE}, a straight horizontal section of ancient stone dungeon wall "
            "seen from slightly above, big rough blocks with deep mortar joints, "
            "flat top edge, the left and right ends are cut off mid-block so copies tile "
-           "edge to edge, no corners, no end caps, no doorway", 128, 64),
+           "edge to edge, no corners, no end caps, no doorway, "
+           "big irregular quarried stone blocks, NOT red brick, not brickwork", 128, 64),
   # ── 기둥 ── 세로로 선 것. 공간에 높이를 준다.
   "pillar": (f"{TONE}, {ONE}, a tall broken stone column standing upright, cracked shaft, "
              "chipped capital, crumbling base, vertical, full body", 64, 128),
   # ── 소품 넷 ── 사람이 살았던(죽었던) 자리라는 표시
   "coffin": (f"{TONE}, {ONE}, a heavy stone sarcophagus lying on the ground seen from above "
-             "at an angle, cracked lid slightly pushed aside, carved edge", 96, 64),
+             "at an angle, cracked lid slightly pushed aside, carved edge, "
+             "solid carved STONE, not wooden planks", 96, 64),
   "bones":  (f"{TONE}, {ONE}, a small pile of pale skulls and bones heaped on the ground, "
              "seen from above at an angle, low and wide", 64, 48),
   "brazier": (f"{TONE}, {ONE}, an iron brazier bowl on three legs with dim orange embers "
@@ -57,12 +87,20 @@ PARTS = {
   #     **누운 것의 생김새**를 말해야 한다 — 「쓰러진 나무처럼」.
   "column2": (f"{TONE}, {ONE}, a toppled stone column lying flat on the ground like a felled "
               "tree trunk, broken apart into three round drum segments that lie end to end "
-              "with gaps between them, seen from above at an angle, long and low, horizontal",
+              "with visible gaps between them, cracked stone, NOT a smooth pipe, not a tube, "
+              "not a log, not wood, seen from above at an angle, long and low, horizontal",
               96, 48),
   #   ★ 「skeleton」 하나만 쓰면 서 있는 해골이 온다 — **누워 흩어진 것**임을 말한다.
+  #   ★ V-160 2차 — 공용 TONE_WARM 의 「dark and grimy」가 **뼈까지 태웠다**(밝기 −36%,
+  #     어두운 방에서 안 읽힌다). 뼈는 밝아야 하는 것이니 상자·계단처럼 제 색을 앞에 세운다.
   "bones2": (f"{TONE}, {ONE}, a single human skeleton sprawled flat on its back on the ground, "
              "ribcage open, arms flung out to the sides, skull turned aside, seen from above "
-             "at an angle, spread wide and flat", 64, 48),
+             "at an angle, spread wide and flat, "
+             # ★ 3차: 제 색("PALE IVORY")을 앞에 세웠더니 **분홍 해골**이 왔다(G 꺼짐 +21).
+             #   형제인 bones 는 공용 TONE_WARM 으로 크림색이 잘 나왔으니 그리로 되돌리고,
+             #   「어둡지 않게」만 덧붙인다 — TONE_WARM 의 "dark and grimy" 가 뼈를 태웠던 것.
+             "pale weathered bone, light coloured against the dark floor, "
+             "not dark, not black, not burnt, not pink, not red, not magenta", 64, 48),
   #   ★ 항아리는 **불이 없다** — 화로와 갈리는 자리가 그것이다.
   "urn": (f"{TONE}, {ONE}, a cracked stone burial urn standing upright on the ground, "
           "round wide belly, narrow neck, heavy chipped lid tilted on top, "
@@ -102,9 +140,22 @@ PARTS = {
              "no grass, no dirt, no plants, no moss, no railing, no door, no arch, no text",
              72, 72),
   #   ★ 석상은 기둥과 키가 같아 **머리 없는 사람 모양**이라야 갈린다.
-  "statue": (f"{TONE}, {ONE}, a weathered stone statue of a hooded mourning figure standing "
-             "on a square plinth, the head broken off leaving a jagged stump at the neck, "
-             "robes carved in deep folds, arms crossed over the chest, vertical, full body",
+  #   ★ V-160 — 공용 TONE_WARM 으로도 석상만 **찬 회색**으로 왔다(R−B +17.4, 아홉 중 꼴찌).
+  #     화면에 세워 보니 따뜻한 바닥 위에서 저 혼자 파랗게 떴다. 상자·계단이 통한 꼴대로
+  #     **제 색을 맨 앞 대문자로** 세운다 — 공용 회색을 덮는 자리가 거기다.
+  "statue": ("WEATHERED WARM BROWN SANDSTONE, dusty tan stone, muted earth tones, "
+             "dark and grimy, low saturation, faded, moderate contrast, evenly lit, "
+             "no vignette, no shadows baked in, "
+             "absolutely no blue, no steel blue, no grey blue, no cold grey, no slate, "
+             "no purple, no violet, no teal, no green, "
+             "not orange, not gold, not bright, not clean, "
+             f"Diablo 2 crypt, grim gothic pixel art, {ONE}, "
+             "a weathered stone statue of a hooded mourning figure standing "
+             "on a square plinth, the head COMPLETELY broken off and missing, only a jagged "
+             "broken stump at the neck, headless, no face, no hood on top, "
+             "robes carved in deep folds, arms crossed over the chest, vertical, full body, "
+             "the plinth sits on nothing, empty transparent background below it, "
+             "no grass, no green, no plants, no weeds, no moss, no soil, no ground",
              64, 128),
 }
 
