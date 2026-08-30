@@ -1,11 +1,38 @@
+// ★ V-183 — 이동 속도를 올린다. V-183 의 자(tools/hs_v183_density.mjs)로 재 보니
+//   화면 안 동시 적 p50 이 **0** 이었다(깬 팩은 8인데). 까닭은 적이 플레이어(268)보다
+//   너무 느려(46~78) 깨어난 뒤에도 못 붙고 지도 곳곳에 꼬리처럼 늘어져 화면 밖으로
+//   샜기 때문이다 — 「뒤처진 놈이 안 붙으면 떼가 안 된다」. 대략 1.6~1.7배 올려 붙게 한다
+//   (그래도 플레이어보다 느리다 — 도망은 여전히 되지만 서서 싸우면 몰려든다).
+// ★ V-183b — 다시 재 보니 이걸로도 화면 안 동시 적 **중앙값**은 13 뿐이었다(봉우리 p95 는
+//   58 로 넉넉한데). 까닭: 깬 팩이 21개(=산 적 수백)인데도 대부분 **화면 밖에 꼬리처럼**
+//   늘어져 있었다 — 플레이어(268)가 다음 팩으로 옮길 때마다 앞 무리를 두고 가서 화면이
+//   빈다. 봉우리가 아니라 **골(중앙값)**을 메우려면 뒤처진 놈이 이동 중에도 붙어 있어야
+//   한다 → 속도를 한 번 더 올린다(여전히 플레이어보단 느리다).
+// ★ V-183c — 속도만으로는 봉우리(p95 72)만 커지고 **중앙값은 13** 그대로였다. 분포가
+//   둘로 갈렸다: 몰려든 무리를 군세+뼈창이 «한 번에» 녹이고 → 빈 골. 화면에 «동시에»
+//   남는 수 = 도착률 × 화면 체류시간(리틀의 법칙)인데, 체류시간이 즉사라 0 에 가까웠다.
+//   그래서 **체력을 올려** 무리가 화면에 더 오래 남게 한다(골이 메워진다). 죽는 데 여러
+//   대 맞아야 하니 몰살감(처치 연쇄)도 실제로 «잇달아» 터진다. em(엘리트 3.2배)·층 배수는
+//   그대로라 위층에서 과하지 않게 기본값만 손댄다.
 const MOB_TYPES = [
-  { base: "mob/fallen", hp: 26, dmg: 6, spd: 78, h: 74, r: 16, gold: [4, 9] },
-  { base: "mob/zombie", hp: 44, dmg: 9, spd: 52, h: 92, r: 20, gold: [5, 11] },
-  { base: "mob/skelarch", hp: 30, dmg: 8, spd: 70, h: 82, r: 16, gold: [5, 10] },
-  { base: "mob/shaman", hp: 34, dmg: 10, spd: 66, h: 84, r: 17, gold: [7, 13] },
-  { base: "mob/brute", hp: 120, dmg: 18, spd: 46, h: 118, r: 26, gold: [12, 22] },
+  { base: "mob/fallen", hp: 42, dmg: 6, spd: 178, h: 74, r: 16, gold: [4, 9] },
+  { base: "mob/zombie", hp: 70, dmg: 9, spd: 138, h: 92, r: 20, gold: [5, 11] },
+  { base: "mob/skelarch", hp: 48, dmg: 8, spd: 166, h: 82, r: 16, gold: [5, 10] },
+  { base: "mob/shaman", hp: 54, dmg: 10, spd: 156, h: 84, r: 17, gold: [7, 13] },
+  { base: "mob/brute", hp: 190, dmg: 18, spd: 116, h: 118, r: 26, gold: [12, 22] },
 ];
-const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 42, h: 150, r: 40, gold: [80, 140] };
+const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 88, h: 150, r: 40, gold: [80, 140] };
+
+// ★ V-183 — 네임드(champion) 이름을 굴린다: 형용사 + 종족 + 칭호, 대문자(HS 의
+//   「SLITHER COMMANDER」꼴). 색은 그리는 쪽(drawEnemy)에서 HS_STYLE 「빛깔·글꼴」의
+//   초록을 준다. 이미 있는 m.elite 위에 얹기만 한다 — 새 종을 만들지 않는다.
+const ELITE_ADJ = ["ROTTING", "CURSED", "VILE", "SAVAGE", "GLOOM", "WRETCHED", "BLOODGORGED", "PALE", "GRIM", "FESTERING"];
+const ELITE_TITLE = ["COMMANDER", "WARLORD", "DEVOURER", "BUTCHER", "HERALD", "TYRANT", "REAVER", "SCOURGE"];
+const ELITE_SPECIES = { "mob/fallen": "FALLEN", "mob/zombie": "ROTLING", "mob/skelarch": "BONECASTER", "mob/shaman": "HEXER", "mob/brute": "BRUTE", "mob/boss": "OVERLORD" };
+function rollEliteName(base) {
+  const sp = ELITE_SPECIES[base] || "HORROR";
+  return `${ELITE_ADJ[(Math.random() * ELITE_ADJ.length) | 0]} ${sp} ${ELITE_TITLE[(Math.random() * ELITE_TITLE.length) | 0]}`;
+}
 
 function rint(a, b) { return a + ((Math.random() * (b - a + 1)) | 0); }
 function overlap(a, b, pad) {
@@ -60,9 +87,13 @@ export function genFloor(floor) {
     if (room.dead && Math.random() < 0.8) {
       chests.push({ x: room.cx, y: room.cy, opened: false, r: 26 });
     }
-    const n = rint(1, 2);
+    // ★ V-183 — 방당 팩 1~2 → 3~4, 팩당 5~12 → 14~24. 깨우는 반경(WAKE, main.js)을 넓혀
+    //   한 방에 든 팩이 함께 깨어나므로, 한 자리에 몰리는 수가 곱으로 는다.
+    //   자로 재며 잡았다: 2~3×10~18·WAKE 900 은 p50 16.5·p95 32(미달), 3~4×14~24·WAKE 1050
+    //   은 p50 50·p95 134(과함 — 온 층이 한꺼번에 몰려 「벽」이 된다). 그 사이로 내린다.
+    const n = rint(3, 4);
     for (let p = 0; p < n; p++) {
-      const count = rint(5, 12);
+      const count = rint(12, 18);
       const px = rint(room.x + 60, room.x + room.w - 60);
       const py = rint(room.y + 60, room.y + room.h - 60);
       const enemies = [];
@@ -228,5 +259,6 @@ function makeMob(t, x, y, scale, id, elite) {
     dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
     r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: 0, alive: true,
+    name: elite ? rollEliteName(t.base) : null,
   };
 }

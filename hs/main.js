@@ -8,7 +8,10 @@ const ctx = cv.getContext("2d");
 const mini = document.getElementById("mini");
 const mctx = mini.getContext("2d");
 
-const WAKE = 540;
+// ★ V-183 — 깨우는 반경 540 → 900. 화면(가로 1008 월드)보다 좁던 반경을 넓혀,
+//   한 방에 든 팩(V-183 map.js 에서 2~3개)이 함께 깨어나 한 자리로 몰려들게 한다.
+//   한 팩만 깨면 화면이 빈다 — V-183 자로 재니 깬 팩 8인데 화면 안은 p50 0 이었다.
+const WAKE = 850;
 const CULL = 1400;
 const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
@@ -56,6 +59,7 @@ cv.addEventListener("contextmenu", (e) => e.preventDefault());
 
 const cam = { x: 0, y: 0, shake: 0 };
 let flash = 0, flashColor = "255,255,255";
+let killStreak = 0, lastKillT = 0;   // V-183 처치 연쇄 — 짧은 시간 안에 몰살하면 연출이 커진다
 let G = null;
 let invOpen = false;
 let hoverItem = null, hoverRect = null;   // 창 안에서 마우스를 얹은 물건 — 툴팁·비교가 쓴다
@@ -304,6 +308,27 @@ function stepEnemies(dt) {
     }
     if (live === 0 && !pk.done) { pk.done = true; G.cleared++; markRoomCleared(pk.room); }
   }
+  separateEnemies();
+}
+
+// ★ V-183 — 적끼리 밀어낸다. 소환수엔 이미 있었지만(separateMinions) 적엔 없어, 밀도를
+//   올리면 스무 마리가 한 자리에 포개져 「수십 마리」가 아니라 한 마리로 보인다. 깨어 있는
+//   산 적을 한 번 모아 반지름 합보다 가까운 쌍만 반씩 밀어낸다(minion 판과 같은 싼 셈).
+function separateEnemies() {
+  const arr = [];
+  for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) arr.push(m);
+  const n = arr.length;
+  for (let i = 0; i < n; i++) {
+    const s = arr[i];
+    for (let j = i + 1; j < n; j++) {
+      const t = arr[j], min = s.r + t.r;
+      const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
+      if (d2 === 0) { t.x += 0.5; continue; }
+      if (d2 >= min * min) continue;
+      const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
+      s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
+    }
+  }
 }
 
 function markRoomCleared(ri) {
@@ -410,7 +435,15 @@ function killEnemy(m) {
     G.player.level++; G.player.levelPoints++;
     G.floats.push({ x: G.player.x, y: G.player.y - 108, t: 1.8, txt: `레벨 ${G.player.level} — Z 자리 / X 등급`, col: "#e8cf52" });
   }
-  cam.shake = Math.max(cam.shake, m.elite ? 10 : 5);
+  // ★ V-183 — 처치 연쇄. 350ms 안에 잇달아 죽을수록 흔들림이 커지고, 다섯 이상이면
+  //   흰 번쩍임이 얹힌다(몰살감). 상한 있음(chain ≤ 14 · flash ≤ 0.32) — 파티클은 burst
+  //   가 400개, 떠오르는 숫자는 floatDmg 가 60개로 이미 막혀 있어 연출이 프레임을 못 먹는다.
+  const now = performance.now();
+  killStreak = now - lastKillT < 350 ? killStreak + 1 : 1;
+  lastKillT = now;
+  const chain = Math.min(killStreak, 14);
+  cam.shake = Math.max(cam.shake, (m.elite ? 10 : 5) + chain * 1.1);
+  if (killStreak >= 5) { flash = Math.max(flash, Math.min(0.32, 0.04 + chain * 0.02)); flashColor = "232,224,205"; }
   for (let i = 0; i < (m.elite ? 16 : 9); i++) burst(m.x, m.y - m.h * 0.4, "#e8e2d2", 150);
   addCorpse(m);
   dropLoot(m);
@@ -640,9 +673,11 @@ function drawWorld() {
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
 
+  // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
+  //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
   const drawList = [];
-  for (const s of G.minions) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
-  forEachEnemy((m) => drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }));
+  for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
+  forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   drawList.sort((a, b) => a.y - b.y);
   for (const d of drawList) {
     if (d.near) ctx.globalAlpha = 0.45;   // 내 앞을 가리는 소환수는 비쳐 보이게
@@ -1030,16 +1065,23 @@ function drawEnemy(m) {
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
-  const bw = m.r * 2.2, hpf = Math.max(0, m.hp / m.maxhp);
+  const hpf = Math.max(0, m.hp / m.maxhp);
   const by = m.y - m.h - 8;
-  if (hpf < 1) {
-    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 6);
-    ctx.fillStyle = m.elite ? "#e8cf52" : "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
-  }
+  // ★ V-183 — 네임드는 머리 위에 **굴린 이름표(초록 대문자) + 늘 보이는 체력바**(HS_STYLE ③).
+  //   잡몹은 다칠 때만 붉은 바. 이름은 map.js 가 굴린 m.name, 색은 HS 의 초록.
   if (m.elite) {
-    ctx.save(); ctx.translate(m.x, by - 5); ctx.scale(1 / Z, 1 / Z);
-    ctx.fillStyle = "#8ac06a"; ctx.font = "10px 'Times New Roman',serif"; ctx.textAlign = "center";
-    ctx.fillText("CHAMPION", 0, 0); ctx.restore();
+    const bw = m.r * 2.8;
+    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 7);
+    ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
+    ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
+    ctx.font = "bold 11px 'Times New Roman',serif"; ctx.textAlign = "center";
+    ctx.fillStyle = "#000"; ctx.fillText(m.name || "CHAMPION", 0.6, 0.6);
+    ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "CHAMPION", 0, 0);
+    ctx.restore();
+  } else if (hpf < 1) {
+    const bw = m.r * 2.2;
+    ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, 6);
+    ctx.fillStyle = "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
