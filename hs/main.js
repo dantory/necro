@@ -558,15 +558,20 @@ function drawWorld() {
   for (const r of rvis) stoneRim(r.x - WT, r.y - WTOP, r.w + 2 * WT, r.h + WT + WTOP);
   for (const r of rvis) { northWall(r, WT, WTOP); sideWalls(r, WT, WTOP); }  // 네 면 다 벽 — 복도가 이 다음에 뚫는다
   for (const c of cvis) floorFill(c.x, c.y, c.w, c.h, "rgba(52,38,26,0.5)");   // 복도 바닥이 벽·북벽을 뚫어 문을 낸다
-  for (const r of rvis) {                                 // 방 바닥이 복도를 덮어 복도는 방 사이에만 남는다
+  // 방 바닥이 복도를 덮어 복도는 방 사이에만 남는다. ★ V-165 — 물들이기는 **얼룩 뒤로**
+  // 미룬다(위 floorBase/floorTint 주석). 얼룩은 방 안에만 뿌려지므로(map.js `scatter`)
+  // 방 바닥칠과 물들이기 사이가 정확히 그 자리다. 안 밝힌 방이 어두워질 때 얼룩도 같이
+  // 잠기는 것 또한 이 순서라야 맞다 — 전에는 어둠 위에 얼룩만 훤히 떠 있었다.
+  for (const r of rvis) floorBase(r.x, r.y, r.w, r.h);
+  drawDecals();
+  for (const r of rvis) {
     const tint = !r.visited ? "rgba(6,5,11,0.6)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
-    floorFill(r.x, r.y, r.w, r.h, tint);
+    floorTint(r.x, r.y, r.w, r.h, tint);
     insetShadow(r);
     doorArches(r, WT);
   }
   PROF.seg("terrain");
 
-  drawDecals();
   drawProps();
   PROF.seg("props");
   for (const c of G.corpses) {
@@ -622,11 +627,18 @@ function stoneRim(x, y, w, h) {
   if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); }
   ctx.fillStyle = "rgba(26,23,22,0.94)"; ctx.fillRect(x, y, w, h);
 }
-function floorFill(x, y, w, h, tint) {
+// ★ V-165 — 얼룩이 «딴 데서 온 판»으로 뜨던 진짜 까닭은 색이 아니라 **층**이었다.
+//   바닥은 `#241f1b` + 무늬 + **물들이기**(방마다 rgba(94,66,42,0.26) 따위) 세 겹인데,
+//   `drawDecals()` 가 그 **위**에 그려져 물들이기를 혼자만 안 받았다. 그래서 바닥은
+//   화면에서 R−B +22~+40 인데 얼룩만 +11~+13 — 재 보면 차이가 그대로 나온다.
+//   에셋을 다시 굽거나 ctx.filter 로 덧칠할 일이 아니다(그건 분칠). **얼룩은 바닥의
+//   일부이니 바닥의 물들이기 «아래»에 있어야 한다.** 그래서 바닥칠을 둘로 쪼갠다.
+function floorBase(x, y, w, h) {
   ctx.fillStyle = "#241f1b"; ctx.fillRect(x, y, w, h);
   if (floorPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
-  ctx.fillStyle = tint; ctx.fillRect(x, y, w, h);
 }
+function floorTint(x, y, w, h, tint) { ctx.fillStyle = tint; ctx.fillRect(x, y, w, h); }
+function floorFill(x, y, w, h, tint) { floorBase(x, y, w, h); floorTint(x, y, w, h, tint); }
 function northWall(r, WT, WTOP) {
   const y0 = r.y - WTOP, x0 = r.x - WT, w = r.w + 2 * WT;
   const g = ctx.createLinearGradient(0, y0, 0, r.y);
