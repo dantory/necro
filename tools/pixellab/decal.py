@@ -86,7 +86,21 @@ OBJ = {
 }
 
 # ★ outline **lineless** — 얼룩에 선이 그어지면 그 순간 「물건」이 된다.
-COMMON = {"outline": "lineless", "shading": "medium shading", "detail": "medium detail"}
+# ★★ V-172 (2026-08-30) — **두 판을 다시 구웠는데 둘 다 «글»만 고쳤다.** 조리법에
+#   "seen from straight above" · "perfectly flat with zero depth" · "no outline at all" 을
+#   써 놓고, 정작 **굽는 쪽 손잡이 셋은 한 번도 안 돌렸다**:
+#     · `view` 를 **아예 안 줬다** → 기본값 `low top-down`(비스듬한 3/4 시점)으로 구웠다.
+#       비스듬히 보면 물건은 «두께»를 가진다 — 「입체 바위」의 진짜 까닭이 이것이다.
+#     · `shading` 이 `medium shading` → 명암을 넣으라고 시켜 놓고 「평평하게」를 글로 빌었다.
+#     · `detail` 이 `medium detail` → 자갈 하나하나를 그리게 했다.
+#   ★ [[knob-that-does-nothing]] 의 반대쪽 — 손잡이는 멀쩡히 있는데 **안 돌리고 글로 빌었다.**
+#   ★ [[cause-written-in-the-item-is-a-guess]] — 항목엔 「색이 차서」라고 적혀 있었다.
+#   재 보니(V-172) 색은 셋째 원인이고, 첫째는 **테**(가장자리가 안쪽보다 20~46 어둡다),
+#   둘째는 **하드 알파**(반투명 픽셀이 0.0% — 스며든 자국이 아니라 오려 붙인 판이다).
+COMMON = {"view": "high top-down",        # 똑바로 위에서 — 두께가 안 생긴다
+          "outline": "lineless",
+          "shading": "flat shading",      # 명암 없음 — 얼룩은 물건이 아니다
+          "detail": "low detail"}
 
 
 def mcp(tool, args, timeout=300):
