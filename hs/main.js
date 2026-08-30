@@ -1189,24 +1189,54 @@ function openChest(ch) {
   flash = Math.max(flash, 0.12); flashColor = "216,180,90";
 }
 
+// ── V-184 바닥 이름표 — D2 결: 평소엔 «점»만, ALT 로 다 보이고, 늘 하나는 보인다 ──────
+// V-183 이 밀도를 재다 찍어 보고 찾았다: 이름표가 모든 물건에 늘 뜨고 겹치면 8층까지
+// 위로 밀어 쌓아 화면 한복판을 덮었다(자로 재니 덮음률 p50 14%·최대 44개·8층). D2 처럼
+// 기본은 감추고 표시(점)만 남긴다 · ALT 누르는 동안만 다 보인다 · 늘 하나(마우스가 얹힌
+// 것, 없으면 가장 가까운 것)는 보인다 · 켜도 개수 상한(12)·쌓임 상한(3층)을 둔다.
+const LABEL_CAP = 12;
+const LABEL_STACK = 3;
+const COMMON_FADE = 8;
+function itemRank(it) {
+  if (it.item.build || it.item.unique) return 3;
+  const k = it.item.rarity.key;
+  return k === "yellow" ? 2 : k === "blue" ? 1 : 0;
+}
 function drawItems() {
   ctx.textAlign = "center";
   itemLabels = [];
-  const sorted = [...G.items].sort((a, b) => a.y - b.y || a.x - b.x);
-  const placed = [];
-  for (const it of sorted) {
+  window.__labels = itemLabels;
+  const p = G.player;
+  const showAll = keys.has("alt");
+  const vis = [];
+  for (const it of G.items) {
     const sx = (it.x - cam.x) * Z, sy = (it.y - cam.y) * Z;
     if (sx < -40 || sx > VW + 40 || sy < -20 || sy > VH + 20) continue;
-    let ly = sy, moved = true, guard = 0;
-    while (moved && guard++ < 24) {
-      moved = false;
-      for (const q of placed) {
-        if (Math.abs(q.x - sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; }
-      }
-    }
-    if (ly < sy - 18 * 8) continue;
-    placed.push({ x: sx, ly });
-    drawItemLabel(it, sx, sy, ly);
+    const rank = itemRank(it), col = it.item.rarity.color;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 2 ? 4 : 3, 0, 6.283); ctx.fill();
+    if (rank >= 2) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 3 ? 7 : 5.5, 0, 6.283); ctx.stroke(); }
+    vis.push({ it, sx, sy, rank, d: Math.hypot(it.x - p.x, it.y - p.y), dm: Math.hypot(sx - mouse.x, sy + 8 - mouse.y) });
+  }
+  let picks;
+  if (invOpen) picks = [];
+  else if (showAll) {
+    picks = vis.filter((o) => !(o.rank === 0 && o.it.t > COMMON_FADE));
+    picks.sort((a, b) => b.rank - a.rank || a.d - b.d);
+    picks = picks.slice(0, LABEL_CAP);
+  } else {
+    let one = null, bm = 44;
+    for (const o of vis) if (o.dm < bm) { bm = o.dm; one = o; }
+    if (!one) { let bd = 1e18; for (const o of vis) if (o.d < bd) { bd = o.d; one = o; } }
+    picks = one ? [one] : [];
+  }
+  const placed = [];
+  for (const o of picks) {
+    let ly = o.sy, moved = true, guard = 0;
+    while (moved && guard++ < 12) { moved = false;
+      for (const q of placed) if (Math.abs(q.x - o.sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; } }
+    if (ly < o.sy - 18 * LABEL_STACK) continue;
+    placed.push({ x: o.sx, ly });
+    drawItemLabel(o.it, o.sx, o.sy, ly);
   }
 }
 function drawItemLabel(it, sx, sy, ly) {
@@ -1219,9 +1249,8 @@ function drawItemLabel(it, sx, sy, ly) {
   }
   ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(sx - w / 2, ly - 10, w, 16);
   ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(sx - w / 2, ly - 10, w, 16);
-  ctx.fillStyle = "#e8c84a"; ctx.beginPath(); ctx.arc(sx, sy + 8, 3, 0, 6.283); ctx.fill();
   ctx.fillStyle = r.color; ctx.fillText(it.item.name, sx, ly + 2);
-  itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it });
+  itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it, sy, layer: Math.round((sy - ly) / 18) });
 }
 function drawFloats() {
   ctx.textAlign = "center";
