@@ -496,11 +496,22 @@ function hurtEnemy(m, dmg, dx, dy, src) {
   if (m.hp <= 0) killEnemy(m);
 }
 
+// ── V-190 — 레벨 문턱 «단일 출처». 누적 XP 곡선을 초선형으로.
+//   레벨 k→k+1 비용 = 500×k ⇒ Lv n 도달 누적 = 250·n·(n-1).
+//   Lv2=500(옛 선형과 «동일» — 초반 안 답답) · Lv10=22500(옛 4500 의 5배) · Lv20=95000(옛 9500 의 10배).
+//   옛 문턱 `level*500` 은 누적 (n-1)·500 로 레벨당 500 «고정»이라 평생 안 느려졌다.
+//   ★ 레벨업 판정·xp 바·HUD 가 «전부» 이 한 문을 읽는다 — 규칙을 새 자리에 안 옮기면 또 어긋난다(작업지시 ③).
+function xpForLevel(n) { return 250 * n * (n - 1); }
+
 function killEnemy(m) {
   m.alive = false;
   G.kills++; METRIC.kills++;
-  G.xp += m.elite ? 40 : 10;
-  if (G.xp >= G.player.level * 500) {
+  // V-190 ㉡ — 처치 XP 에 «층 깊이» 보람. B1 은 +0(초반 곡선을 그대로 두려), 상한 10층까지만 완만히 증가.
+  const depth = Math.min(G.floor - 1, 10);
+  G.xp += (m.elite ? 40 : 10) + depth * (m.elite ? 8 : 2);
+  // V-190 ㉢ — `while`. 레벨 비용이 어떤 한 방 XP(최대 elite×깊은층 ≈ 120)보다 늘 커서 실제론 한 번만
+  //   도는데, 곡선을 바꿔도 안전하게 여러 레벨을 판정하려 if→while 로 둔다.
+  while (G.xp >= xpForLevel(G.player.level + 1)) {
     G.player.level++; G.player.attrPts++; G.player.sklPts++;
     floatNote(`레벨 ${G.player.level} — C 창 · 스탯/스킬 점수 +1`, "#e8cf52", 0.9, { sz: 12 });
   }
@@ -1745,8 +1756,9 @@ function updateHUD() {
   el("mptxt").textContent = `${Math.round(p.mana)} / ${p.maxmana}`;
   el("lvl").textContent = p.level;
   el("gold").textContent = comma(G.gold);
-  el("xp").textContent = comma(G.xp);
-  el("xpbar").style.width = ((G.xp % 500) / 5) + "%";
+  const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
+  el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
+  el("xpbar").style.width = (100 * (G.xp - lvBase) / lvSpan) + "%";
   el("mult").innerHTML = `피해 <b>×${p.dmgMul.toFixed(2)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
   el("region1").textContent = "Crypt of the Dead";
   el("region2").textContent = `Level B${G.floor}`;
