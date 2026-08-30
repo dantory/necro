@@ -1,6 +1,7 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, itemScore, SLOT_LABEL } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL } from "./loot.js";
+import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
 const ctx = cv.getContext("2d");
@@ -56,6 +57,8 @@ cv.addEventListener("contextmenu", (e) => e.preventDefault());
 const cam = { x: 0, y: 0, shake: 0 };
 let flash = 0, flashColor = "255,255,255";
 let G = null;
+let invOpen = false;
+let hoverItem = null, hoverRect = null;   // 창 안에서 마우스를 얹은 물건 — 툴팁·비교가 쓴다
 
 // ── 프레임 프로파일러 (V-154 C) ─────────────────────────────────────────────
 // fp95 가 «어디서» 드는지 재려는 계기다 — 짐작으로 손대지 않기 위해서. 단계마다
@@ -125,7 +128,7 @@ function stepPlayer(dt) {
 
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   p.spearCd -= dt;
-  if (mouse.down && p.spearCd <= 0) {
+  if (mouse.down && p.spearCd <= 0 && !invOpen) {
     fireSpear(p, tx, ty);
     p.spearCd = p.atkCd;
   }
@@ -159,6 +162,7 @@ function handleSkills() {
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
+  if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (G.dead && keys.has("r")) start(1, null);
 }
 
@@ -174,6 +178,7 @@ function nearestCorpse(x, y, rad) {
 }
 
 function slotsUsed() { let s = 0; for (const m of G.minions) s += m.slot; return s; }
+function slotCap() { const p = G.player; return p.slots + (p.uniques.has("moreSkel") ? 4 : 0); }
 
 function selectGrade(i) {
   const p = G.player;
@@ -189,7 +194,7 @@ function raiseSkeleton() {
   const p = G.player;
   const tier = Math.min(p.grade, p.maxGrade, SKEL_TIERS.length - 1);
   const T = SKEL_TIERS[tier];
-  if (slotsUsed() + T.slot > p.slots) {
+  if (slotsUsed() + T.slot > slotCap()) {
     G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: `자리가 부족하다 (${T.label} ${T.slot}칸)`, col: "#e0663c" });
     return;
   }
@@ -456,7 +461,7 @@ function stepDrops(dt) {
     // 금과 같은 «자석» — 밟아서 닿기엔 30px 가 좁아 한 판에 하나도 못 줍던 것(V-147)
     const d = Math.hypot(p.x - it.x, p.y - it.y);
     if (it.t > 0.35 && d < 110) { it.x += (p.x - it.x) * Math.min(1, dt * 9); it.y += (p.y - it.y) * Math.min(1, dt * 9); }
-    if (d < 46) pickItem(it);
+    if (d < 46 && (!it.drop || it.t > 0.6)) pickItem(it);
   }
   G.items = G.items.filter((it) => !it.got);
 }
@@ -465,7 +470,12 @@ function stepDrops(dt) {
 //   파생 배수를 다시 편다. 빌드 옵션(p.mult)·유니크·레벨 강화가 바뀔 때도 이 문을 지난다.
 function recalc() {
   const p = G.player;
-  const g = sumAffixes(Object.values(p.equipped).filter(Boolean));
+  const eq = Object.values(p.equipped).filter(Boolean);
+  // 유니크 규칙(뼈창 갈라짐·시체폭발 두 번·해골 자리·금 두 배)도 이 문을 지난다 —
+  // 착용 중인 것만 켜지고 벗으면 꺼진다(V-181 은 집는 순간 켜 다시 못 껐다 → 누수).
+  p.uniques = new Set();
+  for (const it of eq) if (it.unique) p.uniques.add(it.unique.key);
+  const g = sumAffixes(eq);
   p.gear = g;
   p.dmgMul = p.mult.dmg * (1 + g.dmg / 100);
   p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100);
@@ -480,14 +490,14 @@ function recalc() {
 }
 
 function pickItem(it) {
-  it.got = true;
   const p = G.player;
-  G.picks++;
-  G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
-  if (G.pickLog.length > 6) G.pickLog.pop();
 
   // 빌드 옵션(초록/주황)은 지금 판 그대로 «집는 순간» 켜진다(가방 물건이 아니다).
   if (it.item.build) {
+    it.got = true;
+    G.picks++;
+    G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
+    if (G.pickLog.length > 6) G.pickLog.pop();
     if (it.item.build.kind === "slot") p.slots += it.item.build.n || 1;
     else p.mult.minionDmg *= it.item.build.mul || 1.3;
     recalc();
@@ -496,19 +506,26 @@ function pickItem(it) {
     return;
   }
 
-  // 장비는 «가방»에 들어간다. 유니크 규칙은 집는 순간 켠다(지금 판 규칙 유지).
+  // 장비는 «가방»에 들어간다. 격자에 자리가 없으면 못 줍고 바닥에 남는다.
   const gear = it.item;
+  if (!bagFits(p.bag, gear)) {
+    const now = performance.now();
+    if (now > (G.bagFullT || 0)) {
+      G.bagFullT = now + 1500;
+      G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: "가방이 가득 찼다", col: "#e0663c" });
+    }
+    return;
+  }
+  it.got = true;
+  G.picks++;
+  G.pickLog.unshift({ name: gear.name, color: gear.rarity.color, t: 3 });
+  if (G.pickLog.length > 6) G.pickLog.pop();
+  const wasEmpty = p.bag.length === 0;
   p.bag.push(gear);
-  if (gear.unique) {
-    p.uniques.add(gear.unique.key);
-    if (gear.unique.key === "moreSkel") p.slots += 4;
-  }
-  // 자동 착용 — 같은 슬롯에 더 좋은 게 오면 갈아 끼운다(«좋다»는 옵션 값 합).
-  if (itemScore(gear) > itemScore(p.equipped[gear.slot])) {
-    p.equipped[gear.slot] = gear;
-    recalc();
-  }
   p.hp = Math.min(p.maxhp, p.hp + p.maxhp * 0.04);
+  // 첫 물건(가방이 비어 있었다)만 편의로 자동 착용 — 그 뒤론 사람이 창에서 고른다.
+  if (wasEmpty && !p.equipped[gear.slot]) equipFromBag(gear);
+  else if (invOpen) renderInv();
   if (gear.unique) {
     flash = 0.5; flashColor = "216,147,74";
     G.floats.push({ x: it.x, y: it.y - 60, t: 2.2, txt: gear.name, big: true, col: "#d8934a" });
@@ -1184,15 +1201,24 @@ const el = (id) => document.getElementById(id);
 // 오른쪽에 두고, 화면 밖으로 나면 왼쪽으로 뒤집는다. HTML 은 물건이 바뀔 때만 다시 짠다.
 const SLOT_ORDER = ["weapon", "helm", "armor", "gloves", "boots", "ring", "amulet"];
 function esc(s) { return ("" + s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
-function tooltipHTML(it) {
+function tooltipHTML(it, cmp) {
   if (it.build) return `<div class="tipname">${esc(it.name)}</div><div class="tipmod">즉시 적용 — 집으면 켜진다</div>`;
   const nameClass = it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
   const rows = [`<div class="tipname ${nameClass}">${esc(it.name)}</div>`];
   rows.push(`<div class="tipsub">${it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
   rows.push(`<div class="tiprule"></div>`);
-  if (it.affixes && it.affixes.length)
-    for (const a of it.affixes) rows.push(`<div class="tipaffix">${esc(a.label)}</div>`);
-  else rows.push(`<div class="tipbase">옵션 없음</div>`);
+  if (it.affixes && it.affixes.length) {
+    const cmpMap = {};
+    if (cmp) for (const a of (cmp.affixes || [])) cmpMap[a.key] = (cmpMap[a.key] || 0) + a.value;
+    for (const a of it.affixes) {
+      let diff = "";
+      if (cmp && a.key in cmpMap) {
+        const d = a.value - cmpMap[a.key];
+        if (d !== 0) diff = ` <span class="tipdiff ${d > 0 ? "up" : "down"}">(${d > 0 ? "+" : "−"}${Math.abs(d)})</span>`;
+      }
+      rows.push(`<div class="tipaffix">${esc(a.label)}${diff}</div>`);
+    }
+  } else rows.push(`<div class="tipbase">옵션 없음</div>`);
   if (it.unique) {
     rows.push(`<div class="tipmod">${esc(it.unique.note)}</div>`);
     rows.push(`<div class="tiprule"></div>`);
@@ -1204,6 +1230,7 @@ let tipItem = null;
 function updateTooltip() {
   const tip = el("tooltip");
   if (!tip) return;
+  if (invOpen) return;
   let hit = null;
   for (const b of itemLabels)
     if (mouse.x >= b.x0 && mouse.x <= b.x1 && mouse.y >= b.y0 && mouse.y <= b.y1) { hit = b; break; }
@@ -1216,6 +1243,130 @@ function updateTooltip() {
   if (y < 6) y = 6;
   tip.style.left = Math.max(6, x) + "px";
   tip.style.top = y + "px";
+}
+
+// ── V-182 격자 인벤토리 창 (I) ───────────────────────────────────────────────
+// 왼쪽 사람모양 착용 일곱 칸 · 오른쪽 10×4 격자(D2 결). 담기·착용·해제는 bag.js 의
+// 순수 셈을 부르고, 스탯은 전부 recalc() 한 문을 지난다. 창이 열려 있어도 게임은 돈다.
+const DOLL = {
+  helm: [2, 1], amulet: [3, 1],
+  weapon: [1, 2], armor: [2, 2], ring: [3, 2],
+  gloves: [1, 3], boots: [3, 3],
+};
+const CELL = 34;
+
+function toggleInv() {
+  invOpen = !invOpen;
+  el("inv").classList.toggle("on", invOpen);
+  hoverItem = null; hoverRect = null; _prevHover = null;
+  el("tooltip").style.display = "none"; el("tooltip2").style.display = "none"; tipItem = null;
+  if (invOpen) renderInv();
+}
+
+function cellDiv(it, w, h, onClick) {
+  const d = document.createElement("div");
+  d.className = "icell";
+  d.style.width = (w * CELL) + "px";
+  d.style.height = (h * CELL) + "px";
+  d.style.color = it.rarity.color;
+  d.style.borderColor = it.rarity.color;
+  d.style.background = it.rarity.color + "22";
+  d.textContent = SLOT_LABEL[it.slot] || it.slot;
+  d.addEventListener("mouseenter", () => { hoverItem = it; hoverRect = d.getBoundingClientRect(); });
+  d.addEventListener("mouseleave", () => { if (hoverItem === it) { hoverItem = null; hoverRect = null; } });
+  d.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+  d.addEventListener("contextmenu", (e) => { e.preventDefault(); if (e.ctrlKey) dropItemFromBag(it); });
+  return d;
+}
+
+function renderInv() {
+  const p = G.player;
+  const doll = el("paperdoll");
+  doll.innerHTML = "";
+  for (const slot of SLOT_ORDER) {
+    const [col, row] = DOLL[slot];
+    const cell = document.createElement("div");
+    cell.className = "dollcell";
+    cell.style.gridColumn = col; cell.style.gridRow = row;
+    const it = p.equipped[slot];
+    if (it) cell.appendChild(cellDiv(it, 1, 1, () => unequip(slot)));
+    else { cell.classList.add("empty"); cell.textContent = SLOT_LABEL[slot]; }
+    doll.appendChild(cell);
+  }
+  const grid = el("baggrid");
+  grid.innerHTML = "";
+  grid.style.width = (GRID_COLS * CELL) + "px";
+  grid.style.height = (GRID_ROWS * CELL) + "px";
+  for (let i = 0; i < GRID_COLS * GRID_ROWS; i++) {
+    const bg = document.createElement("div"); bg.className = "gcell";
+    bg.style.left = ((i % GRID_COLS) * CELL) + "px"; bg.style.top = (((i / GRID_COLS) | 0) * CELL) + "px";
+    grid.appendChild(bg);
+  }
+  for (const pl of layoutBag(p.bag).placements) {
+    const d = cellDiv(pl.item, pl.w, pl.h, () => equipFromBag(pl.item));
+    d.style.left = (pl.col * CELL) + "px"; d.style.top = (pl.row * CELL) + "px";
+    grid.appendChild(d);
+  }
+}
+
+function equipFromBag(gear) {
+  if (!equipOp(G.player.bag, G.player.equipped, gear)) return;
+  recalc();
+  if (invOpen) renderInv();
+}
+function unequip(slot) {
+  const p = G.player;
+  if (!unequipOp(p.bag, p.equipped, slot)) {
+    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: "가방이 가득 찼다", col: "#e0663c" });
+    return;
+  }
+  recalc();
+  if (invOpen) renderInv();
+}
+function dropItemFromBag(gear) {
+  const p = G.player;
+  const i = p.bag.indexOf(gear);
+  if (i < 0) return;
+  p.bag.splice(i, 1);
+  const a = Math.random() * 6.283, s = 90;
+  G.items.push({ x: p.x, y: p.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: gear, t: 0, drop: true });
+  if (invOpen) renderInv();
+}
+
+let _prevHover = null, _prevShift = false;
+function updateInvTip() {
+  const t1 = el("tooltip"), t2 = el("tooltip2");
+  if (!invOpen || !hoverItem || G.dead) {
+    if (_prevHover) { t1.style.display = "none"; t2.style.display = "none"; _prevHover = null; }
+    return;
+  }
+  const shift = keys.has("shift");
+  let cmp = shift ? (G.player.equipped[hoverItem.slot] || null) : null;
+  if (cmp === hoverItem) cmp = null;
+  if (hoverItem !== _prevHover || shift !== _prevShift) {
+    _prevHover = hoverItem; _prevShift = shift;
+    t1.innerHTML = tooltipHTML(hoverItem, cmp);
+    t1.style.display = "block";
+    if (cmp) { t2.innerHTML = tooltipHTML(cmp); t2.style.display = "block"; }
+    else t2.style.display = "none";
+    positionInvTips();
+  }
+}
+function positionInvTips() {
+  const t1 = el("tooltip"), t2 = el("tooltip2");
+  const r = hoverRect; if (!r) return;
+  const gap = 8, w = t1.offsetWidth, h = t1.offsetHeight;
+  let x = r.right + gap, y = r.top;
+  if (x + w > VW - 6) x = r.left - gap - w;
+  if (y + h > VH - 6) y = VH - 6 - h;
+  if (y < 6) y = 6;
+  x = Math.max(6, x);
+  t1.style.left = x + "px"; t1.style.top = y + "px";
+  if (t2.style.display === "block") {
+    let x2 = x - gap - t2.offsetWidth;
+    if (x2 < 6) x2 = x + w + gap;
+    t2.style.left = x2 + "px"; t2.style.top = y + "px";
+  }
 }
 
 function buildBelt() {
@@ -1250,9 +1401,10 @@ function updateHUD() {
   el("region4").textContent = `Zone Level ${G.floor * 40 + 42}`;
   el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
   const used = slotsUsed();
+  const cap = slotCap();
   const slotsEl = el("slots");
-  slotsEl.textContent = `자리 ${used} / ${p.slots}`;
-  slotsEl.classList.toggle("full", used >= p.slots);
+  slotsEl.textContent = `자리 ${used} / ${cap}`;
+  slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ×${p.mult.minionDmg.toFixed(2)}` : "") + (p.levelPoints ? ` · 점수 ${p.levelPoints}` : "");
   const log = el("picklog");
@@ -1323,6 +1475,7 @@ function loop(now) {
   const _t2 = performance.now();
   updateHUD();
   updateTooltip();
+  updateInvTip();
   const _t3 = performance.now();
   PROF.push("sim", _t1 - _t0); PROF.push("draw", _t2 - _t1); PROF.push("hud", _t3 - _t2); PROF.push("total", _t3 - _t0);
   requestAnimationFrame(loop);
