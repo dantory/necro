@@ -106,6 +106,7 @@ function fresh(floor, carry) {
 function start(floor, carry) {
   G = fresh(floor, carry);
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
+  window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
   cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";

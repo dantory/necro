@@ -33,31 +33,46 @@ await S("Page.navigate", { url: URL });
 for (let i = 0; i < 30; i++) { await wait(300); if (await ev("!!(window.G && G.player && window.HSZ)")) break; }
 await wait(600);
 
-/* 조용한 바닥 + 가방/착용을 손으로 채운다(연출용 물건). 착용은 창을 통해서만 바꾸므로
-   여기선 그림을 위해 직접 놓되, recalc 을 한 번 지나 HUD 도 맞춘다. */
-await ev(`(() => {
+/* 조용한 바닥 + 가방/착용을 **실제 loot.js 로 굴려** 채운다(V-182b).
+   앞판은 손으로 지은 물건(`unique: null`)이라 유니크의 규칙줄·이야기줄 경로를 한 번도
+   안 지났다 — 컷은 통과인데 그 길은 안 재진 셈이었다([[probe-must-walk-the-real-path]]).
+   이제 rollItem() 이 굴린 것만 쓰고, 착용은 recalc() 한 문을 지난다. */
+const seeded = JSON.parse(await ev(`(async () => {
+  const L = await import('/hs/loot.js');
   const G = window.G, p = G.player;
   G.packs = []; G.golds = []; G.parts = []; G.floats = []; G.spears = []; G.items = [];
-  const R = { white:{color:'#e6e0d0',key:'white',name:'평범'}, blue:{color:'#6fa8ff',key:'blue',name:'매직'},
-              yellow:{color:'#e8cf52',key:'yellow',name:'레어'}, gold:{color:'#d8934a',key:'gold',name:'유니크'} };
-  const mk = (name, slot, rk, af) => ({ name, slot, rarity: R[rk], unique: null, affixes: af });
-  p.equipped = {
-    weapon: mk('Grim Reaver of Fury','weapon','yellow',[{key:'dmg',label:'피해 +12%',value:12},{key:'atkSpeed',label:'공격 속도 +5%',value:5}]),
-    armor:  mk('Iron Vestment of the Dead','armor','blue',[{key:'maxHp',label:'최대 생명 +60',value:60}]),
-    helm:   mk('Bone Cowl of Ruin','helm','white',[]),
-  };
-  p.bag = [
-    mk('Savage Cleaver of the Grave','weapon','gold',[{key:'dmg',label:'피해 +18%',value:18},{key:'atkSpeed',label:'공격 속도 +9%',value:9},{key:'maxHp',label:'최대 생명 +40',value:40}]),
-    mk('Plague Mail of Blight','armor','yellow',[{key:'maxHp',label:'최대 생명 +95',value:95},{key:'minionDmg',label:'소환수 피해 +14%',value:14}]),
-    mk('Dread Visage of King','helm','blue',[{key:'novaRadius',label:'시체 폭발 범위 +8%',value:8}]),
-    mk('Corpse Grip of the Void','gloves','blue',[{key:'atkSpeed',label:'공격 속도 +7%',value:7}]),
-    mk('Wraith Greaves of Marrow','boots','white',[]),
-    mk('Iron Signet of Skill','ring','yellow',[{key:'gold',label:'금 획득 +22%',value:22}]),
-    mk('Locket of the Legion','amulet','gold',[{key:'minionDmg',label:'소환수 피해 +26%',value:26},{key:'maxHp',label:'최대 생명 +70',value:70}]),
-    mk('Hollow Fang of Gore','weapon','white',[]),
-  ];
-  return true;
-})()`);
+
+  // 비교 짝 — 같은 «무기» 슬롯의 레어 하나와 유니크 하나를 실제 굴림에서 뽑는다.
+  let uniqW = null, rareW = null;
+  for (let i = 0; i < 8000 && !(uniqW && rareW); i++) {
+    if (!uniqW) L.resetUniques();
+    const it = L.rollItem(10, true);
+    if (it.slot !== 'weapon') continue;
+    if (it.unique && !uniqW) uniqW = it;
+    else if (!it.unique && it.rarity.key === 'yellow' && !rareW) rareW = it;
+  }
+  if (!uniqW || !rareW) return JSON.stringify({ ok: false, uniqW: !!uniqW, rareW: !!rareW });
+
+  p.equipped = { weapon: rareW };
+  for (const s of ['armor', 'helm']) {
+    for (let i = 0; i < 4000; i++) { const it = L.rollItem(10, false); if (it.slot === s) { p.equipped[s] = it; break; } }
+  }
+  // 가방 — 굴린 것 그대로. 유니크 무기를 맨 앞에 두어 SHIFT 비교가 그 길을 지나게.
+  const bag = [uniqW];
+  for (let i = 0; i < 400 && bag.length < 8; i++) bag.push(L.rollItem(10, true));
+  p.bag = bag;
+
+  window.recalc();
+  return JSON.stringify({ ok: true, uniq: uniqW.name, note: uniqW.unique.note, lore: uniqW.unique.lore,
+    rare: rareW.name, bag: bag.length, dmgMul: +p.dmgMul.toFixed(3),
+    uniqLeak: [...p.uniques], gear: p.gear, spd: +p.spd.toFixed(3), atkCd: +p.atkCd.toFixed(3) });
+})()`));
+if (!seeded.ok) { log("✗ 실제 굴림에서 비교 짝을 못 뽑았다 " + JSON.stringify(seeded)); process.exit(1); }
+log(`실제 굴림 — 유니크 «${seeded.uniq}»(규칙: ${seeded.note}) · 레어 «${seeded.rare}» · 가방 ${seeded.bag}개 · 착용 뒤 피해 ×${seeded.dmgMul}`);
+// 착용이 «파생 배수»를 실제로 움직였나 — 옵션 합이 0 이면 recalc 이 안 돈 것과 구별이 안 된다.
+const gearSum = Object.values(seeded.gear).reduce((a, b) => a + Math.abs(b), 0);
+log(`착용 옵션 합 ${JSON.stringify(seeded.gear)} → 합계 ${gearSum} · 이동 ${seeded.spd} · 공격쿨 ${seeded.atkCd}`);
+log(`가방에만 있는 유니크가 규칙을 켜는지 — p.uniques=[${seeded.uniqLeak}] (비어야 맞다 ${seeded.uniqLeak.length === 0 ? "✓" : "✗"})`);
 
 /* I 로 연다(키를 얹었다 뗀다 — 한 프레임 이상 눌린 상태로 handleSkills 가 토글하게). */
 async function press(key, ms = 220) {
@@ -102,11 +117,17 @@ const tips = JSON.parse(await ev(`(() => {
   const t1 = document.getElementById('tooltip'), t2 = document.getElementById('tooltip2');
   const up = document.querySelectorAll('#tooltip .tipdiff.up').length;
   const dn = document.querySelectorAll('#tooltip .tipdiff.down').length;
+  // 유니크 길 — 주황 규칙줄(.tipmod)과 회색 이탤릭 이야기줄(.tiplore)이 실제로 그려졌나.
+  const mod = document.querySelector('#tooltip .tipmod'), lore = document.querySelector('#tooltip .tiplore');
   return JSON.stringify({ t1: getComputedStyle(t1).display, t2: getComputedStyle(t2).display,
     t1w: t1.offsetWidth, t2w: t2.offsetWidth, up, dn,
+    modTxt: mod ? mod.textContent.trim() : null,
+    loreTxt: lore ? lore.textContent.trim() : null,
+    loreItalic: lore ? getComputedStyle(lore).fontStyle : null,
     t1txt: t1.textContent.replace(/\\s+/g,' ').slice(0,60) });
 })()`));
 log(`비교 툴팁 — 왼 display=${tips.t1}(${tips.t1w}) 오 display=${tips.t2}(${tips.t2w}) · 차이 초록 ${tips.up}·빨강 ${tips.dn}`);
+log(`유니크 길 — 규칙줄 «${tips.modTxt}» · 이야기줄 «${tips.loreTxt}» (${tips.loreItalic})`);
 
 shot = await S("Page.captureScreenshot", { format: "png" });
 fs.writeFileSync("tmp/v182_compare.png", Buffer.from(shot.data, "base64"));
@@ -116,7 +137,11 @@ await S("Input.dispatchKeyEvent", { type: "keyUp", key: "Shift", code: "ShiftLef
 const twoTips = tips.t1 === "block" && tips.t2 === "block" && tips.t1w > 0 && tips.t2w > 0;
 const diffShown = tips.up + tips.dn > 0;
 log(errs.length ? "콘솔 오류:\n  " + errs.slice(0, 6).join("\n  ") : "콘솔 오류 0");
-const ok = invOn && counts.bagCells >= 3 && counts.dollFilled >= 2 && noLeak && twoTips && diffShown && !errs.length;
-log(ok ? "\n✓ 창·착용·비교·좌클릭 가드·콘솔0 전부 통과" : "\n✗ 실패 — 위 값 확인");
+const uniqPath = !!tips.modTxt && !!tips.loreTxt && tips.loreItalic === "italic";
+const noUniqLeak = seeded.uniqLeak.length === 0;
+const gearApplied = gearSum > 0;   // 합이 0 이면 착용이 아무것도 안 바꾼 것 → 자로 못 본다
+const ok = invOn && counts.bagCells >= 3 && counts.dollFilled >= 2 && noLeak && twoTips && diffShown
+  && uniqPath && noUniqLeak && gearApplied && !errs.length;
+log(ok ? "\n✓ 창·착용·비교·유니크 규칙/이야기줄·누수0·좌클릭 가드·콘솔0 전부 통과" : "\n✗ 실패 — 위 값 확인");
 await raw("Target.closeTarget", { targetId }); bws.close();
 process.exit(ok ? 0 : 1);

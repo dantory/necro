@@ -16408,6 +16408,23 @@ V-180 이 얼룩 축을 닫고 보니, **V-153~V-180b 스물여덟 판이 한 �
     `tmp/v182_compare.png`(SHIFT 비교 툴팁 둘 나란히 · 차이 초록 +6/+4).
   · 콘솔 오류 0 · 좌클릭 샘 0(spears 0→0).
 
+- [x] **V-182b (감시 판, 20:0x) — 컷이 «가짜 물건»으로 찍혀 있었다.** V-182 의 shot 은
+      `mk(..., unique: null)` 로 손수 지은 물건을 넣었다 — 이름표에 「유니크」라고 써 두고도
+      `unique` 가 null 이라 **주황 규칙줄·회색 이탤릭 이야기줄 경로를 한 번도 안 지났다.**
+      자는 통과인데 그 길은 안 재진 셈이다([[probe-must-walk-the-real-path]]).
+      · shot 이 이제 `import('/hs/loot.js')` 로 **실제 `rollItem()` 이 굴린 것만** 쓴다.
+        비교 짝은 굴림에서 「무기」 슬롯의 레어 하나·유니크 하나를 뽑을 때까지 돌린다.
+      · `window.recalc` 노출(main.js) — 착용을 검수기도 **같은 문**으로 지나게.
+      · 새로 재는 것 셋: ① 유니크 툴팁에 `.tipmod`·`.tiplore` 가 뜨고 이탤릭인가
+        ② 가방에만 있는 유니크가 규칙을 켜지 않는가(`p.uniques` 비었나 — V-182 가 고친 누수)
+        ③ **착용 옵션 합이 0 이 아닌가** — 합이 0 이면 recalc 이 안 돈 것과 구별이 안 된다
+        ([[knob-that-does-nothing]]).
+      · 잰 값: 유니크 «Grim Reaver of Fury»(규칙 「뼈 창이 두 갈래로 갈라진다」·이야기 italic ✓) ·
+        착용 합 `{dmg:27, atkSpeed:8, maxHp:130, minionDmg:15, gold:17, moveSpeed:18}` = 215 →
+        HUD `피해 ×1.27 · 생명 3,445`(기본 3,315 에서 움직임) · `p.uniques=[]` ✓ ·
+        좌클릭 샘 0 · 콘솔 오류 0.
+      · 앞판 컷의 `피해 ×1.00` 은 손으로 지은 물건이 recalc 을 안 지난 자국이었다.
+
 #### 지금 도는 것 (19:33 착수)
 - **V-182** — `tools/hs_v182_run.sh` (격자 인벤토리 I · 착용 슬롯 · SHIFT 비교 · 버리기)
   로그 `~/.openclaw/workspace/tmp/necro_hs_v182_run.log` ·
