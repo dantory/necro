@@ -93,7 +93,21 @@ export function genFloor(floor) {
 //   ★ 다시 구우려고 두 판을 돌렸는데 **둘 다 더 나빴다**(V-164 기록 참조) — 색을 앞에
 //     세우면 «돌덩어리», 어둠을 앞에 세우면 «청록/남색». `assets/decal_v3` 에 남겨 뒀다.
 //     제대로 구워질 때까지는 **없는 편이 낫다** — 빈 테는 고칠 수 없는 결함이다.
-const DEC_IMG = ["decal/crack.png", "decal/pebble.png", "decal/mud.png"];
+// ★★ V-174 — **여섯 판을 색으로 다퉜는데 결함은 «꼴»이었다.** 얼룩 일곱 장을 바닥 위에
+//   같은 알파(0.59)로 얹어 한 장에 늘어놓고 보니(`tmp/v174_decal_sheet.png`) 판정이
+//   단숨에 갈렸다:
+//   · `crack`·`pebble` — 금·자갈이 **동그란 회색 접시** 안에 들었다. 바닥에 «파인 것»이
+//     아니라 **얹은 판**으로 읽힌다. 원형 실루엣이 남는 한 색을 아무리 맞춰도 뜬다.
+//   · `mud` — 픽셀 결이 아예 없는 **뿌연 갈색 원반**. 게임 컷에서 「안개 덩어리」로 보이던
+//     것이 이것이다.
+//   · `dust`·`stain` — 둘 다 **테두리가 불규칙**하고 결이 픽셀이다. 크립트 바닥에 맞다.
+//   그런데 이 좋은 둘이 **여태 화면에 한 번도 안 나왔다** — `dust` 는 목록에 든 적이 없고,
+//   `stain` 은 「빈 테」라 V-164 가 뺐는데 V-173b 가 채워 놓고 **되돌려 넣질 않았다.**
+//   즉 V-172~V-173b 가 «dust 를 +44→+24 로 내렸다»고 적은 그 일은 **화면에 없는 그림**을
+//   고친 것이다. ★ [[knob-that-does-nothing]] · [[carry-fixes-forward]]
+//   → 그리는 것을 좋은 둘로 바꾼다. `crack`·`pebble`·`mud` 는 «원형 접시»를 벗겨 다시
+//     구울 때까지 뺀다(파일은 `assets/decal/` 에 그대로 있다).
+const DEC_IMG = ["decal/dust.png", "decal/stain.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 

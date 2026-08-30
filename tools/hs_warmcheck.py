@@ -54,7 +54,11 @@ def stat(p):
     return {"r": rs/n, "g": gs/n, "b": bs/n, "rb": (rs-bs)/n, "lum": ls/n, "n": n}
 
 if __name__ == "__main__":
-    new_dir = sys.argv[1] if len(sys.argv) > 1 else "tmp/decorbake_warm"
+    # ★ V-174 — 인자 없이 돌리면 **살아 있는 에셋**을 잰다. 예전 기본값은 넘어간 1차
+    #   굽기(`tmp/decorbake_warm`, R−B +47~+79)라, 그냥 돌리면 «0/9 너무뜨겁다» 가
+    #   나왔다 — 실제 에셋의 회귀가 아니라 **버린 판의 성적표**였다.
+    #   ★ [[silent-zero-is-not-an-observation]]
+    new_dir = sys.argv[1] if len(sys.argv) > 1 else "assets/decor"
     old_dir = "assets/decor"
     rows, ok, bad = [], [], []
     for p in sorted(glob.glob(os.path.join(new_dir, "*.png"))):
