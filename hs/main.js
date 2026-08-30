@@ -746,6 +746,9 @@ function dmgTxt(n) {
   if (n < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0) + "K";
   return (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + "M";
 }
+// 피해 배수처럼 커지는 스탯은 «날것 소수»(×2403409.25)를 그대로 찍지 않는다 — 1000 이상이면
+// 피해 숫자와 «같은» 축약(dmgTxt: 정수·K·M)을 지나 소수점을 없앤다. 작은 배수만 ×2.40 로 남긴다.
+function mulTxt(x) { return "×" + (x >= 1000 ? dmgTxt(Math.round(x)) : x.toFixed(2)); }
 function floatDmg(m, n, col) {
   n = Math.round(n);
   // ② 이 적의 숫자가 아직 살아있으면(t>0) 새로 만들지 말고 누적한다.
@@ -1432,23 +1435,54 @@ function drawItemLabel(it, sx, sy, ly) {
   ctx.fillStyle = r.color; ctx.fillText(it.item.name, sx, ly + 2);
   itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it, sy, layer: Math.round((sy - ly) / 18) });
 }
+const FLOAT_MARGIN = 4;   // 떠오르는 글자를 캔버스 안으로 밀 때의 여백(좌우·상하 공통)
+// 하단 UI 예약 띠 — 스킬바 기둥(#bl)과 도움말(#hint)이 차지하는 화면 아래 사각의 합집합.
+// 떠오르는 글자가 이 사각에 들면 위로 밀어낸다. 자(hs_v195_hud)도 같은 두 요소를 본다 —
+// 한 곳에서만 정의해 매직넘버가 흩어지지 않게.
+function hudBandRect() {
+  let r = null;
+  for (const id of ["bl", "hint"]) {
+    const e = el(id); if (!e) continue;
+    const b = e.getBoundingClientRect();
+    if (!(b.width && b.height)) continue;
+    r = r ? { x0: Math.min(r.x0, b.left), y0: Math.min(r.y0, b.top), x1: Math.max(r.x1, b.right), y1: Math.max(r.y1, b.bottom) }
+          : { x0: b.left, y0: b.top, x1: b.right, y1: b.bottom };
+  }
+  return r;
+}
 function drawFloats() {
   ctx.textAlign = "center";
   const rects = [];   // V-195: «실제로 그린» 사각을 남긴다 — 자(hs_v195_hud)가 이 배열만 읽는다.
+  const M = FLOAT_MARGIN, band = hudBandRect();
   for (const f of G.floats) {
-    const sx = (f.x - cam.x) * Z, sy = (f.y - cam.y) * Z;
-    if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx, sy + 30 * Z, f.ring * Z, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+    const rx = (f.x - cam.x) * Z, ry = (f.y - cam.y) * Z;
+    if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(rx, ry + 30 * Z, f.ring * Z, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
     if (!f.txt) continue;
     ctx.globalAlpha = Math.min(1, f.t * 1.5);
     const fs = f.big ? 26 : (f.sz || 16);
     ctx.font = (f.big ? "bold 26px " : fs + "px ") + "'Times New Roman',serif";
     const hw = ctx.measureText(f.txt).width / 2;
+    // 캔버스 안으로 민다 — 좌우·상하 모두. 사각은 (sx-hw, sy-fs)~(sx+hw, sy).
+    let sx = Math.max(M + hw, Math.min(VW - M - hw, rx));
+    let sy = Math.max(M + fs, Math.min(VH - M, ry));
+    // 하단 UI 띠에 «들면»(가로가 겹치고 글자 밑이 띠 위끝을 넘으면) 위로 밀어낸다.
+    if (band && sx + hw > band.x0 && sx - hw < band.x1 && sy > band.y0 - M)
+      sy = Math.max(M + fs, band.y0 - M);
+    // 같은 시각에 뜬 글자끼리 세로로 어긋나게 — 겹친 글자 위로 올려 쌓는다(밀어내기, 물리 아님).
+    for (let g = 0; g < 40; g++) {
+      const hit = rects.find((q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 && sy > q.y0);
+      if (!hit) break;
+      const up = hit.y0 - 2;
+      if (up - fs < M) break;   // 천장에 닿으면 멈춘다(붐비면 겹침을 감수 — ㉢ 통과선 ≤10%)
+      sy = up;
+    }
     ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
     ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
     ctx.globalAlpha = 1;
     rects.push({ x0: sx - hw, y0: sy - fs, x1: sx + hw, y1: sy, txt: f.txt });
   }
   window.__floatRects = rects;
+  window.__floatBand = band;   // 자는 «글자를 앉힌 그 순간의» 띠로 겹침을 재야 한 프레임 어긋남이 안 샌다.
 }
 
 const el = (id) => document.getElementById(id);
@@ -1619,9 +1653,9 @@ function attrLive(p, key) {
   return `+${attrTrim(lv * a.per)}`;
 }
 function attrTotal(p, key) {
-  if (key === "str") return `×${p.dmgMul.toFixed(2)}`;
+  if (key === "str") return mulTxt(p.dmgMul);
   if (key === "dex") return `${(1 / p.atkCd).toFixed(1)}/s`;
-  if (key === "int") return `×${p.minionMul.toFixed(2)}`;
+  if (key === "int") return mulTxt(p.minionMul);
   if (key === "sta") return `${p.maxmana}`;
   if (key === "def") return `${Math.round(p.dr * 100)}%`;
   if (key === "vit") return `${p.maxhp}`;
@@ -1792,7 +1826,7 @@ function updateHUD() {
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
   el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
   el("xpbar").style.width = (100 * (G.xp - lvBase) / lvSpan) + "%";
-  el("mult").innerHTML = `피해 <b>×${p.dmgMul.toFixed(2)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
+  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
   el("region1").textContent = "Crypt of the Dead";
   el("region2").textContent = `Level B${G.floor}`;
   el("region3").textContent = G.floor < 2 ? "Nightmare" : "Hell";
@@ -1805,7 +1839,7 @@ function updateHUD() {
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
-  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ×${p.mult.minionDmg.toFixed(2)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "");
+  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "");
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }

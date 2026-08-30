@@ -104,9 +104,11 @@ const SAMPLE = `(() => {
   const VW = window.innerWidth, VH = window.innerHeight;
   const rects = window.__floatRects || [];
   const ov = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
-  // 하단 UI 예약 띠 = #bl(스킬바 기둥) ∪ #hint(도움말) 의 그린 사각
-  let band = null;
-  for (const id of ['bl','hint']) { const e = document.getElementById(id); if (!e) continue;
+  // 하단 UI 예약 띠 = #bl(스킬바 기둥) ∪ #hint(도움말) 의 그린 사각.
+  // «글자를 앉힌 그 순간» drawFloats 가 쓴 띠(window.__floatBand)를 그대로 본다 — DOM 을 다시
+  // 재면 picklog 가 프레임마다 #bl 높이를 흔들어 한 프레임 어긋남이 겹침으로 샌다.
+  let band = window.__floatBand || null;
+  if (!band) for (const id of ['bl','hint']) { const e = document.getElementById(id); if (!e) continue;
     const r = e.getBoundingClientRect(); if (!(r.width && r.height)) continue;
     const b = { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
     band = band ? { x0: Math.min(band.x0, b.x0), y0: Math.min(band.y0, b.y0), x1: Math.max(band.x1, b.x1), y1: Math.max(band.y1, b.y1) } : b; }
