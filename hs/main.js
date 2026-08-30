@@ -88,6 +88,12 @@ const PROF = {
 };
 window.__prof = PROF;
 
+// ── V-189 계측 — 「다르게 찍으면 다르게 놀리는가」를 수로 재려 출처별 낸 피해를 쌓는다.
+// window 에 붙여 판이 새로 서도(죽어 R) 안 지워진다. 자(probe)가 재기 전에 Object.assign 으로
+// 제자리에서 0 으로 비운다(재대입하면 아래 const 참조가 옛 것을 가리켜 못 비운다).
+const METRIC = (window.__hsMetric = window.__hsMetric ||
+  { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0 });
+
 function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
@@ -219,7 +225,7 @@ function raiseSkeleton() {
   const c = G.corpses[ci]; c.used = true;
   const hp = (200 + G.floor * 40) * T.hpMul * p.minionHpMul;
   G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
-    dmg: (22 + G.floor * 8) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
+    dmg: (34 + G.floor * 10) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
     r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
     filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
   const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
@@ -253,12 +259,12 @@ const SKILL_TREES = {
   army: { title: "군세", col: "#6fa8ff", nodes: [
     { key: "slot",  name: "소환 자리",   max: 8,  per: "자리 +1",         field: "slots",       syn: [] },
     { key: "grade", name: "소환 등급",   max: 2,  per: "상위 소환 해금",   field: "maxGrade",    prereq: "slot", syn: [{ from: "소환 자리", pct: 0 }] },
-    { key: "mdmg",  name: "소환수 피해", max: 20, per: "소환수 피해 +8%",  field: "minionMul",   prereq: "grade", syn: [{ from: "지능", pct: 2 }] },
+    { key: "mdmg",  name: "소환수 피해", max: 20, per: "소환수 피해 +14%", field: "minionMul",   prereq: "grade", syn: [{ from: "지능", pct: 2 }] },
     { key: "mhp",   name: "소환수 생명", max: 20, per: "소환수 생명 +10%", field: "minionHpMul", prereq: "mdmg", syn: [{ from: "활력", pct: 3 }] },
   ] },
   death: { title: "죽음", col: "#d86a5a", nodes: [
-    { key: "spear", name: "뼈창",       max: 20, per: "뼈창 피해 +10%",   field: "spearMul",   syn: [{ from: "힘", pct: 3 }] },
-    { key: "nova",  name: "시체폭발",   max: 20, per: "시체폭발 피해 +12%", field: "novaDmgMul", prereq: "spear", syn: [{ from: "힘", pct: 3 }] },
+    { key: "spear", name: "뼈창",       max: 20, per: "뼈창 피해 +14%",   field: "spearMul",   syn: [{ from: "힘", pct: 3 }] },
+    { key: "nova",  name: "시체폭발",   max: 20, per: "시체폭발 피해 +18%", field: "novaDmgMul", prereq: "spear", syn: [{ from: "힘", pct: 3 }] },
     { key: "curse", name: "저주",       max: 10, per: "모든 피해 +4%",    field: "dmgMul",     prereq: "nova", syn: [{ from: "지능", pct: 2 }] },
   ] },
 };
@@ -308,7 +314,7 @@ function corpseNova() {
   p.mana -= 30;
   const c = G.corpses[ci]; c.used = true;
   const times = p.uniques.has("doubleNova") ? 2 : 1;
-  for (let t = 0; t < times; t++) explode(c.x, c.y, 150 * p.dmgMul * p.novaDmgMul, 150 * p.novaMul, t * 0.09);
+  for (let t = 0; t < times; t++) explode(c.x, c.y, 18 * p.dmgMul * p.novaDmgMul, 150 * p.novaMul, t * 0.09);
 }
 
 function explode(x, y, dmg, rad, delay) {
@@ -321,7 +327,7 @@ function explode(x, y, dmg, rad, delay) {
     }
     G.floats.push({ x, y: y - 30, t: 0.9, txt: "", ring: rad });
     forEachEnemy((m) => {
-      if ((m.x - x) ** 2 + (m.y - y) ** 2 < rad * rad) hurtEnemy(m, dmg, (m.x - x), (m.y - y));
+      if ((m.x - x) ** 2 + (m.y - y) ** 2 < rad * rad) hurtEnemy(m, dmg, (m.x - x), (m.y - y), "nova");
     });
   }, (delay || 0) * 1000);
 }
@@ -448,8 +454,8 @@ function stepMinions(dt) {
         s.state = "attack"; s.anim += dt * 10;
         if (s.atk <= 0) {
           s.atk = s.atkCd || 0.6;
-          if (s.cleave) forEachEnemy((m) => { if ((m.x - s.x) ** 2 + (m.y - s.y) ** 2 < s.cleave * s.cleave) hurtEnemy(m, s.dmg, m.x - s.x, m.y - s.y); });
-          else hurtEnemy(target, s.dmg, s.dx, s.dy);
+          if (s.cleave) forEachEnemy((m) => { if ((m.x - s.x) ** 2 + (m.y - s.y) ** 2 < s.cleave * s.cleave) hurtEnemy(m, s.dmg, m.x - s.x, m.y - s.y, "minion"); });
+          else hurtEnemy(target, s.dmg, s.dx, s.dy, "minion");
           if (s.shake) cam.shake = Math.max(cam.shake, s.shake);
         }
       }
@@ -472,7 +478,7 @@ function stepSpears(dt) {
     forEachEnemy((m) => {
       if (sp.dead) return;
       if ((m.x - sp.x) ** 2 + (m.y - (sp.y)) ** 2 < (m.r + 10) ** 2) {
-        hurtEnemy(m, sp.dmg, sp.vx, sp.vy);
+        hurtEnemy(m, sp.dmg, sp.vx, sp.vy, "spear");
         sp.dead = true;
       }
     });
@@ -480,7 +486,8 @@ function stepSpears(dt) {
   G.spears = G.spears.filter((s) => !s.dead);
 }
 
-function hurtEnemy(m, dmg, dx, dy) {
+function hurtEnemy(m, dmg, dx, dy, src) {
+  if (src) METRIC[src] += Math.min(dmg, Math.max(0, m.hp));
   m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
   const l = Math.hypot(dx, dy) || 1;
   m.kb.x += (dx / l) * 240; m.kb.y += (dy / l) * 240;
@@ -491,7 +498,7 @@ function hurtEnemy(m, dmg, dx, dy) {
 
 function killEnemy(m) {
   m.alive = false;
-  G.kills++;
+  G.kills++; METRIC.kills++;
   G.xp += m.elite ? 40 : 10;
   if (G.xp >= G.player.level * 500) {
     G.player.level++; G.player.attrPts++; G.player.sklPts++;
@@ -577,9 +584,9 @@ function recalc() {
   const a = p.attr, s = p.skill;
   const curse = 1 + s.curse * 0.04;
   p.dmgMul = p.mult.dmg * (1 + g.dmg / 100) * (1 + a.str * ATTR.str.per / 100) * curse;
-  p.spearMul = 1 + s.spear * 0.10;
-  p.novaDmgMul = 1 + s.nova * 0.12;
-  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * ATTR.int.per / 100) * (1 + s.mdmg * 0.08) * curse;
+  p.spearMul = 1 + s.spear * 0.14;
+  p.novaDmgMul = 1 + s.nova * 0.18;
+  p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * ATTR.int.per / 100) * (1 + s.mdmg * 0.14) * curse;
   p.minionHpMul = 1 + s.mhp * 0.10;
   p.slots = BASE_SLOTS + s.slot + p.buildSlots;
   p.maxGrade = s.grade;
@@ -650,13 +657,14 @@ function pickItem(it) {
 
 function hurtPlayer(dmg) {
   const p = G.player;
+  METRIC.taken += dmg * (1 - p.dr);
   p.hp -= dmg * (1 - p.dr); p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
   flash = Math.max(flash, 0.14); flashColor = "180,40,40";
   if (p.hp <= 0 && !G.dead) die();
 }
 
 function die() {
-  G.dead = true;
+  G.dead = true; METRIC.deaths++;
   const d = document.getElementById("dead");
   d.querySelector(".dstat").textContent = `B${G.floor}층까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
   d.style.display = "flex";
