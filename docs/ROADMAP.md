@@ -16092,3 +16092,35 @@ V-173b 를 보고한 뒤 컷을 다시 크게 열어 봤다. 소환 21 컷의 �
 - [ ] **남음: `crack`·`pebble`·`mud` 를 다시 구울지 정한다.** 지금 얼룩은 두 종이라
       바닥이 좀 허전하다. 다시 구우면 **조리법에 「원형」이 들어갈 자리를 없애야** 한다 —
       여섯 판이 증명한 대로 색은 말로 못 겨누지만 **꼴은 손잡이로 고쳐졌다**(V-172b).
+
+### V-175 — 원형 접시의 범인은 조리법이 아니라 **`inpainting` 의 틀**이었다 (감시 세션 2026-08-30 15:3x)
+V-174 가 남긴 「`crack`·`pebble`·`mud` 를 다시 구울지 정한다」를 집었다. 굽기 전에 **꼴을
+재는 자부터** 세우고(`tools/hs_decalshape.py`), 알파 실루엣을 나란히 뽑아 봤다
+(`tmp/v175_shape.png`). 거기서 두 가지가 한꺼번에 나왔다.
+
+- [x] **살아 있는 `crack`·`pebble`·`mud` 는 «다시 구운 판»이 아니라 옛 `decal_v4` 다.**
+      RGB 로 대조해 보니(알파는 `decal_extract` 가 깎으므로 색으로 맞춘다) 그렇다:
+      · `dust`·`stain` → `decalbake_inpaint`(V-173b 의 `--bg` 판)
+      · `crack`·`pebble`·`mud` → **`decal_v4`**
+      그런데 V-173b 의 `--bg` 굽기는 **`crack`·`pebble` 도 같이 구웠다.** 안 끼운 것이다 —
+      **V-174 가 「틀렸다」고 판정한 그 밝기 자로** 골랐기 때문이다. 자를 고친 뒤에
+      고른 것을 **다시 안 골랐다.** ★ [[carry-fixes-forward]] · [[knob-that-does-nothing]]
+- [x] **★★ 진짜 까닭 — `inpainting: {"type":"oval"}`.** 스키마가 그대로 말한다:
+      「inpainting 은 **그림의 어디에 그릴지**를 정한다」. 타원을 주면 굽는 쪽은 **타원을
+      채운다.** 여섯 판이 「no rim · perfectly flat · irregular organic blotch」를 글로
+      비는 동안, **꼴은 매번 내가 준 틀이 정하고 있었다.**
+      실루엣 마스크가 증거다 — `crack`·`mud`·`stain` 이 **완전한 원**, `pebble` 이 둥근 덩어리.
+      ★ [[cause-written-in-the-item-is-a-guess]] — 항목엔 여섯 판 내내 「색」이라고 적혀 있었다.
+- [x] **스키마에 길이 있었다.** `type` 은 `"oval" | "rectangle" | "mask"` — `"mask"` 는
+      **내가 그린 틀을 그대로 받는다**(`mask_image`, base64 **문자열**. dict 로 주면 튕긴다.
+      받으면 `mode: style-match custom mask` 로 답한다). 그래서 `tools/pixellab/decal_mask.py`
+      가 **너덜너덜한 유기적 틀**을 만든다 — 크기가 다른 타원 일곱을 길 따라 어긋나게
+      겹치고, 테 쪽에 구멍을 몇 개 뚫고, 흐렸다 다시 자른다. 씨앗은 `crc32(열쇠)` 로
+      못박는다(`hash()` 는 프로세스마다 달라진다 — [[same-seed-is-not-same-run]]).
+      **「원형이 아니게」를 낱말로 빌 필요가 없어졌다** — 틀이 원형을 못 만든다.
+      ★ [[pixellab-side-attack-failures]] 의 「부정어로는 못 막는다」를 손잡이로 푼 것.
+- [ ] **굽는 중** — `--maskbg` 로 넷(`crack`·`pebble`·`mud`·`stain`)을 `assets/decalbake_mask/`
+      스테이징에. 받으면 `hs_decalshape.py`(꼴) + `hs_decalcheck.py`(화면 밝기) 두 자로
+      재고 **눈으로 보고** 갈아 낀다. 지금 것을 지우지 않는다.
+- [ ] **`stain` 도 실은 원이다.** V-174 가 눈으로 통과시켰지만 실루엣은 완전한 원이고,
+      다만 색이 바닥만큼 어두워 테가 안 보였을 뿐이다. 그래서 이번 판에 같이 넣었다.

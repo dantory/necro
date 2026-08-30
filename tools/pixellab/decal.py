@@ -12,7 +12,7 @@
 
   python3 tools/pixellab/decal.py
 """
-import base64, json, os, re, subprocess, sys, time
+import base64, json, os, re, subprocess, sys, time, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -143,7 +143,12 @@ DUSK = "--dusk" in sys.argv
 STAIN = "--stain" in sys.argv
 WARM = "--warm" in sys.argv
 BG   = "--bg" in sys.argv       # ★ V-173 — 실제 바닥을 배경으로 넣고 그 위에 그리게 한다
-BASE = BASE_BG if BG else (BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD)))
+# ★★ V-175 — `--bg` 는 색을 풀었지만 **꼴을 망가뜨린 장본인**이었다. `inpainting` 을
+#   `{"type":"oval"}` 로 줬으니 굽는 쪽이 **타원을 채웠다** — crack·pebble·mud·stain 이
+#   전부 「동그란 접시」인 까닭이 조리법이 아니라 **틀**이었다. 스키마의 셋째 값
+#   `"mask"` 가 내가 그린 틀을 그대로 받는다 → `decal_mask.ragged_mask`.
+MASK = "--maskbg" in sys.argv
+BASE = BASE_BG if (BG or MASK) else (BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD)))
 
 OBJ = {
   # ── 던전 ── 밟아 닳은 자리·물자국·부스러기
@@ -209,13 +214,19 @@ if __name__ == "__main__":
         desc, w, h = OBJ[k]
         try:
             args = {"description": desc, "width": w, "height": h, **COMMON}
-            if BG:
+            if BG or MASK:
                 # 배경을 주면 결과는 «바닥+얼룩» 한 판으로 온다(투명 여백이 아니다).
                 # 얼룩만 떼어내는 것은 decal_extract.py 가 한다.
                 args["background_image"] = json.dumps({"type": "base64",
                                                        "base64": floor_bg(w, h)})
-                args["inpainting"] = json.dumps({"type": "oval",
-                                                 "fraction": INPAINT_FRACTION})
+                if MASK:
+                    from decal_mask import ragged_mask, b64 as mask_b64
+                    mk = ragged_mask(w, h, seed=zlib.crc32(k.encode()) % 9999)
+                    args["inpainting"] = json.dumps(
+                        {"type": "mask", "mask_image": mask_b64(mk)})
+                else:
+                    args["inpainting"] = json.dumps({"type": "oval",
+                                                     "fraction": INPAINT_FRACTION})
             t = text_of(mcp("create_map_object", args))
             m = re.search(r"id:\s*(\S+)", t)
             if not m:
