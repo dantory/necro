@@ -96,10 +96,54 @@ BASE_DUSK = ("A DISCOLOURED PATCH OF PALE BROWN STONE FLOOR, "
         "absolutely no blue, no navy, no teal, no black, no red, no blood, "
         "transparent background around the patch, no text")
 
+# ★★ V-173 (2026-08-30) — **말로 색을 겨누는 짓을 그만둔다.**
+#   다섯 판이 −26 → +11 → +84 → +126 으로 튀었다. 낱말로는 조준이 안 된다
+#   (★ [[pixellab-side-attack-failures]] — 부정어로 못 막는 것과 같은 벽의 다른 면).
+#   `create_map_object` 에 **`background_image` + `inpainting`** 이 있다. 실제 바닥을
+#   넣어 주면 굽는 쪽이 색과 밝기를 **낱말이 아니라 눈앞의 돌에서** 가져온다.
+#   이건 병수님이 금한 `ctx.filter` 로 «칠하는» 것과 다르다 — 색이 **구운 그림 안에** 든다.
+#
+#   배경은 `hs/main.js` 의 `floorBase()` 를 그대로 재현한다(V-173 의 참과녁):
+#     #241f1b 로 채우고 → crypt_tile 을 alpha 0.55 로 반복해 덮는다.
+#   ★ 화면에서 잰 값(R−B +26)을 쓰면 안 된다 — 그건 `floorTint` 까지 칠해진 뒤이고,
+#     얼룩은 그 칠 **밑에** 깔린다. [[threshold-and-ruler-must-match]]
+FLOOR_TILE = os.path.join(ROOT, "assets", "floor", "crypt_tile.png")
+FLOOR_BASE_RGB = (0x24, 0x1f, 0x1b)
+FLOOR_TILE_ALPHA = 0.55
+
+def floor_bg(w, h):
+    """`floorBase()` 와 같은 바닥을 w×h 로 만들어 base64 로 돌려준다."""
+    from PIL import Image
+    import io
+    tile = Image.open(FLOOR_TILE).convert("RGB")
+    bg = Image.new("RGB", (w, h), FLOOR_BASE_RGB)
+    tw, th = tile.size
+    lay = Image.new("RGB", (w, h))
+    for y in range(0, h, th):
+        for x in range(0, w, tw):
+            lay.paste(tile, (x, y))
+    bg = Image.blend(bg, lay, FLOOR_TILE_ALPHA)
+    buf = io.BytesIO(); bg.save(buf, "PNG")
+    return base64.b64encode(buf.getvalue()).decode()
+
+# 얼룩이 배경의 몇 할을 덮는가. 너무 크면 가장자리 돌이 안 남아 색을 못 베끼고,
+# 너무 작으면 얼룩이 캔버스 한가운데 점이 된다.
+INPAINT_FRACTION = 0.62
+
+# ★ 배경을 줄 때는 조리법에서 **색을 빼고 꼴만 말한다.** 색은 배경이 정한다 —
+#   낱말로 또 겨누면 다섯 판의 실수를 여섯 번째로 되풀이하는 것이다.
+BASE_BG = ("a worn discoloured patch on this stone floor, "
+        "the same stone as the background but stained and duller, "
+        "seen straight from above, lying completely flat with no thickness, "
+        "one irregular organic blotch with ragged uneven edges, "
+        "grim gothic dark fantasy pixel art, evenly lit, "
+        "blending into the surrounding floor, no text")
+
 DUSK = "--dusk" in sys.argv
 STAIN = "--stain" in sys.argv
 WARM = "--warm" in sys.argv
-BASE = BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD))
+BG   = "--bg" in sys.argv       # ★ V-173 — 실제 바닥을 배경으로 넣고 그 위에 그리게 한다
+BASE = BASE_BG if BG else (BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD)))
 
 OBJ = {
   # ── 던전 ── 밟아 닳은 자리·물자국·부스러기
@@ -164,8 +208,15 @@ if __name__ == "__main__":
     for k in todo:
         desc, w, h = OBJ[k]
         try:
-            t = text_of(mcp("create_map_object", {"description": desc,
-                                                  "width": w, "height": h, **COMMON}))
+            args = {"description": desc, "width": w, "height": h, **COMMON}
+            if BG:
+                # 배경을 주면 결과는 «바닥+얼룩» 한 판으로 온다(투명 여백이 아니다).
+                # 얼룩만 떼어내는 것은 decal_extract.py 가 한다.
+                args["background_image"] = json.dumps({"type": "base64",
+                                                       "base64": floor_bg(w, h)})
+                args["inpainting"] = json.dumps({"type": "oval",
+                                                 "fraction": INPAINT_FRACTION})
+            t = text_of(mcp("create_map_object", args))
             m = re.search(r"id:\s*(\S+)", t)
             if not m:
                 print(f"실패 {k} — {t[:200]}", flush=True); continue
