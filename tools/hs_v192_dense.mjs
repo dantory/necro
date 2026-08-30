@@ -158,10 +158,16 @@ async function runOne(seed, shots) {
 
   const last = samples[samples.length - 1] || { kills: 0, grains: 0 };
   const enemA = samples.map(x => x.enem), labA = samples.map(x => x.labels);
+  // 진행속도에 안 흔들리는 눈금(V-194): 빈 화면 표본이 중앙값을 1 로 끌어내리는 걸 피한다.
+  //  · engP50 = 적 ≥1 인 표본만 모은 조건부 중앙값(교전 중 밀도).  바닥값 1(교전해도 한 마리뿐인 판).
+  //  · crowd  = 적 ≥12 인 표본의 비율(충분히 붐빈 시간의 몫).        바닥값 0(한 번도 안 붐빔).
+  const enemEngaged = enemA.filter(v => v >= 1);
+  const crowdShare = enemA.length ? enemA.filter(v => v >= 12).length / enemA.length : 0;
   const itemA = samples.map(x => x.items), r1A = samples.map(x => x.itemsRank1), goldA = samples.map(x => x.golds);
   const grainsPerKill = last.kills ? last.grains / last.kills : 0;
   return {
     seed, n: samples.length, framep95,
+    enemEng: { p50: median(enemEngaged), n: enemEngaged.length }, crowd: Math.round(crowdShare * 1000) / 1000,
     enem:  { p50: median(enemA), mean: r1(mean(enemA)), p95: p95(enemA), max: Math.max(0, ...enemA) },
     label: { p50: median(labA),  mean: r1(mean(labA)),  p95: p95(labA),  max: Math.max(0, ...labA) },
     items: { p50: median(itemA), mean: r1(mean(itemA)), p95: p95(itemA), max: Math.max(0, ...itemA) },
@@ -174,7 +180,8 @@ async function runOne(seed, shots) {
 
 async function main() {
   log(`■ hs_v192_dense — 죽음형 · 씨앗 ${SEEDS.join("/")} · 각 ${SEC}초 · 창 ${VW}×${VH}`);
-  log(`  통과선: ㉠적 p50≥12 · ㉡이름표 p50≥3 · ㉢처치당 알갱이≥5\n`);
+  log(`  통과선(V-194): ㉠교전중 적 p50≥12(바닥1) · ㉡이름표 p50≥3 · ㉢처치당 알갱이≥5`);
+  log(`  (기존 화면 안 적 p50·붐빈몫은 진행속도에 흔들려 «참고»로만 찍는다)\n`);
   const runs = [];
   for (let i = 0; i < SEEDS.length; i++) {
     errs = [];
@@ -183,6 +190,7 @@ async function main() {
     if (!r) { log(`  씨앗 ${SEEDS[i]} — 실패`); continue; }
     r.errs = errs.length; runs.push(r);
     log(`  씨앗 ${SEEDS[i]}: 표본 ${r.n} · 적 p50 ${r.enem.p50}(mean ${r.enem.mean}·p95 ${r.enem.p95}·max ${r.enem.max})` +
+      ` · 교전중 p50 ${r.enemEng.p50}(표본 ${r.enemEng.n}) · 붐빈몫 ${r.crowd}` +
       ` · 이름표 p50 ${r.label.p50}(max ${r.label.max}) · 물건 p50 ${r.items.p50}(등급1+ p50 ${r.rank1.p50})` +
       ` · 알갱이/처치 ${r.grainsPerKill}(처치 ${r.kills}·알갱이 ${r.grains}) · 화면알갱이 p50 ${r.golds.p50}` +
       ` · frame p95 ${r1(r.framep95)}ms · 오류 ${r.errs}`);
@@ -196,21 +204,28 @@ async function main() {
   const totGrains = runs.reduce((s, r) => s + r.grains, 0);
   const gpk = totKills ? totGrains / totKills : 0;
   const enemP50 = median(allEnem), labP50 = median(allLab);
+  // V-194 진행속도-강건 눈금(씨앗 합산). 기존 p50(㉠)은 «비교용»으로 남기고, 밀도 판정은 이 둘로 한다.
+  const allEnemEngaged = allEnem.filter(v => v >= 1);
+  const engP50 = median(allEnemEngaged);                                     // 바닥 1 · 통과선 ≥12(바닥에서 멀다)
+  const crowdShare = allEnem.length ? allEnem.filter(v => v >= 12).length / allEnem.length : 0; // 바닥 0 · 통과선 ≥0.5
+  const crowd = Math.round(crowdShare * 1000) / 1000;
   const fp95 = r1(Math.max(...runs.map(r => r.framep95)));
   const totErr = runs.reduce((s, r) => s + r.errs, 0);
 
-  const pass = { enem: enemP50 >= 12, label: labP50 >= 3, grains: gpk >= 5 };
+  const pass = { eng: engP50 >= 12, label: labP50 >= 3, grains: gpk >= 5 };
   log(`\n▣ 통과선 판정 (씨앗 합산)`);
-  log(`  ㉠ 화면 안 적 p50 ${enemP50} ≥ 12 → ${pass.enem ? "통과 ✔" : "미달 ✘"}`);
+  log(`  (비교용) 화면 안 적 p50 ${enemP50} — 자동조종 진행속도에 흔들려 통과선에서 뺀다(seed별 편차 큼).`);
+  log(`  ㉠ 교전중 적 p50 ${engP50} ≥ 12 (바닥 1) → ${pass.eng ? "통과 ✔" : "미달 ✘"}`);
+  log(`  (참고) 붐빈 표본(적≥12) 몫 ${crowd} — 바닥 0·건강값 ~0.43. 빈 표본을 포함해 진행속도에 흔들려(seed 0.38↔0.47) 통과선에서 뺀다.`);
   log(`  ㉡ 화면 안 이름표 p50 ${labP50} ≥ 3 → ${pass.label ? "통과 ✔" : "미달 ✘"}`);
   log(`  ㉢ 처치당 알갱이 ${r1(gpk)} ≥ 5 → ${pass.grains ? "통과 ✔" : "미달 ✘"}`);
   log(`  frame p95(최악 씨앗) ${fp95}ms (예산 16.7) · 콘솔 오류 ${totErr}`);
-  const all = pass.enem && pass.label && pass.grains;
+  const all = pass.eng && pass.label && pass.grains;
   log(`  ▶ ${all ? "세 축 다 규격 안 ✅" : "미달 있음 ❌"}`);
 
-  fs.writeFileSync("tmp/v192_dense.json", JSON.stringify({ SEC, SEEDS, enemP50, labP50, gpk: r1(gpk), fp95, totErr, pass, all,
+  fs.writeFileSync("tmp/v192_dense.json", JSON.stringify({ SEC, SEEDS, enemP50, engP50, crowd, labP50, gpk: r1(gpk), fp95, totErr, pass, all,
     runs: runs.map(r => ({ seed: r.seed, n: r.n, framep95: r.framep95, errs: r.errs,
-      enem: r.enem, label: r.label, items: r.items, rank1: r.rank1, golds: r.golds,
+      enem: r.enem, enemEng: r.enemEng, crowd: r.crowd, label: r.label, items: r.items, rank1: r.rank1, golds: r.golds,
       kills: r.kills, grains: r.grains, grainsPerKill: r.grainsPerKill })) }, null, 1));
   log(`\n(자료 tmp/v192_dense.json)`);
   return all;
