@@ -542,7 +542,7 @@ function drawWorld() {
   ctx.setTransform(Z, 0, 0, Z, (-cam.x + shx) * Z, (-cam.y + shy) * Z);
 
   const tile = tex("floor/crypt_tile.png");
-  if (tile && tile.width && !floorPat) floorPat = ctx.createPattern(tile, "repeat");
+  if (tile && tile.width && !floorPat) floorPat = buildFloorPat(tile);
 
   // ── 던전을 «던전으로» 그린다 — 방·복도만 바닥, 나머지는 벽/공허 (V-151 B) ──────
   // 옛 판은 화면 전체를 바닥으로 깔아 방·복도·공허가 다 같은 갈색이었다. 이제 걷는
@@ -633,6 +633,36 @@ function stoneRim(x, y, w, h) {
 //   화면에서 R−B +22~+40 인데 얼룩만 +11~+13 — 재 보면 차이가 그대로 나온다.
 //   에셋을 다시 굽거나 ctx.filter 로 덧칠할 일이 아니다(그건 분칠). **얼룩은 바닥의
 //   일부이니 바닥의 물들이기 «아래»에 있어야 한다.** 그래서 바닥칠을 둘로 쪼갠다.
+// ★★ V-176 — 「바닥이 밋밋하다」의 정체는 «잡티가 모자란 것»이 아니라 **벽지**였다.
+//   32px 타일 하나를 `createPattern(tile,"repeat")` 로 깔았으니 화면 48px(×Z 1.5)마다
+//   **똑같은 그림**이 온다. 자로 재니 한 칸 민 자기 자신과 상관 **0.92** — 92% 벽지다.
+//   얼룩은 그 격자를 끊으라고 있는 것인데 방을 통틀어 덮는 넓이가 **0.6%** 뿐이라
+//   끊을 수가 없었다(`tools/hs_flatruler.py`).
+//   그래서 무늬 자체를 바꾼다 — 4×4 칸짜리 판을 한 번 구워, 칸마다 타일을 **돌리고
+//   뒤집어** 놓고 그걸 되풀이한다. 되풀이 주기가 32 → 128 로 늘고 이웃한 칸이 서로
+//   다르다. **에셋을 새로 굽지 않고 색도 안 건드린다**(V-175 가 맞춰 둔 띠를 지켜야 한다).
+//   씨앗은 못박는다 — 판마다 바닥이 달라지면 컷을 견줄 수가 없다.
+//   ★ [[cause-written-in-the-item-is-a-guess]] — 항목엔 「덮는 넓이를 키운다」고 적혀 있었다.
+function buildFloorPat(tile) {
+  const N = 4, T = tile.width;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = N * T;
+  const c2 = cv.getContext("2d");
+  c2.imageSmoothingEnabled = false;
+  let sd = 0x9e3779b9;
+  const rnd = () => { sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const o = (rnd() * 8) | 0;                    // 90° 넷 × 좌우뒤집기 둘
+    c2.save();
+    c2.translate(i * T + T / 2, j * T + T / 2);
+    c2.rotate((o & 3) * Math.PI / 2);
+    if (o & 4) c2.scale(-1, 1);
+    c2.drawImage(tile, -T / 2, -T / 2);
+    c2.restore();
+  }
+  return ctx.createPattern(cv, "repeat");
+}
 function floorBase(x, y, w, h) {
   ctx.fillStyle = "#241f1b"; ctx.fillRect(x, y, w, h);
   if (floorPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }

@@ -107,7 +107,11 @@ export function genFloor(floor) {
 //   고친 것이다. ★ [[knob-that-does-nothing]] · [[carry-fixes-forward]]
 //   → 그리는 것을 좋은 둘로 바꾼다. `crack`·`pebble`·`mud` 는 «원형 접시»를 벗겨 다시
 //     구울 때까지 뺀다(파일은 `assets/decal/` 에 그대로 있다).
-const DEC_IMG = ["decal/dust.png", "decal/stain.png", "decal/crack.png"];
+// ★ V-176 — `dust` 를 뺐다. 얼룩을 1.6배로 키우자 컷에 **허연 얼룩**이 떴는데,
+//   화면에서 재니 봉우리가 바닥보다 **+29.5**(띠 +14)다. 평균은 +7.6 이라 옛 자가
+//   내내 OK 를 줬다 — 작을 때는 티끌이라 안 보였을 뿐 결함은 처음부터 있었다.
+//   봉우리 자를 `hs_decalcheck.py` 에 넣었고(V-176), 다시 구워 띠 안에 들면 되돌린다.
+const DEC_IMG = ["decal/stain.png", "decal/crack.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 
@@ -157,9 +161,15 @@ function scatter(rooms, stairs, chests) {
   const decals = [], props = [];
   for (const room of rooms) {
     const area = room.w * room.h;
-    for (let i = 0; i < Math.round(area / 40000); i++) {
+    // ★ V-176 — 자로 재 보니 방 하나를 덮는 얼룩 넓이가 **0.6%** 였다(`hs_flatruler.py`).
+    //   그림 셋의 «채움»이 dust 12.6% · stain 15.2% · crack 2.1% 로 원래 성기기 때문에,
+    //   여덟 개를 뿌려도 사실상 아무것도 안 덮는다 — V-175 가 색을 바닥 띠 안으로 넣은
+    //   뒤로는 더더욱 안 보인다. 수를 3배(40000→13000), 크기를 1.6배(48~100→64~140)로
+    //   올려 5% 언저리를 겨눈다. **색·투명도는 그대로** — 그건 V-175 가 여섯 판에 걸쳐
+    //   맞춰 놓은 축이라 여기서 건드리면 도로 밖으로 나간다. ★ [[carry-fixes-forward]]
+    for (let i = 0; i < Math.round(area / 13000); i++) {
       decals.push({ x: rint(room.x + 30, room.x + room.w - 30), y: rint(room.y + 30, room.y + room.h - 30),
-        img: DEC_IMG[(Math.random() * DEC_IMG.length) | 0], s: rint(48, 100), a: 0.42 + Math.random() * 0.34 });
+        img: DEC_IMG[(Math.random() * DEC_IMG.length) | 0], s: rint(64, 140), a: 0.42 + Math.random() * 0.34 });
     }
     // ★ V-169 — 소품을 벽에만 붙여 놨더니 카메라가 방 가운데를 볼 때 **화면 밖**이었다.
     //   재 보니 방당 2.11개인데 화면에 보이는 건 평균 1.30개, 16% 자리에서는 하나도 안 보였다.
