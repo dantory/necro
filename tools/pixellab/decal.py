@@ -123,6 +123,8 @@ def floor_bg(w, h):
         for x in range(0, w, tw):
             lay.paste(tile, (x, y))
     bg = Image.blend(bg, lay, FLOOR_TILE_ALPHA)
+    if DARKER != 1.0:
+        bg = bg.point(lambda v: max(0, min(255, int(v * DARKER))))
     buf = io.BytesIO(); bg.save(buf, "PNG")
     return base64.b64encode(buf.getvalue()).decode()
 
@@ -148,6 +150,13 @@ BG   = "--bg" in sys.argv       # ★ V-173 — 실제 바닥을 배경으로 �
 #   전부 「동그란 접시」인 까닭이 조리법이 아니라 **틀**이었다. 스키마의 셋째 값
 #   `"mask"` 가 내가 그린 틀을 그대로 받는다 → `decal_mask.ragged_mask`.
 MASK = "--maskbg" in sys.argv
+# ★ V-176 — 「봉우리」를 내리는 손잡이. `--darker N` 은 배경을 N 배 어둡게 해서 준다.
+#   낱말로 「어둡게」를 빌지 않는다(여섯 판이 안 된다는 걸 증명했다) — 배경이 색을
+#   정하므로 **배경을 내리면 결과가 따라 내려온다.** 1.0 이면 여태와 같다.
+DARKER = 1.0
+for _a in sys.argv[1:]:
+    if _a.startswith("--darker"):
+        DARKER = float(_a.split("=", 1)[1]) if "=" in _a else float(sys.argv[sys.argv.index(_a) + 1])
 BASE = BASE_BG if (BG or MASK) else (BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD)))
 
 OBJ = {
