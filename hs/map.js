@@ -150,7 +150,17 @@ const PROP_H = {
 //   발자국은 그림의 가로폭 대신 **밑동 반지름**(h 대비)으로 잡는다 — 위로 솟은 부분은
 //   겹쳐도 되고(원근), 바닥에서 겹치는 것만 어색하다.
 const STAIR_R = 92, CHEST_R = 46;
-function footR(pr) { return Math.max(16, pr.h * 0.30); }
+// ★ V-180 — `footR` 이 **키에서 폭을 짐작**하고 있었다(`h * 0.30`). 넘어진 기둥처럼
+//   옆으로 긴 그림에서는 이게 3.8배 과소평가라, 밀도를 올리자마자 둘이 겹쳐 놓였다.
+//   아래 표는 짐작이 아니라 **각 그림의 불투명 bbox 를 재서** 낸 반폭비(w/h/2)다.
+//   ★ [[cause-written-in-the-item-is-a-guess]] — 표에 없는 그림만 옛 0.30 으로 떨어진다.
+const PROP_HALFW = {
+  "decor/bones.png":   0.64, "decor/bones2.png": 0.39, "decor/brazier.png": 0.36,
+  "decor/chest.png":   0.53, "decor/coffin.png": 0.69, "decor/column2.png": 1.15,
+  "decor/pillar.png":  0.18, "decor/rubble.png": 0.88, "decor/stairs.png":  0.49,
+  "decor/statue.png":  0.21, "decor/urn.png":    0.34,
+};
+function footR(pr) { return Math.max(16, pr.h * (PROP_HALFW[pr.img] ?? 0.30)); }
 function propFits(pr, placed, stairs, chests) {
   for (const q of placed) {
     const r = footR(pr) + footR(q);
@@ -183,7 +193,7 @@ function scatter(rooms, stairs, chests) {
     //   · **키 큰 것은 벽에, 낮은 것은 방 안쪽에.** 기둥·석상·화로가 방 한가운데 서면
     //     싸움을 가린다 — 뼈·잔해·항아리·관처럼 발밑에 눕는 것만 안쪽으로 보낸다.
     let tries = 0;                                     // 방마다 다시 던진 횟수
-    for (let i = 0; i < Math.round(area / 60000); i++) {
+    for (let i = 0; i < Math.round(area / 34000); i++) {
       const brazier = Math.random() < 0.22;
       const img = brazier ? "decor/brazier.png" : PROP_IMG[(Math.random() * PROP_IMG.length) | 0];
       const low = !brazier && LOW_PROP.has(img);
