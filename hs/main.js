@@ -752,10 +752,13 @@ function spriteFoot(im, key) {
       let yb = H - 1;
       while (yb > 0 && vis[yb] < FOOT_VIS) yb--;
       if (vis[yb] < FOOT_VIS) yb = yAlpha;
+      // ★ V-162 — 발밑 띠의 «폭·중심»은 **알파로** 잰다. 밝기로 거르면 어두운 다리 하나가
+      //   통째로 빠져 중심이 옆으로 끌린다(화로: 다리 셋 중 왼쪽이 빠져 cx 0.625 · 폭 0.42 —
+      //   그림자가 오른쪽으로 20px 밀렸다). 밝기 문턱은 «어디가 밑변인가»(yb)를 정할 때만
+      //   쓰고, «얼마나 넓게 딛고 있나»는 실루엣이 답이다.
       const band = Math.max(1, Math.round(H * 0.15)), y0 = Math.max(0, yb - band + 1);
       let x0 = W, x1 = -1;
-      for (let y = y0; y <= yb; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (d[i + 3] > 24 && seen([d[i], d[i + 1], d[i + 2]])) { if (x < x0) x0 = x; if (x > x1) x1 = x; } }
-      if (x1 < x0) for (let y = y0; y <= yb; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+      for (let y = y0; y <= yb; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; }
       if (x1 >= x0) box = { cx: (x0 + x1 + 1) / 2 / W, w: (x1 + 1 - x0) / W, b: (yb + 1) / H };
     }
   } catch (e) { box = null; }
@@ -777,13 +780,18 @@ function drawProps() {
     if (!im || !im.width) continue;
     const w = pr.h * (im.width / im.height);
     const fo = spriteFoot(im, pr.img);
-    const sx = fo ? pr.x - w / 2 + fo.cx * w : pr.x;
-    const sy = fo ? pr.y - pr.h + fo.b * pr.h : pr.y;
+    // ★★ V-162 — **방법을 뒤집었다.** V-158·V-160 은 그림을 파일 그대로 놓고 «그림자를
+    //   그림에 맞춰 옮기는» 쪽이었다 — 그래서 잰 값이 조금만 어긋나도 그림자가 따로 논다
+    //   (두 번 고치고도 화로가 20px 밀려 떠 있었다). 이제 반대다: **그림의 «보이는 밑변»을
+    //   월드 바닥선(pr.y)에 맞춰 놓고**, 그림자는 그 자리(pr.x, pr.y)에 그린다.
+    //   그러면 그림자는 어긋날 자리가 없다 — 정의상 발밑이다. ★ [[seam-not-values]]
+    const dx = pr.x - (fo ? fo.cx * w : w / 2);          // 보이는 가로중심 → pr.x
+    const dy = pr.y - (fo ? fo.b * pr.h : pr.h);         // 보이는 밑변     → pr.y
     const rx = (fo ? fo.w * w : w) * 0.34;
     ctx.globalAlpha = 0.42; ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(sx, sy, rx, Math.min(rx * 0.4, pr.h * 0.18), 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(pr.x, pr.y, rx, Math.min(rx * 0.4, pr.h * 0.18), 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.drawImage(im, pr.x - w / 2, pr.y - pr.h, w, pr.h);
+    ctx.drawImage(im, dx, dy, w, pr.h);
   }
 }
 
@@ -939,17 +947,21 @@ function drawStairs() {
   let yb = yN;
   for (let i = 0; i < N; i++) {                          // i=0 이 가장 가깝다(아래)
     const sh = h0 * Math.pow(KH, i), yt = yb - sh;
-    const lit = 100 * Math.pow(0.76, i) + 22;            // 가까울수록 밝다(122→48)
+    const lit = 54 * Math.pow(0.70, i) + 10;             // 가까울수록 밝다(64→12) — 바닥보다 어둡게
     trap(yb, yt, hwAt(yb), hwAt(yt)); ctx.fillStyle = warm(lit); ctx.fill();
     ctx.fillStyle = warm(lit * 0.4);                     // 단 위 모서리의 턱선(라이저 그림자)
     ctx.fillRect(cx - hwAt(yt), yt, hwAt(yt) * 2, Math.max(1, sh * 0.2));
     yb = yt;
   }
-  ctx.lineJoin = "round";                                // 구덩이 입 테 — 좌·우·위 세 면(아래 열림)
+  // ★ V-162 — 여태 이 테를 **세 면 다 밝게** 둘렀다. 밝은 테로 둘러싸인 밝은 면은
+  //   바닥에 «얹힌 발판»으로 읽힌다 — 구멍이 아니다. 구멍은 ㉠ 속이 바닥보다 어둡고
+  //   ㉡ 빛을 받는 곳은 **내 쪽 턱 하나뿐**이다(안쪽 벽은 제 그림자에 들어간다).
+  ctx.lineJoin = "round";
   ctx.beginPath(); ctx.moveTo(cx - HWn - 2, yN + 1); ctx.lineTo(cx - HWf - 2, yF - 1);
   ctx.lineTo(cx + HWf + 2, yF - 1); ctx.lineTo(cx + HWn + 2, yN + 1);
-  ctx.strokeStyle = warm(96); ctx.lineWidth = 6; ctx.stroke();
-  ctx.strokeStyle = warm(150); ctx.lineWidth = 2; ctx.stroke();   // 안쪽 밝은 모서리(빛 받는 턱)
+  ctx.strokeStyle = "rgba(6,4,3,0.85)"; ctx.lineWidth = 7; ctx.stroke();   // 안쪽 벽이 지는 그늘
+  ctx.beginPath(); ctx.moveTo(cx - HWn - 3, yN + 2); ctx.lineTo(cx + HWn + 3, yN + 2);
+  ctx.strokeStyle = warm(150); ctx.lineWidth = 3; ctx.stroke();            // 내 쪽 턱만 빛을 받는다
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
   ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, yF - 12);
