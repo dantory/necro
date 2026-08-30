@@ -61,8 +61,45 @@ BASE_WARM = ("A DARK PATCH SOAKED INTO A BROWN STONE FLOOR, "
         "absolutely no blue, no teal, no green, no white, "
         "ONE patch only, no text")
 
+# ★★ V-172b — 3차(손잡이를 돌린 판)는 **꼴은 고쳤는데 색이 남색으로 갔다.**
+#   자로 재면 뚜렷하다: 테 대비 +45.7 → **−10.6**(pebble), 명암폭 47.3 → **0.0** — 입체도
+#   테도 사라졌다. 그런데 R−B 가 +11.6 → **−26.3**(crack) · **−21.9**(mud), 밝기는 mud 12 ·
+#   pebble 1.3 — **잉크 얼룩**이 왔다. V-164 가 적어 둔 「어둠을 앞에 세우면 청록/남색」 그대로다.
+#
+#   까닭은 하나다 — **맨 앞의 주어가 그림의 주인공이 된다.**
+#     · "A DARK PATCH …"        → 어둠을 그린다 → 남색·검정  (BASE_WARM, 3차)
+#     · "WEATHERED BROWN GREY STONE …" → 돌 자체를 그린다 → 자갈 타일  (V-164 1차)
+#   그러니 주어는 어둠도 돌도 아니라 **«따뜻한 색의 자국»** 이어야 한다.
+#   ★ [[rule-carried-value-dropped]] — 「제 색을 맨 앞 대문자로」라는 틀은 맞았는데
+#     그 자리에 채운 값(GREY·DARK)이 매번 찬 쪽이었다.
+BASE_STAIN = ("A RUST BROWN STAIN, warm reddish brown, "
+        "soaked into a pale warm brown stone floor, seen straight from above, "
+        "lying completely flat in the stone with no thickness, "
+        "one irregular organic blotch with ragged edges, "
+        "grim gothic dark fantasy pixel art, evenly lit, "
+        "warm brown and ochre only, absolutely no blue, no navy, no teal, no black, "
+        "transparent background around the stain, no text")
+
+# ★★ V-172c — 4차는 **반대쪽으로 넘어갔다.** "RUST BROWN · warm reddish" 를 주어에 세우니
+#   R−B 가 +84~+90(바닥은 **+26**) — **핏자국**이 왔다. 축이 이제 양쪽으로 물렸다:
+#     "DARK …"        → R−B −20~−26  (남색 잉크)      · 3차
+#     "STONE …"       → 자갈 타일                      · V-164 1차
+#     "RUST BROWN …"  → R−B +82~+90  (핏자국)          · 4차
+#     ← 바닥은 그 사이 **+26** 이다.
+#   그러니 주어에서 **어둠도 빼고 붉음도 뺀다** — 「바닥돌이 «변색된» 자리」로만 말한다.
+BASE_DUSK = ("A DISCOLOURED PATCH OF PALE BROWN STONE FLOOR, "
+        "the same warm pale brown as the floor but duller and a little darker, "
+        "seen straight from above, lying completely flat with no thickness, "
+        "one irregular organic blotch with ragged uneven edges, "
+        "grim gothic dark fantasy pixel art, evenly lit, "
+        "muted warm brown and dull ochre, "
+        "absolutely no blue, no navy, no teal, no black, no red, no blood, "
+        "transparent background around the patch, no text")
+
+DUSK = "--dusk" in sys.argv
+STAIN = "--stain" in sys.argv
 WARM = "--warm" in sys.argv
-BASE = BASE_WARM if WARM else BASE_COLD
+BASE = BASE_DUSK if DUSK else (BASE_STAIN if STAIN else (BASE_WARM if WARM else BASE_COLD))
 
 OBJ = {
   # ── 던전 ── 밟아 닳은 자리·물자국·부스러기
