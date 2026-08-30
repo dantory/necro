@@ -988,7 +988,9 @@ function drawStairs() {
   }
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
-  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - STAIR_H / 2 - 10);
+  // V-166: 그림이 «계단»이 아니라 뚜껑문이라 이름을 그림에 맞춘다(픽셀랩이 위에서 본
+  // 내려가는 계단을 여덟 번 못 그렸다 — 그릴 수 있는 물건으로 바꾼 것).
+  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 아래로", s.x, s.y - STAIR_H / 2 - 10);
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을
