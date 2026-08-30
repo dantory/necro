@@ -161,7 +161,11 @@ BASE = BASE_BG if (BG or MASK) else (BASE_DUSK if DUSK else (BASE_STAIN if STAIN
 
 OBJ = {
   # ── 던전 ── 밟아 닳은 자리·물자국·부스러기
-  "dust":   (f"{BASE}, a patch of pale grey dust and grit scattered on a stone floor", 96, 96),
+  # ★ V-178 — V-176 이 밝기 손잡이로 두 판을 태우고 낸 결론: dust 는 «흩뿌린 점»이라
+  #   어둡게 할수록 속 대비가 커져 밝기 축으로는 영영 안 들어온다. 통과한 `stain` 과
+  #   같은 «뭉친 덩어리» 꼴로 말한다 — "pale"·"scattered"·"grit" 을 전부 뺐다.
+  "dust":   (f"{BASE}, a soft dark smudge of settled dust ground into the stone, "
+             "one connected patch, darker in the middle, fading softly at the edges", 96, 96),
   # ★ V-164 — 옛 글이 "chipped edges"·"shadow inside" 로 **두께를 불렀다**(돌덩어리가 왔다).
   #   금은 «파인 것»이 아니라 바닥에 그어진 **검은 선**이다.
   "crack":  (f"{BASE}, thin dark hairline cracks drawn across the flat stone floor, "
