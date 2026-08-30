@@ -82,7 +82,7 @@ export function genFloor(floor) {
       enemies: [makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true)] });
   }
 
-  const { decals, props } = scatter(rooms);
+  const { decals, props } = scatter(rooms, stairs, chests);
   return { W, H, rooms, corridors, packs, chests, stairs, startX, startY, decals, props };
 }
 
@@ -98,10 +98,48 @@ const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "d
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 
 // 방 한가운데에 놓아도 싸움을 안 가리는 «낮은» 소품 (V-169)
-const LOW_PROP = new Set(["decor/bones.png", "decor/bones2.png", "decor/urn.png",
+// ★ V-171 — 그림을 열어 보고 다시 짰다. `bones2.png` 는 무더기가 아니라 **서 있는 해골
+//   전신**이다 — 방 가운데 세우면 소환한 해골과 헷갈리므로 벽으로 뺀다. 대신 누워
+//   부서진 기둥(`column2.png`)은 눕는 물건이니 안쪽으로 넣는다.
+const LOW_PROP = new Set(["decor/bones.png", "decor/column2.png", "decor/urn.png",
   "decor/rubble.png", "decor/coffin.png"]);
 
-function scatter(rooms) {
+// ★★ V-171 — 소품 키를 **종마다** 정한다. 여태 아홉 종이 `rint(76,132)` 한 주머니에서
+//   키를 뽑았고, `PLAYER_H = 104` 이므로 항아리가 사람보다 크고(132) 서 있는 기둥이
+//   사람보다 작았다(76). 손잡이 하나에 뜻이 아홉 개면 어느 쪽으로 돌려도 절반은 틀린다.
+//   기준은 «사람 키(104) 대비».
+const PROP_H = {
+  "decor/pillar.png":  [170, 215],   // 서 있는 기둥 — 사람의 1.6~2.1배
+  "decor/statue.png":  [132, 168],   // 후드 석상 — 사람보다 조금 큼
+  "decor/bones2.png":  [ 88, 104],   // 서 있는 해골 전신 — 사람 크기
+  "decor/brazier.png": [ 76,  94],   // 화로 — 가슴 높이
+  "decor/column2.png": [ 56,  78],   // 누워 부서진 기둥
+  "decor/coffin.png":  [ 54,  72],   // 석관 — 무릎~허리
+  "decor/urn.png":     [ 50,  70],   // 항아리 — 허리 높이
+  "decor/bones.png":   [ 34,  50],   // 해골 무더기 — 발밑
+  "decor/rubble.png":  [ 28,  44],   // 잡석 — 발밑
+};
+
+// ★★ V-171b — `scatter` 가 **이미 놓인 것을 안 봤다.** V-169 가 밀도를 2.5배 올리자
+//   겹침이 드러났다 — 컷에서 화로 둘이 한 덩어리로 뭉치고, 석상이 화로를 뚫고 섰고,
+//   해골 무더기가 **계단 구멍 테두리 위**에 걸쳐 있었다. 자리를 뽑을 때 몇 번 다시
+//   던져서(최대 12회) 앞서 놓인 소품·계단·상자와 «발자국»이 겹치면 버린다.
+//   발자국은 그림의 가로폭 대신 **밑동 반지름**(h 대비)으로 잡는다 — 위로 솟은 부분은
+//   겹쳐도 되고(원근), 바닥에서 겹치는 것만 어색하다.
+const STAIR_R = 92, CHEST_R = 46;
+function footR(pr) { return Math.max(16, pr.h * 0.30); }
+function propFits(pr, placed, stairs, chests) {
+  for (const q of placed) {
+    const r = footR(pr) + footR(q);
+    // y(깊이)는 조금만 봐도 된다 — 앞뒤로 놓인 건 겹쳐 보이지 않는다.
+    if (Math.abs(pr.x - q.x) < r && Math.abs(pr.y - q.y) < r * 0.62) return false;
+  }
+  if (stairs && Math.hypot(pr.x - stairs.x, pr.y - stairs.y) < STAIR_R + footR(pr)) return false;
+  for (const c of chests || []) if (Math.hypot(pr.x - c.x, pr.y - c.y) < CHEST_R + footR(pr)) return false;
+  return true;
+}
+
+function scatter(rooms, stairs, chests) {
   const decals = [], props = [];
   for (const room of rooms) {
     const area = room.w * room.h;
@@ -115,6 +153,7 @@ function scatter(rooms) {
     //   · 수를 올린다(150000 → 60000).
     //   · **키 큰 것은 벽에, 낮은 것은 방 안쪽에.** 기둥·석상·화로가 방 한가운데 서면
     //     싸움을 가린다 — 뼈·잔해·항아리·관처럼 발밑에 눕는 것만 안쪽으로 보낸다.
+    let tries = 0;                                     // 방마다 다시 던진 횟수
     for (let i = 0; i < Math.round(area / 60000); i++) {
       const brazier = Math.random() < 0.22;
       const img = brazier ? "decor/brazier.png" : PROP_IMG[(Math.random() * PROP_IMG.length) | 0];
@@ -129,7 +168,12 @@ function scatter(rooms) {
         px = onX ? rint(room.x + 26, room.x + room.w - 26) : (Math.random() < 0.5 ? room.x + rint(24, 64) : room.x + room.w - rint(24, 64));
         py = onX ? (Math.random() < 0.5 ? room.y + rint(24, 64) : room.y + room.h - rint(24, 64)) : rint(room.y + 26, room.y + room.h - 26);
       }
-      props.push({ x: px, y: py, img, h: rint(76, 132), brazier });
+      const hr = PROP_H[img] || [76, 132];              // 표에 없는 그림은 옛 자로 떨어진다
+      const pr = { x: px, y: py, img, h: rint(hr[0], hr[1]), brazier };
+      // 자리가 겹치면 **같은 소품을 다른 자리에** 다시 던진다(수는 안 줄인다 — V-169 의
+      // 밀도가 그대로 남아야 한다). 열여섯 번 다 막히면 그 방은 빽빽한 것이니 포기한다.
+      if (!propFits(pr, props, stairs, chests)) { if (++tries < 16) i--; continue; }
+      props.push(pr);
     }
   }
   return { decals, props };
