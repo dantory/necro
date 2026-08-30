@@ -952,45 +952,31 @@ function drawEnemy(m) {
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
 
-// ★ V-160 — 굽은 계단 테두리(stairs.png)가 «네 면이 닫힌 사각»이라, 아래까지 돌 막대가
-//   가로질러 벽에 걸린 «액자/환풍구»로 읽혔다(화면 R−B: 테 +11~15 vs 바닥 +42 — 게다가
-//   차가웠다). 굽기는 버리고 통째로 코드로 그린다:
-//   ① «구덩이 입»을 사다리꼴로 — 가까운(아래) 쪽이 넓고 먼(위) 쪽이 좁다.
-//   ② 테두리는 좌·우·위 세 면만(아래는 열어 «내려가는 입»이 되게). 액자의 아랫막대를 없앤다.
-//   ③ 디딤판을 «맞붙게» 깔고(사이 검은 틈 없앰 → 살창 아닌 계단), 단마다 위 모서리에
-//      얇은 어두운 턱선(라이저)을 넣어 «턱»이 보이게. 가까울수록 넓·밝·두껍고 멀수록 좁·어둡·얇다.
-//   ④ 돌빛을 바닥과 같은 결로(B ≈ 0.56·R → R−B ≈ 0.44·lum). 실측으로 디딤판·테 R−B ≥ +20 확인.
+// ★★ V-164 (2026-08-30) — **코드로 그리던 계단을 구운 그림으로 되돌린다.**
+//   병수님 08:33: 「에셋 픽셀랩 써서 제대로 뽑아라 … fillRect 로 그리거나 로컬로 만들어
+//   바로 적용 금지」. V-160·V-162 는 굽기가 네 번 실패하자 **코드 사다리꼴**로 도망쳤는데,
+//   컷을 열어 보면 그것이 문제였다 — 벡터로 그린 매끈한 사다리꼴이 **픽셀 바닥 위에서
+//   혼자 안티에일리어싱**돼 딴 그림처럼 뜬다. 「구멍으로 읽히나」이전에 **결이 다르다.**
+//
+//   굽기가 실패한 까닭은 프롬프트였다: 길고 부정어가 열두 개 ([[pixellab-side-attack-failures]]).
+//   낱말을 줄이고 결을 넷으로 갈라 한꺼번에 구우니(`tmp/stair_bake.py`) 넷 다 나왔고,
+//   그중 **「A BLACK PIT in warm brown stone floor」**(= 어둠을 주어로 맨 앞에 세운 것)가
+//   따뜻한 돌 테두리를 두른 검은 구멍 + 내려가는 디딤판으로 왔다. R−B +24 — 바닥 띠
+//   (+3.7~+31.7) 안이라 **필터가 필요 없다.**
+//
+//   ★ 계단은 **바닥에 뚫린 구멍**이다. 소품처럼 발밑을 맞추지 않고(서 있는 것이 아니다)
+//     그림 한가운데를 s.x,s.y 에 놓는다. 그림자도 없다 — 구멍은 그늘을 지지 않는다.
+const STAIR_H = 104;
 function drawStairs() {
   const s = G.stairs;
-  const cx = s.x, yN = s.y + 16, yF = s.y - 76;          // yN=가까운(아래) · yF=먼(위)
-  const HWn = 52, HWf = 27;                              // 반너비: 원근으로 위가 좁다
-  const hwAt = (y) => HWf + (HWn - HWf) * (y - yF) / (yN - yF);
-  const warm = (l) => `rgb(${Math.round(l)},${Math.round(l * 0.78)},${Math.round(l * 0.56)})`;
-  const trap = (yb, yt, ib, it) => { ctx.beginPath(); ctx.moveTo(cx - ib, yb); ctx.lineTo(cx + ib, yb); ctx.lineTo(cx + it, yt); ctx.lineTo(cx - it, yt); ctx.closePath(); };
-  trap(yN, yF, HWn, HWf); ctx.fillStyle = "#0a0806"; ctx.fill();   // 구덩이 어둠(바탕)
-  const N = 6, KH = 0.74, totalH = yN - yF;
-  const h0 = totalH * (1 - KH) / (1 - Math.pow(KH, N));
-  let yb = yN;
-  for (let i = 0; i < N; i++) {                          // i=0 이 가장 가깝다(아래)
-    const sh = h0 * Math.pow(KH, i), yt = yb - sh;
-    const lit = 54 * Math.pow(0.70, i) + 10;             // 가까울수록 밝다(64→12) — 바닥보다 어둡게
-    trap(yb, yt, hwAt(yb), hwAt(yt)); ctx.fillStyle = warm(lit); ctx.fill();
-    ctx.fillStyle = warm(lit * 0.4);                     // 단 위 모서리의 턱선(라이저 그림자)
-    ctx.fillRect(cx - hwAt(yt), yt, hwAt(yt) * 2, Math.max(1, sh * 0.2));
-    yb = yt;
+  const im = tex("decor/stairs.png");
+  if (im && im.width) {
+    const w = STAIR_H * (im.width / im.height);
+    ctx.drawImage(im, s.x - w / 2, s.y - STAIR_H / 2, w, STAIR_H);
   }
-  // ★ V-162 — 여태 이 테를 **세 면 다 밝게** 둘렀다. 밝은 테로 둘러싸인 밝은 면은
-  //   바닥에 «얹힌 발판»으로 읽힌다 — 구멍이 아니다. 구멍은 ㉠ 속이 바닥보다 어둡고
-  //   ㉡ 빛을 받는 곳은 **내 쪽 턱 하나뿐**이다(안쪽 벽은 제 그림자에 들어간다).
-  ctx.lineJoin = "round";
-  ctx.beginPath(); ctx.moveTo(cx - HWn - 2, yN + 1); ctx.lineTo(cx - HWf - 2, yF - 1);
-  ctx.lineTo(cx + HWf + 2, yF - 1); ctx.lineTo(cx + HWn + 2, yN + 1);
-  ctx.strokeStyle = "rgba(6,4,3,0.85)"; ctx.lineWidth = 7; ctx.stroke();   // 안쪽 벽이 지는 그늘
-  ctx.beginPath(); ctx.moveTo(cx - HWn - 3, yN + 2); ctx.lineTo(cx + HWn + 3, yN + 2);
-  ctx.strokeStyle = warm(150); ctx.lineWidth = 3; ctx.stroke();            // 내 쪽 턱만 빛을 받는다
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
-  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, yF - 12);
+  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 계단", s.x, s.y - STAIR_H / 2 - 10);
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을

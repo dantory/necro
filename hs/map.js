@@ -86,7 +86,14 @@ export function genFloor(floor) {
   return { W, H, rooms, corridors, packs, chests, stairs, startX, startY, decals, props };
 }
 
-const DEC_IMG = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png"];
+// ★★ V-164 — `decal/stain.png` 를 **줄에서 뺀다.** 그 장은 굽기가 실패한 것이다:
+//   112×112 · 1639B 인데 **안쪽이 통째로 투명하고 스캘럽 윤곽선만** 남았다. 화면에서는
+//   따뜻한 바닥 위에 뜬 «구름 모양 테두리»로 보인다 — 병수님이 말한 「둥둥 떠 있는 것」의
+//   한 몫이고, 소품이 아니라 얼룩이라 여태 아무도 안 봤다.
+//   ★ 다시 구우려고 두 판을 돌렸는데 **둘 다 더 나빴다**(V-164 기록 참조) — 색을 앞에
+//     세우면 «돌덩어리», 어둠을 앞에 세우면 «청록/남색». `assets/decal_v3` 에 남겨 뒀다.
+//     제대로 구워질 때까지는 **없는 편이 낫다** — 빈 테는 고칠 수 없는 결함이다.
+const DEC_IMG = ["decal/crack.png", "decal/pebble.png", "decal/mud.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 

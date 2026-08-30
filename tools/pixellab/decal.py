@@ -25,7 +25,16 @@ OUT  = os.path.join(ROOT, "assets", os.environ.get("DECAL_OUT", "decal"))
 # 가운데엔 정반사까지 박혀 있었다 — 풀밭에 프라이팬을 얹어 놓은 꼴이다.
 # 얼룩은 물건이 아니라 **땅의 변색**이다. 그러니 테도, 두께도, 하이라이트도 없어야
 # 한다. outline 을 lineless 로 두는 것이 핵심이다(흙길 타일에서 배운 것과 같다).
-BASE = ("grim gothic dark fantasy pixel art, top-down view straight down at the ground, "
+# ★★ V-164 (2026-08-30) — **소품만 데우고 얼룩은 안 데웠다.** `decor.py` 는 V-161 에서
+# 「제 색을 맨 앞 대문자로」로 갈아탔는데(`--warm`), 여기 `BASE` 는 옛 회색 그대로였다.
+# 화면에서 재면 바닥·소품이 R−B +22~+40 인데 얼룩만 회녹색이라, 따뜻한 바닥 위에
+# **딴 데서 온 판**처럼 얹힌다 — 「둥둥 떠 있다」의 한 몫. ★ [[carry-fixes-forward]]
+#
+# ★★ 그리고 부정어를 **줄였다.** 옛 BASE 는 "zero depth · no rim · no bowl · no crater ·
+# no highlight · no specular · no gloss · no cast shadow · no outline" 로 **아홉을 걸고도**
+# `crack`·`pebble` 이 입체 바위로 왔다. [[pixellab-side-attack-failures]] — 부정어로는
+# 못 막는다. 원하는 것(**바닥이 물든 자국**)을 짧게 · 맨 앞에 말한다.
+BASE_COLD = ("grim gothic dark fantasy pixel art, top-down view straight down at the ground, "
         "desaturated earth palette, evenly lit, no vignette, "
         "absolutely no blue, no purple, no violet, no teal, no bright green, "
         "this is only a DISCOLOURATION OF THE GROUND, not an object: "
@@ -35,14 +44,40 @@ BASE = ("grim gothic dark fantasy pixel art, top-down view straight down at the 
         "transparent background outside the patch, "
         "ONE patch only, no grid, no tiling, no border, no frame, no text")
 
+# 제 색을 맨 앞 대문자로 — 상자·계단이 통한 그 꼴(decor.py TONE_WARM 과 같은 온도).
+# ★ V-164 2차 — 1차 `BASE_WARM`(색을 맨 앞 대문자로)은 **넘어갔다.** 컷을 보니
+#   dust 는 흰 크림 덩어리 · crack 은 «자갈 타일 정사각형» · pebble 은 밝은 황갈 넉장 ·
+#   stain 은 청록(R−B −15)이 왔다. 까닭은 뚜렷하다 — 「WEATHERED BROWN GREY STONE」을
+#   주어 자리에 세우니 굽는 쪽이 **돌 자체를 그렸다.** 얼룩은 돌이 아니라 «돌이 물든 것»이다.
+#
+#   계단이 넷 만에 통한 자리가 답을 준다: 「A BLACK PIT in warm brown stone floor」 —
+#   **그 그림의 본질을 주어로 맨 앞에** 세웠다(어둠). 얼룩의 본질도 색이 아니라 **어두움**이다.
+BASE_WARM = ("A DARK PATCH SOAKED INTO A BROWN STONE FLOOR, "
+        "seen from straight above, lying flat in the stone, "
+        "darker than the floor around it, dark brown, "
+        "the edges blur and fade away into nothing, "
+        "grim gothic dark fantasy pixel art, evenly lit, "
+        "transparent background around the patch, "
+        "absolutely no blue, no teal, no green, no white, "
+        "ONE patch only, no text")
+
+WARM = "--warm" in sys.argv
+BASE = BASE_WARM if WARM else BASE_COLD
+
 OBJ = {
   # ── 던전 ── 밟아 닳은 자리·물자국·부스러기
   "dust":   (f"{BASE}, a patch of pale grey dust and grit scattered on a stone floor", 96, 96),
-  "crack":  (f"{BASE}, a long jagged crack running across a stone floor with chipped edges "
-             "and dark shadow inside the crack", 128, 96),
-  "stain":  (f"{BASE}, a dark damp water stain soaked into a stone floor, darker at the "
-             "centre and fading at the edges", 112, 112),
-  "pebble": (f"{BASE}, a scatter of small broken stone chips and pebbles lying on the floor", 96, 80),
+  # ★ V-164 — 옛 글이 "chipped edges"·"shadow inside" 로 **두께를 불렀다**(돌덩어리가 왔다).
+  #   금은 «파인 것»이 아니라 바닥에 그어진 **검은 선**이다.
+  "crack":  (f"{BASE}, thin dark hairline cracks drawn across the flat stone floor, "
+             "like ink lines on the surface", 128, 96),
+  # ★ V-164 — 여태 쓰던 stain.png 는 **속이 빈 테**였다(굽기 실패장을 그대로 썼다).
+  "stain":  (f"{BASE}, a large dark damp patch soaked deep into the stone, "
+             "solid dark in the middle, fading out at the edges", 112, 112),
+  # ★ V-164 — "pebbles lying on the floor" 가 **올려 놓은 돌**을 불렀다(둥근 회색 접시).
+  #   흩어진 «가루 자국»으로 말한다.
+  "pebble": (f"{BASE}, a faint scatter of fine grit and stone dust marking the flat floor, "
+             "tiny specks, no volume", 96, 80),
   # ── 마을 ── 흙길과 풀
   "path":   (f"{BASE}, a stretch of bare dirt path worn smooth by footsteps, slightly lighter "
              "than the surrounding ground, with faint wheel ruts", 160, 112),
