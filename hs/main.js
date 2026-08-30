@@ -1434,16 +1434,21 @@ function drawItemLabel(it, sx, sy, ly) {
 }
 function drawFloats() {
   ctx.textAlign = "center";
+  const rects = [];   // V-195: «실제로 그린» 사각을 남긴다 — 자(hs_v195_hud)가 이 배열만 읽는다.
   for (const f of G.floats) {
     const sx = (f.x - cam.x) * Z, sy = (f.y - cam.y) * Z;
     if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx, sy + 30 * Z, f.ring * Z, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
     if (!f.txt) continue;
     ctx.globalAlpha = Math.min(1, f.t * 1.5);
-    ctx.font = (f.big ? "bold 26px " : (f.sz || 16) + "px ") + "'Times New Roman',serif";
+    const fs = f.big ? 26 : (f.sz || 16);
+    ctx.font = (f.big ? "bold 26px " : fs + "px ") + "'Times New Roman',serif";
+    const hw = ctx.measureText(f.txt).width / 2;
     ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
     ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
     ctx.globalAlpha = 1;
+    rects.push({ x0: sx - hw, y0: sy - fs, x1: sx + hw, y1: sy, txt: f.txt });
   }
+  window.__floatRects = rects;
 }
 
 const el = (id) => document.getElementById(id);
