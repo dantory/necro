@@ -188,7 +188,7 @@ function slotCap() { const p = G.player; return p.slots + (p.uniques.has("moreSk
 function selectGrade(i) {
   const p = G.player;
   if (i > p.maxGrade) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: SKEL_TIERS[i].label + " — 아직 잠김 (X로 해금)", col: "#e0663c" });
+    floatNote(SKEL_TIERS[i].label + " — 아직 잠김 (X로 해금)", "#e0663c", 1.2);
     return;
   }
   p.grade = i;
@@ -200,12 +200,12 @@ function raiseSkeleton() {
   const tier = Math.min(p.grade, p.maxGrade, SKEL_TIERS.length - 1);
   const T = SKEL_TIERS[tier];
   if (slotsUsed() + T.slot > slotCap()) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: `자리가 부족하다 (${T.label} ${T.slot}칸)`, col: "#e0663c" });
+    floatNote(`자리가 부족하다 (${T.label} ${T.slot}칸)`, "#e0663c", 1.2);
     return;
   }
   const ci = nearestCorpse(p.x, p.y, 300);
   if (ci < 0) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.0, txt: "가까운 시체가 없다", col: "#c8a04a" });
+    floatNote("가까운 시체가 없다", "#c8a04a", 1.0);
     return;
   }
   const c = G.corpses[ci]; c.used = true;
@@ -222,18 +222,18 @@ function raiseSkeleton() {
 function spendPoint(kind) {
   const p = G.player;
   if (p.levelPoints <= 0) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.0, txt: "레벨업 점수가 없다", col: "#c8a04a" });
+    floatNote("레벨업 점수가 없다", "#c8a04a", 1.0);
     return;
   }
   if (kind === "slot") {
     p.levelPoints--; p.slots += 1;
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.4, txt: "자리 +1", col: "#7fe6a0" });
+    floatNote("자리 +1", "#7fe6a0", 1.4);
   } else if (p.maxGrade < SKEL_TIERS.length - 1) {
     p.levelPoints--; p.maxGrade++; p.grade = p.maxGrade;
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.6, txt: SKEL_TIERS[p.maxGrade].label + " 해금", col: "#e8a24a" });
+    floatNote(SKEL_TIERS[p.maxGrade].label + " 해금", "#e8a24a", 1.6);
   } else {
     p.levelPoints--; p.mult.minionDmg *= 1.08; recalc();
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.4, txt: "소환수 피해 +8%", col: "#e8a24a" });
+    floatNote("소환수 피해 +8%", "#e8a24a", 1.4);
   }
 }
 
@@ -422,7 +422,7 @@ function hurtEnemy(m, dmg, dx, dy) {
   m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
   const l = Math.hypot(dx, dy) || 1;
   m.kb.x += (dx / l) * 240; m.kb.y += (dy / l) * 240;
-  floatDmg(m.x, m.y - m.h * 0.7, Math.round(dmg), m.elite ? "#ffd060" : "#ffffff");
+  floatDmg(m, Math.round(dmg), m.elite ? "#ffd060" : "#ffffff");
   for (let i = 0; i < 4; i++) burst(m.x, m.y - m.h * 0.4, "#c0303a", 90);
   if (m.hp <= 0) killEnemy(m);
 }
@@ -433,7 +433,7 @@ function killEnemy(m) {
   G.xp += m.elite ? 40 : 10;
   if (G.xp >= G.player.level * 500) {
     G.player.level++; G.player.levelPoints++;
-    G.floats.push({ x: G.player.x, y: G.player.y - 108, t: 1.8, txt: `레벨 ${G.player.level} — Z 자리 / X 등급`, col: "#e8cf52" });
+    floatNote(`레벨 ${G.player.level} — Z 자리 / X 등급`, "#e8cf52", 0.9, { sz: 12 });
   }
   // ★ V-183 — 처치 연쇄. 350ms 안에 잇달아 죽을수록 흔들림이 커지고, 다섯 이상이면
   //   흰 번쩍임이 얹힌다(몰살감). 상한 있음(chain ≤ 14 · flash ≤ 0.32) — 파티클은 burst
@@ -536,20 +536,26 @@ function pickItem(it) {
     else p.mult.minionDmg *= it.item.build.mul || 1.3;
     recalc();
     flash = Math.max(flash, 0.18); flashColor = it.item.build.kind === "slot" ? "127,230,160" : "232,162,74";
-    G.floats.push({ x: it.x, y: it.y - 46, t: 1.6, txt: it.item.name, col: it.item.rarity.color });
+    // 빌드 알림은 화면 번쩍임 + 좌측 pickLog(초록/주황 그대로)로 이미 크게 알린다 —
+    // 몰살판에서 바닥에 겹쳐 뜨던 넓은 글은 걷는다(V-185, 정보 손실 없음).
     return;
   }
 
   // 장비는 «가방»에 들어간다. 격자에 자리가 없으면 못 줍고 바닥에 남는다.
   const gear = it.item;
   if (!bagFits(p.bag, gear)) {
-    const now = performance.now();
-    if (now > (G.bagFullT || 0)) {
-      G.bagFullT = now + 1500;
-      G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: "가방이 가득 찼다", col: "#e0663c" });
+    // 가방 꽉참은 «사건»이 아니라 «상태»다 — 1.5초 재우침으로는 파밍 내내 계속 외친다(자로
+    // 세니 40초에 16번, 최신 3줄을 혼자 차지했다). 가방이 실제로 바뀐 뒤에만 다시 알리고,
+    // 글은 좌측 pickLog 에도 남겨 한복판을 비워도 정보를 잃지 않게 한다.
+    if (G.bagFullAt !== p.bag.length) {
+      G.bagFullAt = p.bag.length;
+      floatNote("가방이 가득 찼다", "#e0663c", 1.2);
+      G.pickLog.unshift({ name: "가방이 가득 찼다", color: "#e0663c", t: 3 });
+      if (G.pickLog.length > 6) G.pickLog.pop();
     }
     return;
   }
+  G.bagFullAt = -1;   // 하나라도 들어갔다 = 자리가 생겼다, 다음 꽉참은 다시 알린다
   it.got = true;
   G.picks++;
   G.pickLog.unshift({ name: gear.name, color: gear.rarity.color, t: 3 });
@@ -561,11 +567,12 @@ function pickItem(it) {
   if (wasEmpty && !p.equipped[gear.slot]) equipFromBag(gear);
   else if (invOpen) renderInv();
   if (gear.unique) {
+    // 유니크만 바닥에 크게 띄운다(금빛·읽을 시간 2.2s) — 실패 조건: 유니크 줍기는 반드시 보여야.
+    // 그 아래 등급(흰·파랑·노랑)은 이름을 좌측 pickLog(레어도 색·V-184) + 줍기 전 바닥
+    // 이름표(V-184)에 남기고 바닥 위 뜨는 글은 걷는다 — 몰살판에서 사람 위를 덮던 주범(V-185).
     flash = 0.5; flashColor = "216,147,74";
     G.floats.push({ x: it.x, y: it.y - 60, t: 2.2, txt: gear.name, big: true, col: "#d8934a" });
     G.floats.push({ x: it.x, y: it.y - 34, t: 2.2, txt: gear.unique.note, big: false, col: "#d8934a" });
-  } else {
-    G.floats.push({ x: it.x, y: it.y - 40, t: 1.0, txt: gear.name, col: gear.rarity.color });
   }
 }
 
@@ -602,12 +609,76 @@ function stepParts(dt) {
   for (const p of G.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; p.life -= dt; }
   G.parts = G.parts.filter((p) => p.life > 0);
 }
-function floatDmg(x, y, n, col) {
-  if (G.floats.filter((f) => f.txt).length > 60) return;
-  G.floats.push({ x: x + (Math.random() * 20 - 10), y, t: 0.8, txt: "" + n, col });
+// ★ V-185 — 떠오르는 글이 화면 한복판을 덮던 것을 판다. 고치기 전엔 피해 숫자 상한이
+//   60 이고, 같은 적을 때릴 때마다 새 숫자가 사람 위에 통째로 쌓였다(컷에서 「6603」이
+//   열두 개 겹쳐 사람을 묻었다). 세 가지로 막는다:
+//   ① 상한을 14 로 확 내리고, 넘치면 큰 값이 제일 작은 값을 «밀어낸다»(작은 수가 큰 한 방을 못 가린다).
+//   ② 같은 적에 연달아 든 피해는 그 적의 «살아있는 숫자»에 누적한다 — 개수를 가장 크게 줄인다.
+//   ③ 숫자를 적 위에서 띄우되 사람 바깥쪽으로 밀어 흩는다(지금껏 ±10px 만 흔들어 한복판에 겹쳤다).
+//   글자 크기는 그대로 16px(굵게 키우면 되레 더 덮는다). 큰 한 방은 «수명»을 늘려 읽게 한다.
+const DMG_CAP = 14;
+/* 같은 알림이 잇달아 뜨면 «줄을 늘리지 않고» 이미 뜬 것의 시간만 되살린다.
+ * 왜: 자로 세니 40초에 뜬 알림 72개 중 56개가 «가방이 가득 찼다»(24)·«자리가 부족하다»(32)
+ * 뿐이었다 — 실패는 사람이 같은 짓을 반복하는 동안 매번 뜨므로, 최신 3줄(stepFloats ④)이
+ * 늘 이 둘로 차서 한복판을 덮는다. 같은 글은 한 줄로 묶어야 «새 소식»이 자리를 얻는다.
+ * 되살릴 때 자리도 지금 사람 머리 위로 옮긴다 — 걸어간 뒤 옛 자리에 남으면 딴 데서 뜬다. */
+function floatNote(txt, col, t, extra) {
+  const p = G.player;
+  let live = 0;
+  for (const f of G.floats) {
+    if (f.dmg || f.big || !f.txt) continue;
+    // 같은 글이면 줄을 늘리지 않고 시간만 되살린다. ★ 자리는 옮기지 않는다 — 옮기면
+    // 그 사이 뜬 «다른» 알림과 같은 화소에 겹쳐 글자가 서로를 뭉갠다(컷에서 「거대 해골
+    // 해금」과 「뼈 거인 해금」이 한 덩어리로 읽혔다). 1.2초 사는 글이라 밀리는 거리는 작다.
+    if (f.txt === txt) { f.t = Math.max(f.t, t); f.col = col; return f; }
+    live++;
+  }
+  // 새 알림은 살아 있는 알림 «위로» 한 줄씩 쌓는다 — 한자리에 찍으면 겹쳐서 못 읽는다.
+  const f = Object.assign({ x: p.x, y: p.y - 100 - live * 22, t, txt, col }, extra || {});
+  G.floats.push(f);
+  return f;
+}
+/* 큰 피해는 «줄여» 쓴다 — 253318 처럼 여섯 자리가 되면 글자 사각이 두 배로 넓어져
+ * 열넷이 뜨는 몰살판에서 사람·적을 덮는다(자로 재니 p95 덮음률의 대부분이 이 숫자였다).
+ * 자릿수가 아니라 «규모»를 읽는 게 핵앤슬래시의 쓸모라 K/M 이 정보를 잃지 않는다. */
+function dmgTxt(n) {
+  if (n < 10000) return "" + n;
+  if (n < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0) + "K";
+  return (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + "M";
+}
+function floatDmg(m, n, col) {
+  n = Math.round(n);
+  // ② 이 적의 숫자가 아직 살아있으면(t>0) 새로 만들지 말고 누적한다.
+  const f0 = m._dmgFloat;
+  if (f0 && f0.t > 0) {
+    f0.acc += n; f0.txt = dmgTxt(Math.round(f0.acc)); f0.col = col;
+    f0.t = Math.min(1.2, Math.max(f0.t, 0.6 + Math.log10(Math.max(1, f0.acc)) * 0.12));
+    return;
+  }
+  // ① 상한을 넘으면 제일 작은 숫자를 밀어내고 큰 값을 넣는다(새 값이 제일 작으면 안 띄운다).
+  let cnt = 0, sm = null, smi = -1;
+  for (let i = 0; i < G.floats.length; i++) { const f = G.floats[i];
+    if (!f.dmg) continue; cnt++; if (!sm || f.acc < sm.acc) { sm = f; smi = i; } }
+  if (cnt >= DMG_CAP) {
+    if (!sm || n <= sm.acc) return;
+    sm.t = 0; G.floats.splice(smi, 1);          // 밀려난 것의 주인은 다음 타에 새로 뜬다
+  }
+  // ③ 적 위 · 사람 바깥쪽으로 흩는다.
+  const p = G.player, ox = m.x - p.x, oy = m.y - p.y, ol = Math.hypot(ox, oy) || 1;
+  const f = { dmg: true, acc: n, col, txt: dmgTxt(n),
+    x: m.x + (ox / ol) * 20 + (Math.random() * 2 - 1) * 14,
+    y: m.y - m.h * 0.7 + (oy / ol) * 8 - Math.random() * 6,
+    t: Math.min(1.1, 0.6 + Math.log10(Math.max(1, n)) * 0.12) };  // 큰 한 방일수록 오래 남는다
+  m._dmgFloat = f;
+  G.floats.push(f);
 }
 function stepFloats(dt) {
   for (const f of G.floats) { f.t -= dt; f.y -= (f.big ? 14 : 34) * dt; if (f.ring !== undefined) f.ring += 300 * dt; }
+  // ④ 알림 글(피해 숫자·링·유니크 이름 아님)은 최신 3줄만 — 뒤에서부터 세 오래된 것을 버린다.
+  //   유니크 이름표(big)는 늘 읽히게 남긴다(줍기가 반드시 보여야 하는 실패 조건).
+  let notes = 0;
+  for (let i = G.floats.length - 1; i >= 0; i--) { const f = G.floats[i];
+    if (f.txt && !f.dmg && !f.big) { notes++; if (notes > 3) G.floats.splice(i, 1); } }
   G.floats = G.floats.filter((f) => f.t > 0);
 }
 
@@ -1259,7 +1330,7 @@ function drawFloats() {
     if (f.ring !== undefined) { ctx.globalAlpha = Math.max(0, f.t); ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx, sy + 30 * Z, f.ring * Z, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
     if (!f.txt) continue;
     ctx.globalAlpha = Math.min(1, f.t * 1.5);
-    ctx.font = (f.big ? "bold 26px " : "16px ") + "'Times New Roman',serif";
+    ctx.font = (f.big ? "bold 26px " : (f.sz || 16) + "px ") + "'Times New Roman',serif";
     ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
     ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
     ctx.globalAlpha = 1;
@@ -1389,7 +1460,7 @@ function equipFromBag(gear) {
 function unequip(slot) {
   const p = G.player;
   if (!unequipOp(p.bag, p.equipped, slot)) {
-    G.floats.push({ x: p.x, y: p.y - 100, t: 1.2, txt: "가방이 가득 찼다", col: "#e0663c" });
+    floatNote("가방이 가득 찼다", "#e0663c", 1.2);
     return;
   }
   recalc();
