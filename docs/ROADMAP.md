@@ -16384,8 +16384,9 @@ V-180 이 얼룩 축을 닫고 보니, **V-153~V-180b 스물여덟 판이 한 �
 - [ ] **V-182 (다음) — 격자 인벤토리(I) · 착용 슬롯 · SHIFT 비교.** V-181 이 데이터를
       세우면 그 위에 창을 올린다.
 
-#### 지금 도는 것 (19:0x 착수)
-- **V-181** — detached PID 2497 · `tools/hs_v181_run.sh`
-  로그 `~/.openclaw/workspace/tmp/necro_hs_v181_run.log` ·
-  마커 `~/.openclaw/workspace/tmp/necro_hs_v181_run.log.done`
+#### 지금 도는 것 (19:33 착수)
+- **V-182** — `tools/hs_v182_run.sh` (격자 인벤토리 I · 착용 슬롯 · SHIFT 비교 · 버리기)
+  로그 `~/.openclaw/workspace/tmp/necro_hs_v182_run.log` ·
+  마커 `~/.openclaw/workspace/tmp/necro_hs_v182_run.log.done`
   (다음 감시는 **이 마커**를 본다. 크론 payload 의 V-160 은 오늘 아침에 끝난 낡은 것이다.)
+- V-181 은 19:17 에 끝나 커밋됨(`497d9c8`) · 19:30 에 컷과 함께 보고했다.
