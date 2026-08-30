@@ -175,8 +175,13 @@ OBJ = {
              "solid dark in the middle, fading out at the edges", 112, 112),
   # ★ V-164 — "pebbles lying on the floor" 가 **올려 놓은 돌**을 불렀다(둥근 회색 접시).
   #   흩어진 «가루 자국»으로 말한다.
-  "pebble": (f"{BASE}, a faint scatter of fine grit and stone dust marking the flat floor, "
-             "tiny specks, no volume", 96, 80),
+  # ★ V-179 — V-178 이 dust 에서 낸 처방을 그대로 옮긴다. 여기 조리법이 정확히
+  #   그 실패꼴이었다("faint scatter ... tiny specks") — 봉우리 +16.2 로 띠 밖.
+  #   "faint"·"scatter"·"specks" 를 빼고 «뭉친 한 자국» 으로 말한다. dust 와
+  #   갈라 두려고 결만 거칠게 남긴다(dust 는 번진 것, pebble 은 박힌 것).
+  "pebble": (f"{BASE}, a dark patch of coarse gravel worn into the stone floor, "
+             "one connected patch with a rough grainy texture, "
+             "darker in the middle, fading softly at the edges", 96, 80),
   # ── 마을 ── 흙길과 풀
   "path":   (f"{BASE}, a stretch of bare dirt path worn smooth by footsteps, slightly lighter "
              "than the surrounding ground, with faint wheel ruts", 160, 112),

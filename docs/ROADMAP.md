@@ -16240,3 +16240,24 @@ into the stone, **one connected patch**, darker in the middle, fading softly at 
       밝기 손잡이가 아니라 **조리법의 꼴 낱말**을 `dust` 와 같은 식으로 바꾸면 된다.
       `grass` 는 마을용이라 크립트와 무관하지만 마을 바닥에서 같은 「허연 얼룩」이 날 수 있다.
       `path`(+41.6) 는 길 그림이라 밝은 게 맞다 — 자에서 뺄지 정할 것.
+
+### V-179 — `pebble` 에 V-178 의 처방을 옮기고, **마을 얼룩 셋을 자에서 뺀다** (감시 세션 2026-08-30 18:0x)
+V-178 이 남긴 항목은 「`pebble`(+16.2) · `grass`(+36.6) 도 같은 자에 걸린다」였다.
+집기 전에 **화면에 나오는지부터 봤다** — ★ [[knob-that-does-nothing]].
+
+- [x] **`grass`·`path`·`mud` 는 hs/ 화면에 한 장도 안 나온다.** `DEC_IMG` 는
+      `[stain, crack, dust]` 뿐이고, 셋은 `main.js:31` 의 `DECOR_PRELOAD` 에만 이름이 있다.
+      **hs/ 에 마을이 아직 없다.** 그러니 셋을 굽는 것은 화면에 없는 그림을 고치는 일이다 —
+      V-172~V-173b 가 `dust`·`stain` 에 두 판을 태운 그 자리다. **마을을 만들 때 함께 굽는다.**
+      · `path`(+41.6) 는 덧붙여, **밝은 게 맞다** — 조리법이 "slightly lighter than the
+        surrounding ground" 로 그렇게 시키고 있다. 자에 걸리는 게 아니라 자가 잘못 겨눈다.
+- [ ] **`pebble` 은 굽는다** — 통과하면 `DEC_IMG` 에 넣어 크립트 얼룩이 3종 → **4종**이 된다.
+      즉 이건 화면이 바뀌는 고침이다. 지금 조리법이 V-178 이 무너뜨린 **그 실패꼴**이다:
+      `"a faint scatter of fine grit and stone dust ... tiny specks, no volume"` (봉우리 +16.2).
+      → `"a dark patch of coarse gravel worn into the stone floor, one connected patch with
+      a rough grainy texture, darker in the middle, fading softly at the edges"`.
+      `darker=0.62` 는 그대로 두고 **꼴 낱말만** 바꿨다(V-178 과 같은 방식).
+      `dust` 와 한 그림이 되지 않게 결만 거칠게 갈라 뒀다 — dust 는 「번진 것」, pebble 은 「박힌 것」.
+      · 스테이징 `assets/decalbake_v179` → 깃털 `_soft`. 자 넷을 다 돌린다
+        (밝기 전/꼴/밝기 후/회귀). **화면 판정은 깃털 «후»** 로 한다(V-178 이 정한 대로).
+      · 18:0x 착수 · `tools/hs_v179_run.sh` · 로그 `tmp/necro_hs_v179_run.log`
