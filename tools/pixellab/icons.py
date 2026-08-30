@@ -93,6 +93,29 @@ ICONS = {
   "tac_always":  f"{TONE}, a swirling vortex of crimson and violet curse energy filling the whole "
                  "square frame corner to corner, small screaming skulls caught spinning around in "
                  "the swirl, endless relentless motion, seen straight from the front",
+  # ── V-191 성장 창 스킬 넷 ── 성장 창의 일곱 칸 중 셋은 이미 있는 것을 쓴다
+  #   (nova→시체폭발 · amp→저주 · raise→소환 자리). 남는 넷을 여기서 굽는다.
+  #   교훈대로: 부정어는 안 듣는다 · 「emblem/structure/wall」 은 액자·받침판을 부른다 ·
+  #   짧은 축은 «어디까지 차는지»를 직접 말해 늘린다([[sprite-brings-its-own-ground]]).
+  # ★ spear(뼈창): 세로 막대는 가로가 0.3 밖에 안 차 42px 에서 얇은 선이 된다 —
+  #   대각선으로 던져 두 축을 다 채운다.
+  "spear": f"{TONE}, a single sharpened bone javelin hurled diagonally from the lower left corner "
+           "to the upper right corner of the frame, jagged splintered point at the tip, pale "
+           "motion streaks trailing behind it, spanning the whole square corner to corner",
+  # ★ grade(소환 등급): «등급을 올린다» 는 진급이다 — 해골 위로 금빛 갈매기표(chevron) 를 쌓아
+  #   위로 오르는 뜻을 낸다. 「crown」 은 왕관을 부르니 chevron 으로 못 박는다.
+  "grade": f"{TONE}, a bone white horned skull in the lower half of the frame, three glowing golden "
+           "upward pointing chevron arrows stacked above it rising to the top edge, a rank "
+           "promotion, the skull and chevrons together fill the whole square",
+  # ★ mdmg(소환수 피해): 소환수의 «때리는 힘» — 뼈칼 둘을 X 로 겹쳐 두 축을 다 채우고 붉은 타격.
+  "mdmg":  f"{TONE}, two jagged bone swords crossed in a big X shape corner to corner, a bright "
+           "blood red impact slash bursting behind the crossing point, filling the whole square "
+           "frame from edge to edge",
+  # ★ mhp(소환수 생명): 소환수의 «버티는 힘» — 갈비뼈로 짠 둥근 방패에 초록 생명 기운. 방패는
+  #   가로세로가 고른 원이라 두 축이 저절로 찬다.
+  "mhp":   f"{TONE}, a round heavy shield built from curved rib bones with a skull boss in the "
+           "center, wrapped in a soft emerald green vitality glow, thick and sturdy, filling the "
+           "whole square frame corner to corner",
 }
 COMMON = {"outline": "single color outline", "shading": "detailed shading", "detail": "high detail"}
 

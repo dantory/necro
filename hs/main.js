@@ -268,6 +268,7 @@ const SKILL_TREES = {
     { key: "curse", name: "저주",       max: 10, per: "모든 피해 +4%",    field: "dmgMul",     prereq: "nova", syn: [{ from: "지능", pct: 2 }] },
   ] },
 };
+const SKILL_ICON = { slot: "raise", grade: "grade", mdmg: "mdmg", mhp: "mhp", spear: "spear", nova: "nova", curse: "amp" };
 function skillNode(key) { for (const t of Object.values(SKILL_TREES)) for (const n of t.nodes) if (n.key === key) return n; return null; }
 function skillLocked(node) { return !!node.prereq && G.player.skill[node.prereq] < 1; }
 
@@ -1577,6 +1578,13 @@ function toggleChar() {
   if (charOpen) renderChar(); else invReleaseTips();
 }
 function invReleaseTips() { el("chartip").style.display = "none"; }
+let charName = "Necromancer";
+function renameChar() {
+  const nm = (window.prompt("소환사 이름", charName) || "").trim();
+  if (!nm) return;
+  charName = nm;
+  const c = document.querySelector(".cls"); if (c) c.textContent = charName;
+}
 function star(col) { return `<span class="star" style="background:${col}"></span>`; }
 function attrTrim(v) { return Number.isInteger(v) ? String(v) : String(+v.toFixed(2)); }
 function attrLive(p, key) {
@@ -1621,6 +1629,7 @@ function renderChar() {
       const lv = p.skill[n.key], locked = skillLocked(n);
       h += `${i ? `<div class="sconn ${locked ? "off" : ""}"></div>` : ""}` +
         `<div class="snode ${locked ? "locked" : ""}" data-tip="${n.key}">` +
+        `<img class="sicon" src="../assets/ui/icon/${SKILL_ICON[n.key]}.png" onerror="this.remove()">` +
         `<div class="scount">${lv}<span class="smax">/${n.max}</span></div>` +
         `<div class="sname">${n.name}</div>` +
         `<button class="splus" data-s="${n.key}">+</button>` +
@@ -1628,10 +1637,11 @@ function renderChar() {
     });
     h += `</div></div>`;
   }
-  h += `</div><div class="skpts">Skill Points: <b>${p.sklPts}</b></div>`;
+  h += `</div></div><div class="skpts">Skill Points: <b>${p.sklPts}</b></div>`;
   h += `<div class="charbtns">` +
-    `<button data-reset="attr">Reset Attributes</button>` +
     `<button data-reset="skill">Reset Skills</button>` +
+    `<button data-reset="attr">Reset Attributes</button>` +
+    `<button data-rename="1">Rename</button>` +
     `<button data-close="1">Close</button></div>`;
   el("char").innerHTML = h;
 }
@@ -1682,6 +1692,7 @@ function bindChar() {
     else if (b.dataset.s) spendSkill(b.dataset.s);
     else if (b.dataset.reset === "attr") resetAttrs();
     else if (b.dataset.reset === "skill") resetSkills();
+    else if (b.dataset.rename) renameChar();
     else if (b.dataset.close) toggleChar();
     if (charOpen) renderChar();
   });
