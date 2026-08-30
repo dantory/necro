@@ -107,7 +107,7 @@ export function genFloor(floor) {
 //   고친 것이다. ★ [[knob-that-does-nothing]] · [[carry-fixes-forward]]
 //   → 그리는 것을 좋은 둘로 바꾼다. `crack`·`pebble`·`mud` 는 «원형 접시»를 벗겨 다시
 //     구울 때까지 뺀다(파일은 `assets/decal/` 에 그대로 있다).
-const DEC_IMG = ["decal/dust.png", "decal/stain.png"];
+const DEC_IMG = ["decal/dust.png", "decal/stain.png", "decal/crack.png"];
 const PROP_IMG = ["decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png",
   "decor/urn.png", "decor/coffin.png", "decor/rubble.png", "decor/statue.png"];
 
