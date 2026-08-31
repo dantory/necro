@@ -169,11 +169,22 @@ const SAMPLE = `(() => {
   let enem = 0;
   for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive && onScreen(m.x, m.y)) enem++;
 
+  const fr = (window.__floatRects || []).filter(r => r.dmg);
+  let ovDmg = 0;
+  for (let i = 0; i < fr.length; i++) for (let j = i + 1; j < fr.length; j++) if (ov(fr[i], fr[j])) ovDmg++;
+  const byName = new Map();
+  for (const L of labels) { const n = L.it && L.it.item ? L.it.item.name : '?'; byName.set(n, (byName.get(n) || 0) + 1); }
+  let maxSameLabel = 0; for (const c of byName.values()) if (c > maxSameLabel) maxSameLabel = c;
+  const els = window.__eliteLabels || [], brs = window.__boomRects || [];
+  let labelOnBoom = 0;
+  for (const L of els) if (L.drawn) for (const b of brs) if (ov(L, b)) { labelOnBoom++; break; }
+
   return { nboom: (window.__boomRects || []).length, boomObs,
     nhit: (window.__hitRects || []).length, hitObs,
     spearHitN: window.__spearHitN || 0, hitDrawnN: window.__hitDrawnN || 0,
     spearObs,
-    nlab: labels.length, nplayer: players.length, nmob: mobs.length, plHit, mbHit, enem };
+    nlab: labels.length, nplayer: players.length, nmob: mobs.length, plHit, mbHit, enem,
+    v211: { ovDmg, nDmg: fr.length, maxSameLabel, labelOnBoom, nElite: els.length } };
 })()`;
 
 const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
@@ -186,7 +197,7 @@ async function runOne(seed, shots) {
   const S = (m, p) => raw(m, p, sessionId);
   const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
   await S("Page.enable"); await S("Runtime.enable");
-  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) });
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) + `;globalThis.__V211=${process.env.V211 !== "off"};` });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
   let booted = false;
@@ -200,10 +211,18 @@ async function runOne(seed, shots) {
   const samples = [];
   const shotAt = shots ? new Set([20, 60, 120]) : new Set();
   const shotDone = new Set();
+  const TAG = process.env.V211TAG || "", worst = { a: -1, b: -1, c: -1 };
+  const grabWorst = async (key, val) => {
+    if (!TAG || val <= worst[key]) return;
+    worst[key] = val;
+    const r = await S("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(`tmp/hs_v211_${TAG}_${key}.png`, Buffer.from(r.data, "base64"));
+  };
   while (Date.now() - t0 < SEC * 1000) {
     await sleep(500);
     const s = await ev(SAMPLE);
-    if (s) samples.push({ t: (Date.now() - t0) / 1000, ...s });
+    if (s) { samples.push({ t: (Date.now() - t0) / 1000, ...s });
+      if (s.v211) { await grabWorst("a", s.v211.ovDmg); await grabWorst("b", s.v211.maxSameLabel); await grabWorst("c", s.v211.labelOnBoom); } }
     const el = Math.round((Date.now() - t0) / 1000);
     // 컷은 «폭발이 살아있는 그 프레임»을 잡아야 한다 — 폭발 수명은 0.55초라 500ms 표본과 어긋난다.
     //   촘촘히(60ms) 폭발을 살펴 하나라도 뜨는 즉시 찍는다(최대 5초 기다린다).
@@ -235,8 +254,15 @@ async function runOne(seed, shots) {
   const withLabMob = samples.filter(x => x.nlab >= 1 && x.nmob >= 1);
   const enemA = samples.map(x => x.enem);
   const engaged = enemA.filter(v => v >= 1);
+  const v = samples.map(x => x.v211).filter(Boolean);
+  const v211 = {
+    ovDmgMax: Math.max(0, ...v.map(x => x.ovDmg)),
+    sameLabelMax: Math.max(0, ...v.map(x => x.maxSameLabel)),
+    labelOnBoomFrames: v.filter(x => x.labelOnBoom > 0).length,
+    eliteFrames: v.filter(x => x.nElite > 0).length,
+  };
   return {
-    seed, n: samples.length, framep95, spearHitN, hitDrawnN,
+    seed, n: samples.length, framep95, spearHitN, hitDrawnN, v211,
     boomN: boomObs.length,
     boomColorMed: median(boomObs.map(o => o.nColor)),
     boomWidthMed: median(boomObs.map(o => o.width)),
@@ -265,6 +291,7 @@ async function main() {
     const r = await runOne(SEEDS[i], shots);
     if (!r) { log(`  씨앗 ${SEEDS[i]} — 실패`); continue; }
     r.errs = errs.length; runs.push(r);
+    log(`  [V-211] ㉠겹친피해수쌍 max ${r.v211.ovDmgMax} · ㉡같은이름표 max ${r.v211.sameLabelMax} · ㉢폭발위이름표 ${r.v211.labelOnBoomFrames}/${r.v211.eliteFrames}프레임`);
     const ratio = pct(r.hitDrawnN, r.spearHitN);
     log(`  씨앗 ${SEEDS[i]}: 표본 ${r.n}` +
       ` · ㉠폭발 색 ${r.boomColorMed}·폭 ${r.boomWidthMed}px·불투명 ${r.boomLitMed}(관측 ${r.boomN})` +

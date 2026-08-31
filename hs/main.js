@@ -1132,6 +1132,7 @@ function drawWorld() {
   barRects = [];
   silRects = [];
   ringRects = [];
+  eliteLabels = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   drawList.sort((a, b) => a.y - b.y);
@@ -1144,6 +1145,7 @@ function drawWorld() {
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
   window.__silRects = silRects;
   window.__ringRects = ringRects;
+  window.__eliteLabels = eliteLabels;
   for (const ch of G.chests) drawChestBeacon(ch);
   PROF.seg("actors");
 
@@ -1644,6 +1646,10 @@ function recordBar(m, halfW, top, totalH, headTop, anchorBottom, dir) {
 // opaqueHeadTop(머리끝)·footMetrics(가로 불투명 경계 leftFrac/rightFrac)로 그려진 몸의
 // 사각을 구해 화면좌표로 낸다. 바닥 이름표가 이 사각을 덮으면(주인공은 특히) 위로 밀어낸다.
 let silRects = [];
+let eliteLabels = [];   // V-211 ㉢: 이 프레임에 그린 정예 이름표의 «화면» 사각 + 그렸는지(폭발과 겹치면 접는다)
+// V-211 손잡이 — 세 고침(㉠피해수 가로회피·㉡같은이름표 ×N·㉢폭발 위 이름표 접기)을 한 번에
+//   되돌린다. `globalThis.__V211=false` 면 옛 동작(자가 before 를 이 한 손잡이로 잰다).
+const V211 = () => globalThis.__V211 !== false;
 function silScreenRect(base, x, y, h) {
   const fm = footMetrics(base);
   const w = h * (fm ? fm.aspect : 0.6);
@@ -1688,11 +1694,18 @@ function drawEnemy(m) {
     const top = pushBarUp(m.x, halfW, headTop - BAR_GAP - totalH, totalH), by = top + 1;
     ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, totalH);
     ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
-    ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
+    const nm = m.name || "정예";
+    const lsx = (m.x - cam.x) * Z, lsy = (by - 6 - cam.y) * Z;
     ctx.font = "bold 11px 'Times New Roman',serif"; ctx.textAlign = "center";
-    ctx.fillStyle = "#000"; ctx.fillText(m.name || "정예", 0.6, 0.6);
-    ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "정예", 0, 0);
-    ctx.restore();
+    const lhw = ctx.measureText(nm).width / 2 + 2;
+    const onBoom = V211() && labelOverBoom(lsx, lsy, lhw);
+    if (!onBoom) {
+      ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
+      ctx.fillStyle = "#000"; ctx.fillText(nm, 0.6, 0.6);
+      ctx.fillStyle = "#8ac06a"; ctx.fillText(nm, 0, 0);
+      ctx.restore();
+    }
+    eliteLabels.push({ x0: lsx - lhw, y0: lsy - 13, x1: lsx + lhw, y1: lsy, drawn: !onBoom });
     recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
   } else if (hpf < 1) {
     const bw = m.r * 2.2, halfW = bw / 2 + 1, totalH = 6;
@@ -1703,6 +1716,15 @@ function drawEnemy(m) {
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
+// 정예 이름표 화면사각이 «살아있는 시체폭발»의 화면사각과 겹치나(폭발 반경은 drawWorld 와 같은 식).
+function labelOverBoom(lsx, lsy, lhw) {
+  for (const b of G.booms) {
+    const hx = (b.rad * (1.3 + 0.7 * (b.t / b.life)) / 2) * Z;
+    const bx = (b.x - cam.x) * Z, by = (b.y - cam.y) * Z;
+    if (lsx - lhw < bx + hx && lsx + lhw > bx - hx && lsy - 13 < by + hx && lsy > by - hx) return true;
+  }
+  return false;
+}
 
 // ★★ V-164 (2026-08-30) — **코드로 그리던 계단을 구운 그림으로 되돌린다.**
 //   병수님 08:33: 「에셋 픽셀랩 써서 제대로 뽑아라 … fillRect 로 그리거나 로컬로 만들어
@@ -1856,6 +1878,22 @@ function drawItems() {
     if (hover && !picks.includes(hover)) picks.push(hover);
     if (!picks.length) { let bd = 1e18, one = null; for (const o of vis) if (o.d < bd) { bd = o.d; one = o; } if (one) picks = [one]; }
   }
+  // ㉡ V-211 — 같은 이름의 바닥 물건이 여럿이면(빌드 방울 «+2 소환 자리»가 무리째 떨어진다)
+  //   초록 글이 예닐곱 겹으로 쌓여 툴팁을 덮었다. 한 이름당 가장 좋은/가까운 하나만 그리고,
+  //   화면 안 같은 이름 물건 수(vis 로 셈)를 «×N» 으로 붙인다. picks 는 이미 등급·거리순.
+  if (V211()) {
+    const nameCount = new Map();
+    for (const o of vis) nameCount.set(o.it.item.name, (nameCount.get(o.it.item.name) || 0) + 1);
+    const seenName = new Set(), merged = [];
+    for (const o of picks) {
+      const nm = o.it.item.name;
+      if (seenName.has(nm)) continue;
+      seenName.add(nm);
+      o.count = nameCount.get(nm) || 1;
+      merged.push(o);
+    }
+    picks = merged;
+  }
   const placed = [];
   let drawn = 0;
   for (let pi = 0; pi < picks.length; pi++) {
@@ -1870,7 +1908,7 @@ function drawItems() {
     const lastOne = drawn === 0 && pi === picks.length - 1;
     if (!lastOne && labelHitsMob(o.it, o.sx, ly)) continue;
     placed.push({ x: o.sx, ly });
-    drawItemLabel(o.it, o.sx, o.sy, ly);
+    drawItemLabel(o.it, o.sx, o.sy, ly, o.count);
     drawn++;
   }
 }
@@ -1900,17 +1938,18 @@ function liftLabelAboveLiving(it, sx, ly) {
   }
   return ly;
 }
-function drawItemLabel(it, sx, sy, ly) {
+function drawItemLabel(it, sx, sy, ly, count) {
   const r = it.item.rarity;
+  const label = count > 1 ? it.item.name + "  ×" + count : it.item.name;
   ctx.font = "13px 'Times New Roman',serif";
-  const w = ctx.measureText(it.item.name).width + 16;
+  const w = ctx.measureText(label).width + 16;
   if (ly < sy - 2) {
     ctx.strokeStyle = r.color + "44"; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, ly + 6); ctx.stroke();
   }
   ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(sx - w / 2, ly - 10, w, 16);
   ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(sx - w / 2, ly - 10, w, 16);
-  ctx.fillStyle = r.color; ctx.fillText(it.item.name, sx, ly + 2);
+  ctx.fillStyle = r.color; ctx.fillText(label, sx, ly + 2);
   itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it, sy, layer: Math.round((sy - ly) / 18) });
 }
 const FLOAT_MARGIN = 4;   // 떠오르는 글자를 캔버스 안으로 밀 때의 여백(좌우·상하 공통)
@@ -1946,18 +1985,24 @@ function drawFloats() {
     // 하단 UI 띠에 «들면»(가로가 겹치고 글자 밑이 띠 위끝을 넘으면) 위로 밀어낸다.
     if (band && sx + hw > band.x0 && sx - hw < band.x1 && sy > band.y0 - M)
       sy = Math.max(M + fs, band.y0 - M);
-    // 같은 시각에 뜬 글자끼리 세로로 어긋나게 — 겹친 글자 위로 올려 쌓는다(밀어내기, 물리 아님).
+    // 같은 시각에 뜬 글자끼리 어긋나게 — 겹치면 위로 올려 쌓고, 천장에 닿으면 옆으로 비킨다.
+    // ㉠ V-211: 위로만 밀던 옛 방식은 화면 위쪽에서 피해수 여럿이 한 줄에 겹쳐 «10.1K17.1K…»로
+    //   뭉갰다(가로 회피가 없었다). 천장에선 겹친 사각의 좌·우 중 캔버스에 남는 쪽으로 옮긴다.
     for (let g = 0; g < 40; g++) {
       const hit = rects.find((q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 && sy > q.y0);
       if (!hit) break;
       const up = hit.y0 - 2;
-      if (up - fs < M) break;   // 천장에 닿으면 멈춘다(붐비면 겹침을 감수 — ㉢ 통과선 ≤10%)
-      sy = up;
+      if (up - fs >= M) { sy = up; continue; }
+      if (!V211()) break;
+      const right = hit.x1 + hw + 1, left = hit.x0 - hw - 1;
+      if (right + hw <= VW - M && (sx <= hit.x1 || left - hw < M)) sx = right;
+      else if (left - hw >= M) sx = left;
+      else break;
     }
     ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
     ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
     ctx.globalAlpha = 1;
-    rects.push({ x0: sx - hw, y0: sy - fs, x1: sx + hw, y1: sy, txt: f.txt });
+    rects.push({ x0: sx - hw, y0: sy - fs, x1: sx + hw, y1: sy, txt: f.txt, dmg: !!f.dmg });
   }
   window.__floatRects = rects;
   window.__floatBand = band;   // 자는 «글자를 앉힌 그 순간의» 띠로 겹침을 재야 한 프레임 어긋남이 안 샌다.
