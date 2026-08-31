@@ -325,13 +325,22 @@ function scatter(rooms, stairs, chests) {
 // ★ 스프라이트가 작아 보여서(task 5) 몸을 1.4배 키운다. 충돌 반지름은 살짝만(1.15) —
 //   너무 키우면 서로 밀려나 무리가 흩어진다.
 const BODY = 1.4, HITR = 1.15;
+// ★ V-203 — 팔②·③ 태그 비율(main.js 손잡이가 켜졌을 때만 읽힌다). 새 에셋 없이 색·크기로 갈라 표시한다.
+const RANGED_FRAC = 0.35, CHARGER_FRAC = 0.30;
 function makeMob(t, x, y, scale, id, elite) {
   const em = elite ? 3.2 : 1;
-  return {
+  const m = {
     id, base: t.base, x, y, hp: t.hp * scale * em, maxhp: t.hp * scale * em,
     dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
     r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: (id * 2.3) % 6, alive: true,
     tb: id & 3, name: elite ? rollEliteName(t.base) : null,
   };
+  // ★ 손잡이가 꺼져 있으면 && 가 Math.random 앞에서 끊겨 RNG 순서가 옛 그대로다 → off 행이 판을 한 톨도 안 바꾼다.
+  if (!elite && globalThis.__RANGED_MOB && Math.random() < RANGED_FRAC) {
+    m.ranged = true; m.base = "mob/skelarch";
+  } else if (!elite && globalThis.__CHARGER_MOB && Math.random() < CHARGER_FRAC) {
+    m.charger = true; m.base = "mob/brute"; m.h *= 1.08; m.r *= 1.05;
+  }
+  return m;
 }

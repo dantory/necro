@@ -32,6 +32,15 @@ const BASE_SLOTS = 8;   // V-186 — 자리 밑값. 위로 「군세」 스킬 �
 const SLOT_CAP_MAX = 24;        // 소환 자리 상한의 천장 — 해골 24 · 거대 8 · 뼈거인 4. 무엇으로 채울지 고르게 한다.
 const BUILD_SLOTS_CAP = 16;     // 빌드 방울로 더 얻는 자리의 천장(밑 8 + 스킬 8 + 빌드 ≤16 → SLOT_CAP_MAX 안에서 논다).
 const MINION_MUL_CAP = 4;       // 빌드 방울 «소환수 피해» 곱의 천장 — ×705 → ×4. 스킬·지능(각각 ×2.4·×1.4)은 그대로.
+// ★★ V-203 — 긴장 실험용 «세 팔». 전부 globalThis 손잡이 · 기본값 꺼짐이라, 켜지 않으면 판이 한 톨도 안
+//   달라진다(자 tools/hs_v203_arms.mjs 가 off 행으로 확인). 아래 값은 손잡이가 켜졌을 때만 읽힌다.
+//   ① __ENEMY_REACH — 적 근접 피해·사거리를 키운다(가장 단순 · 소환수가 다 막으면 그대로 0 일 수 있다).
+//   ② __RANGED_MOB  — 일부 적을 원거리로(뒤에서 쏜다). 화살이 소환수 벽을 «넘어» 사람에게 닿는다.
+//   ③ __CHARGER_MOB — 일부 적을 돌진형으로(사람을 못박아 벽을 뚫고 문다).
+//   ★ 병수님이 표를 보고 고른다 — 자기가 하나를 골라 기본값으로 켜지 않는다(작업지시 D).
+const REACH_DMG_MUL = 3, REACH_ADD = 130;                                  // 팔①: 근접 피해 곱·사거리 덧셈
+const RANGED_RANGE = 470, RANGED_CD = 1.4, RANGED_SPD = 520;               // 팔②: 사거리·재장전초·화살 속도
+const CHARGE_CD = 2.6, CHARGE_RANGE = 620, CHARGE_SPD_MUL = 3.4, CHARGE_DUR = 0.6, CHARGE_BITE = 1.6;  // 팔③
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
@@ -130,7 +139,7 @@ function fresh(floor, carry) {
   return {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
-    spears: [], golds: [], items: [], corpses: [], parts: [], floats: [], booms: [], hits: [],
+    spears: [], golds: [], items: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -441,6 +450,8 @@ function stepEnemies(dt) {
       live++;
       unstick(m, m.r);   // 밀림(separation)·순간이동으로 벽 밖에 나가면 매 프레임 도로 끌어들인다
       if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
+      if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
+      if (m.charger && globalThis.__CHARGER_MOB) { stepCharger(m, p, dt); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
       for (const s of G.minions) {
         const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
@@ -449,15 +460,17 @@ function stepEnemies(dt) {
       const dist = Math.sqrt(td) || 1;
       m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
       m.atk -= dt; m.hit = Math.max(0, m.hit - dt);
-      if (dist > m.r + 30) {
+      const reach = globalThis.__ENEMY_REACH ? m.r + 30 + REACH_ADD : m.r + 30;
+      const dmg = globalThis.__ENEMY_REACH ? m.dmg * REACH_DMG_MUL : m.dmg;
+      if (dist > reach) {
         stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
         m.state = "walk"; m.anim += dt * 9;
       } else {
         m.state = "attack"; m.anim += dt * 9;
         if (m.atk <= 0) {
           m.atk = 0.9;
-          if (tx === p.x && ty === p.y) hurtPlayer(m.dmg);
-          else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } }
+          if (tx === p.x && ty === p.y) hurtPlayer(dmg);
+          else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= dmg; if (s.hp <= 0) killMinion(s); } }
         }
       }
       if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
@@ -465,6 +478,63 @@ function stepEnemies(dt) {
     if (live === 0 && !pk.done) { pk.done = true; G.cleared++; markRoomCleared(pk.room); }
   }
   separateEnemies();
+}
+
+// ★ V-203 팔② — 원거리 적. 타깃을 «사람»으로 못박고 사거리 밖이면 다가가고 너무 붙으면 뒤로 뺀다(카이팅).
+//   재장전이 차면 사람에게 화살(G.foeShots)을 쏜다 — 그 화살은 소환수를 무시하고 날아 벽을 «넘는다».
+function stepRanged(m, p, dt) {
+  m.hit = Math.max(0, m.hit - dt);
+  m.shootCd = (m.shootCd || 0) - dt;
+  const dx = p.x - m.x, dy = p.y - m.y, dist = Math.hypot(dx, dy) || 1;
+  m.dx = dx / dist; m.dy = dy / dist;
+  if (dist > RANGED_RANGE) {
+    stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
+    m.state = "walk"; m.anim += dt * 9;
+  } else if (dist < RANGED_RANGE * 0.5) {
+    stepTo(m, m.x - m.dx * m.spd * 0.6 * dt, m.y - m.dy * m.spd * 0.6 * dt, m.r);
+    m.state = "walk"; m.anim += dt * 9;
+  } else { m.state = "idle"; m.anim += dt * 6; }
+  if (dist <= RANGED_RANGE && m.shootCd <= 0) {
+    m.shootCd = RANGED_CD;
+    const a = Math.atan2(dy, dx);
+    G.foeShots.push({ x: m.x, y: m.y - m.h * 0.4, vx: Math.cos(a) * RANGED_SPD, vy: Math.sin(a) * RANGED_SPD, life: 2.4, dmg: m.dmg });
+    m.state = "attack";
+  }
+  if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+
+// ★ V-203 팔③ — 돌진 적. 타깃을 «사람»으로 못박아 소환수 사이를 지나 좁히다가, 재충전이 차고 사거리 안이면
+//   짧게 «돌진»한다(속도 ×CHARGE_SPD_MUL). 벽을 뚫고 들어와 사람에 닿으면 문다(피해 ×CHARGE_BITE).
+function stepCharger(m, p, dt) {
+  m.hit = Math.max(0, m.hit - dt);
+  m.chargeCd = (m.chargeCd || 0) - dt;
+  const dx = p.x - m.x, dy = p.y - m.y, dist = Math.hypot(dx, dy) || 1;
+  m.dx = dx / dist; m.dy = dy / dist;
+  if (m.charging > 0) {
+    m.charging -= dt;
+    stepTo(m, m.x + m.dx * m.spd * CHARGE_SPD_MUL * dt, m.y + m.dy * m.spd * CHARGE_SPD_MUL * dt, m.r);
+    m.state = "walk"; m.anim += dt * 14;
+    if (dist < p.r + m.r + 8) { hurtPlayer(m.dmg * CHARGE_BITE); m.charging = 0; m.chargeCd = CHARGE_CD; }
+    else if (m.charging <= 0) m.chargeCd = CHARGE_CD;
+  } else if (m.chargeCd <= 0 && dist < CHARGE_RANGE) {
+    m.charging = CHARGE_DUR; m.state = "attack";
+  } else {
+    stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
+    m.state = "walk"; m.anim += dt * 9;
+  }
+  if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+
+// ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
+function stepFoeShots(dt) {
+  if (!G.foeShots.length) return;
+  const p = G.player;
+  for (const sh of G.foeShots) {
+    sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.life -= dt;
+    if (sh.life <= 0) { sh.dead = true; continue; }
+    if ((sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 < (p.r + 16) ** 2) { hurtPlayer(sh.dmg); sh.dead = true; }
+  }
+  G.foeShots = G.foeShots.filter((s) => !s.dead);
 }
 
 // ★ V-183 — 적끼리 밀어낸다. 소환수엔 이미 있었지만(separateMinions) 적엔 없어, 밀도를
@@ -767,6 +837,7 @@ function pickItem(it) {
 
 function hurtPlayer(dmg) {
   const p = G.player;
+  METRIC.hitN = (METRIC.hitN || 0) + 1;
   METRIC.taken += dmg * (1 - p.dr);
   p.hp -= dmg * (1 - p.dr); p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
   flash = Math.max(flash, 0.14); flashColor = "180,40,40";
@@ -982,6 +1053,13 @@ function drawWorld() {
     spearRects.push({ x0: (sp.x - ex - cam.x) * Z, y0: (sp.y - ey - cam.y) * Z, x1: (sp.x + ex - cam.x) * Z, y1: (sp.y + ey - cam.y) * Z });
   }
   window.__spearRects = spearRects;
+  for (const sh of G.foeShots) {
+    const ang = Math.atan2(sh.vy, sh.vx);
+    ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(ang); ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = "#ff5140"; ctx.fillRect(-8, -1.6, 14, 3.2);
+    ctx.fillStyle = "#ffd8a0"; ctx.fillRect(4, -1.6, 4, 3.2);
+    ctx.restore();
+  }
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
   ctx.globalAlpha = 1;
 
@@ -1431,8 +1509,10 @@ function drawActor(s, base) {
 function drawEnemy(m) {
   drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null);
   const tb = m.tb & 3;
-  const rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
+  let rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
+  if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
+  else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
@@ -2137,7 +2217,7 @@ function loop(now) {
   const _t0 = performance.now();
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
-    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepDrops(dt);
+    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     for (const e of G.pickLog) e.t -= dt;
   } else { handleSkills(); }
