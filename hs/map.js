@@ -14,14 +14,17 @@
 //   그래서 **체력을 올려** 무리가 화면에 더 오래 남게 한다(골이 메워진다). 죽는 데 여러
 //   대 맞아야 하니 몰살감(처치 연쇄)도 실제로 «잇달아» 터진다. em(엘리트 3.2배)·층 배수는
 //   그대로라 위층에서 과하지 않게 기본값만 손댄다.
+// ★ V-208 — 몸 크기를 일제히 ×0.72 로 내렸다(병수님 「캐릭터 크기가 너무 과하다」).
+//   재 보니 화면의 13~26% 였는데 레퍼런스는 8~10% 다. 부딪히는 반지름(r)은 그대로 둔다 —
+//   그것은 「몸이 얼마나 자리를 차지하나」라 그림 크기와 따로 잡아야 붐빔이 안 흔들린다.
 const MOB_TYPES = [
-  { base: "mob/fallen", hp: 42, dmg: 6, spd: 178, h: 74, r: 16, gold: [4, 9] },
-  { base: "mob/zombie", hp: 70, dmg: 9, spd: 138, h: 92, r: 20, gold: [5, 11] },
-  { base: "mob/skelarch", hp: 48, dmg: 8, spd: 166, h: 82, r: 16, gold: [5, 10] },
-  { base: "mob/shaman", hp: 54, dmg: 10, spd: 156, h: 84, r: 17, gold: [7, 13] },
-  { base: "mob/brute", hp: 190, dmg: 18, spd: 116, h: 118, r: 26, gold: [12, 22] },
+  { base: "mob/fallen", hp: 42, dmg: 6, spd: 178, h: 53, r: 16, gold: [4, 9] },
+  { base: "mob/zombie", hp: 70, dmg: 9, spd: 138, h: 66, r: 20, gold: [5, 11] },
+  { base: "mob/skelarch", hp: 48, dmg: 8, spd: 166, h: 59, r: 16, gold: [5, 10] },
+  { base: "mob/shaman", hp: 54, dmg: 10, spd: 156, h: 60, r: 17, gold: [7, 13] },
+  { base: "mob/brute", hp: 190, dmg: 18, spd: 116, h: 85, r: 26, gold: [12, 22] },
 ];
-const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 88, h: 150, r: 40, gold: [80, 140] };
+const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 88, h: 108, r: 40, gold: [80, 140] };
 
 // ★ V-183 — 네임드(champion) 이름을 굴린다: 형용사 + 종족 + 칭호, 대문자(HS 의
 //   「SLITHER COMMANDER」꼴). 색은 그리는 쪽(drawEnemy)에서 HS_STYLE 「빛깔·글꼴」의
