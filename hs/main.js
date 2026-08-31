@@ -199,6 +199,7 @@ function start(floor, carry) {
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
   cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
+  camReg = null;
   recalc();
   document.getElementById("dead").style.display = "none";
 }
@@ -208,6 +209,9 @@ function start(floor, carry) {
 // 다 무시했다(V-201). 이제 map.js 가 이미 만드는 rooms·corridors(둘 다 사각형)의
 // 합집합만 걷는다. 새로 지을 것은 없다 — 그 사각형들에 «몸 반지름»을 먹여 판정한다.
 const PLAYER_R = 22;   // 사람 발밑 반지름. 답답하면 여기(또는 미끄러짐)를 손댄다(V-201 주의).
+// ★ V-206 ㉡ — 발사체(뼈창·적 화살) 벽 판정 반지름. 작게 둔다 — 문틀·복도를 지나는 창이 억울하게
+//   안 죽게(6~8 사이). 벽 판정은 inFree(방∪복도)만 본다 — 소품(기둥·상자)까지 막으면 방 안에서 못 싸운다.
+const PROJ_R = 7;
 // 서 있는 물건 — 통과하면 안 된다(몸으로 막는다). 잔해·뼈·항아리·얼룩은 «바닥 그림»이라 뺀다.
 // 계단(stairs)은 «구멍»이라 애초에 props 가 아니고, 여기서도 막지 않는다 — 밟아야 내려간다.
 const BLOCK_IMGS = new Set(["decor/pillar.png", "decor/column2.png", "decor/statue.png",
@@ -263,6 +267,29 @@ function unstick(e, r) {
     }
 }
 
+// ── V-206 ㉠ 카메라를 «보이는 것이 있는 쪽»으로 물린다 ───────────────────────
+// BSP 맵은 방·복도 밖이 전부 검은 암반이라, 사람이 방 벽에 붙으면 카메라가 방 밖 공허를
+// 크게 비춘다(V-201 컷). 그래서 사람이 든 방(문턱이면 방이 이긴다) 사각형 + 여유 안으로
+// 카메라를 한 번 더 clamp 한다. 복도만 밟고 있을 땐 그 복도가 잇는 두 방(corridor.link)까지
+// 품어, 목적지 방이 미리 보이고 좁은 복도에서 카메라가 갇히지 않게 한다. 손잡이 __CAM_CLAMP
+// 가 false 면 옛 맵-전체 clamp 로 되돌아간다(before 측정·되돌리기용).
+const CAM_MARGIN = 48;   // 방 사각형 밖으로 카메라가 더 보여 주는 여유 — 벽 두께가 화면에 들 만큼.
+let camReg = null;       // 직전 프레임 region — 사람이 잠깐 어느 rect 에도 안 들 때 튐 방지용.
+function rectUnion(a, b) {
+  const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y);
+  const x1 = Math.max(a.x + a.w, b.x + b.w), y1 = Math.max(a.y + a.h, b.y + b.h);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+function playerRegion(p) {
+  for (const rm of G.rooms) if (p.x >= rm.x && p.x <= rm.x + rm.w && p.y >= rm.y && p.y <= rm.y + rm.h) return rm;
+  for (const c of G.corridors) if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
+    let reg = c;
+    if (c.link) for (const ri of c.link) { const rm = G.rooms[ri]; if (rm) reg = rectUnion(reg, rm); }
+    return reg;
+  }
+  return null;
+}
+
 function stepPlayer(dt) {
   const p = G.player;
   let mx = 0, my = 0;
@@ -286,10 +313,19 @@ function stepPlayer(dt) {
   if (p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 60 * dt);
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
 
-  cam.x += (p.x - VW / (2 * Z) - cam.x) * Math.min(1, dt * 8);
-  cam.y += (p.y - VH / (2 * Z) - cam.y) * Math.min(1, dt * 8);
-  cam.x = Math.max(0, Math.min(G.W - VW / Z, cam.x));
-  cam.y = Math.max(0, Math.min(G.H - VH / Z, cam.y));
+  const vw = VW / Z, vh = VH / Z;
+  let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
+  const reg = (globalThis.__CAM_CLAMP !== false && G.rooms) ? (playerRegion(p) || camReg) : null;
+  if (reg) {
+    camReg = reg;
+    const x0 = reg.x - CAM_MARGIN, y0 = reg.y - CAM_MARGIN, x1 = reg.x + reg.w + CAM_MARGIN, y1 = reg.y + reg.h + CAM_MARGIN;
+    tcx = (x1 - x0 <= vw) ? (x0 + x1) / 2 - vw / 2 : Math.max(x0, Math.min(x1 - vw, tcx));
+    tcy = (y1 - y0 <= vh) ? (y0 + y1) / 2 - vh / 2 : Math.max(y0, Math.min(y1 - vh, tcy));
+  }
+  cam.x += (tcx - cam.x) * Math.min(1, dt * 8);
+  cam.y += (tcy - cam.y) * Math.min(1, dt * 8);
+  cam.x = Math.max(0, Math.min(G.W - vw, cam.x));
+  cam.y = Math.max(0, Math.min(G.H - vh, cam.y));
 }
 
 function fireSpear(p, tx, ty) {
@@ -522,7 +558,8 @@ function stepEnemies(dt) {
 }
 
 // ★ V-203 팔② — 원거리 적. 타깃을 «사람»으로 못박고 사거리 밖이면 다가가고 너무 붙으면 뒤로 뺀다(카이팅).
-//   재장전이 차면 사람에게 화살(G.foeShots)을 쏜다 — 그 화살은 소환수를 무시하고 날아 벽을 «넘는다».
+//   재장전이 차면 사람에게 화살(G.foeShots)을 쏜다 — 그 화살은 소환수를 무시하고 날아 «소환수 벽»을 넘는다
+//   (V-206 부터 지형 벽은 못 넘는다 — stepFoeShots 가 inFree 밖에서 죽인다).
 function stepRanged(m, p, dt) {
   m.hit = Math.max(0, m.hit - dt);
   m.shootCd = (m.shootCd || 0) - dt;
@@ -566,13 +603,15 @@ function stepCharger(m, p, dt) {
   if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
 }
 
-// ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
+// ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(소환수 벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
+//   ★ V-206 — 다만 «지형 벽»(방·복도 밖)은 못 넘는다 — inFree 밖이면 그 자리에서 죽고 튐을 남긴다(stepFoeShots).
 function stepFoeShots(dt) {
   if (!G.foeShots.length) return;
   const p = G.player;
   for (const sh of G.foeShots) {
     sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.life -= dt;
     if (sh.life <= 0) { sh.dead = true; continue; }
+    if (globalThis.__PROJ_WALL !== false && !inFree(sh.x, sh.y, PROJ_R)) { sh.dead = true; projSpark(sh.x, sh.y, "#ff9a4a"); continue; }
     if ((sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 < (p.r + 16) ** 2) { hurtPlayer(sh.dmg); sh.dead = true; }
   }
   G.foeShots = G.foeShots.filter((s) => !s.dead);
@@ -671,10 +710,15 @@ function stepMinions(dt) {
 
 function killMinion(s) { const i = G.minions.indexOf(s); if (i >= 0) G.minions.splice(i, 1); }
 
+// ★ V-206 ㉡ — 발사체가 벽에 맞아 죽을 때 남기는 작은 튐. 그냥 사라지면 「먹혔다」로 보인다.
+//   새 배열 없이 기존 파티클(burst→G.parts)만 재활용한다. 색은 부르는 쪽이 준다(창=파랑·화살=주황).
+function projSpark(x, y, col) { for (let i = 0; i < 4; i++) burst(x, y, col, 70); }
+
 function stepSpears(dt) {
   for (const sp of G.spears) {
     sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.life -= dt;
     if (sp.life <= 0) { sp.dead = true; continue; }
+    if (globalThis.__PROJ_WALL !== false && !inFree(sp.x, sp.y, PROJ_R)) { sp.dead = true; projSpark(sp.x, sp.y, "#cfe0ef"); continue; }
     forEachEnemy((m) => {
       if (sp.dead) return;
       if ((m.x - sp.x) ** 2 + (m.y - (sp.y)) ** 2 < (m.r + 10) ** 2) {
