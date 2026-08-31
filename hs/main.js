@@ -963,7 +963,11 @@ function hurtPlayer(dmg) {
 }
 
 function die() {
-  G.dead = true; METRIC.deaths++;
+  METRIC.deaths++;
+  // ★ V-220 관찰 전용 — __MEASURE_REVIVE 면 리셋 없이 제자리 만생명(층 1→5 를 죽어도 이어 걷게).
+  //   죽음은 METRIC.deaths·__floorLog.died 로 센다. 기본 미설정 → 옛 그대로 판을 끝낸다(byte-동일).
+  if (globalThis.__MEASURE_REVIVE) { G.player.hp = G.player.maxhp; return; }
+  G.dead = true;
   const d = document.getElementById("dead");
   d.querySelector(".dstat").textContent = `B${G.floor}층까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
   d.style.display = "flex";
