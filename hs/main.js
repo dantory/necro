@@ -851,6 +851,7 @@ function drawWorld() {
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
   const drawList = [];
   barRects = [];
+  silRects = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   drawList.sort((a, b) => a.y - b.y);
@@ -861,6 +862,7 @@ function drawWorld() {
   }
   window.__barRects = barRects;
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
+  window.__silRects = silRects;
   for (const ch of G.chests) drawChestBeacon(ch);
   PROF.seg("actors");
 
@@ -1234,6 +1236,7 @@ function drawPlayer() {
   ctx.globalAlpha = 1;
   if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
+  recordSil("player", PLAYER_BASE, p.x, p.y, PLAYER_H);
 }
 // ── V-196 — 머리 위 체력바를 «그려진 실루엣의 불투명 위끝»에 건다 ─────────────────
 // spriteFoot 이 발밑에 한 일을 머리 위에 그대로: footMetrics 의 (footFrac+headFrac)로
@@ -1260,6 +1263,19 @@ function recordBar(m, halfW, top, totalH, headTop, anchorBottom, dir) {
   barRects.push({ x0: m.x - halfW, y0: top, x1: m.x + halfW, y1: top + totalH,
     headTop, anchorBottom, base: m.base, dir, tb: m.__tb, elite: !!m.elite });
 }
+// ── V-197 — 살아있는 것의 «화면» 실루엣 사각 ─────────────────────────────────
+// opaqueHeadTop(머리끝)·footMetrics(가로 불투명 경계 leftFrac/rightFrac)로 그려진 몸의
+// 사각을 구해 화면좌표로 낸다. 바닥 이름표가 이 사각을 덮으면(주인공은 특히) 위로 밀어낸다.
+let silRects = [];
+function silScreenRect(base, x, y, h) {
+  const fm = footMetrics(base);
+  const w = h * (fm ? fm.aspect : 0.6);
+  const left = x - w / 2 + (fm ? fm.leftFrac * w : 0);
+  const right = x - w / 2 + (fm ? fm.rightFrac * w : w);
+  const top = opaqueHeadTop(base, y, h);
+  return { x0: (left - cam.x) * Z, y0: (top - cam.y) * Z, x1: (right - cam.x) * Z, y1: (y - cam.y) * Z };
+}
+function recordSil(who, base, x, y, h) { const r = silScreenRect(base, x, y, h); r.who = who; silRects.push(r); }
 
 function drawActor(s, base) {
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
@@ -1277,6 +1293,7 @@ function drawEnemy(m) {
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
     fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
+  recordSil("mob", m.base, m.x, m.y, m.h);
   const hpf = Math.max(0, m.hp / m.maxhp);
   // ★ V-196 — 바를 «불투명 위끝»에 건다(m.h 이름값 아님). GAP=2 월드만큼 위, 겹치면 밀어낸다.
   const headTop = opaqueHeadTop(m.base, m.y, m.h);

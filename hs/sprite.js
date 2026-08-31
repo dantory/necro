@@ -66,7 +66,15 @@ export function footMetrics(base) {
     let top = -1;
     for (let y = 0; y < H && top < 0; y++)
       for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 24) { top = y; break; }
-    out = { footFrac: bottom < 0 ? 0 : (H - 1 - bottom) / H, headFrac: Math.max(0, top) / H };
+    // V-197: 세로만이 아니라 «불투명 가로 경계»도 잰다 — 이름표가 실루엣을 덮는지 볼 때
+    //   그린 폭(투명 여백 포함)이 아니라 실제 몸의 폭으로 견줘야 한다(매직넘버 금지).
+    let left = W, right = -1;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 24) { if (x < left) left = x; if (x > right) right = x; }
+    out = {
+      footFrac: bottom < 0 ? 0 : (H - 1 - bottom) / H, headFrac: Math.max(0, top) / H,
+      leftFrac: right < left ? 0 : left / W, rightFrac: right < left ? 1 : (right + 1) / W,
+      aspect: W / H,
+    };
   } catch { out = null; }
   FOOT.set(base, out);
   return out;
