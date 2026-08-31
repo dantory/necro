@@ -161,9 +161,12 @@ export function genFloor(floor) {
     //   한 방에 든 팩이 함께 깨어나므로, 한 자리에 몰리는 수가 곱으로 는다.
     //   자로 재며 잡았다: 2~3×10~18·WAKE 900 은 p50 16.5·p95 32(미달), 3~4×14~24·WAKE 1050
     //   은 p50 50·p95 134(과함 — 온 층이 한꺼번에 몰려 「벽」이 된다). 그 사이로 내린다.
-    const n = rint(3, 4);
+    // ★ V-202b — 방당 팩 3~4 → 2~3, 팩당 14~24 → 10~14. 자로 재니 층당 놓인 적이 330~762 마리로
+    //   «던전 파밍이 아니라 벌판 학살»이었다(tmp/hs_v202b_before.json). 방 수가 깊이로 느는 건 그대로
+    //   두고(V-202) 방당 마릿수만 낮춰 층당 ~300 언저리로 내린다. WAKE·팩 배치 꼴은 안 건드린다.
+    const n = rint(2, 3);
     for (let p = 0; p < n; p++) {
-      const count = rint(12, 18);
+      const count = rint(10, 14);
       const px = rint(room.x + 60, room.x + room.w - 60);
       const py = rint(room.y + 60, room.y + room.h - 60);
       const enemies = [];

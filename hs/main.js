@@ -24,6 +24,14 @@ const CHEST_OPEN_R = 78;
 const Z = 1.5;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
 const BASE_HP = 3315, BASE_MANA = 2286, BASE_SPD = 268, SPEAR_CD = 0.16;
 const BASE_SLOTS = 8;   // V-186 — 자리 밑값. 위로 「군세」 스킬 자리 노드가 쌓인다.
+// ★★ V-202b — 저울에 «천장»을 세운다. 여태 빌드 방울(바닥에 떨어지는 «자리 +2»·«소환수 피해 ×1.3»)이
+//   상한 없이 쌓여, 자(tools/hs_v202b_shape.mjs)로 재니 소환 자리가 8→58·소환수 한 방 피해가
+//   710→1,256,036(빌드 곱 ×705)까지 불었다(tmp/hs_v202b_before.json · 씨앗 다섯 × 층 다섯).
+//   상한이 없으면 ⑴「무엇을 소환할까」가 선택이 아니라 «다 채우기»가 되고 ⑵피해가 여섯·일곱
+//   자리로 뜻을 잃는다([[floor-erases-the-ramp]]). 곱셈으로만 쌓이던 성장에 천장을 준다.
+const SLOT_CAP_MAX = 24;        // 소환 자리 상한의 천장 — 해골 24 · 거대 8 · 뼈거인 4. 무엇으로 채울지 고르게 한다.
+const BUILD_SLOTS_CAP = 16;     // 빌드 방울로 더 얻는 자리의 천장(밑 8 + 스킬 8 + 빌드 ≤16 → SLOT_CAP_MAX 안에서 논다).
+const MINION_MUL_CAP = 4;       // 빌드 방울 «소환수 피해» 곱의 천장 — ×705 → ×4. 스킬·지능(각각 ×2.4·×1.4)은 그대로.
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
@@ -272,7 +280,7 @@ function nearestCorpse(x, y, rad) {
 }
 
 function slotsUsed() { let s = 0; for (const m of G.minions) s += m.slot; return s; }
-function slotCap() { const p = G.player; return p.slots + (p.uniques.has("moreSkel") ? 4 : 0); }
+function slotCap() { const p = G.player; return Math.min(SLOT_CAP_MAX, p.slots + (p.uniques.has("moreSkel") ? 4 : 0)); }
 
 function selectGrade(i) {
   const p = G.player;
@@ -713,8 +721,8 @@ function pickItem(it) {
     G.picks++;
     G.pickLog.unshift({ name: it.item.name, color: it.item.rarity.color, t: 3 });
     if (G.pickLog.length > 6) G.pickLog.pop();
-    if (it.item.build.kind === "slot") p.buildSlots += it.item.build.n || 1;
-    else p.mult.minionDmg *= it.item.build.mul || 1.3;
+    if (it.item.build.kind === "slot") p.buildSlots = Math.min(BUILD_SLOTS_CAP, p.buildSlots + (it.item.build.n || 1));
+    else p.mult.minionDmg = Math.min(MINION_MUL_CAP, p.mult.minionDmg * (it.item.build.mul || 1.3));
     recalc();
     flash = Math.max(flash, 0.18); flashColor = it.item.build.kind === "slot" ? "127,230,160" : "232,162,74";
     // 빌드 알림은 화면 번쩍임 + 좌측 pickLog(초록/주황 그대로)로 이미 크게 알린다 —
