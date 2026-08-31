@@ -17045,3 +17045,6 @@ V-196 은 완주했다(㉠ 바 뜸 73.3→3px · ㉡ 바겹침 1.5→0.0% · ㉢
     `opaqueHeadTop` 으로 냈다 — 매직넘버 없이. `silRects` 는 drawPlayer·drawEnemy 가 남긴다.
   · 고친 파일: `hs/main.js`(silRects·liftLabelAboveLiving·labelHitsMob·drawItems) ·
     `hs/sprite.js`(footMetrics 가로경계). 자 `tools/hs_v197_read.mjs`. 컷 `tmp/v197_t{20,60,120}.png`(교전중).
+  · 회귀 자 다 통과: `hs_v195_hud 120 1,2`(㉠잘림0·㉡띠겹침0%·㉢쌍겹침7.8%·㉣소수0·적p50 32) ·
+    `hs_v196_bars 120 1,2`(㉠뜸 p95 3px·㉡겹침0%·㉢단조10%·적p50 25) · `hs_v186_tree 30 7`
+    (손잡이 13/13·잠금○·Reset○·전투○) · `hs_v190_xp 60 1`(곡선 3 통과). `node --check hs/main.js` 통과.
