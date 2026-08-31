@@ -24,9 +24,13 @@ const mctx = mini.getContext("2d");
 //   ★ 그러면 V-145 에서 병수님이 못박은 것이 통째로 무너진다 —
 //     「무리가 «자리에 잠들어» 있고 가까이 가야 깨어난다 · 화면 밖에서 계속 밀려오지 않는다」.
 //     밸런스를 아무리 잡아도(V-202b·V-203b) 판은 **웨이브 방어**로 되돌아간다.
-//   화면에 보이는 범위는 대략 1000×575 월드 단위(1512×863 ÷ Z 1.5)다. 그 언저리로 내린다 —
-//   **「이 방의 무리」만 깨어나고, 옆방은 내가 갈 때까지 조용하다.**
-const WAKE = 820;
+//   화면에 보이는 범위는 대략 1000×575 월드 단위(1512×863 ÷ Z 1.5)다.
+//   ★ V-207 — 820 을 걸어서 재니(tools/hs_v207_walk) 아직 동시 무리 p95 3·적 32 로 떼거리였다
+//     (방 하나가 팩 2~3 인데 820 이 방 전체+옆방을 덮었다). **화면 반폭(~500)** 으로 내려
+//     동시 무리 p95 2·적 22 로 잡았다 — 「이 방의 무리」만, 그것도 화면에 들어올 때 깨어난다.
+//     팩 크기 10~14 가 고정(V-202b)이라 「동시 적 ≤18」은 팩 둘이면 원리상 못 맞춘다(2×11≒22);
+//     묶는 자는 「동시 무리 ≤2」이고 그게 맞았다.
+const WAKE = 500;
 const CULL = 1400;
 const CHEST_OPEN_R = 78;
 // ★★ V-208 (2026-09-01 00:18 병수님 「아군/적군 캐릭터 크기부터 너무 과한데」) —
@@ -527,9 +531,12 @@ function forEachEnemy(fn) {
 
 function wakePacks() {
   const p = G.player;
+  // 측정용 손잡이 — globalThis.__WAKE 가 숫자면 그 반경으로 깨운다(기본은 WAKE 상수).
+  //   V-207 자가 3000 vs 500 을 나란히 재려고 켰다. 안 켜면 평소 플레이와 byte-동일.
+  const R = typeof globalThis.__WAKE === "number" ? globalThis.__WAKE : WAKE;
   for (const pk of G.packs) {
     if (pk.awake) continue;
-    if ((pk.x - p.x) ** 2 + (pk.y - p.y) ** 2 < WAKE * WAKE) pk.awake = true;
+    if ((pk.x - p.x) ** 2 + (pk.y - p.y) ** 2 < R * R) pk.awake = true;
   }
 }
 
@@ -1569,10 +1576,10 @@ function groundMark(x, y, rx, ry) {
   ctx.beginPath(); ctx.ellipse(x, y, rx * 0.92, ry * 0.92, 0, Math.PI, 0); ctx.stroke();
 }
 
-function drawShadow(x, y, w, col, lw) {
+function drawShadow(x, y, w, col, lw, a) {
   groundMark(x, y, w);
   if (col) {
-    ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
+    ctx.globalAlpha = a || 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
     ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
     ctx.globalAlpha = 1;
     ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: (w + 2) * Z, ry: (w * 0.4 + 1.5) * Z, col });
@@ -1655,7 +1662,10 @@ function drawActor(s, base) {
   if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
 }
 function drawEnemy(m) {
-  drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null);
+  // ★ V-207 — 잡몹 발밑 붉은 고리를 얇고 옅게(1.6px·α0.4). 팩 10~14 가 뭉치면 0.9 짜리
+  //   고리가 겹쳐 바닥이 «붉은 그물»이 됐다(컷으로 봄). 정예는 눈에 띄어야 하니 굵게 둔다.
+  drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null,
+    m.elite ? 2.5 : 1.6, m.elite ? 0.85 : 0.4);
   const tb = m.tb & 3;
   let rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
