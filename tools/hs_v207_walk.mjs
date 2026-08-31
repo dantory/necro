@@ -16,9 +16,9 @@ const LOG = fs.createWriteStream("tmp/hs_v207_walk.log", { flags: "a" });
 const log = (...a) => { const s = a.join(" "); LOG.write(s + "\n"); process.stdout.write(s + "\n"); };
 const HARD = setTimeout(() => { log("WATCHDOG 600s — 강제 종료"); process.exit(9); }, 600000);
 
-const SEED = 1337;
+const SEED = +(process.env.SEED || 1337);
 const VW = 1512, VH = 863;
-const FLOOR_BUDGET = 62000;
+const FLOOR_BUDGET = +(process.env.FLOOR_BUDGET || 62000);
 const BURST = 360;
 
 await ensureChrome({ log, force: true });
