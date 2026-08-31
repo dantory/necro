@@ -199,7 +199,6 @@ function start(floor, carry) {
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
   cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
-  camReg = null;
   recalc();
   document.getElementById("dead").style.display = "none";
 }
@@ -273,21 +272,23 @@ function unstick(e, r) {
 // 카메라를 한 번 더 clamp 한다. 복도만 밟고 있을 땐 그 복도가 잇는 두 방(corridor.link)까지
 // 품어, 목적지 방이 미리 보이고 좁은 복도에서 카메라가 갇히지 않게 한다. 손잡이 __CAM_CLAMP
 // 가 false 면 옛 맵-전체 clamp 로 되돌아간다(before 측정·되돌리기용).
-const CAM_MARGIN = 48;   // 방 사각형 밖으로 카메라가 더 보여 주는 여유 — 벽 두께가 화면에 들 만큼.
-let camReg = null;       // 직전 프레임 region — 사람이 잠깐 어느 rect 에도 안 들 때 튐 방지용.
-function rectUnion(a, b) {
-  const x0 = Math.min(a.x, b.x), y0 = Math.min(a.y, b.y);
-  const x1 = Math.max(a.x + a.w, b.x + b.w), y1 = Math.max(a.y + a.h, b.y + b.h);
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-function playerRegion(p) {
-  for (const rm of G.rooms) if (p.x >= rm.x && p.x <= rm.x + rm.w && p.y >= rm.y && p.y <= rm.y + rm.h) return rm;
-  for (const c of G.corridors) if (p.x >= c.x && p.x <= c.x + c.w && p.y >= c.y && p.y <= c.y + c.h) {
-    let reg = c;
-    if (c.link) for (const ri of c.link) { const rm = G.rooms[ri]; if (rm) reg = rectUnion(reg, rm); }
-    return reg;
-  }
-  return null;
+const CAM_MARGIN = 48;   // 걸을 수 있는 덩어리 밖으로 카메라가 더 보여 주는 여유 — 벽 두께가 화면에 들 만큼.
+// 사람 중심 화면과 겹치는 방·복도의 bbox. 카메라를 이 안으로만 물리는 게 핵심 불변식이다 —
+// 화면에 이미 보이는 walkable 은 절대 안 잘리므로(공허가 늘 수 없다) «항상 같거나 덜 공허»하고,
+// 벽 붙음처럼 덩어리 «너머»가 암반일 때만 그 암반을 덜 비춘다. 겹치는 게 없으면 null(사람 중심 그대로).
+function localBounds(vx, vy, vw, vh) {
+  const vx1 = vx + vw, vy1 = vy + vh;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, hit = false;
+  const acc = (r) => {
+    if (r.x < vx1 && r.x + r.w > vx && r.y < vy1 && r.y + r.h > vy) {
+      hit = true;
+      if (r.x < x0) x0 = r.x; if (r.y < y0) y0 = r.y;
+      if (r.x + r.w > x1) x1 = r.x + r.w; if (r.y + r.h > y1) y1 = r.y + r.h;
+    }
+  };
+  for (const rm of G.rooms) acc(rm);
+  for (const c of G.corridors) acc(c);
+  return hit ? { x0, y0, x1, y1 } : null;
 }
 
 function stepPlayer(dt) {
@@ -315,10 +316,9 @@ function stepPlayer(dt) {
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
-  const reg = (globalThis.__CAM_CLAMP !== false && G.rooms) ? (playerRegion(p) || camReg) : null;
+  const reg = (globalThis.__CAM_CLAMP !== false && G.rooms) ? localBounds(tcx, tcy, vw, vh) : null;
   if (reg) {
-    camReg = reg;
-    const x0 = reg.x - CAM_MARGIN, y0 = reg.y - CAM_MARGIN, x1 = reg.x + reg.w + CAM_MARGIN, y1 = reg.y + reg.h + CAM_MARGIN;
+    const x0 = reg.x0 - CAM_MARGIN, y0 = reg.y0 - CAM_MARGIN, x1 = reg.x1 + CAM_MARGIN, y1 = reg.y1 + CAM_MARGIN;
     tcx = (x1 - x0 <= vw) ? (x0 + x1) / 2 - vw / 2 : Math.max(x0, Math.min(x1 - vw, tcx));
     tcy = (y1 - y0 <= vh) ? (y0 + y1) / 2 - vh / 2 : Math.max(y0, Math.min(y1 - vh, tcy));
   }
