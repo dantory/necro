@@ -6,8 +6,8 @@ set -u
 REPO=/Users/lbs/source/personal/necro
 cd "$REPO" || exit 1
 SEEDS=1,2,3
-echo "═════ V-203b 스윕 시작 $(date +%H:%M) · 씨앗 $SEEDS ═════"
-for mul in 0 16 24 32; do
+echo "═════ V-203b 2차 스윕(브래킷 8·12·14) 시작 $(date +%H:%M) · 씨앗 $SEEDS ═════"
+for mul in 8 12 14; do
   echo "───────── mul=$mul · $(date +%H:%M) ─────────"
   node tools/hs_v203b.mjs "$mul" 5 "$SEEDS" 2>&1 | tail -40
 done
