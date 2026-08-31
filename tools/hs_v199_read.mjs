@@ -205,11 +205,22 @@ async function runOne(seed, shots) {
     const s = await ev(SAMPLE);
     if (s) samples.push({ t: (Date.now() - t0) / 1000, ...s });
     const el = Math.round((Date.now() - t0) / 1000);
-    for (const T of shotAt) if (!shotDone.has(T) && el >= T && s && s.nboom >= 1) {
+    // 컷은 «폭발이 살아있는 그 프레임»을 잡아야 한다 — 폭발 수명은 0.55초라 500ms 표본과 어긋난다.
+    //   촘촘히(60ms) 폭발을 살펴 하나라도 뜨는 즉시 찍는다(최대 5초 기다린다).
+    for (const T of shotAt) if (!shotDone.has(T) && el >= T) {
       shotDone.add(T);
-      const r = await S("Page.captureScreenshot", { format: "png" });
-      fs.writeFileSync(`tmp/v199_t${T}.png`, Buffer.from(r.data, "base64"));
-      log(`  컷 tmp/v199_t${T}.png  (폭발 ${s.nboom} · 명중임팩트 ${s.nhit} · 적 ${s.enem})`);
+      let grabbed = false;
+      for (let k = 0; k < 80 && !grabbed; k++) {
+        const nb = await ev(`(window.__boomRects || []).length`);
+        if (nb >= 1) {
+          const r = await S("Page.captureScreenshot", { format: "png" });
+          fs.writeFileSync(`tmp/v199_t${T}.png`, Buffer.from(r.data, "base64"));
+          const nh = await ev(`(window.__hitRects || []).length`);
+          log(`  컷 tmp/v199_t${T}.png  (폭발 ${nb} · 명중임팩트 ${nh})`);
+          grabbed = true;
+        } else await sleep(60);
+      }
+      if (!grabbed) log(`  컷 tmp/v199_t${T}.png — 폭발 프레임을 못 잡았다(5초 안에 폭발 없음)`);
     }
   }
   const framep95 = (await ev(`window.__prof && window.__prof.summary ? window.__prof.summary().phase.total.p95 : 999`)) ?? 999;
