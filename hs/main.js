@@ -41,6 +41,14 @@ const MINION_MUL_CAP = 4;       // 빌드 방울 «소환수 피해» 곱의 천
 const REACH_DMG_MUL = 3, REACH_ADD = 130;                                  // 팔①: 근접 피해 곱·사거리 덧셈
 const RANGED_RANGE = 470, RANGED_CD = 1.4, RANGED_SPD = 520;               // 팔②: 사거리·재장전초·화살 속도
 const CHARGE_CD = 2.6, CHARGE_RANGE = 620, CHARGE_SPD_MUL = 3.4, CHARGE_DUR = 0.6, CHARGE_BITE = 1.6;  // 팔③
+// ★★ V-203b — 병수님 8-31 17:34 「알아서 해라」 → V-203 표대로 **닿게 하는 팔 + 아프게 하는 팔**을 둘 다 켠다.
+//   ㉠ __RANGED_MOB 을 기본 켬으로. 원거리 화살만 소환수 벽을 «원리로» 넘어 사람에게 닿는다(V-203: 맞은수/초 0.8).
+//      끄는 손잡이는 남긴다 — `globalThis.__RANGED_MOB = false` 로 되돌린다.
+if (globalThis.__RANGED_MOB === undefined) globalThis.__RANGED_MOB = true;
+//   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
+//      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
+//      소환수 vs 적 밸런스는 유지 — hurtPlayer 한 곳에서만 곱한다). 되돌리려면 `globalThis.__FOE_DMG = 1`.
+const FOE_DMG_MUL = globalThis.__FOE_DMG ?? 24;
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
@@ -837,6 +845,7 @@ function pickItem(it) {
 
 function hurtPlayer(dmg) {
   const p = G.player;
+  dmg *= FOE_DMG_MUL;   // ★ V-203b — 사람에게 닿는 피해만 hp 규격으로 키운다(근접·화살·돌진 세 경로가 다 여기로 온다).
   METRIC.hitN = (METRIC.hitN || 0) + 1;
   METRIC.taken += dmg * (1 - p.dr);
   p.hp -= dmg * (1 - p.dr); p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
