@@ -38,8 +38,8 @@ bws.addEventListener("message", ev => { const m = JSON.parse(ev.data);
 await new Promise(r => bws.addEventListener("open", r));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const seedSrc = (seed) => `Math.random = (() => { let s = (${seed} >>> 0) || 1;
-  return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
+const seedSrc = (seed) => `window.__rngN = 0; Math.random = (() => { let s = (${seed} >>> 0) || 1;
+  return () => { window.__rngN++; s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();`;
 
 const MINION = { attr: { int: 20, vit: 10, str: 10 }, skill: { slot: 8, grade: 2, mdmg: 10, mhp: 8, spear: 5 }, grade: 2 };
 
@@ -50,7 +50,9 @@ const AUTO = `(SPEC => {
   const held = new Set();
   const setKeys = want => { for (const k of held) if (!want.has(k)) { ku(k); held.delete(k); }
     for (const k of want) if (!held.has(k)) { kd(k); held.add(k); } };
-  const tap = k => { kd(k); setTimeout(() => ku(k), 40); };
+  const gnow = () => window.__gameSec ? window.__gameSec() * 1000 : performance.now();
+  const rel = [];
+  const tap = k => { kd(k); rel.push([k, gnow() + 40]); };
   const aim = (sx, sy) => cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
   cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, bubbles: true }));
   const A = { lastQ: 0, lastE: 0, lastPt: 0 }; window.__a203 = A;
@@ -72,12 +74,16 @@ const AUTO = `(SPEC => {
   function nearestPack(p) { let b = null, bd = 1e18;
     for (const q of G.packs) { if (q.done) continue; const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; } }
     return b ? { q: b, d: Math.sqrt(bd) } : null; }
-  function tick() {
+  function step() {
     const G = window.G, cam = window.cam;
-    if (!G || !G.player) { requestAnimationFrame(tick); return; }
-    if (G.dead) { tap('r'); requestAnimationFrame(tick); return; }
+    window.__botN = (window.__botN || 0) + 1;
+    for (let i = rel.length - 1; i >= 0; i--) if (gnow() >= rel[i][1]) { ku(rel[i][0]); rel.splice(i, 1); }
+    if (!G || !G.player) return;
+    if (G.dead) { tap('r'); return; }
     ensureBuild();
     const p = G.player;
+    if (window.__lastFloor !== G.floor) { window.__lastFloor = G.floor; window.__floorEnterG = gnow(); }
+    if (gnow() - (window.__floorEnterG || 0) > 12000) { p.x = G.stairs.x; p.y = G.stairs.y; p._f = false; tap('f'); }
     const np = nearestPack(p);
     let tx, ty;
     if (np) { tx = np.q.x; ty = np.q.y; } else { tx = G.stairs.x; ty = G.stairs.y; }
@@ -94,24 +100,17 @@ const AUTO = `(SPEC => {
     if (!np && Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 66) tap('f');
     const ne = nearestEnemy(p);
     if (ne) aim((ne.m.x - cam.x) * Z, (ne.m.y - cam.y) * Z);
-    const now = window.__gameSec ? window.__gameSec() * 1000 : performance.now();
+    const now = gnow();
     if (now - A.lastQ > 380) { A.lastQ = now; tap('q'); }
     if (now - A.lastE > 700) { A.lastE = now; tap('e'); }
     if (now - A.lastPt > 500) { A.lastPt = now; tap('z'); tap('x'); }
-    requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
+  window.__botStep = step;
   return 1;
 })`;
 
-const SAMPLE = `(() => {
-  const G = window.G, p = G.player, M = window.__hsMetric;
-  let spawned = 0; for (const pk of G.packs) spawned += pk.enemies.length;
-  return { floor: G.floor, kills: M.kills, spawned,
-    hpPct: Math.round(100 * p.hp / p.maxhp),
-    hitN: M.hitN || 0, deaths: M.deaths || 0,
-    gsec: (window.__gameSec ? window.__gameSec() : 0) };
-})()`;
+const PROGRESS = `(() => ({ n: (window.__floorLog || []).length,
+  g: (window.__gameSec ? window.__gameSec() : 0), dead: !!(window.G && window.G.dead) }))()`;
 
 const r1 = n => Math.round(n * 10) / 10;
 
@@ -133,54 +132,31 @@ async function runOne(seed) {
 
   await ev(`(${AUTO})(${JSON.stringify(MINION)})`);
   await sleep(700);
-  await ev(`Object.assign(window.__hsMetric, { spear:0, nova:0, minion:0, taken:0, deaths:0, kills:0, grains:0, hitN:0 })`);
+  await ev(`${seedSrc(seed)}
+    window.__restart(1);
+    Object.assign(window.__hsMetric, { spear:0, nova:0, minion:0, taken:0, deaths:0, kills:0, grains:0, hitN:0 });
+    window.__floorLogReset && window.__floorLogReset();
+    window.__lastFloor = undefined; window.__botN = 0;`);
 
-  const floors = {};
-  let cur = null, curFloor = 0, floorStartG = 0, startG = null;
   const wallStart = Date.now();
-
+  let startG = null;
   while (true) {
     await sleep(250);
-    const s = await ev(SAMPLE);
+    const s = await ev(PROGRESS);
     if (!s) break;
-    if (startG == null) startG = s.gsec;
-    if (s.floor !== curFloor) {
-      if (cur) { cur.killEnd = s.kills; cur.t1 = s.gsec; cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; }
-      curFloor = s.floor;
-      floorStartG = s.gsec;
-      cur = floors[curFloor] = { floor: curFloor, samples: [], killStart: s.kills, hitStart: s.hitN, deathStart: s.deaths, t0: s.gsec };
-      if (curFloor > MAXFLOOR) break;
-    }
-    cur.samples.push(s);
-
-    if (s.gsec - floorStartG > FLOORCAP) {
-      await ev(`(() => { const p = G.player; p.x = G.stairs.x; p.y = G.stairs.y; p._f = false;
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
-        setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', { key: 'f', bubbles: true })), 60); })()`);
-      await sleep(200);
-    }
-    if (s.gsec - startG > FLOORCAP * (MAXFLOOR + 1)) break;
+    if (startG == null) startG = s.g;
+    if (s.n >= MAXFLOOR) break;
+    if (s.g - startG > FLOORCAP * (MAXFLOOR + 1)) break;
     if (Date.now() - wallStart > WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * 1000) { errs.push(`WALL_SAFETY abort seed=${seed}`); break; }
   }
-  if (cur && cur.killEnd == null) { const s = await ev(SAMPLE); if (s) { cur.killEnd = s.kills; cur.t1 = s.gsec; cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; } }
+  const floorLog = await ev(`JSON.stringify(window.__floorLog || [])`);
+  const botN = await ev(`window.__botN || 0`);
+  const rngN = await ev(`window.__rngN || 0`);
+  const gameFrames = await ev(`Math.round((window.__gameSec ? window.__gameSec() : 0) * 60)`);
   await raw("Target.closeTarget", { targetId }).catch(() => {});
-
-  const out = [];
-  for (const f of Object.keys(floors).map(Number).sort((a, b) => a - b)) {
-    if (f > MAXFLOOR) continue;
-    const F = floors[f]; const S2 = F.samples;
-    if (!S2.length) continue;
-    out.push({
-      floor: f,
-      kills: (F.killEnd ?? S2[S2.length - 1].kills) - F.killStart,
-      hitN: (F.hitEnd ?? S2[S2.length - 1].hitN) - F.hitStart,
-      died: ((F.deathEnd ?? S2[S2.length - 1].deaths) - F.deathStart) > 0 ? 1 : 0,
-      hpMin: Math.min(...S2.map(x => x.hpPct)),
-      sec: r1((F.t1 ?? S2[S2.length - 1].gsec) - F.t0),
-      nSamp: S2.length,
-    });
-  }
-  return { seed, floors: out };
+  const parsed = (() => { try { return JSON.parse(floorLog || "[]"); } catch { return []; } })();
+  log(`    (씨앗 ${seed} 판: 게임프레임 ${gameFrames} · 봇틱 ${botN} · rng호출 ${rngN})`);
+  return { seed, floors: parsed.slice(0, MAXFLOOR), botN, gameFrames, rngN };
 }
 
 log(`\n■ hs_v205_determinism — 곱 ${MUL} · 층 1→${MAXFLOOR} · 씨앗 ${SEEDS.join("/")} 를 각 2회`);
@@ -195,24 +171,23 @@ for (const seed of SEEDS) {
   const a = await runOne(seed);
   const b = await runOne(seed);
   if (!a || !b) { log(`  씨앗 ${seed} — 부팅 실패, 건너뜀`); allMatch = false; continue; }
-  const fa = new Map(a.floors.map(F => [F.floor, F]));
-  const fb = new Map(b.floors.map(F => [F.floor, F]));
-  const floorSet = [...new Set([...fa.keys(), ...fb.keys()])].sort((x, y) => x - y);
   const seedRep = { seed, floors: [], errs: errs.length };
   let seedMatch = true;
-  for (const f of floorSet) {
-    const A = fa.get(f), B = fb.get(f);
-    if (!A || !B) { log(`  씨앗 ${seed} 층${f}: 한 판에만 있음 (A ${!!A} · B ${!!B}) → 불일치`); seedMatch = false; seedRep.floors.push({ floor: f, match: false, missing: true }); continue; }
+  if (a.floors.length !== b.floors.length) { log(`  씨앗 ${seed}: 기록 길이 다름 A ${a.floors.length} · B ${b.floors.length} → 불일치`); seedMatch = false; }
+  const n = Math.max(a.floors.length, b.floors.length);
+  for (let i = 0; i < n; i++) {
+    const A = a.floors[i], B = b.floors[i];
+    if (!A || !B) { log(`  씨앗 ${seed} 기록#${i}: 한 판에만 있음 (A ${!!A} · B ${!!B}) → 불일치`); seedMatch = false; seedRep.floors.push({ i, match: false, missing: true, A, B }); continue; }
     const diffs = [];
     for (const k of KEYS) if (A[k] !== B[k]) diffs.push(`${k} ${A[k]}≠${B[k]}`);
+    if (A.floor !== B.floor) diffs.push(`floor ${A.floor}≠${B.floor}`);
     const secDiff = Math.abs(A.sec - B.sec);
     const match = diffs.length === 0;
     if (!match) seedMatch = false;
-    seedRep.floors.push({ floor: f, match, diffs, A, B, secDiff: r1(secDiff) });
-    log(`  씨앗 ${seed} 층${f}: ${match ? "✓ 일치" : "✗ " + diffs.join(" · ")}` +
-      `  [A kills ${A.kills}/hit ${A.hitN}/hpMin ${A.hpMin}/died ${A.died}/${A.sec}s/${A.nSamp}표본` +
-      ` · B kills ${B.kills}/hit ${B.hitN}/hpMin ${B.hpMin}/died ${B.died}/${B.sec}s/${B.nSamp}표본` +
-      ` · Δsec ${r1(secDiff)}]`);
+    seedRep.floors.push({ i, floor: A.floor, match, diffs, A, B, secDiff: r1(secDiff) });
+    log(`  씨앗 ${seed} 기록#${i}(층${A.floor}): ${match ? "✓ 일치" : "✗ " + diffs.join(" · ")}` +
+      `  [A kills ${A.kills}/hit ${A.hitN}/hpMin ${A.hpMin}/died ${A.died}/${A.sec}s` +
+      ` · B kills ${B.kills}/hit ${B.hitN}/hpMin ${B.hpMin}/died ${B.died}/${B.sec}s · Δsec ${r1(secDiff)}]`);
   }
   if (!seedMatch) allMatch = false;
   seedRep.match = seedMatch;
@@ -220,10 +195,10 @@ for (const seed of SEEDS) {
   log(`    → 씨앗 ${seed}: ${seedMatch ? "★ 결정적" : "비결정"} (오류 ${errs.length})\n`);
 }
 
-log(`\n▣ 판정: ${allMatch ? "★★ 결정적 — 같은 씨앗 2회가 층별로 일치" : "✗ 비결정 — 아래 불일치가 남은 원천"}`);
+log(`\n▣ 판정: ${allMatch ? "★★ 결정적 — 같은 씨앗 2회가 프레임정확 기록으로 일치" : "✗ 비결정 — 위 불일치가 남은 원천"}`);
 if (!allMatch) {
-  log(`  남은 비결정 원천 후보: 표본이 벽시계(250ms)라 층 경계에서 프레임이 어긋나면 kills/hitN 가 몇 개 샌다;`);
-  log(`  rAF 프레임 수 차이 · 비동기 에셋 로딩 순서 · Math.random 미시딩 부분. 위 Δ가 큰 층부터 본다.`);
+  log(`  기록은 프레임정확(__floorLog)이라 표본 잡음은 아니다. 남은 후보: 봇 입력이 아직 벽시계에 걸린 곳,`);
+  log(`  rAF 두 루프의 프레임 어긋남, 비동기 에셋 로딩 순서, Math.random 미시딩. 위 Δ 큰 기록부터 본다.`);
 }
 fs.writeFileSync(`tmp/hs_v205_determinism.json`, JSON.stringify({ mul: MUL, maxfloor: MAXFLOOR, seeds: SEEDS, allMatch, report }, null, 2));
 log(`  ▸ tmp/hs_v205_determinism.json`);

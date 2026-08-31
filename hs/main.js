@@ -138,6 +138,30 @@ window.__prof = PROF;
 const METRIC = (window.__hsMetric = window.__hsMetric ||
   { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0, grains: 0 });
 
+// ── V-205 ㉢ 프레임정확 층 기록 (METRIC 과 같은 관찰 전용 계기 · 게임 로직/연출 불변).
+// 벽시계 250ms 표본으로 층 경계 지표를 읽으면 같은 씨앗이라도 프레임이 어긋나 kills·hitN 이 센다.
+// 그래서 층 전환 프레임에 «정확히» 스냅샷을 박아, 결정성 비교가 표본 타이밍에 안 흔들리게 한다.
+const FLOORLOG = (window.__floorLog = []);
+let flFloor = 0, flKills0 = 0, flHit0 = 0, flDeath0 = 0, flG0 = 0, flHpMin = 100;
+function floorLogTick() {
+  if (!G || !G.player) return;
+  if (G.floor !== flFloor) {
+    if (flFloor > 0) FLOORLOG.push({ floor: flFloor, kills: METRIC.kills - flKills0,
+      hitN: (METRIC.hitN || 0) - flHit0, died: ((METRIC.deaths || 0) - flDeath0) > 0 ? 1 : 0,
+      hpMin: flHpMin, sec: Math.round((gameTime - flG0) * 1000) / 1000 });
+    flFloor = G.floor; flKills0 = METRIC.kills; flHit0 = METRIC.hitN || 0;
+    flDeath0 = METRIC.deaths || 0; flG0 = gameTime; flHpMin = 100;
+  }
+  const hpP = Math.round(100 * G.player.hp / G.player.maxhp);
+  if (hpP < flHpMin) flHpMin = hpP;
+}
+window.__floorLogReset = () => { FLOORLOG.length = 0; flFloor = (G && G.floor) || 0;
+  flKills0 = METRIC.kills; flHit0 = METRIC.hitN || 0; flDeath0 = METRIC.deaths || 0;
+  flG0 = gameTime; flHpMin = 100; };
+// 측정 시작점을 프레임에 안 매이게 — 부팅 동안 흐른 프레임 수만큼 RNG·배치가 달라져 씨앗을 고정해도
+// 두 판이 갈렸다. 자가 여기서 «갓 지은 1층»으로 되돌려 측정을 같은 상태에서 연다(RNG 는 자가 다시 심는다).
+window.__restart = (fl) => start(fl || 1, null);
+
 function fresh(floor, carry) {
   const f = genFloor(floor);
   const p = carry ? carry.player : {
@@ -703,7 +727,7 @@ function killEnemy(m) {
   // ★ V-183 — 처치 연쇄. 350ms 안에 잇달아 죽을수록 흔들림이 커지고, 다섯 이상이면
   //   흰 번쩍임이 얹힌다(몰살감). 상한 있음(chain ≤ 14 · flash ≤ 0.32) — 파티클은 burst
   //   가 400개, 떠오르는 숫자는 floatDmg 가 60개로 이미 막혀 있어 연출이 프레임을 못 먹는다.
-  const now = performance.now();
+  const now = nowMs();
   killStreak = now - lastKillT < 350 ? killStreak + 1 : 1;
   lastKillT = now;
   const chain = Math.min(killStreak, 14);
@@ -2281,6 +2305,7 @@ function loop(now) {
     requestAnimationFrame(loop); return;
   }
   const _t0 = performance.now();
+  if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
     stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt);
@@ -2289,6 +2314,7 @@ function loop(now) {
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
   flash = Math.max(0, flash - dt * 1.4);
+  floorLogTick();
   const _t1 = performance.now();
   drawWorld();
   const _t2 = performance.now();

@@ -55,7 +55,9 @@ const AUTO = `(SPEC => {
   const held = new Set();
   const setKeys = want => { for (const k of held) if (!want.has(k)) { ku(k); held.delete(k); }
     for (const k of want) if (!held.has(k)) { kd(k); held.add(k); } };
-  const tap = k => { kd(k); setTimeout(() => ku(k), 40); };
+  const gnow = () => window.__gameSec ? window.__gameSec() * 1000 : performance.now();
+  const rel = [];
+  const tap = k => { kd(k); rel.push([k, gnow() + 40]); };
   const aim = (sx, sy) => cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
   cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, bubbles: true }));
   const A = { lastQ: 0, lastE: 0, lastPt: 0 }; window.__a203 = A;
@@ -79,6 +81,7 @@ const AUTO = `(SPEC => {
     return b ? { q: b, d: Math.sqrt(bd) } : null; }
   function tick() {
     const G = window.G, cam = window.cam;
+    for (let i = rel.length - 1; i >= 0; i--) if (gnow() >= rel[i][1]) { ku(rel[i][0]); rel.splice(i, 1); }
     if (!G || !G.player) { requestAnimationFrame(tick); return; }
     if (G.dead) { tap('r'); requestAnimationFrame(tick); return; }
     ensureBuild();
@@ -99,7 +102,7 @@ const AUTO = `(SPEC => {
     if (!np && Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 66) tap('f');
     const ne = nearestEnemy(p);
     if (ne) aim((ne.m.x - cam.x) * Z, (ne.m.y - cam.y) * Z);
-    const now = window.__gameSec ? window.__gameSec() * 1000 : performance.now();
+    const now = gnow();
     if (now - A.lastQ > 380) { A.lastQ = now; tap('q'); }
     if (now - A.lastE > 700) { A.lastE = now; tap('e'); }
     if (now - A.lastPt > 500) { A.lastPt = now; tap('z'); tap('x'); }
