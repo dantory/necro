@@ -29,11 +29,12 @@ const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 88, h: 108, r: 40, 
 // ★ V-183 — 네임드(champion) 이름을 굴린다: 형용사 + 종족 + 칭호, 대문자(HS 의
 //   「SLITHER COMMANDER」꼴). 색은 그리는 쪽(drawEnemy)에서 HS_STYLE 「빛깔·글꼴」의
 //   초록을 준다. 이미 있는 m.elite 위에 얹기만 한다 — 새 종을 만들지 않는다.
-const ELITE_ADJ = ["ROTTING", "CURSED", "VILE", "SAVAGE", "GLOOM", "WRETCHED", "BLOODGORGED", "PALE", "GRIM", "FESTERING"];
-const ELITE_TITLE = ["COMMANDER", "WARLORD", "DEVOURER", "BUTCHER", "HERALD", "TYRANT", "REAVER", "SCOURGE"];
-const ELITE_SPECIES = { "mob/fallen": "FALLEN", "mob/zombie": "ROTLING", "mob/skelarch": "BONECASTER", "mob/shaman": "HEXER", "mob/brute": "BRUTE", "mob/boss": "OVERLORD" };
+// ★ V-209 — 정예 이름도 한글로(병수님 「영어랑 한글 섞였네」). 「[꾸밈] [종족] [칭호]」.
+const ELITE_ADJ = ["썩어가는", "저주받은", "비열한", "사나운", "음산한", "비참한", "피에 젖은", "창백한", "음침한", "곪아터진"];
+const ELITE_TITLE = ["지휘관", "군주", "포식자", "도살자", "전령", "폭군", "약탈자", "재앙"];
+const ELITE_SPECIES = { "mob/fallen": "타락자", "mob/zombie": "썩은것", "mob/skelarch": "뼈술사", "mob/shaman": "주술사", "mob/brute": "야수", "mob/boss": "대군주" };
 function rollEliteName(base) {
-  const sp = ELITE_SPECIES[base] || "HORROR";
+  const sp = ELITE_SPECIES[base] || "공포";
   return `${ELITE_ADJ[(Math.random() * ELITE_ADJ.length) | 0]} ${sp} ${ELITE_TITLE[(Math.random() * ELITE_TITLE.length) | 0]}`;
 }
 

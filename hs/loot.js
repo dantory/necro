@@ -4,14 +4,17 @@
 // main.js 는 그 합을 «착용»을 지나 스탯으로 편다(밟는 순간 배수 곱하기가 아니다).
 
 // 슬롯마다 어울리는 이름씨 — 반지에 Robe 가 나오면 안 된다.
+// ★★ V-209 (2026-09-01 00:55 병수님 「아이템 영어랑 한글 섞였네」) — 바닥 이름표는 영어인데
+//   HUD·조작 안내는 한글이라 한 화면에 두 말이 섞여 있었다. **전부 한글로 세운다.**
+//   디아블로 2 한국어판의 결 — 「[무엇]의 [꾸밈] [물건]」(예: 죽은 자의 무쇠 반지).
 const SLOT_NOUNS = {
-  weapon: ["Wand", "Fang", "Scythe", "Reaver", "Cleaver", "Scepter", "Stave"],
-  helm:   ["Helm", "Skull", "Crown", "Visage", "Cowl"],
-  armor:  ["Robe", "Shroud", "Mail", "Cuirass", "Vestment"],
-  gloves: ["Gauntlet", "Grip", "Claw", "Clutch"],
-  boots:  ["Boots", "Greaves", "Tread", "Stride"],
-  ring:   ["Ring", "Band", "Loop", "Signet"],
-  amulet: ["Amulet", "Locket", "Talisman", "Sigil", "Idol", "Charm"],
+  weapon: ["지팡이", "송곳니", "낫", "약탈자", "도살자", "홀", "장대"],
+  helm:   ["투구", "해골", "왕관", "가면", "두건"],
+  armor:  ["로브", "수의", "사슬갑옷", "흉갑", "제의"],
+  gloves: ["건틀릿", "손아귀", "발톱", "움켜쥠"],
+  boots:  ["장화", "각반", "밟는 것", "걸음"],
+  ring:   ["반지", "고리", "테", "인장"],
+  amulet: ["부적", "목걸이", "호부", "표식", "우상", "장식"],
 };
 const SLOTS = Object.keys(SLOT_NOUNS);
 export const SLOT_LABEL = {
@@ -19,10 +22,10 @@ export const SLOT_LABEL = {
   boots: "신발", ring: "반지", amulet: "부적",
 };
 
-const ADJ = ["Mastodon", "Battle", "Grim", "Iron", "Cruel", "Vicious", "Ancient", "Bone", "Dread",
-  "Savage", "Hollow", "Rotting", "Corpse", "Plague", "Skull", "Wraith", "Gore", "Shadow"];
-const OF = ["King", "the Grave", "Skill", "the Dead", "Fury", "the Void", "Marrow", "Blight",
-  "the Legion", "Ruin", "the Necromancer", "Bone"];
+const ADJ = ["거대한", "전투", "음침한", "무쇠", "잔혹한", "포악한", "고대의", "뼈", "공포의",
+  "사나운", "텅 빈", "썩어가는", "시체", "역병의", "해골", "망령의", "피투성이", "그림자"];
+const OF = ["왕", "무덤", "기예", "죽은 자", "분노", "공허", "골수", "역병",
+  "군단", "파멸", "강령술사", "뼈"];
 
 export const RARITY = [
   { key: "white", name: "평범", color: "#e6e0d0", weight: 62, affixes: [0, 0] },
@@ -44,13 +47,13 @@ const AFFIX_DEFS = {
 export const AFFIX_KEYS = Object.keys(AFFIX_DEFS);
 
 export const UNIQUES = [
-  { name: "Twin Marrow of the Grave", slot: "amulet", key: "doubleNova",
+  { name: "무덤의 쌍둥이 골수", slot: "amulet", key: "doubleNova",
     note: "시체 폭발이 두 번 터진다", lore: "무덤에서 둘로 갈린 골수, 두 번 운다." },
-  { name: "Bonehoard Vestment of the Legion", slot: "armor", key: "moreSkel",
+  { name: "군단의 뼈무지 제의", slot: "armor", key: "moreSkel",
     note: "해골 자리 +4", lore: "군단의 뼈를 겹겹이 기워 만든 갑주." },
-  { name: "Midas Skull of the King", slot: "helm", key: "goldRush",
+  { name: "왕의 황금손 해골", slot: "helm", key: "goldRush",
     note: "금이 두 배로 떨어진다", lore: "만지는 것마다 금이 된 왕의 두개골." },
-  { name: "Grim Reaver of Fury", slot: "weapon", key: "splitSpear",
+  { name: "분노의 음침한 약탈자", slot: "weapon", key: "splitSpear",
     note: "뼈 창이 두 갈래로 갈라진다", lore: "분노가 창끝을 둘로 쪼갠다." },
 ];
 
@@ -107,7 +110,9 @@ export function rollItem(floor, lucky) {
 
   const rar = r.key === "gold" ? RARITY[2] : r;   // 유니크 소진 → 레어
   const slot = pick(SLOTS);
-  const name = `${pick(ADJ)} ${pick(SLOT_NOUNS[slot])} of ${pick(OF)}`;
+  // 한글 어순 — 「[무엇]의 [꾸밈] [물건]」. 영어의 「A B of C」를 그대로 옮기면
+  //   「사나운 손아귀 의 죽은 자」가 되어 말이 안 된다.
+  const name = `${pick(OF)}의 ${pick(ADJ)} ${pick(SLOT_NOUNS[slot])}`;
   const [l2, h2] = rar.affixes;
   const n = l2 + ((Math.random() * (h2 - l2 + 1)) | 0);
   return { name, slot, rarity: rar, unique: null, affixes: rollAffixes(n, floor) };
