@@ -77,6 +77,8 @@ const PLAYER_BASE = "char/necro";
 const PLAYER_H = 75;    // V-208 — 화면의 10%(레퍼런스와 같은 급)
 const SPEAR_LEN = PLAYER_H * 0.42;   // 뼈창 발사체 길이 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const SPEARHIT_H = PLAYER_H * 0.5;   // 뼈창 명중 임팩트 크기 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
+const GOLD_W = PLAYER_H * 0.2;   // V-217 — 금 스프라이트 폭. 시전자 키에 견줘 정한다(높이는 에셋 비율에서)
+const GOLD_CAP = 10;   // V-217 — 화면 동시 금 개체 상한. 넘으면 가장 오래된 톨에 합친다(값 보존)
 const BOOM_CAP = 24, HIT_CAP = 48;   // 동시 연출 개수 상한(parts 400·floats 60 과 같은 결) — 프레임을 먹지 않게
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 69;      // V-208
@@ -817,12 +819,14 @@ function addCorpse(m) {
 function dropLoot(m) {
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
-  const grains = Math.min(15, Math.max(5, Math.round(gn / 3)));
+  const grains = Math.min(3, Math.max(1, Math.round(gn / 30)));
   METRIC.grains += grains;   // V-192 계측 — 처치당 알갱이(㉢). 연출 아닌 순수 계수(V-189 METRIC 결).
+  METRIC.goldGen = (METRIC.goldGen || 0) + gn;   // V-217 계측 — 뿌린 금 총액(회귀: 전후 동일해야).
   for (let i = 0; i < grains; i++) {
     const a = Math.random() * 6.283, s = 40 + Math.random() * 90;
     G.golds.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, val: Math.max(1, Math.round(gn / grains)), t: 0 });
   }
+  while (G.golds.length > GOLD_CAP) { const extra = G.golds.pop(); G.golds[0].val += extra.val; }
   const chance = m.elite ? 1 : 0.55;
   const rolls = m.elite ? 3 : 1;
   for (let i = 0; i < rolls; i++) if (Math.random() < chance || (m.elite)) spawnItem(m.x, m.y, m.elite);
@@ -846,8 +850,8 @@ function stepDrops(dt) {
   for (const g of G.golds) {
     g.t += dt; g.x += g.vx * dt; g.y += g.vy * dt; g.vx *= 0.86; g.vy *= 0.86;
     const d = Math.hypot(p.x - g.x, p.y - g.y);
-    if (d < 60) { g.x += (p.x - g.x) * Math.min(1, dt * 14); g.y += (p.y - g.y) * Math.min(1, dt * 14); }
-    if (d < 24) { g.got = true; G.gold += g.val; }
+    if (d < 420) { g.x += (p.x - g.x) * Math.min(1, dt * 16); g.y += (p.y - g.y) * Math.min(1, dt * 16); }
+    if (d < 30 || g.t > 1.5) { g.got = true; G.gold += g.val; METRIC.goldGot = (METRIC.goldGot || 0) + g.val; (window.__goldDwell || (window.__goldDwell = [])).push(g.t); }
   }
   G.golds = G.golds.filter((g) => !g.got);
   for (const it of G.items) {
@@ -1127,7 +1131,18 @@ function drawWorld() {
   drawLight();
   PROF.seg("light");
 
-  for (const g of G.golds) { ctx.beginPath(); ctx.arc(g.x, g.y, 3, 0, 6.283); ctx.fillStyle = "#e8c84a"; ctx.fill(); }
+  const goldRects = [];
+  const goldIm = tex("fx/gold.png");
+  const goldDrawn = goldIm && goldIm.width;
+  const gw = GOLD_W, gh = goldDrawn ? GOLD_W * (goldIm.height / goldIm.width) : GOLD_W;
+  if (goldDrawn) ctx.imageSmoothingEnabled = false;
+  for (const g of G.golds) {
+    if (goldDrawn) ctx.drawImage(goldIm, g.x - gw / 2, g.y - gh / 2, gw, gh);
+    else { ctx.beginPath(); ctx.arc(g.x, g.y, 3, 0, 6.283); ctx.fillStyle = "#e8c84a"; ctx.fill(); }
+    const hx = (goldDrawn ? gw / 2 : 3) * Z, hy = (goldDrawn ? gh / 2 : 3) * Z;
+    goldRects.push({ x0: (g.x - cam.x) * Z - hx, y0: (g.y - cam.y) * Z - hy, x1: (g.x - cam.x) * Z + hx, y1: (g.y - cam.y) * Z + hy });
+  }
+  window.__goldRects = goldRects;
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
 
@@ -2484,7 +2499,7 @@ function loop(now) {
     tex("floor/crypt_tile.png");
     tex("decor/wall.png"); tex("decor/pillar.png");   // V-204 — 벽·문틀 에셋 미리 받기
     for (const t of ["bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"]) tex(`floor/${t}.png`);  // V-204 — 층별 바닥
-  tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png");
+  tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png"); tex("fx/gold.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
   bindChar();
