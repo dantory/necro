@@ -97,6 +97,15 @@ const cam = { x: 0, y: 0, shake: 0 };
 let flash = 0, flashColor = "255,255,255";
 let killStreak = 0, lastKillT = 0;   // V-183 처치 연쇄 — 짧은 시간 안에 몰살하면 연출이 커진다
 let G = null;
+// ── V-205 측정용 고정 dt ──────────────────────────────────────────────────
+// 평소엔 벽시계(performance.now)로 굴러가지만, 측정 때는 `globalThis.__FIXED_DT`(초, 예 1/60)
+// 가 양수면 매 프레임 dt 를 그 값으로 «고정»해 헤드리스 프레임 간격의 잡음을 뿌리에서 없앤다.
+// 연출의 sin(performance.now/…) 도 고정 dt 일 땐 «누적 게임시간»(nowMs)을 써야 결정성이 온전하다 —
+// 안 그러면 연출만 벽시계로 남는다. gameTime 은 판이 새로 서도(fresh) 안 지워진다.
+// 평소 플레이 동작은 한 글자도 안 바뀐다(__FIXED_DT 가 없거나 0 이면 전부 벽시계 그대로).
+let gameTime = 0;   // 초, loop 가 매 프레임 dt 만큼 쌓는다
+function nowMs() { const fd = globalThis.__FIXED_DT; return fd > 0 ? gameTime * 1000 : performance.now(); }
+window.__gameSec = () => gameTime;   // 자가 벽시계 대신 이 게임시간을 읽는다
 let invOpen = false;
 let charOpen = false;
 let hoverItem = null, hoverRect = null;   // 창 안에서 마우스를 얹은 물건 — 툴팁·비교가 쓴다
@@ -1640,7 +1649,7 @@ function drawChest(ch) {
     return;
   }
   if (Math.hypot(G.player.x - ch.x, G.player.y - ch.y) < CHEST_OPEN_R) openChest(ch);
-  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 320);
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 320);
   ctx.globalCompositeOperation = "lighter";
   const g = ctx.createRadialGradient(ch.x, ch.y - 12, 0, ch.x, ch.y - 12, 130);
   g.addColorStop(0, `rgba(248,210,110,${0.22 + pulse * 0.22})`);
@@ -1680,7 +1689,7 @@ function drawChest(ch) {
 }
 function drawChestBeacon(ch) {
   if (ch.opened || !onScreen(ch.x, ch.y, 180)) return;
-  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 320);
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 320);
   ctx.globalCompositeOperation = "lighter";
   const beam = ctx.createLinearGradient(0, ch.y - 170, 0, ch.y - 6);
   beam.addColorStop(0, "rgba(248,214,120,0)");
@@ -1689,7 +1698,7 @@ function drawChestBeacon(ch) {
   const bw = 13 + pulse * 5;
   ctx.fillRect(ch.x - bw, ch.y - 170, bw * 2, 164);
   ctx.globalCompositeOperation = "source-over";
-  const by = ch.y - 104 - Math.sin(performance.now() / 300) * 6;
+  const by = ch.y - 104 - Math.sin(nowMs() / 300) * 6;
   ctx.save(); ctx.translate(ch.x, by); ctx.rotate(Math.PI / 4);
   const s = 8;
   ctx.fillStyle = `rgba(255,242,190,${0.72 + pulse * 0.28})`; ctx.fillRect(-s, -s, s * 2, s * 2);
@@ -2245,7 +2254,7 @@ function drawMini() {
   }
   for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
   for (const ch of G.chests) if (!ch.opened) {
-    const pr = 0.5 + 0.5 * Math.sin(performance.now() / 320), d = 2.2 + pr;
+    const pr = 0.5 + 0.5 * Math.sin(nowMs() / 320), d = 2.2 + pr;
     mctx.save(); mctx.translate(ch.x * sx, ch.y * sy); mctx.rotate(Math.PI / 4);
     mctx.fillStyle = "#ffd24a"; mctx.fillRect(-d, -d, d * 2, d * 2);
     mctx.restore();
@@ -2262,7 +2271,9 @@ function markVisited() {
 let last = performance.now();
 let loadingDone = false;
 function loop(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const fd = globalThis.__FIXED_DT;
+  const dt = fd > 0 ? fd : Math.min(0.05, (now - last) / 1000); last = now;
+  gameTime += dt;
   if (!loadingDone) {
     const pct = LOAD.total ? Math.round(100 * LOAD.done / LOAD.total) : 0;
     el("loadbar").style.width = pct + "%";
