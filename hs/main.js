@@ -1475,14 +1475,48 @@ function drawItems() {
     if (!picks.length) { let bd = 1e18, one = null; for (const o of vis) if (o.d < bd) { bd = o.d; one = o; } if (one) picks = [one]; }
   }
   const placed = [];
-  for (const o of picks) {
+  let drawn = 0;
+  for (let pi = 0; pi < picks.length; pi++) {
+    const o = picks[pi];
     let ly = o.sy, moved = true, guard = 0;
     while (moved && guard++ < 12) { moved = false;
       for (const q of placed) if (Math.abs(q.x - o.sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; } }
     if (ly < o.sy - 18 * LABEL_STACK) continue;
+    ly = liftLabelAboveLiving(o.it, o.sx, ly);
+    // V-197 — 붐벼서 밀어내도 몹을 덮으면 «점»으로 접는다(V-184 의 점 모드·밑 색점은 이미 그렸다).
+    //   늘 하나(마지막 남은 하나)는 접지 않는다 — V-184/V-192 의 「늘 하나는 보인다」.
+    const lastOne = drawn === 0 && pi === picks.length - 1;
+    if (!lastOne && labelHitsMob(o.it, o.sx, ly)) continue;
     placed.push({ x: o.sx, ly });
     drawItemLabel(o.it, o.sx, o.sy, ly);
+    drawn++;
   }
+}
+function labelHitsMob(it, sx, ly) {
+  ctx.font = "13px 'Times New Roman',serif";
+  const hw = (ctx.measureText(it.item.name).width + 16) / 2, x0 = sx - hw, x1 = sx + hw;
+  for (const s of silRects)
+    if (s.who === "mob" && x0 < s.x1 && x1 > s.x0 && ly - 10 < s.y1 && ly + 6 > s.y0) return true;
+  return false;
+}
+// ── V-197 — 이름표를 살아있는 것(주인공·몹) 위로 밀어낸다 ─────────────────────────
+// drawFloats 세로 밀어내기·pushBarUp 과 같은 결: 이름표 사각(밑 ly+6)이 실루엣 위끝(silRects)을
+// 덮으면 그 위로 올린다. 주인공은 특히(못 보면 못 피한다). 상한 없이 clear 될 때까지 — 늘 하나
+// 보인다는 V-184 규칙은 pick 이 이미 지키므로, 여기선 «덮는 것보다 뜨는 게 낫다»가 우선.
+function liftLabelAboveLiving(it, sx, ly) {
+  ctx.font = "13px 'Times New Roman',serif";
+  const hw = (ctx.measureText(it.item.name).width + 16) / 2, x0 = sx - hw, x1 = sx + hw;
+  for (let g = 0; g < 40; g++) {
+    let top = null;
+    for (const s of silRects) if (x0 < s.x1 && x1 > s.x0 && ly - 10 < s.y1 && ly + 6 > s.y0)
+      if (top === null || s.y0 < top) top = s.y0;
+    if (top === null) break;
+    const nly = top - 8;                       // 이름표 밑(ly+6)을 실루엣 위끝 위로(간격 2)
+    if (nly >= ly) break;
+    ly = nly;
+    if (ly - 10 < FLOAT_MARGIN) { ly = FLOAT_MARGIN + 10; break; }   // 천장에 닿으면 멈춘다
+  }
+  return ly;
 }
 function drawItemLabel(it, sx, sy, ly) {
   const r = it.item.rarity;
