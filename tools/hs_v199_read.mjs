@@ -197,7 +197,8 @@ async function runOne(seed, shots) {
   const S = (m, p) => raw(m, p, sessionId);
   const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
   await S("Page.enable"); await S("Runtime.enable");
-  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) + `;globalThis.__V211=${process.env.V211 !== "off"};` });
+  const camInject = process.env.CAMCLAMP === "on" ? `;globalThis.__CAM_CLAMP=true;globalThis.__CAM_MAPCLAMP=true;` : "";
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) + `;globalThis.__V211=${process.env.V211 !== "off"};` + camInject });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
   let booted = false;

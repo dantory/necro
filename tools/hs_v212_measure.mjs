@@ -25,6 +25,7 @@ const DARK = 75;                     // RGB 합 ≤ 75 = 어두움 (로드맵 �
 const SEC = +(process.argv[2] || 30);
 const SEEDS = (process.argv[3] || "1,2,3").split(",").map((s) => +s);
 const TAG = process.env.V212TAG || "";     // 있으면 씨앗별 가장 어두운 프레임을 tmp/hs_v212_${TAG}_{a,b,c}.png 로
+const SHOT = process.env.V213SHOT || "";   // 있으면 씨앗별 «중앙에서 가장 벗어난» 프레임을 tmp/hs_v213_${SHOT}_{a,b,c}.png 로 (V-213 눈 판정)
 const log = (...a) => process.stdout.write(a.join(" ") + "\n");
 setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (SEC * SEEDS.length + 900) * 1000);
 
@@ -98,28 +99,37 @@ const SAMPLE = `(() => {
   const p = G.player;
   const px = ((p.x - cam.x) * Z) / VW * 100, py = ((p.y - cam.y) * Z) / VH * 100;
   // ⑤ 화면 안 소품 — 바닥 밖 개수 · 안 밝힌(어두운) 방 위 개수
-  let propScreen = 0, propOutFloor = 0, propOnUnvis = 0;
+  let propScreen = 0, propOutFloor = 0, propOnUnvis = 0, propClip = 0;
   for (const pr of (G.props || [])) {
     const ssx = (pr.x - cam.x) * Z, ssy = (pr.y - cam.y) * Z;
     if (ssx < 0 || ssx > VW || ssy < y0 || ssy > y1) continue;
     propScreen++;
     const r = inFloor(pr.x, pr.y);
     if (!r) propOutFloor++; else if (r.cx !== undefined && !r.visited) propOnUnvis++;
+    if (ssx >= 0 && ssx <= VW && (ssy < y0 || ssy > y1)) propClip++;
   }
-  return { total, dark, darkOut, darkIn, darkUnvis, floorPx, px, py, propScreen, propOutFloor, propOnUnvis };
+  // 적이 UI(위 HUD·아래 바) 뒤로 잘리나 — 화면 가로 안이면서 세로가 게임화면 띠 밖.
+  let enemScreen = 0, enemClip = 0;
+  for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) {
+    const ex = (m.x - cam.x) * Z, ey = (m.y - cam.y) * Z;
+    if (ex < 0 || ex > VW || ey < 0 || ey > VH) continue;
+    enemScreen++;
+    if (ey < y0 || ey > y1) enemClip++;
+  }
+  return { total, dark, darkOut, darkIn, darkUnvis, floorPx, px, py, propScreen, propOutFloor, propOnUnvis, propClip, enemScreen, enemClip };
 })()`;
 
 const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
 const r1 = n => Math.round(n * 10) / 10;
 
-async function runOne(seed, clamp, key) {
+async function runOne(seed, clamp, key, mapclamp = true) {
   const { targetId } = await raw("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
   const S = (m, p) => raw(m, p, sessionId);
   const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
   await S("Page.enable"); await S("Runtime.enable");
-  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) + `;globalThis.__FOE_DMG=0;globalThis.__CAM_CLAMP=${clamp};` });
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) + `;globalThis.__FOE_DMG=0;globalThis.__CAM_CLAMP=${clamp};globalThis.__CAM_MAPCLAMP=${mapclamp};` });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
   let booted = false;
@@ -128,8 +138,9 @@ async function runOne(seed, clamp, key) {
   if (!booted) { log("부팅 실패"); await raw("Target.closeTarget", { targetId }).catch(() => {}); return null; }
   await sleep(1000);   // 에셋
   await ev(AUTO);
+  await ev(`window.__prof && window.__prof.reset && window.__prof.reset()`);
   const t0 = Date.now(); const S_ = [];
-  let worst = -1, worstShot = null;
+  let worst = -1, worstShot = null, offc = -1, offcShot = null;
   while (Date.now() - t0 < SEC * 1000) {
     await sleep(1500);
     const s = await ev(SAMPLE); if (!s) continue;
@@ -137,22 +148,34 @@ async function runOne(seed, clamp, key) {
     S_.push(s);
     if (TAG && key && s.darkPct > worst) { worst = s.darkPct;
       const r = await S("Page.captureScreenshot", { format: "png" }); worstShot = Buffer.from(r.data, "base64"); }
+    if (SHOT && key && Math.abs(s.px - 50) > offc) { offc = Math.abs(s.px - 50);
+      const r = await S("Page.captureScreenshot", { format: "png" }); offcShot = Buffer.from(r.data, "base64"); }
   }
   if (TAG && key && worstShot) { fs.writeFileSync(`tmp/hs_v212_${TAG}_${key}.png`, worstShot); log(`  컷 tmp/hs_v212_${TAG}_${key}.png (어둠 ${r1(worst)}%)`); }
+  if (SHOT && key && offcShot) { fs.writeFileSync(`tmp/hs_v213_${SHOT}_${key}.png`, offcShot); log(`  컷 tmp/hs_v213_${SHOT}_${key}.png (주인공 가로 ${r1(50 + (S_.reduce((w,x)=>Math.abs(x.px-50)>Math.abs(w-50)?x.px:w,50)-50))}%)`); }
+  const framep95 = (await ev(`window.__prof && window.__prof.summary ? window.__prof.summary().phase.total.p95 : 999`)) ?? 999;
   await raw("Target.closeTarget", { targetId }).catch(() => {});
   if (!S_.length) return null;
+  // 최악 = 가운데(50)에서 가장 멀리 벗어난 표본의 가로/세로 위치.
+  const worstX = S_.reduce((w, x) => Math.abs(x.px - 50) > Math.abs(w - 50) ? x.px : w, 50);
+  const worstY = S_.reduce((w, x) => Math.abs(x.py - 50) > Math.abs(w - 50) ? x.py : w, 50);
   return {
-    seed, clamp, n: S_.length,
+    seed, clamp, mapclamp, n: S_.length, framep95: r1(framep95),
     darkPct: r1(avg(S_.map(x => x.darkPct))),
     floorPct: r1(avg(S_.map(x => x.floorPct))),
     darkOutPct: r1(avg(S_.map(x => x.darkOut / x.total * 100))),
     darkInPct: r1(avg(S_.map(x => x.darkIn / x.total * 100))),
     darkUnvisPct: r1(avg(S_.map(x => x.darkUnvis / x.total * 100))),
     pxMed: r1(median(S_.map(x => x.px))), pyMed: r1(median(S_.map(x => x.py))),
+    pxAvg: r1(avg(S_.map(x => x.px))), pyAvg: r1(avg(S_.map(x => x.py))),
+    pxWorst: r1(worstX), pyWorst: r1(worstY),
     propScreenMed: median(S_.map(x => x.propScreen)),
     propOutFloor: S_.reduce((a, x) => a + x.propOutFloor, 0),
     propOnUnvis: S_.reduce((a, x) => a + x.propOnUnvis, 0),
     propScreenTot: S_.reduce((a, x) => a + x.propScreen, 0),
+    propClip: S_.reduce((a, x) => a + x.propClip, 0),
+    enemClip: S_.reduce((a, x) => a + x.enemClip, 0),
+    enemScreenTot: S_.reduce((a, x) => a + x.enemScreen, 0),
   };
 }
 
@@ -160,8 +183,9 @@ async function main() {
   log(`■ hs_v212_measure — 씨앗 ${SEEDS.join("/")} · 각 ${SEC}초 · 창 ${VW}×${VH} · 게임화면 y[${HUD_TOP}..${VH - UI_BOT}] · 어둠 RGB합≤${DARK}`);
   const on = [];
   const keys = ["a", "b", "c"];
+  const clampOn = process.env.FORCECLAMP !== "off";   // off 면 두 clamp 다 끈 채(=게임 기본) 재고 찍는다
   for (let i = 0; i < SEEDS.length; i++) {
-    const r = await runOne(SEEDS[i], true, keys[i]);
+    const r = await runOne(SEEDS[i], clampOn, keys[i], clampOn);
     if (!r) { log(`  씨앗 ${SEEDS[i]} 실패`); continue; }
     on.push(r);
     log(`  씨앗 ${r.seed} [clamp on] 표본 ${r.n}: 어둠 ${r.darkPct}% (밖 ${r.darkOutPct}% · 안 ${r.darkInPct}% [그중 안밝힌방 ${r.darkUnvisPct}%]) · 바닥밀도 ${r.floorPct}% · 주인공 ${r.pxMed}%,${r.pyMed}% · 소품/화면 ${r.propScreenMed}(바닥밖 ${r.propOutFloor}·안밝힌방위 ${r.propOnUnvis}/${r.propScreenTot})`);
@@ -182,6 +206,48 @@ async function main() {
   fs.writeFileSync(`tmp/hs_v212_measure${TAG ? "_" + TAG : ""}.json`, JSON.stringify({ SEC, SEEDS, on, off }, null, 1));
   log(`  ▸ tmp/hs_v212_measure${TAG ? "_" + TAG : ""}.json`);
 }
-await main();
+// V-213 — 카메라를 미는 두 클램프를 «가려» 재는 네 갈래 표.
+//   ①=localBounds(__CAM_CLAMP) · ②=맵전체(__CAM_MAPCLAMP). 같은 씨앗·같은 자동조종으로 넷을 돈다.
+async function mainV213() {
+  const combos = [
+    { key: "on_on",   clamp: true,  map: true,  label: "①on ②on (지금)" },
+    { key: "off_on",  clamp: false, map: true,  label: "①off ②on" },
+    { key: "on_off",  clamp: true,  map: false, label: "①on ②off" },
+    { key: "off_off", clamp: false, map: false, label: "①off ②off" },
+  ];
+  log(`■ hs_v212_measure [V-213 네 갈래] — 씨앗 ${SEEDS.join("/")} · 각 ${SEC}초 · 창 ${VW}×${VH}`);
+  log(`  ① localBounds(__CAM_CLAMP) · ② 맵전체(__CAM_MAPCLAMP). 목표: 주인공 가로·세로 45~55%(40~60 통과) · 어둠 ≤40% · frame p95 ≤8ms\n`);
+  const rows = [];
+  for (const c of combos) {
+    const rs = [];
+    for (const seed of SEEDS) {
+      const r = await runOne(seed, c.clamp, null, c.map);
+      if (r) rs.push(r);
+    }
+    if (!rs.length) { log(`  ${c.label}: 판 없음`); continue; }
+    const row = {
+      key: c.key, label: c.label,
+      pxAvg: r1(avg(rs.map(r => r.pxAvg))), pyAvg: r1(avg(rs.map(r => r.pyAvg))),
+      pxWorst: rs.reduce((w, r) => Math.abs(r.pxWorst - 50) > Math.abs(w - 50) ? r.pxWorst : w, 50),
+      pyWorst: rs.reduce((w, r) => Math.abs(r.pyWorst - 50) > Math.abs(w - 50) ? r.pyWorst : w, 50),
+      darkPct: r1(avg(rs.map(r => r.darkPct))),
+      framep95: r1(Math.max(...rs.map(r => r.framep95))),
+      propClip: rs.reduce((a, r) => a + r.propClip, 0),
+      propOutFloor: rs.reduce((a, r) => a + r.propOutFloor, 0),
+      enemClip: rs.reduce((a, r) => a + r.enemClip, 0),
+      enemScreenTot: rs.reduce((a, r) => a + r.enemScreenTot, 0),
+    };
+    rows.push(row);
+    log(`  ${c.label.padEnd(16)} 가로 ${row.pxAvg}%(최악 ${r1(row.pxWorst)}) · 세로 ${row.pyAvg}%(최악 ${r1(row.pyWorst)}) · 어둠 ${row.darkPct}% · 소품밖 ${row.propOutFloor} · 소품잘림 ${row.propClip} · 적잘림 ${row.enemClip}/${row.enemScreenTot} · frame p95 ${row.framep95}ms`);
+  }
+  log(`\n▣ 표 (가로·세로 = 화면%, 50=가운데)`);
+  log(`  | 갈래 | 가로 평균 | 가로 최악 | 세로 평균 | 세로 최악 | 어둠% | 소품밖 | 적잘림 | p95 |`);
+  log(`  |---|---|---|---|---|---|---|---|---|`);
+  for (const r of rows) log(`  | ${r.label} | ${r.pxAvg} | ${r1(r.pxWorst)} | ${r.pyAvg} | ${r1(r.pyWorst)} | ${r.darkPct} | ${r.propOutFloor} | ${r.enemClip} | ${r.framep95} |`);
+  fs.writeFileSync(`tmp/hs_v213_sweep${TAG ? "_" + TAG : ""}.json`, JSON.stringify({ SEC, SEEDS, rows }, null, 1));
+  log(`\n  ▸ tmp/hs_v213_sweep${TAG ? "_" + TAG : ""}.json`);
+}
+
+if (process.env.V213) await mainV213(); else await main();
 bws.close();
 process.exit(0);
