@@ -952,7 +952,10 @@ function stepFloats(dt) {
   G.floats = G.floats.filter((f) => f.t > 0);
 }
 
-let floorPat = null;
+let floorPat = null;              // (남겨 둠 — 옛 이름 참조 방지) V-204: 층별 바닥/벽은 아래 캐시로.
+let curFPat = null;               // 이번 프레임의 바닥 무늬(G.floor 로 고른다)
+const FLOOR_PATS = new Map();     // 바닥 타일 이름 → CanvasPattern (한 번 굽고 재활용)
+let wallPatN = null, wallPatS = null, wallPatL = null;  // 벽: 북(정면)·남(윗면)·옆(세로)
 let itemLabels = [];   // V-181: 바닥 이름표의 «화면» 사각들 — 툴팁 마우스 판정이 쓴다
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
@@ -965,8 +968,8 @@ function drawWorld() {
   ctx.save();
   ctx.setTransform(Z, 0, 0, Z, (-cam.x + shx) * Z, (-cam.y + shy) * Z);
 
-  const tile = tex("floor/crypt_tile.png");
-  if (tile && tile.width && !floorPat) floorPat = buildFloorPat(tile);
+  curFPat = floorPatFor(G.floor);          // V-204 ㉡ — 층마다 바닥이 갈린다
+  if (!wallPatN) buildWallPats();           // V-204 ㉠ — 벽을 wall.png 로 (한 번만 굽는다)
 
   // ── 던전을 «던전으로» 그린다 — 방·복도만 바닥, 나머지는 벽/공허 (V-151 B) ──────
   // 옛 판은 화면 전체를 바닥으로 깔아 방·복도·공허가 다 같은 갈색이었다. 이제 걷는
@@ -1106,7 +1109,7 @@ function drawWorld() {
 }
 
 function stoneRim(x, y, w, h) {
-  if (floorPat) { ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); }
+  if (curFPat) { ctx.fillStyle = curFPat; ctx.fillRect(x, y, w, h); }
   ctx.fillStyle = "rgba(26,23,22,0.94)"; ctx.fillRect(x, y, w, h);
 }
 // ★ V-165 — 얼룩이 «딴 데서 온 판»으로 뜨던 진짜 까닭은 색이 아니라 **층**이었다.
@@ -1145,17 +1148,54 @@ function buildFloorPat(tile) {
   }
   return ctx.createPattern(cv, "repeat");
 }
+// V-204 ㉡ — 층 깊이에 따라 바닥 타일을 갈아 낀다(있는 15종 중 결이 다른 것들). 어느 층을 가도
+//   같은 회색이던 것을 층으로 물들인다. 무늬 자체는 buildFloorPat 이 4×4 로 돌려 벽지를 끊는다.
+const FLOOR_TILES = ["crypt_tile", "crypt_tile", "bone_tile", "bone_tile", "rot_tile", "rot_tile", "blood_tile", "blood_tile", "abyss_tile", "abyss_tile", "sanctum_tile"];
+function floorTileName(f) { const i = Math.max(0, ((f | 0) - 1)); return FLOOR_TILES[Math.min(i, FLOOR_TILES.length - 1)]; }
+function floorPatFor(f) {
+  const name = floorTileName(f);
+  let pat = FLOOR_PATS.get(name);
+  if (pat) return pat;
+  const tile = tex(`floor/${name}.png`);
+  if (!tile || !tile.width) return FLOOR_PATS.get("crypt_tile") || curFPat || null;  // 아직 안 왔으면 옛 무늬로 버틴다
+  pat = buildFloorPat(tile);
+  FLOOR_PATS.set(name, pat);
+  return pat;
+}
+// V-204 ㉠ — 벽을 wall.png(128×64, 돌벽돌) 로 편다. 북=정면 그대로, 옆=90° 돌려 세로 벽돌,
+//   남=윗면(어둡게). 오프스크린에 한 번 구워 CanvasPattern 으로 재활용한다(프레임을 안 잡아먹게).
+//   그림 위에 «빛만» 그라디언트로 얹어 위가 밝고 아래로 어두워지는 결을 남긴다(V-157).
+function bakeCanvas(w, h, draw) {
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  const g = c.getContext("2d"); g.imageSmoothingEnabled = false; draw(g); return c;
+}
+function shadeV(g, w, h, top, bot) {
+  const grad = g.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, `rgba(0,0,0,${top})`); grad.addColorStop(1, `rgba(0,0,0,${bot})`);
+  g.fillStyle = grad; g.fillRect(0, 0, w, h);
+}
+function buildWallPats() {
+  const im = tex("decor/wall.png");
+  if (!im || !im.width) return false;
+  wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
+  wallPatS = ctx.createPattern(bakeCanvas(64, 15, g => { g.drawImage(im, 0, 0, 64, 15); shadeV(g, 64, 15, 0.5, 0.5); }), "repeat");
+  wallPatL = ctx.createPattern(bakeCanvas(15, 64, g => { g.translate(15, 0); g.rotate(Math.PI / 2); g.drawImage(im, 0, 0, 64, 15); g.setTransform(1, 0, 0, 1, 0, 0); shadeV(g, 15, 64, 0.12, 0.34); }), "repeat");
+  return true;
+}
 function floorBase(x, y, w, h) {
   ctx.fillStyle = "#241f1b"; ctx.fillRect(x, y, w, h);
-  if (floorPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = floorPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
+  if (curFPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = curFPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
 }
 function floorTint(x, y, w, h, tint) { ctx.fillStyle = tint; ctx.fillRect(x, y, w, h); }
 function floorFill(x, y, w, h, tint) { floorBase(x, y, w, h); floorTint(x, y, w, h, tint); }
 function northWall(r, WT, WTOP) {
   const y0 = r.y - WTOP, x0 = r.x - WT, w = r.w + 2 * WT;
-  const g = ctx.createLinearGradient(0, y0, 0, r.y);
-  g.addColorStop(0, "rgba(88,79,68,0.96)"); g.addColorStop(0.55, "rgba(54,47,40,0.94)"); g.addColorStop(1, "rgba(18,13,10,0.96)");
-  ctx.fillStyle = g; ctx.fillRect(x0, y0, w, WTOP);
+  if (wallPatN) { ctx.fillStyle = wallPatN; ctx.fillRect(x0, y0, w, WTOP); }   // V-204 ㉠ — 벽은 그림(빛은 무늬에 구워 넣음)
+  else {                                                             // 에셋 로드 전 폴백(옛 그라디언트)
+    const g = ctx.createLinearGradient(0, y0, 0, r.y);
+    g.addColorStop(0, "rgba(88,79,68,0.96)"); g.addColorStop(0.55, "rgba(54,47,40,0.94)"); g.addColorStop(1, "rgba(18,13,10,0.96)");
+    ctx.fillStyle = g; ctx.fillRect(x0, y0, w, WTOP);
+  }
   ctx.fillStyle = "rgba(150,140,122,0.45)"; ctx.fillRect(x0, y0, w, 2);
   ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(x0, r.y - 3, w, 4);
 }
@@ -1166,16 +1206,22 @@ function northWall(r, WT, WTOP) {
 function sideWalls(r, WT, WTOP) {
   const yTop = r.y, hh = r.h;
   for (const [x0, inner] of [[r.x - WT, r.x], [r.x + r.w, r.x + r.w + WT]]) {
-    const g = ctx.createLinearGradient(x0 < r.x ? x0 : inner, 0, x0 < r.x ? inner : x0, 0);
-    g.addColorStop(0, "rgba(84,76,65,0.96)"); g.addColorStop(0.6, "rgba(46,40,34,0.95)");
-    g.addColorStop(1, "rgba(16,12,10,0.96)");
-    ctx.fillStyle = g; ctx.fillRect(Math.min(x0, inner), yTop, WT, hh);
+    const wx = Math.min(x0, inner);
+    if (wallPatL) { ctx.fillStyle = wallPatL; ctx.fillRect(wx, yTop, WT, hh); }   // V-204 ㉠
+    else {
+      const g = ctx.createLinearGradient(x0 < r.x ? x0 : inner, 0, x0 < r.x ? inner : x0, 0);
+      g.addColorStop(0, "rgba(84,76,65,0.96)"); g.addColorStop(0.6, "rgba(46,40,34,0.95)"); g.addColorStop(1, "rgba(16,12,10,0.96)");
+      ctx.fillStyle = g; ctx.fillRect(wx, yTop, WT, hh);
+    }
   }
   // 남쪽 — 벽의 윗면. 방 쪽 모서리에 밝은 선을 얹어 「여기서 벽이 시작한다」를 보인다.
   const sy = r.y + r.h, sx = r.x - WT, sw = r.w + 2 * WT;
-  const gs = ctx.createLinearGradient(0, sy, 0, sy + WT);
-  gs.addColorStop(0, "rgba(74,67,57,0.96)"); gs.addColorStop(1, "rgba(20,15,12,0.96)");
-  ctx.fillStyle = gs; ctx.fillRect(sx, sy, sw, WT);
+  if (wallPatS) { ctx.fillStyle = wallPatS; ctx.fillRect(sx, sy, sw, WT); }        // V-204 ㉠ — 윗면
+  else {
+    const gs = ctx.createLinearGradient(0, sy, 0, sy + WT);
+    gs.addColorStop(0, "rgba(74,67,57,0.96)"); gs.addColorStop(1, "rgba(20,15,12,0.96)");
+    ctx.fillStyle = gs; ctx.fillRect(sx, sy, sw, WT);
+  }
   ctx.fillStyle = "rgba(150,140,122,0.38)"; ctx.fillRect(sx, sy, sw, 2);
   // 좌·우 벽의 바깥 모서리에도 같은 밝은 선 — 벽 두께가 눈에 잡힌다.
   ctx.fillStyle = "rgba(150,140,122,0.30)";
@@ -1196,20 +1242,20 @@ function doorArches(r, WT) {
     }
   }
 }
-function post(edgeX, cy, gap) {
-  for (const s of [-1, 1]) {
-    const py = cy + s * (gap / 2 + 3);
-    ctx.fillStyle = "rgba(78,70,60,0.95)"; ctx.fillRect(edgeX - 5, py - 5, 10, 10);
-    ctx.fillStyle = "rgba(140,130,112,0.5)"; ctx.fillRect(edgeX - 5, py - 5, 10, 2);
+// V-204 ㉢ — 문설주를 decor/pillar.png 로 세운다(코드 사각 → 그림). 미로드면 옛 돌기둥으로 폴백.
+function jamb(cx, cy) {
+  const im = tex("decor/pillar.png");
+  if (im && im.width) {
+    ctx.imageSmoothingEnabled = false;
+    const h = 30, w = h * (im.width / im.height);
+    ctx.drawImage(im, cx - w / 2, cy - h * 0.72, w, h);
+  } else {
+    ctx.fillStyle = "rgba(78,70,60,0.95)"; ctx.fillRect(cx - 5, cy - 5, 10, 10);
+    ctx.fillStyle = "rgba(140,130,112,0.5)"; ctx.fillRect(cx - 5, cy - 5, 10, 2);
   }
 }
-function postH(cx, edgeY, gap) {
-  for (const s of [-1, 1]) {
-    const px = cx + s * (gap / 2 + 3);
-    ctx.fillStyle = "rgba(78,70,60,0.95)"; ctx.fillRect(px - 5, edgeY - 5, 10, 10);
-    ctx.fillStyle = "rgba(140,130,112,0.5)"; ctx.fillRect(px - 5, edgeY - 5, 10, 2);
-  }
-}
+function post(edgeX, cy, gap) { for (const s of [-1, 1]) jamb(edgeX, cy + s * (gap / 2 + 3)); }
+function postH(cx, edgeY, gap) { for (const s of [-1, 1]) jamb(cx + s * (gap / 2 + 3), edgeY); }
 function insetShadow(r) {
   const d = 26;
   let g = ctx.createLinearGradient(0, r.y, 0, r.y + d);
@@ -2237,8 +2283,10 @@ function loop(now) {
 (async function boot() {
   await loadManifest();
   resetUniques();
-  preload([PLAYER_BASE, SKEL_BASE, "mob/fallen", "mob/zombie", "mob/skelarch", "mob/shaman", "mob/brute", "mob/boss"]);
-  tex("floor/crypt_tile.png");
+    preload([PLAYER_BASE, SKEL_BASE, "mob/fallen", "mob/zombie", "mob/skelarch", "mob/shaman", "mob/brute", "mob/boss"]);
+    tex("floor/crypt_tile.png");
+    tex("decor/wall.png"); tex("decor/pillar.png");   // V-204 — 벽·문틀 에셋 미리 받기
+    for (const t of ["bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"]) tex(`floor/${t}.png`);  // V-204 — 층별 바닥
   tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
