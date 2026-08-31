@@ -287,12 +287,13 @@ function unstick(e, r) {
 }
 
 // ── V-206 ㉠ 카메라를 «보이는 것이 있는 쪽»으로 물린다 ───────────────────────
-// BSP 맵은 방·복도 밖이 전부 검은 암반이라, 사람이 방 벽에 붙으면 카메라가 방 밖 공허를
-// 크게 비춘다(V-201 컷). 그래서 사람이 든 방(문턱이면 방이 이긴다) 사각형 + 여유 안으로
-// 카메라를 한 번 더 clamp 한다. 복도만 밟고 있을 땐 그 복도가 잇는 두 방(corridor.link)까지
-// 품어, 목적지 방이 미리 보이고 좁은 복도에서 카메라가 갇히지 않게 한다. 손잡이 __CAM_CLAMP
-// 가 false 면 옛 맵-전체 clamp 로 되돌아간다(before 측정·되돌리기용).
-const CAM_MARGIN = 48;   // 걸을 수 있는 덩어리 밖으로 카메라가 더 보여 주는 여유 — 벽 두께가 화면에 들 만큼.
+// V-201 때는 방·복도 밖이 검은 «공허»라, 카메라를 사람이 든 방 사각 안으로 clamp 해 공허를
+// 안 비추게 했다(localBounds). 그런데 V-212 가 밖을 전부 «암반»으로 채워 공허가 사라졌고,
+// V-213 자로 재니 그 clamp 가 사람을 화면 가로 30%(둘 다 켜짐)로 밀고 있었다 — 핵앤슬래시는
+// 사람이 늘 화면 한가운데다. 그래서 두 clamp 를 기본 «끔»으로 돌려 카메라가 사람을 그대로
+// 따라가게 한다(가로·세로 50%). 두 손잡이는 before 재현·되돌리기용으로 남긴다:
+//   __CAM_CLAMP===true → localBounds 지역 clamp 켬 · __CAM_MAPCLAMP===true → 맵-전체 clamp 켬.
+const CAM_MARGIN = 48;   // (지역 clamp 를 켰을 때) 걸을 수 있는 덩어리 밖으로 더 보여 주는 여유.
 // 사람 중심 화면과 겹치는 방·복도의 bbox. 카메라를 이 안으로만 물리는 게 핵심 불변식이다 —
 // 화면에 이미 보이는 walkable 은 절대 안 잘리므로(공허가 늘 수 없다) «항상 같거나 덜 공허»하고,
 // 벽 붙음처럼 덩어리 «너머»가 암반일 때만 그 암반을 덜 비춘다. 겹치는 게 없으면 null(사람 중심 그대로).
@@ -336,7 +337,7 @@ function stepPlayer(dt) {
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
-  const reg = (globalThis.__CAM_CLAMP !== false && G.rooms) ? localBounds(tcx, tcy, vw, vh) : null;
+  const reg = (globalThis.__CAM_CLAMP === true && G.rooms) ? localBounds(tcx, tcy, vw, vh) : null;
   if (reg) {
     const x0 = reg.x0 - CAM_MARGIN, y0 = reg.y0 - CAM_MARGIN, x1 = reg.x1 + CAM_MARGIN, y1 = reg.y1 + CAM_MARGIN;
     tcx = (x1 - x0 <= vw) ? (x0 + x1) / 2 - vw / 2 : Math.max(x0, Math.min(x1 - vw, tcx));
@@ -344,8 +345,10 @@ function stepPlayer(dt) {
   }
   cam.x += (tcx - cam.x) * Math.min(1, dt * 8);
   cam.y += (tcy - cam.y) * Math.min(1, dt * 8);
-  cam.x = Math.max(0, Math.min(G.W - vw, cam.x));
-  cam.y = Math.max(0, Math.min(G.H - vh, cam.y));
+  if (globalThis.__CAM_MAPCLAMP === true) {
+    cam.x = Math.max(0, Math.min(G.W - vw, cam.x));
+    cam.y = Math.max(0, Math.min(G.H - vh, cam.y));
+  }
 }
 
 function fireSpear(p, tx, ty) {
