@@ -48,7 +48,7 @@ if (globalThis.__RANGED_MOB === undefined) globalThis.__RANGED_MOB = true;
 //   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
 //      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
 //      소환수 vs 적 밸런스는 유지 — hurtPlayer 한 곳에서만 곱한다). 되돌리려면 `globalThis.__FOE_DMG = 1`.
-const FOE_DMG_MUL = globalThis.__FOE_DMG ?? 24;
+const FOE_DMG_MUL = globalThis.__FOE_DMG ?? 16;
 const PLAYER_BASE = "char/necro";
 // ★ 2026-08-30 02:32 병수님: 「내 캐릭터가 너무 크다, 작아도 될 듯」.
 //   146 × Z(1.5) = 화면 219px — 863 짜리 화면의 25% 였다(레퍼런스 히어로시즈는 8~10%).
