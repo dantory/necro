@@ -24,8 +24,10 @@ const MAXFLOOR = +(process.argv[3] || 5);
 const SEEDS = (process.argv[4] || "1,2,3,4,5").split(",").map((s) => +s);
 const VW = 1512, VH = 863;
 const FLOORCAP = 45;
+const FIXED_DT = 1 / 60;
+const WALL_SAFETY = 3;
 const log = (...a) => process.stdout.write(a.join(" ") + "\n");
-setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (FLOORCAP * MAXFLOOR * SEEDS.length + 1200) * 1000);
+setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * SEEDS.length + 1200) * 1000);
 
 await ensureChrome({ log, force: true });
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -118,7 +120,8 @@ const SAMPLE = `(() => {
   return { floor: G.floor, level: p.level, kills: M.kills, spawned,
     enem, minions: G.minions.length, used,
     spearDmg, minionDmg, hpPct: Math.round(100 * p.hp / p.maxhp),
-    hitN: M.hitN || 0, deaths: M.deaths || 0, foeShots: (G.foeShots || []).length };
+    hitN: M.hitN || 0, deaths: M.deaths || 0, foeShots: (G.foeShots || []).length,
+    gsec: (window.__gameSec ? window.__gameSec() : 0) };
 })()`;
 
 const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
@@ -144,6 +147,7 @@ async function runOne(seed) {
   await S("Page.addScriptToEvaluateOnNewDocument", { source: AFTER
     ? `globalThis.__RANGED_MOB = true; globalThis.__FOE_DMG = ${MUL};`
     : `globalThis.__RANGED_MOB = false; globalThis.__FOE_DMG = 1;` });
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__FIXED_DT = ${FIXED_DT};` });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
   let booted = false;
@@ -156,18 +160,19 @@ async function runOne(seed) {
   await ev(`Object.assign(window.__hsMetric, { spear:0, nova:0, minion:0, taken:0, deaths:0, kills:0, grains:0, hitN:0 })`);
 
   const floors = {};
-  let cur = null, curFloor = 0, floorStart = Date.now(), prevDeaths = 0;
-  const startAll = Date.now();
+  let cur = null, curFloor = 0, floorStartG = 0, startG = null, prevDeaths = 0;
+  const wallStart = Date.now();
 
   while (true) {
     await sleep(250);
     const s = await ev(SAMPLE);
     if (!s) break;
+    if (startG == null) startG = s.gsec;
     if (s.floor !== curFloor) {
-      if (cur) { cur.killEnd = s.kills; cur.t1 = Date.now(); cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; }
+      if (cur) { cur.killEnd = s.kills; cur.t1 = s.gsec; cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; }
       curFloor = s.floor;
-      floorStart = Date.now();
-      cur = floors[curFloor] = { floor: curFloor, samples: [], killStart: s.kills, hitStart: s.hitN, deathStart: s.deaths, t0: Date.now() };
+      floorStartG = s.gsec;
+      cur = floors[curFloor] = { floor: curFloor, samples: [], killStart: s.kills, hitStart: s.hitN, deathStart: s.deaths, t0: s.gsec };
       if (curFloor > MAXFLOOR) break;
     }
     cur.samples.push(s);
@@ -177,15 +182,16 @@ async function runOne(seed) {
     if (s.deaths > prevDeaths) await capture(S, "death", `층 ${s.floor} · 죽음 · 맞은수 ${s.hitN}`);
     prevDeaths = s.deaths;
 
-    if (Date.now() - floorStart > FLOORCAP * 1000) {
+    if (s.gsec - floorStartG > FLOORCAP) {
       await ev(`(() => { const p = G.player; p.x = G.stairs.x; p.y = G.stairs.y; p._f = false;
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
         setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', { key: 'f', bubbles: true })), 60); })()`);
       await sleep(200);
     }
-    if (Date.now() - startAll > FLOORCAP * (MAXFLOOR + 1) * 1000) break;
+    if (s.gsec - startG > FLOORCAP * (MAXFLOOR + 1)) break;
+    if (Date.now() - wallStart > WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * 1000) { errs.push(`WALL_SAFETY abort seed=${seed} gsec=${r1(s.gsec)}`); break; }
   }
-  if (cur && cur.killEnd == null) { const s = await ev(SAMPLE); if (s) { cur.killEnd = s.kills; cur.t1 = Date.now(); cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; } }
+  if (cur && cur.killEnd == null) { const s = await ev(SAMPLE); if (s) { cur.killEnd = s.kills; cur.t1 = s.gsec; cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; } }
   await raw("Target.closeTarget", { targetId }).catch(() => {});
 
   const out = [];
@@ -198,7 +204,7 @@ async function runOne(seed) {
       floor: f,
       spawned: Math.max(...S2.map(x => x.spawned)),
       kills: (F.killEnd ?? S2[S2.length - 1].kills) - F.killStart,
-      sec: r1(((F.t1 ?? Date.now()) - F.t0) / 1000),
+      sec: r1((F.t1 ?? S2[S2.length - 1].gsec) - F.t0),
       hitN: (F.hitEnd ?? S2[S2.length - 1].hitN) - F.hitStart,
       died: ((F.deathEnd ?? S2[S2.length - 1].deaths) - F.deathStart) > 0 ? 1 : 0,
       hpMin: Math.min(...hpA),
