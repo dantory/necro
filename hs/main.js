@@ -852,6 +852,7 @@ function drawWorld() {
   const drawList = [];
   barRects = [];
   silRects = [];
+  ringRects = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   drawList.sort((a, b) => a.y - b.y);
@@ -863,13 +864,20 @@ function drawWorld() {
   window.__barRects = barRects;
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
   window.__silRects = silRects;
+  window.__ringRects = ringRects;
   for (const ch of G.chests) drawChestBeacon(ch);
   PROF.seg("actors");
 
+  spearRects = [];
   for (const sp of G.spears) {
     ctx.strokeStyle = "#dfeee0"; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x - sp.vx * 0.02, sp.y - sp.vy * 0.02); ctx.stroke();
+    const ax = (sp.x - cam.x) * Z, ay = (sp.y - cam.y) * Z;
+    const bx = (sp.x - sp.vx * 0.02 - cam.x) * Z, by = (sp.y - sp.vy * 0.02 - cam.y) * Z;
+    const pad = 3 * Z / 2 + 1;
+    spearRects.push({ x0: Math.min(ax, bx) - pad, y0: Math.min(ay, by) - pad, x1: Math.max(ax, bx) + pad, y1: Math.max(ay, by) + pad });
   }
+  window.__spearRects = spearRects;
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
   ctx.globalAlpha = 1;
   PROF.seg("fx");
@@ -1208,6 +1216,7 @@ function drawShadow(x, y, w, col, lw) {
     ctx.globalAlpha = 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
     ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
     ctx.globalAlpha = 1;
+    ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: (w + 2) * Z, ry: (w * 0.4 + 1.5) * Z, col });
   }
 }
 
@@ -1243,6 +1252,8 @@ function drawPlayer() {
 // 그려진 이미지의 불투명 머리끝을 구한다([[sprite-brings-its-own-ground]]). m.h(이름값)에
 // 걸면 투명 여백만큼 바가 허공에 뜬다. 자(hs_v196_bars)는 barRects «실제로 그린 사각»만 읽는다.
 let barRects = [];   // V-196: 이 프레임에 실제로 그린 체력바 사각(월드좌표) + 그 몹의 불투명 위끝
+let ringRects = [];  // V-198 ㉡: 이 프레임에 실제로 그린 발밑 색 고리(화면좌표 타원 + 색)
+let spearRects = []; // V-198 ㉠: 이 프레임에 실제로 그린 뼈창 발사체 화면사각
 function opaqueHeadTop(base, y, h) {
   const fm = footMetrics(base);
   // 그려진 이미지 위끝 = y - h + h*footFrac, 그 안 불투명 위끝은 + h*headFrac.
