@@ -1065,6 +1065,7 @@ let floorPat = null;              // (남겨 둠 — 옛 이름 참조 방지) V
 let curFPat = null;               // 이번 프레임의 바닥 무늬(G.floor 로 고른다)
 const FLOOR_PATS = new Map();     // 바닥 타일 이름 → CanvasPattern (한 번 굽고 재활용)
 let wallPatN = null, wallPatS = null, wallPatL = null;  // 벽: 북(정면)·남(윗면)·옆(세로)
+let bedrockPat = null;            // V-212 — 방·복도 밖의 «암반». 빈 검정 대신 화면 전체에 깐다.
 let itemLabels = [];   // V-181: 바닥 이름표의 «화면» 사각들 — 툴팁 마우스 판정이 쓴다
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
@@ -1079,6 +1080,7 @@ function drawWorld() {
 
   curFPat = floorPatFor(G.floor);          // V-204 ㉡ — 층마다 바닥이 갈린다
   if (!wallPatN) buildWallPats();           // V-204 ㉠ — 벽을 wall.png 로 (한 번만 굽는다)
+  if (bedrockPat) { ctx.fillStyle = bedrockPat; ctx.fillRect(cam.x - 64, cam.y - 64, VW / Z + 128, VH / Z + 128); }
 
   // ── 던전을 «던전으로» 그린다 — 방·복도만 바닥, 나머지는 벽/공허 (V-151 B) ──────
   // 옛 판은 화면 전체를 바닥으로 깔아 방·복도·공허가 다 같은 갈색이었다. 이제 걷는
@@ -1101,7 +1103,7 @@ function drawWorld() {
   for (const r of rvis) floorBase(r.x, r.y, r.w, r.h);
   drawDecals();
   for (const r of rvis) {
-    const tint = !r.visited ? "rgba(6,5,11,0.6)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
+    const tint = !r.visited ? "rgba(18,15,24,0.26)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
     floorTint(r.x, r.y, r.w, r.h, tint);
     insetShadow(r);
     doorArches(r, WT);
@@ -1211,7 +1213,7 @@ function drawWorld() {
 
   if (flash > 0) { ctx.globalAlpha = flash; ctx.fillStyle = `rgb(${flashColor})`; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
   const vg = ctx.createRadialGradient(VW / 2, VH / 2, VH * 0.42, VW / 2, VH / 2, VH * 0.95);
-  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.34)");
+  vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,0.14)");
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
 
   drawItems();
@@ -1291,6 +1293,11 @@ function buildWallPats() {
   wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
   wallPatS = ctx.createPattern(bakeCanvas(64, 15, g => { g.drawImage(im, 0, 0, 64, 15); shadeV(g, 64, 15, 0.5, 0.5); }), "repeat");
   wallPatL = ctx.createPattern(bakeCanvas(15, 64, g => { g.translate(15, 0); g.rotate(Math.PI / 2); g.drawImage(im, 0, 0, 64, 15); g.setTransform(1, 0, 0, 1, 0, 0); shadeV(g, 15, 64, 0.12, 0.34); }), "repeat");
+  bedrockPat = ctx.createPattern(bakeCanvas(96, 96, g => {
+    for (let ty = 0; ty < 96; ty += 32) for (let tx = 0; tx < 96; tx += 48) g.drawImage(im, tx, ty, 48, 32);
+    g.fillStyle = "rgba(9,7,12,0.24)"; g.fillRect(0, 0, 96, 96);
+    g.fillStyle = "rgba(40,36,46,0.26)"; g.fillRect(0, 0, 96, 96);
+  }), "repeat");
   return true;
 }
 function floorBase(x, y, w, h) {
@@ -1485,10 +1492,10 @@ function drawProps() {
 
 function drawLight() {
   const p = G.player;
-  const lg = ctx.createRadialGradient(p.x, p.y - 20, 110 / Z, p.x, p.y - 20, 520 / Z);
+  const lg = ctx.createRadialGradient(p.x, p.y - 20, 110 / Z, p.x, p.y - 20, 720 / Z);
   lg.addColorStop(0, "rgba(0,0,0,0)");
-  lg.addColorStop(0.55, "rgba(4,2,3,0.16)");
-  lg.addColorStop(1, "rgba(2,1,2,0.52)");
+  lg.addColorStop(0.55, "rgba(4,2,3,0.06)");
+  lg.addColorStop(1, "rgba(2,1,2,0.2)");
   ctx.fillStyle = lg;
   ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
   ctx.globalCompositeOperation = "lighter";
