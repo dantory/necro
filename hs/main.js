@@ -31,6 +31,8 @@ const PLAYER_BASE = "char/necro";
 //   104 로 내린다 — 해골보다 살짝 크되 무리 속에 같이 서는 크기.
 const PLAYER_H = 104;
 const SPEAR_LEN = PLAYER_H * 0.42;   // 뼈창 발사체 길이 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
+const SPEARHIT_H = PLAYER_H * 0.5;   // 뼈창 명중 임팩트 크기 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
+const BOOM_CAP = 24, HIT_CAP = 48;   // 동시 연출 개수 상한(parts 400·floats 60 과 같은 결) — 프레임을 먹지 않게
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 96;
 // 칸(자리) 저울 (V-146) — 해골 1칸 · 거대 해골 3칸 · 뼈 거인 6칸.
@@ -120,7 +122,7 @@ function fresh(floor, carry) {
   return {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
-    spears: [], golds: [], items: [], corpses: [], parts: [], floats: [],
+    spears: [], golds: [], items: [], corpses: [], parts: [], floats: [], booms: [], hits: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -334,7 +336,10 @@ function explode(x, y, dmg, rad, delay) {
       const a = Math.random() * 6.283, s = 60 + Math.random() * 260;
       G.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5, col: "#ff7a3c", r: 3 + Math.random() * 3 });
     }
-    G.floats.push({ x, y: y - 30, t: 0.9, txt: "", ring: rad });
+    // ㉠ V-199 — 폭발 임팩트를 픽셀랩 스프라이트(fx/boom.png)로 그린다(drawWorld). 반경 rad 에 맞춰 커지며 사그라든다.
+    //   동시 개수 상한(BOOM_CAP)을 넘으면 옛 주황 고리 float 로 폴백한다 — 연출이 프레임을 먹지 않게.
+    if (G.booms.length < BOOM_CAP) G.booms.push({ x, y, t: 0, life: 0.55, rad });
+    else G.floats.push({ x, y: y - 30, t: 0.9, txt: "", ring: rad });
     forEachEnemy((m) => {
       if ((m.x - x) ** 2 + (m.y - y) ** 2 < rad * rad) hurtEnemy(m, dmg, (m.x - x), (m.y - y), "nova");
     });
@@ -502,6 +507,15 @@ function hurtEnemy(m, dmg, dx, dy, src) {
   m.kb.x += (dx / l) * 240; m.kb.y += (dy / l) * 240;
   floatDmg(m, Math.round(dmg), m.elite ? "#ffd060" : "#ffffff");
   for (let i = 0; i < 4; i++) burst(m.x, m.y - m.h * 0.4, "#c0303a", 90);
+  // ㉡ V-199 — 뼈창 명중에 임팩트 스프라이트(fx/spearhit.png)를 짧게 띄운다(drawWorld). 미로드면 위 붉은 파티클로 폴백.
+  //   자(hs_v199_read)가 명중 이벤트 대비 임팩트 «그려진 비율»을 읽도록 두 counter 를 노출한다.
+  if (src === "spear") {
+    window.__spearHitN = (window.__spearHitN || 0) + 1;
+    if (tex("fx/spearhit.png")?.width && G.hits.length < HIT_CAP) {
+      G.hits.push({ x: m.x, y: m.y - m.h * 0.4, t: 0, life: 0.2, h: m.h });
+      window.__hitDrawnN = (window.__hitDrawnN || 0) + 1;
+    }
+  }
   if (m.hp <= 0) killEnemy(m);
 }
 
@@ -710,6 +724,12 @@ function stepParts(dt) {
   for (const p of G.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 60 * dt; p.life -= dt; }
   G.parts = G.parts.filter((p) => p.life > 0);
 }
+function stepFx(dt) {
+  for (const b of G.booms) b.t += dt;
+  G.booms = G.booms.filter((b) => b.t < b.life);
+  for (const h of G.hits) h.t += dt;
+  G.hits = G.hits.filter((h) => h.t < h.life);
+}
 // ★ V-185 — 떠오르는 글이 화면 한복판을 덮던 것을 판다. 고치기 전엔 피해 숫자 상한이
 //   60 이고, 같은 적을 때릴 때마다 새 숫자가 사람 위에 통째로 쌓였다(컷에서 「6603」이
 //   열두 개 겹쳐 사람을 묻었다). 세 가지로 막는다:
@@ -888,6 +908,35 @@ function drawWorld() {
   }
   window.__spearRects = spearRects;
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
+  ctx.globalAlpha = 1;
+
+  // ㉠ 시체폭발 임팩트 — 구운 스프라이트를 반경에 맞춰 키우며 사그라뜨린다. 미로드면 옛 주황 고리로 폴백.
+  const boomRects = [];
+  const boomIm = tex("fx/boom.png");
+  ctx.imageSmoothingEnabled = false;
+  for (const b of G.booms) {
+    const k = b.t / b.life;
+    const d = b.rad * (1.3 + 0.7 * k);
+    ctx.globalAlpha = Math.min(1, (1 - k) * 1.8);
+    if (boomIm && boomIm.width) ctx.drawImage(boomIm, b.x - d / 2, b.y - d / 2, d, d);
+    else { ctx.strokeStyle = "#ff7a3c"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(b.x, b.y, b.rad * (0.5 + k), 0, 6.283); ctx.stroke(); }
+    const hx = (d / 2) * Z;
+    boomRects.push({ x0: (b.x - cam.x) * Z - hx, y0: (b.y - cam.y) * Z - hx, x1: (b.x - cam.x) * Z + hx, y1: (b.y - cam.y) * Z + hx });
+  }
+  window.__boomRects = boomRects;
+
+  // ㉡ 뼈창 명중 임팩트 — 짧게 띄운다. 미로드면 hurtEnemy 의 붉은 파티클이 폴백이다.
+  const hitRects = [];
+  const hitIm = tex("fx/spearhit.png");
+  for (const h of G.hits) {
+    const k = h.t / h.life;
+    const s = SPEARHIT_H * (0.8 + 0.4 * k);
+    ctx.globalAlpha = Math.min(1, (1 - k) * 2);
+    if (hitIm && hitIm.width) ctx.drawImage(hitIm, h.x - s / 2, h.y - s / 2, s, s);
+    const hs = (s / 2) * Z;
+    hitRects.push({ x0: (h.x - cam.x) * Z - hs, y0: (h.y - cam.y) * Z - hs, x1: (h.x - cam.x) * Z + hs, y1: (h.y - cam.y) * Z + hs });
+  }
+  window.__hitRects = hitRects;
   ctx.globalAlpha = 1;
   PROF.seg("fx");
 
@@ -2014,7 +2063,7 @@ function loop(now) {
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
     stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepDrops(dt);
-    stepParts(dt); stepFloats(dt); markVisited();
+    stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     for (const e of G.pickLog) e.t -= dt;
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
@@ -2035,7 +2084,7 @@ function loop(now) {
   resetUniques();
   preload([PLAYER_BASE, SKEL_BASE, "mob/fallen", "mob/zombie", "mob/skelarch", "mob/shaman", "mob/brute", "mob/boss"]);
   tex("floor/crypt_tile.png");
-  tex("fx/spear.png"); tex("fx/spearhit.png");
+  tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
   bindChar();
