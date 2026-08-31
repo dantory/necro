@@ -118,7 +118,7 @@ function fresh(floor, carry) {
     atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
-  p.spearCd = 0; p.hurt = 0;
+  p.spearCd = 0; p.hurt = 0; p.r = PLAYER_R;
   return {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
@@ -131,12 +131,78 @@ function fresh(floor, carry) {
 
 function start(floor, carry) {
   G = fresh(floor, carry);
+  G.blockProps = G.props.filter((pr) => BLOCK_IMGS.has(pr.img));
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
   window.toggleChar = toggleChar;   // 검수기가 창을 열게(찍기는 창의 + 단추 실클릭으로)
-  cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z);
+  window.__walkable = (x, y, r = PLAYER_R) => walkable(x, y, r);   // V-201 자가 «실제 문»으로 재게
+  window.__blockers = () => G.blockProps.map((pr) => ({ x: pr.x, y: pr.y, r: propBlockR(pr) }));
+  const p = G.player;
+  unstick(p, p.r);
+  for (const m of G.minions) unstick(m, m.r || 15);
+  cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";
+}
+
+// ── V-201 충돌 판정 — 걸을 수 있는 자리 = 방 ∪ 복도, 밖은 암반 ──────────────
+// 여태 사람을 움직이는 코드는 «맵 바깥 테두리»(40..W-40)만 막고 방·복도·벽·소품을
+// 다 무시했다(V-201). 이제 map.js 가 이미 만드는 rooms·corridors(둘 다 사각형)의
+// 합집합만 걷는다. 새로 지을 것은 없다 — 그 사각형들에 «몸 반지름»을 먹여 판정한다.
+const PLAYER_R = 22;   // 사람 발밑 반지름. 답답하면 여기(또는 미끄러짐)를 손댄다(V-201 주의).
+// 서 있는 물건 — 통과하면 안 된다(몸으로 막는다). 잔해·뼈·항아리·얼룩은 «바닥 그림»이라 뺀다.
+// 계단(stairs)은 «구멍»이라 애초에 props 가 아니고, 여기서도 막지 않는다 — 밟아야 내려간다.
+const BLOCK_IMGS = new Set(["decor/pillar.png", "decor/column2.png", "decor/statue.png",
+  "decor/coffin.png", "decor/brazier.png"]);
+
+// 막는 크기는 매직넘버가 아니라 spriteFoot 이 낸 «발밑 폭»에서 낸다(이미 있는 함수). 그림이
+// 아직 안 왔으면 임시로 키에서 짐작하되 캐시하지 않는다 — 로드되면 다음에 실측으로 굳는다.
+function propBlockR(pr) {
+  if (pr._br != null) return pr._br;
+  const im = tex(pr.img);
+  if (im && im.width) {
+    const wpx = pr.h * (im.width / im.height);
+    const fo = spriteFoot(im, pr.img);
+    return (pr._br = fo ? Math.max(10, fo.w * wpx / 2) : wpx * 0.22);
+  }
+  return pr.h * 0.22;
+}
+
+// 그 점이 어느 방/복도 안인가 — 몸 반지름 r 만큼 사각형을 안으로 줄여 판정한다(벽에 안 낀다).
+function inFree(x, y, r) {
+  for (const rm of G.rooms) if (x >= rm.x + r && x <= rm.x + rm.w - r && y >= rm.y + r && y <= rm.y + rm.h - r) return true;
+  for (const c of G.corridors) if (x >= c.x + r && x <= c.x + c.w - r && y >= c.y + r && y <= c.y + c.h - r) return true;
+  return false;
+}
+// 서 있는 소품·상자에 몸이 겹치나. y(깊이)는 0.62 눌러 «발자국»만 막는다(위로 솟은 부분은 원근으로 겹쳐도 됨).
+function blockedByProp(x, y, r) {
+  for (const pr of G.blockProps) {
+    const br = propBlockR(pr) + r, dx = x - pr.x, dy = (y - pr.y) / 0.62;
+    if (dx * dx + dy * dy < br * br) return true;
+  }
+  for (const ch of G.chests) {
+    const br = (ch.r || 26) + r, dx = x - ch.x, dy = (y - ch.y) / 0.62;
+    if (dx * dx + dy * dy < br * br) return true;
+  }
+  return false;
+}
+function walkable(x, y, r) { return inFree(x, y, r) && !blockedByProp(x, y, r); }
+
+// 미끄러진다 — 벽에 부딪히면 멈추는 게 아니라 축을 나눠 민다(x 되면 x, y 되면 y). 그래야
+// 벽을 따라 걷고 모서리에서 안 낀다. 이게 없으면 조작이 답답해진다(V-201 주의).
+function stepTo(e, nx, ny, r) {
+  if (nx !== e.x && walkable(nx, e.y, r)) e.x = nx;
+  if (ny !== e.y && walkable(e.x, ny, r)) e.y = ny;
+}
+// 끼면 빼낸다 — 걸을 수 없는 자리에 서면(층 생성·순간이동·밀림) 가장 가까운 걸을 수 있는 자리로.
+function unstick(e, r) {
+  if (walkable(e.x, e.y, r)) return;
+  for (let step = 10; step <= 700; step += 10)
+    for (let a = 0; a < 12; a++) {
+      const ang = a / 12 * 6.2832;
+      const x = e.x + Math.cos(ang) * step, y = e.y + Math.sin(ang) * step;
+      if (walkable(x, y, r)) { e.x = x; e.y = y; return; }
+    }
 }
 
 function stepPlayer(dt) {
@@ -149,8 +215,7 @@ function stepPlayer(dt) {
   if (mx || my) {
     const l = Math.hypot(mx, my);
     mx /= l; my /= l;
-    p.x = Math.max(40, Math.min(G.W - 40, p.x + mx * p.spd * dt));
-    p.y = Math.max(40, Math.min(G.H - 40, p.y + my * p.spd * dt));
+    stepTo(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
     p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
   } else { p.state = "idle"; p.anim += dt * 6; }
 
@@ -366,6 +431,7 @@ function stepEnemies(dt) {
     for (const m of pk.enemies) {
       if (!m.alive) continue;
       live++;
+      unstick(m, m.r);   // 밀림(separation)·순간이동으로 벽 밖에 나가면 매 프레임 도로 끌어들인다
       if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
       for (const s of G.minions) {
@@ -376,7 +442,7 @@ function stepEnemies(dt) {
       m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
       m.atk -= dt; m.hit = Math.max(0, m.hit - dt);
       if (dist > m.r + 30) {
-        m.x += m.dx * m.spd * dt; m.y += m.dy * m.spd * dt;
+        stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
         m.state = "walk"; m.anim += dt * 9;
       } else {
         m.state = "attack"; m.anim += dt * 9;
@@ -386,7 +452,7 @@ function stepEnemies(dt) {
           else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } }
         }
       }
-      if (m.kb.x || m.kb.y) { m.x += m.kb.x * dt; m.y += m.kb.y * dt; m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+      if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
     }
     if (live === 0 && !pk.done) { pk.done = true; G.cleared++; markRoomCleared(pk.room); }
   }
@@ -457,13 +523,14 @@ function stepMinions(dt) {
   const N = G.minions.length;
   for (let i = 0; i < N; i++) {
     const s = G.minions[i];
+    unstick(s, s.r);
     let target = null, bd = 520 * 520;
     forEachEnemy((m) => { const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
     s.atk = Math.max(0, s.atk - dt);
     if (target) {
       const d = Math.sqrt(bd) || 1;
       s.dx = (target.x - s.x) / d; s.dy = (target.y - s.y) / d;
-      if (d > s.r + target.r + 6) { s.x += s.dx * s.spd * dt; s.y += s.dy * s.spd * dt; s.state = "walk"; s.anim += dt * 10; }
+      if (d > s.r + target.r + 6) { stepTo(s, s.x + s.dx * s.spd * dt, s.y + s.dy * s.spd * dt, s.r); s.state = "walk"; s.anim += dt * 10; }
       else {
         s.state = "attack"; s.anim += dt * 10;
         if (s.atk <= 0) {
@@ -476,7 +543,7 @@ function stepMinions(dt) {
     } else {
       const spot = formSpot(p, i, backAng);
       const dx = spot.x - s.x, dy = spot.y - s.y, dd = Math.hypot(dx, dy);
-      if (dd > 12) { s.dx = dx / dd; s.dy = dy / dd; const step = Math.min(dd, s.spd * dt); s.x += s.dx * step; s.y += s.dy * step; s.state = "walk"; s.anim += dt * 10; }
+      if (dd > 12) { s.dx = dx / dd; s.dy = dy / dd; const step = Math.min(dd, s.spd * dt); stepTo(s, s.x + s.dx * step, s.y + s.dy * step, s.r); s.state = "walk"; s.anim += dt * 10; }
       else { s.state = "idle"; s.anim += dt * 5; }
     }
   }
