@@ -1296,10 +1296,34 @@ function buildWallPats() {
   wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
   wallPatS = ctx.createPattern(bakeCanvas(64, 15, g => { g.drawImage(im, 0, 0, 64, 15); shadeV(g, 64, 15, 0.5, 0.5); }), "repeat");
   wallPatL = ctx.createPattern(bakeCanvas(15, 64, g => { g.translate(15, 0); g.rotate(Math.PI / 2); g.drawImage(im, 0, 0, 64, 15); g.setTransform(1, 0, 0, 1, 0, 0); shadeV(g, 15, 64, 0.12, 0.34); }), "repeat");
-  bedrockPat = ctx.createPattern(bakeCanvas(96, 96, g => {
-    for (let ty = 0; ty < 96; ty += 32) for (let tx = 0; tx < 96; tx += 48) g.drawImage(im, tx, ty, 48, 32);
-    g.fillStyle = "rgba(9,7,12,0.24)"; g.fillRect(0, 0, 96, 96);
-    g.fillStyle = "rgba(40,36,46,0.26)"; g.fillRect(0, 0, 96, 96);
+  // ★ V-215 — 옛 암반은 벽 그림을 48×32 로 2×3 격자에 «그대로» 찍어(돌림·뒤집기 없음, 주기 96px)
+  //   자로 재니 한 칸 민 자기 자신과 상관 0.93·이음매 봉우리 0.96 — 92% 벽지였다(hs_v215_rock.mjs).
+  //   V-176 이 **바닥**에서 잡은 것과 같은 병. 그 고침(buildFloorPat)을 암반으로 옮긴다 —
+  //   정사각 칸을 4×4 로, 칸마다 90°×좌우뒤집기(buildFloorPat 과 같은 rnd)로 돌려 주기를 96→C·N 로 늘리고,
+  //   칸을 흔들고(jx/jy) 키워 겹쳐(OV) 벽 그림의 어두운 가장자리가 «줄»로 안 서게 이음매를 흩는다.
+  //   판을 무한히 깐 것처럼 3×3 로 둘러 그려 가장자리가 맞물린다(되풀이해도 판 경계에 새 이음매 없음).
+  //   밝기·색은 그대로 — 정사각 크롭이라 벽 평균밝기가 유지되고 아래 두 겹 어둠칠도 그대로(V-212 어둠 42.8% 지킴).
+  //   에셋을 새로 굽지 않고 있는 벽 그림 하나로 판만 다시 짠다. 매직넘버 없이 벽 그림 크기에서 끌어낸다.
+  const C = im.height, N = 4, OV = C >> 1, P = N * C, s = C + 2 * OV, sc = (im.width - im.height) / 2;
+  let sd = 0x9e3779b9;
+  const rnd = () => { sd = (sd + 0x6D2B79F5) | 0; let t = Math.imul(sd ^ (sd >>> 15), 1 | sd);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const cells = [];
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++)
+    cells.push({ i, j, o: (rnd() * 8) | 0, jx: ((rnd() - 0.5) * OV * 2) | 0, jy: ((rnd() - 0.5) * OV * 2) | 0 });
+  bedrockPat = ctx.createPattern(bakeCanvas(P, P, g => {
+    g.imageSmoothingEnabled = false;
+    for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) for (const c of cells) {
+      g.save();
+      g.translate(ox * P + c.i * C + C / 2 + c.jx, oy * P + c.j * C + C / 2 + c.jy);
+      g.rotate((c.o & 3) * Math.PI / 2);
+      if (c.o & 4) g.scale(-1, 1);
+      g.drawImage(im, sc, 0, C, C, -s / 2, -s / 2, s, s);   // 정사각 크롭 → 왜곡·평균밝기 변화 없음
+      g.restore();
+    }
+    g.fillStyle = "rgba(9,7,12,0.24)"; g.fillRect(0, 0, P, P);
+    g.fillStyle = "rgba(40,36,46,0.26)"; g.fillRect(0, 0, P, P);
+    g.fillStyle = "rgba(6,5,9,0.46)"; g.fillRect(0, 0, P, P);   // V-215 — 겹침이 어두운 이음매(mortar)를 덮어 밝아진 만큼 고르게 되어둡혀 V-212 어둠 42.8% 를 되찾는다(회귀로 맞춤)
   }), "repeat");
   return true;
 }
