@@ -2102,7 +2102,7 @@ function toggleChar() {
   if (charOpen) renderChar(); else invReleaseTips();
 }
 function invReleaseTips() { el("chartip").style.display = "none"; }
-let charName = "Necromancer";
+let charName = "네크로맨서";   // V-209 — 한글로
 function renameChar() {
   const nm = (window.prompt("소환사 이름", charName) || "").trim();
   if (!nm) return;
@@ -2295,10 +2295,12 @@ function updateHUD() {
   el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
   el("xpbar").style.width = (100 * (G.xp - lvBase) / lvSpan) + "%";
   el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
-  el("region1").textContent = "Crypt of the Dead";
-  el("region2").textContent = `Level B${G.floor}`;
-  el("region3").textContent = G.floor < 2 ? "Nightmare" : "Hell";
-  el("region4").textContent = `Zone Level ${G.floor * 40 + 42}`;
+  // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데
+  //   여기만 영어라 한 화면에 두 말이 섞여 있었다.
+  el("region1").textContent = "죽은 자의 묘지";
+  el("region2").textContent = `지하 ${G.floor}층`;
+  el("region3").textContent = G.floor < 2 ? "악몽" : "지옥";
+  el("region4").textContent = `지역 등급 ${G.floor * 40 + 42}`;
   el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
   const used = slotsUsed();
   const cap = slotCap();
