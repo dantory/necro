@@ -30,6 +30,7 @@ const PLAYER_BASE = "char/necro";
 //   주변 잡몹(≈100px)·해골(96)보다 혼자 1.5 배라 「사람만 확대된」 그림이었다.
 //   104 로 내린다 — 해골보다 살짝 크되 무리 속에 같이 서는 크기.
 const PLAYER_H = 104;
+const SPEAR_LEN = PLAYER_H * 0.42;   // 뼈창 발사체 길이 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 96;
 // 칸(자리) 저울 (V-146) — 해골 1칸 · 거대 해골 3칸 · 뼈 거인 6칸.
@@ -869,13 +870,21 @@ function drawWorld() {
   PROF.seg("actors");
 
   spearRects = [];
+  const spearIm = tex("fx/spear.png");
   for (const sp of G.spears) {
-    ctx.strokeStyle = "#dfeee0"; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x - sp.vx * 0.02, sp.y - sp.vy * 0.02); ctx.stroke();
-    const ax = (sp.x - cam.x) * Z, ay = (sp.y - cam.y) * Z;
-    const bx = (sp.x - sp.vx * 0.02 - cam.x) * Z, by = (sp.y - sp.vy * 0.02 - cam.y) * Z;
-    const pad = 3 * Z / 2 + 1;
-    spearRects.push({ x0: Math.min(ax, bx) - pad, y0: Math.min(ay, by) - pad, x1: Math.max(ax, bx) + pad, y1: Math.max(ay, by) + pad });
+    const ang = Math.atan2(sp.vy, sp.vx);
+    const drawn = spearIm && spearIm.width;
+    const dw = SPEAR_LEN, dh = drawn ? SPEAR_LEN * (spearIm.height / spearIm.width) : SPEAR_LEN * 0.5;
+    if (drawn) {
+      ctx.save(); ctx.translate(sp.x, sp.y); ctx.rotate(ang); ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(spearIm, -dw / 2, -dh / 2, dw, dh); ctx.restore();
+    } else {
+      ctx.strokeStyle = "#dfeee0"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(sp.x, sp.y); ctx.lineTo(sp.x - sp.vx * 0.02, sp.y - sp.vy * 0.02); ctx.stroke();
+    }
+    const c = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));
+    const ex = (dw / 2) * c + (dh / 2) * sn, ey = (dw / 2) * sn + (dh / 2) * c;
+    spearRects.push({ x0: (sp.x - ex - cam.x) * Z, y0: (sp.y - ey - cam.y) * Z, x1: (sp.x + ex - cam.x) * Z, y1: (sp.y + ey - cam.y) * Z });
   }
   window.__spearRects = spearRects;
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
@@ -2026,6 +2035,7 @@ function loop(now) {
   resetUniques();
   preload([PLAYER_BASE, SKEL_BASE, "mob/fallen", "mob/zombie", "mob/skelarch", "mob/shaman", "mob/brute", "mob/boss"]);
   tex("floor/crypt_tile.png");
+  tex("fx/spear.png"); tex("fx/spearhit.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
   bindChar();
