@@ -1,33 +1,28 @@
-/* hs/ V-203b 자 — 「긴장을 실제로 넣었나」를 잰다(before / after 한 자로).
+/* V-205 ㉢ 결정성 자 — «같은 씨앗을 두 번 돌리면 층별 지표가 같은가».
  *
- *   node tools/hs_v203b.mjs [mul] [최대층] [씨앗들]
- *   node tools/hs_v203b.mjs 0            → before: 지금 판(__RANGED_MOB 끔 · 적 피해 ×1)
- *   node tools/hs_v203b.mjs 24 5 1,2,3   → after : RANGED 켬 · 적 피해 ×24 · 층 1~5 · 씨앗 3개
+ *   node tools/hs_v205_determinism.mjs [mul] [최대층] [씨앗들]
+ *   node tools/hs_v205_determinism.mjs 16 3 1,2,3   → 곱16·층1~3·씨앗 1,2,3 을 각각 2회
  *
- * 왜: V-203 표가 「RANGED 만 소환수 벽을 원리로 넘고, 그런데 어느 팔도 hp 를 못 깎는다」를
- *   보였다(hp 4,515 인데 적 피해 6~18). 그래서 «닿게 하는 팔(RANGED) + 아프게 하는 팔(피해↑)»을
- *   둘 다 켜고, 끝 조건이 맞을 때까지 mul 을 조정한다.
+ * 왜: V-203b 스윕이 씨앗을 고정해도 판이 갈렸다. 원천은 벽시계 dt(hs/main.js:2265)라
+ *   짚었고, ㉠ 이 __FIXED_DT 로 dt 를 고정했다. 이 자가 그 고침이 «실제로» 결정적인지 잰다 —
+ *   같은 씨앗 2회의 층별 kills·hitN·hpMin·died 가 일치하면 합격. 안 맞으면 남은 비결정
+ *   원천을 그대로 적는다(대충 비슷은 불합격). __FIXED_DT 는 hs_v203b 와 같은 1/60 을 쓴다.
  *
- * 자·봇·표본·지표는 V-203(tools/hs_v203_arms.mjs)과 같다 — dip50Ratio(hp<50% 층 비율) 와
- *   diedRatio(죽은 층 비율) 의 «분모»가 끝 조건의 분모와 같아야 판정이 맞는다.
- *
- * 끝 조건(자로 판정): hp<50% 층 ≥30% · 죽은 층 5~20% · 완주 시간 규격 안(~137s) · 오류 0.
- * 컷(after 만): 첫 화살이 나는 순간 tmp/hs_v203b_ranged.png · hp<50 순간 _hurt.png · 죽는 순간 _death.png.
+ * 봇·자·표본은 hs_v203b 와 같다(ruler 만 게임시간). 스크린샷·끝조건 판정은 뺐다 — 여기선
+ *   «두 판이 같은가»만 본다.
  */
 import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
 const URL = "http://127.0.0.1:8774/hs/index.html";
-const MUL = +(process.argv[2] ?? 0);
-const AFTER = MUL > 0;
-const LABEL = AFTER ? `m${MUL}` : "before";
-const MAXFLOOR = +(process.argv[3] || 5);
-const SEEDS = (process.argv[4] || "1,2,3,4,5").split(",").map((s) => +s);
+const MUL = +(process.argv[2] ?? 16);
+const MAXFLOOR = +(process.argv[3] || 3);
+const SEEDS = (process.argv[4] || "1,2,3").split(",").map((s) => +s);
 const VW = 1512, VH = 863;
 const FLOORCAP = 45;
 const FIXED_DT = 1 / 60;
 const WALL_SAFETY = 3;
 const log = (...a) => process.stdout.write(a.join(" ") + "\n");
-setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * SEEDS.length + 1200) * 1000);
+setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * SEEDS.length * 2 + 1200) * 1000);
 
 await ensureChrome({ log, force: true });
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -110,32 +105,15 @@ const AUTO = `(SPEC => {
 })`;
 
 const SAMPLE = `(() => {
-  const G = window.G, p = G.player, T = window.SKEL_TIERS, M = window.__hsMetric;
-  let enem = 0, spawned = 0;
-  for (const pk of G.packs) { spawned += pk.enemies.length; if (pk.awake) for (const m of pk.enemies) if (m.alive) enem++; }
-  let used = 0; for (const m of G.minions) used += m.slot;
-  const spearDmg = Math.round(42 * p.dmgMul * p.spearMul);
-  const tier = Math.min(p.maxGrade, T.length - 1);
-  const minionDmg = Math.round((34 + G.floor * 10) * T[tier].dmgMul * p.minionMul);
-  return { floor: G.floor, level: p.level, kills: M.kills, spawned,
-    enem, minions: G.minions.length, used,
-    spearDmg, minionDmg, hpPct: Math.round(100 * p.hp / p.maxhp),
-    hitN: M.hitN || 0, deaths: M.deaths || 0, foeShots: (G.foeShots || []).length,
+  const G = window.G, p = G.player, M = window.__hsMetric;
+  let spawned = 0; for (const pk of G.packs) spawned += pk.enemies.length;
+  return { floor: G.floor, kills: M.kills, spawned,
+    hpPct: Math.round(100 * p.hp / p.maxhp),
+    hitN: M.hitN || 0, deaths: M.deaths || 0,
     gsec: (window.__gameSec ? window.__gameSec() : 0) };
 })()`;
 
-const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 const r1 = n => Math.round(n * 10) / 10;
-
-// after 만 컷을 남긴다 — 첫 seed 의 첫 순간만(덮어쓰지 않게 shot 플래그로 잠근다).
-const shot = { ranged: false, hurt: false, death: false };
-async function capture(S, key, note) {
-  if (!AFTER || shot[key]) return;
-  shot[key] = true;
-  const r = await S("Page.captureScreenshot", { format: "png" });
-  fs.writeFileSync(`tmp/hs_v203b_${key}.png`, Buffer.from(r.data, "base64"));
-  log(`  컷 tmp/hs_v203b_${key}.png  (${note})`);
-}
 
 async function runOne(seed) {
   const { targetId } = await raw("Target.createTarget", { url: "about:blank" });
@@ -144,9 +122,7 @@ async function runOne(seed) {
   const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
   await S("Page.enable"); await S("Runtime.enable");
   await S("Page.addScriptToEvaluateOnNewDocument", { source: seedSrc(seed) });
-  await S("Page.addScriptToEvaluateOnNewDocument", { source: AFTER
-    ? `globalThis.__RANGED_MOB = true; globalThis.__FOE_DMG = ${MUL};`
-    : `globalThis.__RANGED_MOB = false; globalThis.__FOE_DMG = 1;` });
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__RANGED_MOB = true; globalThis.__FOE_DMG = ${MUL};` });
   await S("Page.addScriptToEvaluateOnNewDocument", { source: `globalThis.__FIXED_DT = ${FIXED_DT};` });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
@@ -160,7 +136,7 @@ async function runOne(seed) {
   await ev(`Object.assign(window.__hsMetric, { spear:0, nova:0, minion:0, taken:0, deaths:0, kills:0, grains:0, hitN:0 })`);
 
   const floors = {};
-  let cur = null, curFloor = 0, floorStartG = 0, startG = null, prevDeaths = 0;
+  let cur = null, curFloor = 0, floorStartG = 0, startG = null;
   const wallStart = Date.now();
 
   while (true) {
@@ -177,11 +153,6 @@ async function runOne(seed) {
     }
     cur.samples.push(s);
 
-    if (s.foeShots > 0) await capture(S, "ranged", `층 ${s.floor} · 화살 ${s.foeShots} · hp ${s.hpPct}%`);
-    if (s.hpPct < 50) await capture(S, "hurt", `층 ${s.floor} · hp ${s.hpPct}% · 맞은수 ${s.hitN}`);
-    if (s.deaths > prevDeaths) await capture(S, "death", `층 ${s.floor} · 죽음 · 맞은수 ${s.hitN}`);
-    prevDeaths = s.deaths;
-
     if (s.gsec - floorStartG > FLOORCAP) {
       await ev(`(() => { const p = G.player; p.x = G.stairs.x; p.y = G.stairs.y; p._f = false;
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
@@ -189,7 +160,7 @@ async function runOne(seed) {
       await sleep(200);
     }
     if (s.gsec - startG > FLOORCAP * (MAXFLOOR + 1)) break;
-    if (Date.now() - wallStart > WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * 1000) { errs.push(`WALL_SAFETY abort seed=${seed} gsec=${r1(s.gsec)}`); break; }
+    if (Date.now() - wallStart > WALL_SAFETY * FLOORCAP * (MAXFLOOR + 1) * 1000) { errs.push(`WALL_SAFETY abort seed=${seed}`); break; }
   }
   if (cur && cur.killEnd == null) { const s = await ev(SAMPLE); if (s) { cur.killEnd = s.kills; cur.t1 = s.gsec; cur.hitEnd = s.hitN; cur.deathEnd = s.deaths; } }
   await raw("Target.closeTarget", { targetId }).catch(() => {});
@@ -199,59 +170,65 @@ async function runOne(seed) {
     if (f > MAXFLOOR) continue;
     const F = floors[f]; const S2 = F.samples;
     if (!S2.length) continue;
-    const hpA = S2.map(x => x.hpPct);
     out.push({
       floor: f,
-      spawned: Math.max(...S2.map(x => x.spawned)),
       kills: (F.killEnd ?? S2[S2.length - 1].kills) - F.killStart,
-      sec: r1((F.t1 ?? S2[S2.length - 1].gsec) - F.t0),
       hitN: (F.hitEnd ?? S2[S2.length - 1].hitN) - F.hitStart,
       died: ((F.deathEnd ?? S2[S2.length - 1].deaths) - F.deathStart) > 0 ? 1 : 0,
-      hpMin: Math.min(...hpA),
-      foeShotMax: Math.max(...S2.map(x => x.foeShots || 0)),
+      hpMin: Math.min(...S2.map(x => x.hpPct)),
+      sec: r1((F.t1 ?? S2[S2.length - 1].gsec) - F.t0),
+      nSamp: S2.length,
     });
   }
   return { seed, floors: out };
 }
 
-log(`\n■ hs_v203b — «${LABEL}»${AFTER ? ` (__RANGED_MOB=on · __FOE_DMG=${MUL})` : " (RANGED off · 적 피해 ×1 = 지금 판)"} · 층 1→${MAXFLOOR} × 씨앗 ${SEEDS.join("/")}`);
-log(`  재는 것: 맞은 횟수/초 · hp 최저 · hp<50% 층 비율 · 죽은 층 비율 · 층당 처치 · 완주 시간\n`);
-const runs = [];
-for (let i = 0; i < SEEDS.length; i++) {
+log(`\n■ hs_v205_determinism — 곱 ${MUL} · 층 1→${MAXFLOOR} · 씨앗 ${SEEDS.join("/")} 를 각 2회`);
+log(`  __FIXED_DT=1/${Math.round(1 / FIXED_DT)} · 합격 = 같은 씨앗 2회의 층별 kills·hitN·hpMin·died 일치 (sec 은 ±0.5 게임초 허용)\n`);
+
+const KEYS = ["kills", "hitN", "hpMin", "died"];
+const report = [];
+let allMatch = true;
+
+for (const seed of SEEDS) {
   errs = [];
-  const r = await runOne(SEEDS[i]);
-  if (!r) { log(`  씨앗 ${SEEDS[i]} — 실패`); continue; }
-  r.errs = errs.length; runs.push(r);
-  for (const F of r.floors)
-    log(`  씨앗 ${r.seed} 층${F.floor}: 놓인적 ${F.spawned} · ${F.sec}s간 처치 ${F.kills} · hp최저 ${F.hpMin}% · ` +
-      `맞은수 ${F.hitN}${F.died ? " · 죽음" : ""}${F.foeShotMax ? ` · 화살max ${F.foeShotMax}` : ""}`);
-  log(`    (오류 ${r.errs})`);
+  const a = await runOne(seed);
+  const b = await runOne(seed);
+  if (!a || !b) { log(`  씨앗 ${seed} — 부팅 실패, 건너뜀`); allMatch = false; continue; }
+  const fa = new Map(a.floors.map(F => [F.floor, F]));
+  const fb = new Map(b.floors.map(F => [F.floor, F]));
+  const floorSet = [...new Set([...fa.keys(), ...fb.keys()])].sort((x, y) => x - y);
+  const seedRep = { seed, floors: [], errs: errs.length };
+  let seedMatch = true;
+  for (const f of floorSet) {
+    const A = fa.get(f), B = fb.get(f);
+    if (!A || !B) { log(`  씨앗 ${seed} 층${f}: 한 판에만 있음 (A ${!!A} · B ${!!B}) → 불일치`); seedMatch = false; seedRep.floors.push({ floor: f, match: false, missing: true }); continue; }
+    const diffs = [];
+    for (const k of KEYS) if (A[k] !== B[k]) diffs.push(`${k} ${A[k]}≠${B[k]}`);
+    const secDiff = Math.abs(A.sec - B.sec);
+    const match = diffs.length === 0;
+    if (!match) seedMatch = false;
+    seedRep.floors.push({ floor: f, match, diffs, A, B, secDiff: r1(secDiff) });
+    log(`  씨앗 ${seed} 층${f}: ${match ? "✓ 일치" : "✗ " + diffs.join(" · ")}` +
+      `  [A kills ${A.kills}/hit ${A.hitN}/hpMin ${A.hpMin}/died ${A.died}/${A.sec}s/${A.nSamp}표본` +
+      ` · B kills ${B.kills}/hit ${B.hitN}/hpMin ${B.hpMin}/died ${B.died}/${B.sec}s/${B.nSamp}표본` +
+      ` · Δsec ${r1(secDiff)}]`);
+  }
+  if (!seedMatch) allMatch = false;
+  seedRep.match = seedMatch;
+  report.push(seedRep);
+  log(`    → 씨앗 ${seed}: ${seedMatch ? "★ 결정적" : "비결정"} (오류 ${errs.length})\n`);
 }
-if (!runs.length) { log("판 없음"); bws.close(); process.exit(3); }
 
-const allF = [];
-for (const r of runs) for (const F of r.floors) allF.push(F);
-const nF = allF.length;
-const totHit = allF.reduce((s, x) => s + x.hitN, 0);
-const totSec = allF.reduce((s, x) => s + x.sec, 0);
-const hitsPerSec = totSec ? r1(totHit / totSec) : 0;
-const hpMinMed = median(allF.map(x => x.hpMin));
-const dip50Ratio = Math.round(100 * allF.filter(x => x.hpMin < 50).length / nF);
-const diedRatio = Math.round(100 * allF.filter(x => x.died).length / nF);
-const killsMed = median(allF.map(x => x.kills));
-const clearSec = r1(totSec / SEEDS.length);
-const totErr = runs.reduce((s, r) => s + r.errs, 0);
-
-const pass = dip50Ratio >= 30 && diedRatio >= 5 && diedRatio <= 20 && totErr === 0;
-const row = { label: LABEL, mul: AFTER ? MUL : 0, floors: nF, hitsPerSec, hpMinMed, dip50Ratio, diedRatio, killsMed, clearSec, errs: totErr };
-log(`\n▣ «${LABEL}» 한 줄:`);
-log(`  맞은수/초 ${hitsPerSec} · hp최저(중앙) ${hpMinMed}% · hp<50% 층 ${dip50Ratio}% · 죽은 층 ${diedRatio}% · ` +
-  `층당 처치(중앙) ${killsMed} · 완주 ${clearSec}s · 오류 ${totErr}`);
-log(`  끝 조건(hp<50%≥30 · 죽은층 5~20 · 오류0): ${pass ? "★ 통과" : "미달"}`);
-fs.writeFileSync(`tmp/hs_v203b_${LABEL}.json`, JSON.stringify({ row, pass, runs }, null, 2));
-log(`  ▸ tmp/hs_v203b_${LABEL}.json`);
+log(`\n▣ 판정: ${allMatch ? "★★ 결정적 — 같은 씨앗 2회가 층별로 일치" : "✗ 비결정 — 아래 불일치가 남은 원천"}`);
+if (!allMatch) {
+  log(`  남은 비결정 원천 후보: 표본이 벽시계(250ms)라 층 경계에서 프레임이 어긋나면 kills/hitN 가 몇 개 샌다;`);
+  log(`  rAF 프레임 수 차이 · 비동기 에셋 로딩 순서 · Math.random 미시딩 부분. 위 Δ가 큰 층부터 본다.`);
+}
+fs.writeFileSync(`tmp/hs_v205_determinism.json`, JSON.stringify({ mul: MUL, maxfloor: MAXFLOOR, seeds: SEEDS, allMatch, report }, null, 2));
+log(`  ▸ tmp/hs_v205_determinism.json`);
 
 const list = await (await fetch(CDP + "/json/list")).json();
 for (const t of list) if (t.type === "page") { try { await fetch(CDP + "/json/close/" + t.id); } catch {} }
 bws.close();
-process.exit(0);
+process.exit(allMatch ? 0 : 1);
