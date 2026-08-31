@@ -35,37 +35,107 @@ function rollEliteName(base) {
 }
 
 function rint(a, b) { return a + ((Math.random() * (b - a + 1)) | 0); }
-function overlap(a, b, pad) {
-  return a.x - pad < b.x + b.w && a.x + a.w + pad > b.x && a.y - pad < b.y + b.h && a.y + a.h + pad > b.y;
+
+// ★★ V-202 — genFloor 를 BSP(공간을 재귀로 쪼개기)로 다시 썼다. 병수님 「맵도 좀 이상하고」
+//   (2026-08-31 11:36). 옛 방식은 방을 무작위 자리에 뿌리고(겹침만 피함) 복도를 방중심→
+//   방중심 L 로 이어, 자(tools/hs_v202_map.mjs)로 재 보니:
+//     · 관통 복도 층10 평균 1.63(최대 3) — L 이 남의 방을 가로질렀다
+//     · 방 넓이 최대/최소 비 2.0 언저리 — 방이 다 비슷했다(큰 홀도 골방도 없다)
+//     · 바닥 비율 36.9%(층1) → 16.7%(층10) — 깊을수록 W·H 만 커져 휑해졌다
+//   값을 만져선 「무작위로 뿌린 사각형」을 못 벗어난다([[seam-not-values]]). 구조를 바꿨다:
+//   ① 층 전체를 한 칸으로 두고 가로/세로로 재귀 분할(분할비 0.35~0.65, 최소칸 아래론 안 쪼갬).
+//      깊이·최소칸을 층 번호로 조절해 «깊을수록 방이 많아지게» 한다(넓어지기만 하던 꼴을 고침).
+//   ② 잎 칸마다 그 칸의 40~90% 를 차지하는 방을 하나 — 큰 홀과 좁은 골방이 저절로 갈린다.
+//   ③ 복도는 형제 서브트리를 이을 때만, «쪼갠 경계 위»로 낸다(H-V-H). 왼쪽에선 경계에 가장
+//      가까운 방(cx 최대), 오른쪽에선 cx 최소를 골라 이으므로 «제3의 방을 관통하지 않는다».
+//   방∪복도 꼴({x,y,w,h})·room.cx/cy/dead/visited/cleared 는 그대로 — V-201 충돌 코드가 쓴다.
+const CORRIDOR_W = 150, HW = CORRIDOR_W / 2, LEAF_PAD = 36;
+
+function bspSplit(cell, depth, maxDepth, minW, minH) {
+  const node = { ...cell, axis: null, mid: 0, left: null, right: null, room: null };
+  const canV = cell.w >= minW * 2;
+  const canH = cell.h >= minH * 2;
+  if (depth >= maxDepth || (!canV && !canH)) return node;
+  const cutV = canV && canH ? Math.random() < cell.w / (cell.w + cell.h) : canV;   // 긴 쪽을 더 자주 쪼갠다
+  const ratio = 0.35 + Math.random() * 0.30;
+  if (cutV) {
+    const mid = Math.min(Math.max(Math.round(cell.x + cell.w * ratio), cell.x + minW), cell.x + cell.w - minW);
+    node.axis = "v"; node.mid = mid;
+    node.left = bspSplit({ x: cell.x, y: cell.y, w: mid - cell.x, h: cell.h }, depth + 1, maxDepth, minW, minH);
+    node.right = bspSplit({ x: mid, y: cell.y, w: cell.x + cell.w - mid, h: cell.h }, depth + 1, maxDepth, minW, minH);
+  } else {
+    const mid = Math.min(Math.max(Math.round(cell.y + cell.h * ratio), cell.y + minH), cell.y + cell.h - minH);
+    node.axis = "h"; node.mid = mid;
+    node.left = bspSplit({ x: cell.x, y: cell.y, w: cell.w, h: mid - cell.y }, depth + 1, maxDepth, minW, minH);
+    node.right = bspSplit({ x: cell.x, y: mid, w: cell.w, h: cell.y + cell.h - mid }, depth + 1, maxDepth, minW, minH);
+  }
+  return node;
+}
+function bspLeaves(node, out) {
+  if (!node.left && !node.right) { out.push(node); return; }
+  bspLeaves(node.left, out); bspLeaves(node.right, out);
+}
+// 서브트리에서 어떤 축의 중심이 최대/최소인 방 — 경계에 가장 가까운 방을 고른다.
+function pickExtreme(node, key, wantMax) {
+  let best = null;
+  (function rec(n) {
+    if (!n) return;
+    if (n.room && (!best || (wantMax ? n.room[key] > best[key] : n.room[key] < best[key]))) best = n.room;
+    rec(n.left); rec(n.right);
+  })(node);
+  return best;
 }
 
 export function genFloor(floor) {
-  const W = 3400 + floor * 500, H = 2200 + floor * 320;
-  const roomCount = Math.min(14, 8 + floor);
+  // ★ 넓이는 조금만 키우고 방 수는 «깊이·최소칸»으로 늘린다 — 옛 꼴의 «넓어지기만」을 뒤집는다.
+  const W = 3000 + floor * 180, H = 2000 + floor * 120;
+  const maxDepth = Math.min(13, 5 + floor);
+  const minW = Math.max(600, 700 - floor * 8);
+  const minH = Math.max(500, 600 - floor * 7);
+  const root = bspSplit({ x: 80, y: 80, w: W - 160, h: H - 160 }, 0, maxDepth, minW, minH);
+
   const rooms = [];
-  let guard = 0;
-  while (rooms.length < roomCount && guard++ < 800) {
-    const w = rint(460, 820), h = rint(360, 640);
-    const r = { x: rint(80, W - w - 80), y: rint(80, H - h - 80), w, h,
-      cx: 0, cy: 0, dead: false, visited: false, cleared: false };
-    r.cx = r.x + w / 2; r.cy = r.y + h / 2;
-    if (rooms.some((o) => overlap(r, o, 120))) continue;
+  const leafList = [];
+  bspLeaves(root, leafList);
+  for (const leaf of leafList) {
+    const availW = leaf.w - LEAF_PAD * 2, availH = leaf.h - LEAF_PAD * 2;
+    const w = Math.round(availW * (0.32 + Math.random() * 0.63));   // 칸의 32~95% — 큰 홀과 좁은 골방을 벌린다
+    const h = Math.round(availH * (0.32 + Math.random() * 0.63));
+    const x = leaf.x + LEAF_PAD + Math.round(Math.random() * (availW - w));
+    const y = leaf.y + LEAF_PAD + Math.round(Math.random() * (availH - h));
+    const r = { x, y, w, h, cx: x + w / 2, cy: y + h / 2, dead: false, visited: false, cleared: false };
+    leaf.room = r;
     rooms.push(r);
   }
+  // 시작 방을 배열 맨 앞으로 — 좌상단에 가장 가까운 방(pk.room 인덱스가 어긋나지 않게 여기서만 옮긴다).
+  let si = 0;
+  for (let i = 1; i < rooms.length; i++) if (rooms[i].cx + rooms[i].cy < rooms[si].cx + rooms[si].cy) si = i;
+  if (si !== 0) { const t = rooms[0]; rooms[0] = rooms[si]; rooms[si] = t; }
 
+  // 복도 — 쪼갠 경계 위로만(H-V-H / V-H-V). 형제의 «경계에 가장 가까운» 두 방을 잇는다.
   const corridors = [];
-  for (let i = 1; i < rooms.length; i++) {
-    let best = 0, bd = Infinity;
-    for (let j = 0; j < i; j++) {
-      const d = (rooms[i].cx - rooms[j].cx) ** 2 + (rooms[i].cy - rooms[j].cy) ** 2;
-      if (d < bd) { bd = d; best = j; }
+  const hRect = (x1, x2, y, link) => corridors.push({ x: Math.min(x1, x2), y: y - HW, w: Math.abs(x2 - x1), h: CORRIDOR_W, horiz: true, link });
+  const vRect = (y1, y2, x, link) => corridors.push({ x: x - HW, y: Math.min(y1, y2), w: CORRIDOR_W, h: Math.abs(y2 - y1), horiz: false, link });
+  (function connect(node) {
+    if (!node.left && !node.right) return;
+    connect(node.left); connect(node.right);
+    if (node.axis === "v") {
+      const A = pickExtreme(node.left, "cx", true), B = pickExtreme(node.right, "cx", false);
+      if (!A || !B) return;
+      const link = [rooms.indexOf(A), rooms.indexOf(B)];
+      hRect(A.cx, node.mid, A.cy, link);
+      if (A.cy !== B.cy) vRect(A.cy, B.cy, node.mid, link);   // 세로 기둥을 «경계 위»에 둬 어떤 방도 관통하지 않는다
+      hRect(node.mid, B.cx, B.cy, link);
+    } else {
+      const A = pickExtreme(node.left, "cy", true), B = pickExtreme(node.right, "cy", false);
+      if (!A || !B) return;
+      const link = [rooms.indexOf(A), rooms.indexOf(B)];
+      vRect(A.cy, node.mid, A.cx, link);
+      if (A.cx !== B.cx) hRect(A.cx, B.cx, node.mid, link);
+      vRect(node.mid, B.cy, B.cx, link);
     }
-    const a = rooms[i], b = rooms[best];
-    corridors.push({ x: Math.min(a.cx, b.cx), y: a.cy - 60, w: Math.abs(a.cx - b.cx), h: 120, horiz: true });
-    corridors.push({ x: b.cx - 60, y: Math.min(a.cy, b.cy), w: 120, h: Math.abs(a.cy - b.cy), horiz: false });
-  }
-  const linked = new Set(corridors.flatMap((c) => rooms.filter((r) =>
-    r.cx >= c.x - 60 && r.cx <= c.x + c.w + 60 && r.cy >= c.y - 60 && r.cy <= c.y + c.h + 60).map((r) => rooms.indexOf(r))));
+  })(root);
+
   for (let i = 2; i < rooms.length; i++) rooms[i].dead = Math.random() < 0.45;
 
   const start = rooms[0];
