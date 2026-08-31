@@ -181,6 +181,7 @@ export function genFloor(floor) {
         const scale = 1 + floor * 0.35;
         enemies.push(makeMob(t, px + rint(-90, 90), py + rint(-90, 90), scale, eid++, elite && k === 0));
       }
+      spreadPack(enemies);
       packs.push({ x: px, y: py, enemies, room: i, awake: false });
     }
   }
@@ -347,4 +348,30 @@ function makeMob(t, x, y, scale, id, elite) {
     m.charger = true; m.base = "mob/brute"; m.h *= 1.08; m.r *= 1.05;
   }
   return m;
+}
+
+// ★ V-210 — 잠든 팩이 스폰 자리에 서로 몸이 겹친 채 굳는다. separateEnemies(main.js) 는
+//   «깨어 있는» 팩만 밀어, WAKE 3000 시절엔 화면 안 팩이 다 깨어 있어 안 보이던 겹침이
+//   WAKE 500(V-207) 에서 「보이는데 잠든 팩」이 흔해지며 드러났다(ROADMAP V-210).
+//   싼 길 ㉠ 을 골랐다 — 잠든 팩은 한 톨도 안 움직이니 «스폰 때 한 번» 팩 안에서만 풀어 놓으면
+//   깨어날 때까지 그대로 유지된다. ㉡(매 프레임 팩-안 전수 비교)는 안 움직이는 것을 매 틱 다시
+//   재는 헛일이라 런타임 비용이 붙는다 — ㉠ 은 런타임 비용 0. 밀기는 separateEnemies 와 같은
+//   반씩-밀기(반지름 합 기준)라 깨어난 뒤 연출이 매끈히 이어진다. RNG 를 안 건드려(순수 계산)
+//   같은 씨앗의 맵 생성 순서는 그대로다. 8 번 이완한다 — 한 패스는 겹침을 반만 줄이므로 몇 번
+//   돌려야 풀린다. 팩당 10~14 마리라 8×14²/2 ≈ 780 쌍-검사, 층 전체로도 한 번뿐이라 싸다.
+function spreadPack(enemies) {
+  const n = enemies.length;
+  for (let pass = 0; pass < 8; pass++) {
+    for (let i = 0; i < n; i++) {
+      const s = enemies[i];
+      for (let j = i + 1; j < n; j++) {
+        const t = enemies[j], min = s.r + t.r;
+        const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
+        if (d2 === 0) { t.x += 0.5; continue; }
+        if (d2 >= min * min) continue;
+        const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
+        s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
+      }
+    }
+  }
 }
