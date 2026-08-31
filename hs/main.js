@@ -78,6 +78,7 @@ const PLAYER_H = 75;    // V-208 — 화면의 10%(레퍼런스와 같은 급)
 const SPEAR_LEN = PLAYER_H * 0.42;   // 뼈창 발사체 길이 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const SPEARHIT_H = PLAYER_H * 0.5;   // 뼈창 명중 임팩트 크기 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const GOLD_W = PLAYER_H * 0.2;   // V-217 — 금 스프라이트 폭. 시전자 키에 견줘 정한다(높이는 에셋 비율에서)
+const FOESHOT_W = PLAYER_H * 0.3;   // V-218 — 적 화살 스프라이트 길이(옛 fillRect 막대 ~22px 자리). 키에 견줘 정한다(매직 픽셀 아님)
 const GOLD_CAP = 10;   // V-217 — 화면 동시 금 개체 상한. 넘으면 가장 오래된 톨에 합친다(값 보존)
 const BOOM_CAP = 24, HIT_CAP = 48;   // 동시 연출 개수 상한(parts 400·floats 60 과 같은 결) — 프레임을 먹지 않게
 const SKEL_BASE = "minion/skel";
@@ -158,7 +159,7 @@ window.__prof = PROF;
 // window 에 붙여 판이 새로 서도(죽어 R) 안 지워진다. 자(probe)가 재기 전에 Object.assign 으로
 // 제자리에서 0 으로 비운다(재대입하면 아래 const 참조가 옛 것을 가리켜 못 비운다).
 const METRIC = (window.__hsMetric = window.__hsMetric ||
-  { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0, grains: 0 });
+  { spear: 0, nova: 0, minion: 0, taken: 0, deaths: 0, kills: 0, grains: 0, foeShot: 0, foeHit: 0 });
 
 // ── V-205 ㉢ 프레임정확 층 기록 (METRIC 과 같은 관찰 전용 계기 · 게임 로직/연출 불변).
 // 벽시계 250ms 표본으로 층 경계 지표를 읽으면 같은 씨앗이라도 프레임이 어긋나 kills·hitN 이 센다.
@@ -604,6 +605,7 @@ function stepRanged(m, p, dt) {
     m.shootCd = RANGED_CD;
     const a = Math.atan2(dy, dx);
     G.foeShots.push({ x: m.x, y: m.y - m.h * 0.4, vx: Math.cos(a) * RANGED_SPD, vy: Math.sin(a) * RANGED_SPD, life: 2.4, dmg: m.dmg });
+    METRIC.foeShot = (METRIC.foeShot || 0) + 1;
     m.state = "attack";
   }
   if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
@@ -640,7 +642,7 @@ function stepFoeShots(dt) {
     sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.life -= dt;
     if (sh.life <= 0) { sh.dead = true; continue; }
     if (globalThis.__PROJ_WALL !== false && !inFree(sh.x, sh.y, PROJ_R)) { sh.dead = true; projSpark(sh.x, sh.y, "#ff9a4a"); continue; }
-    if ((sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 < (p.r + 16) ** 2) { hurtPlayer(sh.dmg); sh.dead = true; }
+    if ((sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 < (p.r + 16) ** 2) { hurtPlayer(sh.dmg); sh.dead = true; METRIC.foeHit = (METRIC.foeHit || 0) + 1; }
   }
   G.foeShots = G.foeShots.filter((s) => !s.dead);
 }
@@ -1187,13 +1189,29 @@ function drawWorld() {
     spearRects.push({ x0: (sp.x - ex - cam.x) * Z, y0: (sp.y - ey - cam.y) * Z, x1: (sp.x + ex - cam.x) * Z, y1: (sp.y + ey - cam.y) * Z });
   }
   window.__spearRects = spearRects;
+  const foeShotRects = [];
+  const foeIm = tex("fx/foeshot.png");
+  const foeDrawn = globalThis.__FOESHOT_ASSET !== false && foeIm && foeIm.width;
+  const fw = FOESHOT_W, fh = foeDrawn ? FOESHOT_W * (foeIm.height / foeIm.width) : FOESHOT_W * 0.24;
+  let foeAsset = 0, foeBar = 0;
+  if (foeDrawn) ctx.imageSmoothingEnabled = false;
   for (const sh of G.foeShots) {
     const ang = Math.atan2(sh.vy, sh.vx);
-    ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(ang); ctx.imageSmoothingEnabled = false;
-    ctx.fillStyle = "#ff5140"; ctx.fillRect(-8, -1.6, 14, 3.2);
-    ctx.fillStyle = "#ffd8a0"; ctx.fillRect(4, -1.6, 4, 3.2);
+    ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(ang);
+    if (foeDrawn) { ctx.drawImage(foeIm, -fw / 2, -fh / 2, fw, fh); foeAsset++; }
+    else {
+      ctx.imageSmoothingEnabled = false;
+      ctx.fillStyle = "#ff5140"; ctx.fillRect(-8, -1.6, 14, 3.2);
+      ctx.fillStyle = "#ffd8a0"; ctx.fillRect(4, -1.6, 4, 3.2);
+      foeBar++;
+    }
     ctx.restore();
+    const c = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));
+    const ex = (fw / 2) * c + (fh / 2) * sn, ey = (fw / 2) * sn + (fh / 2) * c;
+    foeShotRects.push({ x0: (sh.x - ex - cam.x) * Z, y0: (sh.y - ey - cam.y) * Z, x1: (sh.x + ex - cam.x) * Z, y1: (sh.y + ey - cam.y) * Z });
   }
+  window.__foeShotRects = foeShotRects;
+  window.__foeShotDraw = { asset: foeAsset, bar: foeBar, n: G.foeShots.length, imw: foeIm ? (foeIm.width || 0) : 0 };
   for (const p of G.parts) { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.col; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.283); ctx.fill(); }
   ctx.globalAlpha = 1;
 
@@ -2499,7 +2517,7 @@ function loop(now) {
     tex("floor/crypt_tile.png");
     tex("decor/wall.png"); tex("decor/pillar.png");   // V-204 — 벽·문틀 에셋 미리 받기
     for (const t of ["bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"]) tex(`floor/${t}.png`);  // V-204 — 층별 바닥
-  tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png"); tex("fx/gold.png");
+  tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png"); tex("fx/gold.png"); tex("fx/foeshot.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
   bindChar();
