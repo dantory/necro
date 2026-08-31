@@ -1680,8 +1680,8 @@ function drawEnemy(m) {
     ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
     ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
     ctx.font = "bold 11px 'Times New Roman',serif"; ctx.textAlign = "center";
-    ctx.fillStyle = "#000"; ctx.fillText(m.name || "CHAMPION", 0.6, 0.6);
-    ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "CHAMPION", 0, 0);
+    ctx.fillStyle = "#000"; ctx.fillText(m.name || "정예", 0.6, 0.6);
+    ctx.fillStyle = "#8ac06a"; ctx.fillText(m.name || "정예", 0, 0);
     ctx.restore();
     recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
   } else if (hpf < 1) {
