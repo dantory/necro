@@ -1,3 +1,5 @@
+import { bossKindFor } from "./loot.js";
+
 // ★ V-183 — 이동 속도를 올린다. V-183 의 자(tools/hs_v183_density.mjs)로 재 보니
 //   화면 안 동시 적 p50 이 **0** 이었다(깬 팩은 8인데). 까닭은 적이 플레이어(268)보다
 //   너무 느려(46~78) 깨어난 뒤에도 못 붙고 지도 곳곳에 꼬리처럼 늘어져 화면 밖으로
@@ -25,6 +27,10 @@ const MOB_TYPES = [
   { base: "mob/brute", hp: 190, dmg: 18, spd: 116, h: 85, r: 26, gold: [12, 22] },
 ];
 const BOSS_TYPE = { base: "mob/boss", hp: 900, dmg: 34, spd: 88, h: 108, r: 40, gold: [80, 140] };
+// ★ V-230 — 층 주인 넷. 이름은 화면에 뜨고(들어설 때·머리 위), 색은 그리는 쪽(main.js drawEnemy)에서
+//   갈린다(새 에셋 없이 색조로). 여기선 이름·몸피만 — 몸피를 갈라 실루엣도 서로 다르게 한다.
+const BOSS_NAMES = ["뼈 왕", "역병 주술사", "무덤 도살자", "저주받은 사제"];
+const BOSS_SIZE = [1.12, 0.98, 1.20, 1.06];   // 도살자가 가장 크고 역병술사가 가장 여위게
 
 // ★ V-183 — 네임드(champion) 이름을 굴린다: 형용사 + 종족 + 칭호, 대문자(HS 의
 //   「SLITHER COMMANDER」꼴). 색은 그리는 쪽(drawEnemy)에서 HS_STYLE 「빛깔·글꼴」의
@@ -195,9 +201,12 @@ export function genFloor(floor) {
   }
   if (floor >= 2) {
     const br = far;
-    packs.push({ x: br.cx, y: br.cy + 40, awake: false, room: rooms.indexOf(br),
-      enemies: [makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true,
-        globalThis.__V226B === false ? 1 + floor * 0.4 : 1 + floor * 0.16)] });
+    const bm = makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true,
+      globalThis.__V226B === false ? 1 + floor * 0.4 : 1 + floor * 0.16);
+    const kind = bossKindFor(floor);
+    bm.boss = true; bm.bossKind = kind; bm.name = BOSS_NAMES[kind];
+    bm.h *= BOSS_SIZE[kind]; bm.r *= BOSS_SIZE[kind];
+    packs.push({ x: br.cx, y: br.cy + 40, awake: false, room: rooms.indexOf(br), enemies: [bm], boss: true });
   }
 
   const { decals, props } = scatter(rooms, stairs, chests);

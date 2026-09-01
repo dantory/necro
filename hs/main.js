@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
@@ -81,6 +81,21 @@ const GOLD_W = PLAYER_H * 0.2;   // V-217 — 금 스프라이트 폭. 시전자
 const FOESHOT_W = PLAYER_H * 0.3;   // V-218 — 적 화살 스프라이트 길이(옛 fillRect 막대 ~22px 자리). 키에 견줘 정한다(매직 픽셀 아님)
 const GOLD_CAP = 10;   // V-217 — 화면 동시 금 개체 상한. 넘으면 가장 오래된 톨에 합친다(값 보존)
 const BOOM_CAP = 24, HIT_CAP = 48;   // 동시 연출 개수 상한(parts 400·floats 60 과 같은 결) — 프레임을 먹지 않게
+// ── V-230 — 층 주인 넷의 «수법» 손잡이 ──────────────────────────────────────
+// 자를 안 건드리는 판이라 값은 눈으로 잡는다. 주인은 평소엔 쫓아와 때리고(근접), 재충전(skillCd)이
+// 차면 «예고(붉은 자리·번쩍임) → 터짐»을 한 번 쓴다. 예고 사이에 피하면 「넘었다」가 된다.
+const BOSS_CD = [7.0, 3.6, 3.8, 8.5];          // 뼈왕 · 역병 · 도살자 · 사제 — 수법 재충전(초)
+const BOSS_WARN = [0.8, 0.7, 0.7, 0.9];        // 예고가 떠 있는 시간 — 이 사이에 피한다
+const BOSS_TINT = [                             // 새 에셋 없이 색조로 넷을 가른다(창백한 뼈·초록·핏빛·보라)
+  "brightness(1.4) saturate(0.3) sepia(0.25) hue-rotate(-8deg)",
+  "brightness(1.05) saturate(2.2) hue-rotate(60deg)",
+  "brightness(1.05) saturate(2.4) hue-rotate(-28deg)",
+  "brightness(1.12) saturate(2.4) hue-rotate(268deg)",
+];
+const BOSS_LABEL_COL = ["#e8ecf0", "#8ce06a", "#ff7a5a", "#c89bff"];
+const CAGE_R = 150, CAGE_SEG = 11, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수·유지 시간(초)
+const POOL_LIFE = 4.5;                                 // 역병 — 독 장판 지속(초)
+const CURSE_DUR = 4.0;                                 // 사제 — 저주(내 피해 반) 지속(초)
 const SKEL_BASE = "minion/skel";
 const SKEL_H = 69;      // V-208
 // 칸(자리) 저울 (V-146) — 해골 1칸 · 거대 해골 3칸 · 뼈 거인 6칸.
@@ -197,6 +212,24 @@ window.__floorLogReset = () => { FLOORLOG.length = 0; flFloor = (G && G.floor) |
 // 측정 시작점을 프레임에 안 매이게 — 부팅 동안 흐른 프레임 수만큼 RNG·배치가 달라져 씨앗을 고정해도
 // 두 판이 갈렸다. 자가 여기서 «갓 지은 1층»으로 되돌려 측정을 같은 상태에서 연다(RNG 는 자가 다시 심는다).
 window.__restart = (fl) => start(fl || 1, null);
+// ── V-230 컷용 개발 손잡이 — 주인을 깨워 «수법 쓰는 순간»으로 세운다(측정 자가 아니다) ──
+// 첫 시전을 끝까지 진행해 실제 결과(뼈 우리·독 장판·소환)를 만든 뒤, 새 예고를 다시 띄워
+// 한 컷에 「예고 + 방금 터진 것」이 같이 잡히게 한다. 사람이 열어 넷을 눈으로 가르려는 것.
+window.__bossPose = () => {
+  let boss = null, bpk = null;
+  for (const pk of G.packs) for (const m of pk.enemies) if (m.boss) { boss = m; bpk = pk; }
+  if (!boss) return null;
+  bpk.awake = true;
+  const p = G.player;
+  p.x = boss.x + 165; p.y = boss.y + 8; unstick(p, p.r);
+  boss.skillCd = 0; boss.cast = null;
+  startCast(boss, p);
+  for (let i = 0; i < 240 && boss.cast; i++) advanceCast(boss, p, 1 / 60, bpk);
+  boss.skillCd = 0; startCast(boss, p);
+  G.bossBanner = { name: boss.name, kind: boss.bossKind, t: 0.35 };
+  cam.x = (boss.x + p.x) / 2 - VW / (2 * Z); cam.y = boss.y - VH / (2 * Z) + 30;
+  return { x: boss.x, y: boss.y, kind: boss.bossKind, name: boss.name };
+};
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -217,6 +250,7 @@ function fresh(floor, carry) {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
     spears: [], golds: [], items: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
+    hazards: [], bones: [], bossBanner: null,
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -339,7 +373,7 @@ function stepPlayer(dt) {
   if (mx || my) {
     const l = Math.hypot(mx, my);
     mx /= l; my /= l;
-    stepTo(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
+    stepToP(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
     p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
   } else { p.state = "idle"; p.anim += dt * 6; }
 
@@ -352,6 +386,7 @@ function stepPlayer(dt) {
   if (p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 60 * dt);
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
   if (p.iframe > 0) p.iframe -= dt;
+  if (p.curse > 0) p.curse -= dt;   // V-230 사제의 저주 — 남은 동안 내 피해가 반(curseF)
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
@@ -369,9 +404,11 @@ function stepPlayer(dt) {
   }
 }
 
+function curseF() { return G.player.curse > 0 ? 0.5 : 1; }   // V-230 — 사제의 저주가 걸린 동안 내 피해 반
+
 function fireSpear(p, tx, ty) {
   const a = Math.atan2(ty - p.y, tx - p.x);
-  const dmg = 42 * p.dmgMul * p.spearMul;
+  const dmg = 42 * p.dmgMul * p.spearMul * curseF();
   const split = p.uniques.has("splitSpear");
   const angs = split ? [a - 0.16, a + 0.16] : [a];
   for (const ang of angs)
@@ -525,7 +562,7 @@ function corpseNova() {
   p.mana -= 30;
   const c = G.corpses[ci]; c.used = true;
   const times = p.uniques.has("doubleNova") ? 2 : 1;
-  for (let t = 0; t < times; t++) explode(c.x, c.y, 18 * p.dmgMul * p.novaDmgMul, 150 * p.novaMul, t * 0.09);
+  for (let t = 0; t < times; t++) explode(c.x, c.y, 18 * p.dmgMul * p.novaDmgMul * curseF(), 150 * p.novaMul, t * 0.09);
 }
 
 function explode(x, y, dmg, rad, delay) {
@@ -543,6 +580,7 @@ function explode(x, y, dmg, rad, delay) {
     forEachEnemy((m) => {
       if ((m.x - x) ** 2 + (m.y - y) ** 2 < rad * rad) hurtEnemy(m, dmg, (m.x - x), (m.y - y), "nova");
     });
+    for (const b of G.bones) if ((b.x - x) ** 2 + (b.y - y) ** 2 < rad * rad) b.hp -= dmg;   // V-230 — 폭발도 뼈 우리를 부순다
   }, (delay || 0) * 1000);
 }
 
@@ -557,7 +595,10 @@ function wakePacks() {
   const R = typeof globalThis.__WAKE === "number" ? globalThis.__WAKE : WAKE;
   for (const pk of G.packs) {
     if (pk.awake) continue;
-    if ((pk.x - p.x) ** 2 + (pk.y - p.y) ** 2 < R * R) pk.awake = true;
+    if ((pk.x - p.x) ** 2 + (pk.y - p.y) ** 2 < R * R) {
+      pk.awake = true;
+      if (pk.boss) { const b = pk.enemies.find((m) => m.boss); if (b) G.bossBanner = { name: b.name, kind: b.bossKind, t: 0 }; }
+    }
   }
 }
 
@@ -571,6 +612,7 @@ function stepEnemies(dt) {
       live++;
       unstick(m, m.r);   // 밀림(separation)·순간이동으로 벽 밖에 나가면 매 프레임 도로 끌어들인다
       if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
+      if (m.boss) { stepBoss(m, p, dt, pk); continue; }
       if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
       if (m.charger && globalThis.__CHARGER_MOB) { stepCharger(m, p, dt); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
@@ -650,6 +692,134 @@ function stepCharger(m, p, dt) {
 
 // ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(소환수 벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
 //   ★ V-206 — 다만 «지형 벽»(방·복도 밖)은 못 넘는다 — inFree 밖이면 그 자리에서 죽고 튐을 남긴다(stepFoeShots).
+// ── V-230 층 주인 넷 — 「예고 → 터짐」의 수법 ─────────────────────────────────
+// 주인은 평소엔 가장 가까운 표적(사람·소환수)을 쫓아 때린다. skillCd 가 차면 startCast 로
+// «시전»에 들어가고, 그동안 advanceCast 가 예고(붉은 자리·번쩍임)를 든 채 대기하다 터뜨린다.
+// 예고는 drawBossTele 가 m.cast 를 읽어 그린다 — 두 자리에 상태를 안 둔다.
+let addId = -1000;   // 소환된 해골(add)의 id — 본디 팩 id(양수)와 안 겹치게 음수로
+function stepBoss(m, p, dt, pk) {
+  m.hit = Math.max(0, m.hit - dt);
+  if (m.skillCd == null) m.skillCd = BOSS_CD[m.bossKind] * 0.6;
+  if (m.cast) { advanceCast(m, p, dt, pk); bossKb(m, dt); return; }
+  m.skillCd -= dt;
+  let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2, onP = true;
+  for (const s of G.minions) { const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2; if (d < td) { td = d; tx = s.x; ty = s.y; onP = false; } }
+  const dist = Math.sqrt(td) || 1;
+  m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+  m.atk -= dt;
+  const reach = m.r + 44;
+  if (dist > reach) { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; m.anim += dt * 9; }
+  else {
+    m.state = "attack"; m.anim += dt * 9;
+    if (m.atk <= 0) { m.atk = 0.9; if (onP) hurtPlayer(m.dmg); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } } }
+  }
+  if (m.skillCd <= 0) startCast(m, p);
+  bossKb(m, dt);
+}
+function bossKb(m, dt) {
+  if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+function startCast(m, p) {
+  const k = m.bossKind;
+  m.state = "attack";
+  m.cast = { k, phase: "warn", t: BOSS_WARN[k], warn: BOSS_WARN[k], cx: p.x, cy: p.y, dir: Math.atan2(p.y - m.y, p.x - m.x) };
+  cam.shake = Math.max(cam.shake, 6);
+}
+function advanceCast(m, p, dt, pk) {
+  const c = m.cast; c.t -= dt; m.anim += dt * 6;
+  if (c.phase === "warn") {
+    if (m.bossKind === 1) { c.cx = p.x; c.cy = p.y; }   // 역병은 예고 내내 사람 발밑을 겨눈다
+    if (c.t <= 0) fireCast(m, p, pk);
+    return;
+  }
+  if (c.phase === "dash") {                              // 도살자 — 겨눈 방향으로 들이받는다
+    stepTo(m, m.x + Math.cos(c.dir) * m.spd * 3.4 * dt, m.y + Math.sin(c.dir) * m.spd * 3.4 * dt, m.r);
+    m.state = "walk";
+    if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 < (p.r + m.r + 12) ** 2) hurtPlayer(m.dmg * 1.4);
+    if (c.t <= 0) { c.phase = "sweepWarn"; c.t = 0.42; c.cx = m.x; c.cy = m.y; c.r = m.r + 150; }
+    return;
+  }
+  if (c.phase === "sweepWarn") {                         // 도살자 — 멈춘 자리에서 광역 후려치기
+    if (c.t <= 0) {
+      cam.shake = Math.max(cam.shake, 16);
+      if ((p.x - c.cx) ** 2 + (p.y - c.cy) ** 2 < c.r * c.r) hurtPlayer(m.dmg * 1.2);
+      for (let i = 0; i < 20; i++) burst(c.cx, c.cy, "#c0303a", 200);
+      endCast(m);
+    }
+  }
+}
+function fireCast(m, p, pk) {
+  const k = m.bossKind, c = m.cast;
+  cam.shake = Math.max(cam.shake, 12);
+  if (k === 0) {                                         // 뼈 왕 — 뼈 우리로 가두고 해골을 부른다
+    for (let i = 0; i < CAGE_SEG; i++) {
+      const a = i / CAGE_SEG * 6.2832, hp = 120 + G.floor * 20;
+      G.bones.push({ x: c.cx + Math.cos(a) * CAGE_R, y: c.cy + Math.sin(a) * CAGE_R, r: 20, hp, maxhp: hp, life: CAGE_LIFE });
+    }
+    for (let i = 0; i < 3; i++) { const a = Math.random() * 6.2832; spawnAdd(pk, m.x + Math.cos(a) * 60, m.y + Math.sin(a) * 60); }
+    for (let i = 0; i < 24; i++) burst(c.cx, c.cy, "#e8ecf0", 180);
+    endCast(m);
+  } else if (k === 1) {                                  // 역병 주술사 — 독 장판을 깐다
+    G.hazards.push({ x: c.cx, y: c.cy, r: 120, warn: 0, life: POOL_LIFE, dmg: 10 + G.floor * 2 });
+    for (let i = 0; i < 16; i++) burst(c.cx, c.cy, "#7ad04a", 120);
+    endCast(m);
+  } else if (k === 2) {                                  // 무덤 도살자 — 돌진에 들어간다
+    c.phase = "dash"; c.t = 0.42; c.dir = Math.atan2(p.y - m.y, p.x - m.x);
+    cam.shake = Math.max(cam.shake, 10);
+  } else {                                               // 저주받은 사제 — 광역 저주 + 소환
+    p.curse = CURSE_DUR;
+    for (let i = 0; i < 3; i++) { const a = Math.random() * 6.2832; spawnAdd(pk, m.x + Math.cos(a) * 70, m.y + Math.sin(a) * 70); }
+    floatNote("저주 — 내 피해가 반이 된다", "#c89bff", 1.4, { sz: 13 });
+    for (let i = 0; i < 24; i++) burst(m.x, m.y - m.h * 0.4, "#b070ff", 180);
+    endCast(m);
+  }
+}
+function endCast(m) { m.cast = null; m.skillCd = BOSS_CD[m.bossKind]; m.atk = 0.6; }
+function spawnAdd(pk, x, y) {
+  const f = G.floor, hp = 60 + f * 12;
+  pk.enemies.push({ id: addId--, base: "mob/skelarch", x, y, hp, maxhp: hp, dmg: 12 + f * 3, spd: 172,
+    h: 82, r: 18, gold: [4, 9], dx: 0, dy: 1, elite: false, hit: 0, kb: { x: 0, y: 0 }, atk: 0,
+    anim: (Math.random() * 6) | 0, alive: true, tb: 1, name: null, add: true });
+  for (let i = 0; i < 8; i++) burst(x, y, "#cfe0ef", 120);
+}
+
+// 독 장판의 지속 피해 — 무적(iframe)을 지나지 않는다(장판은 «서 있으면» 계속 아파야 한다).
+//   곱(FOE_DMG_MUL)·방어(dr)는 사람이 맞는 다른 피해와 같은 규격을 쓴다.
+function dotPlayer(dmg) {
+  const p = G.player;
+  const eff = dmg * FOE_DMG_MUL * (1 - p.dr);
+  METRIC.taken += eff; p.hp -= eff;
+  if (p.hp <= 0 && !G.dead) die();
+}
+function stepHazards(dt) {
+  if (!G.hazards.length) return;
+  const p = G.player;
+  for (const h of G.hazards) {
+    if (h.warn > 0) { h.warn -= dt; continue; }
+    h.life -= dt;
+    if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 < h.r * h.r) {
+      dotPlayer(h.dmg * dt); p.hurt = Math.max(p.hurt, 0.1);
+      if (G.parts.length < 380 && Math.random() < 0.3) burst(p.x, p.y - 10, "#7ad04a", 60);
+    }
+  }
+  G.hazards = G.hazards.filter((h) => h.warn > 0 || h.life > 0);
+}
+function stepBones(dt) {
+  if (!G.bones.length) return;
+  for (const b of G.bones) b.life -= dt;
+  G.bones = G.bones.filter((b) => b.life > 0 && b.hp > 0);
+}
+// 뼈 우리는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
+function bonesBlock(x, y, r) {
+  for (const b of G.bones) { const rr = b.r + r, dx = x - b.x, dy = y - b.y; if (dx * dx + dy * dy < rr * rr) return true; }
+  return false;
+}
+function walkableP(x, y, r) { return walkable(x, y, r) && !bonesBlock(x, y, r); }
+function stepToP(e, nx, ny, r) {
+  if (nx !== e.x && walkableP(nx, e.y, r)) e.x = nx;
+  if (ny !== e.y && walkableP(e.x, ny, r)) e.y = ny;
+}
+
 function stepFoeShots(dt) {
   if (!G.foeShots.length) return;
   const p = G.player;
@@ -771,6 +941,9 @@ function stepSpears(dt) {
         sp.dead = true;
       }
     });
+    if (!sp.dead) for (const b of G.bones) {   // V-230 — 뼈 창이 뼈 우리를 부순다(갇힌 데서 나가게)
+      if ((b.x - sp.x) ** 2 + (b.y - sp.y) ** 2 < (b.r + 9) ** 2) { b.hp -= sp.dmg; sp.dead = true; for (let i = 0; i < 5; i++) burst(b.x, b.y, "#e8ecf0", 120); break; }
+    }
   }
   G.spears = G.spears.filter((s) => !s.dead);
 }
@@ -834,6 +1007,11 @@ function addCorpse(m) {
 }
 
 function dropLoot(m) {
+  if (m.boss) {   // V-230 — 층 주인은 «그 주인의» 유니크를 확정으로 하나 떨군다(「넘은 표」)
+    const it = bossUnique(m.bossKind, G.floor);
+    const a = Math.random() * 6.283, s = 40 + Math.random() * 60;
+    G.items.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
+  }
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
   const grains = Math.min(3, Math.max(1, Math.round(gn / 30)));
@@ -1161,6 +1339,8 @@ function drawWorld() {
     insetShadow(r);
     doorArches(r, WT);
   }
+  drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
+  drawBossTele();
   PROF.seg("terrain");
 
   drawProps();
@@ -1191,6 +1371,7 @@ function drawWorld() {
   window.__goldRects = goldRects;
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
+  drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
 
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
@@ -1298,7 +1479,82 @@ function drawWorld() {
 
   drawItems();
   drawFloats();
+  drawBossBanner();   // V-230 — 주인 이름은 창·연출보다 위(들어설 때 한 번)
   PROF.seg("overlay");
+}
+
+// ── V-230 층 주인 연출 — 장판·예고·뼈 우리·등장 배너 ─────────────────────────
+function drawHazards() {   // 역병 독 장판 (바닥에 깔려 배우 밑)
+  for (const h of G.hazards) {
+    if (!onScreen(h.x, h.y, h.r + 40)) continue;
+    if (h.warn > 0) {
+      ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(nowMs() / 90));
+      ctx.strokeStyle = "#ff4030"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 6.283); ctx.stroke();
+      ctx.globalAlpha = 1; continue;
+    }
+    const a = Math.min(1, h.life / 0.6);
+    ctx.globalAlpha = 0.55 * a;
+    const g = ctx.createRadialGradient(h.x, h.y, h.r * 0.2, h.x, h.y, h.r);
+    g.addColorStop(0, "rgba(130,225,85,0.9)"); g.addColorStop(0.7, "rgba(70,150,40,0.6)"); g.addColorStop(1, "rgba(40,90,25,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 6.283); ctx.fill();
+    ctx.fillStyle = "#aef066";
+    for (let i = 0; i < 5; i++) { const an = nowMs() / 300 + i * 1.3, rr = h.r * 0.7 * ((i * 37) % 100) / 100; ctx.beginPath(); ctx.arc(h.x + Math.cos(an) * rr, h.y + Math.sin(an * 1.3) * rr, 2.5, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  }
+}
+function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임(피할 시간을 준다)
+  for (const pk of G.packs) {
+    if (!pk.awake || !pk.boss) continue;
+    for (const m of pk.enemies) {
+      if (!m.boss || !m.cast) continue;
+      const c = m.cast, k = m.bossKind;
+      if (c.phase === "warn") {
+        const prog = 1 - c.t / c.warn;
+        ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 80));
+        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4;
+        if (k === 0) { ctx.beginPath(); ctx.arc(c.cx, c.cy, CAGE_R, 0, 6.283); ctx.stroke(); }
+        else if (k === 1) { ctx.beginPath(); ctx.arc(c.cx, c.cy, 120, 0, 6.283); ctx.stroke(); }
+        else if (k === 2) {
+          ctx.lineWidth = 26; ctx.strokeStyle = `rgba(255,50,40,${0.22 + 0.4 * prog})`;
+          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * 640, m.y + Math.sin(c.dir) * 640); ctx.stroke();
+        } else { ctx.beginPath(); ctx.arc(m.x, m.y - m.h * 0.35, 60 + 130 * prog, 0, 6.283); ctx.stroke(); }
+        ctx.globalAlpha = 1;
+      } else if (c.phase === "sweepWarn") {
+        ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 70));
+        ctx.fillStyle = "rgba(200,40,40,0.28)"; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.fill();
+        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈수록 어두워진다(부술 수 있다는 표)
+  for (const b of G.bones) {
+    if (!onScreen(b.x, b.y, 60)) continue;
+    const hpf = Math.max(0, b.hp / b.maxhp), h = 46;
+    ctx.save(); ctx.translate(b.x, b.y);
+    ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(0, 4, b.r * 0.9, b.r * 0.4, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
+    ctx.fillRect(-b.r * 0.55, -h, b.r * 1.1, h);
+    ctx.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 1; i < 4; i++) ctx.fillRect(-b.r * 0.55, -h * i / 4, b.r * 1.1, 2);
+    ctx.fillStyle = `rgb(${(175 + 80 * hpf) | 0},${(170 + 80 * hpf) | 0},${(150 + 70 * hpf) | 0})`;
+    ctx.beginPath(); ctx.moveTo(-b.r * 0.55, -h); ctx.lineTo(0, -h - 14); ctx.lineTo(b.r * 0.55, -h); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가운데 크게
+  const bn = G.bossBanner; if (!bn) return;
+  const a = bn.t < 0.3 ? bn.t / 0.3 : bn.t > 2.2 ? Math.max(0, (3.0 - bn.t) / 0.8) : 1;
+  ctx.globalAlpha = a; ctx.textAlign = "center";
+  const col = BOSS_LABEL_COL[bn.kind] || "#fff", cy = VH * 0.26;
+  ctx.font = "bold 46px 'Times New Roman',serif";
+  ctx.fillStyle = "#000"; ctx.fillText(bn.name, VW / 2 + 2, cy + 2);
+  ctx.fillStyle = col; ctx.fillText(bn.name, VW / 2, cy);
+  ctx.font = "16px 'Times New Roman',serif"; ctx.fillStyle = "#c8b8a0";
+  ctx.fillText("이 층의 주인", VW / 2, cy + 30);
+  ctx.globalAlpha = 1;
 }
 
 function stoneRim(x, y, w, h) {
@@ -1788,6 +2044,7 @@ function drawEnemy(m) {
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
   if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
   else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
+  if (m.boss) rest = BOSS_TINT[m.bossKind];   // V-230 — 주인 넷을 색조로 가른다(뼈·초록·핏·보라)
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
@@ -1807,13 +2064,14 @@ function drawEnemy(m) {
     ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
     const nm = m.name || "정예";
     const lsx = (m.x - cam.x) * Z, lsy = (by - 6 - cam.y) * Z;
-    ctx.font = "bold 11px 'Times New Roman',serif"; ctx.textAlign = "center";
+    const bossN = !!m.boss;   // V-230 — 주인 이름은 늘 머리 위에 크게(잡정예보다 큼·주인색)
+    ctx.font = (bossN ? "bold 16px" : "bold 11px") + " 'Times New Roman',serif"; ctx.textAlign = "center";
     const lhw = ctx.measureText(nm).width / 2 + 2;
     const onBoom = V211() && labelOverBoom(lsx, lsy, lhw);
     if (!onBoom) {
       ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
-      ctx.fillStyle = "#000"; ctx.fillText(nm, 0.6, 0.6);
-      ctx.fillStyle = "#8ac06a"; ctx.fillText(nm, 0, 0);
+      ctx.fillStyle = "#000"; ctx.fillText(nm, 0.8, 0.8);
+      ctx.fillStyle = bossN ? BOSS_LABEL_COL[m.bossKind] : "#8ac06a"; ctx.fillText(nm, 0, 0);
       ctx.restore();
     }
     eliteLabels.push({ x0: lsx - lhw, y0: lsy - 13, x1: lsx + lhw, y1: lsy, drawn: !onBoom });
@@ -2537,7 +2795,9 @@ function loop(now) {
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
     stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt);
+    stepHazards(dt); stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
+    if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
     for (const e of G.pickLog) e.t -= dt;
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
