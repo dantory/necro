@@ -20,6 +20,9 @@
  */
 import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
+const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
+let NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침). V225_ARMS=1 이면 팔마다 뒤집는다
+
 const URL = "http://127.0.0.1:8774/hs/index.html";
 const IFR = process.argv[2] !== undefined ? +process.argv[2] : 0.4;
 const MAXFLOOR = +(process.argv[3] || 5);
@@ -52,8 +55,8 @@ const injectSrc = (seed, ifr, grow, v226b) => `Math.random = (() => { let s = ($
 globalThis.__FOE_DMG = 16;
 globalThis.__RANGED_MOB = true;
 globalThis.__MEASURE_REVIVE = true;
-const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
-const NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침)으로 되돌린다
+globalThis.__NAV_LEGACY = ${NAV_LEGACY};       // ★ V-225 — 자의 그래프 간선 규칙(true = 옛 «두 축 다 >2px»)
+globalThis.__NAV_MINPASS = ${NAV_MINPASS};     // ★ V-225 — 지날 수 있는 폭(px)
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
@@ -147,9 +150,9 @@ const AUTO = `(SPEC => {
     //   못 가는 방 367 개. 문턱만 0 으로 낮추면 0.8% 로 줄고, «닿기만 해도 이음»이면 0% 다.
     //   다만 모서리끼리 점으로 스친 것은 사람이 못 지나므로 **지날 수 있는 폭(≥MINPASS)** 을 함께 건다
     //   (복도폭 150 · 사람 반지름 22 → 48 이면 넉넉히 안쪽). 되돌림: 환경변수 NAV_LEGACY=1 이면 옛 규칙(두 축 다 >2px)으로 정확히 돌아간다.
-    if (${NAV_LEGACY}) return (ox1 > ox0 + 2 && oy1 > oy0 + 2) ? { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 } : null;
+    if (globalThis.__NAV_LEGACY) return (ox1 > ox0 + 2 && oy1 > oy0 + 2) ? { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 } : null;
     if (ox1 < ox0 || oy1 < oy0) return null;
-    if (Math.max(ox1 - ox0, oy1 - oy0) < ${NAV_MINPASS}) return null;
+    if (Math.max(ox1 - ox0, oy1 - oy0) < (globalThis.__NAV_MINPASS ?? 48)) return null;
     return { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 };
   }
   function buildGraph(G) {
@@ -543,12 +546,19 @@ log(`\n■ hs_v223_band — 가운데 띠를 «걷는 자»로 다시 잰다 (i-
 //   — V-226 의 고침을 재는 팔이다(BEFORE = 옛 한 곡선 = 오늘 18:57 측정과 같은 조건).
 const V226 = process.env.V226_ARMS === "1";
 const V226B = process.env.V226B_ARMS === "1";
-const before = V226B
+//   V225_ARMS=1: 게임 손잡이를 전부 «현재 바이너리»로 고정하고 «자의 그래프 간선 규칙»만 뒤집는다
+//   — BEFORE = 옛 규칙(두 축 다 >2px 겹침 · 방을 조각냈다) · AFTER = 닿음+폭 ≥NAV_MINPASS.
+const V225 = process.env.V225_ARMS === "1";
+const before = V225
+  ? (NAV_LEGACY = true, await runArm(`BEFORE (NAV_LEGACY · 옛 간선 «두 축 다 >2px» · i-frame ${IFR}s)`, IFR, true, true))
+  : V226B
   ? await runArm(`BEFORE (__V226B=false · 옛 «한 곡선» dmg=hp=1+층×0.35 · i-frame ${IFR}s)`, IFR, true, false)
   : V226
   ? await runArm(`BEFORE (__V226_GROW=false · 옛 «박은 빌드» · i-frame ${IFR}s)`, IFR, false, false)
   : await runArm("BEFORE (__V221=false · i-frame 끔)", 0, true, false);
-const after = V226B
+const after = V225
+  ? (NAV_LEGACY = false, await runArm(`AFTER (간선 «닿음 + 폭 ≥${NAV_MINPASS}» · i-frame ${IFR}s)`, IFR, true, true))
+  : V226B
   ? await runArm(`AFTER (__V226B=true · dmg 곡선 1+층×0.14 · hp 곡선 그대로 · i-frame ${IFR}s)`, IFR, true, true)
   : V226
   ? await runArm(`AFTER (__V226_GROW=true · 사람이 번 점수를 쓴다 · i-frame ${IFR}s)`, IFR, true, false)
@@ -556,7 +566,8 @@ const after = V226B
 
 if (before && after) {
   log(`\n╔═══ 두 팔 (곱 16 고정 · BFS 걷기 · i-frame 손잡이만 뒤집음) ═══╗`);
-  log(V226B ? `  ★ V-226B 팔: 사람 성장·i-frame ${IFR}s 고정 · «적 dmg 곡선을 뗐는가»만 뒤집었다.`
+  log(V225 ? `  ★ V-225 팔: 게임 손잡이 전부 고정 · «자의 그래프 간선 규칙»만 뒤집었다(BEFORE=옛 >2px).`
+    : V226B ? `  ★ V-226B 팔: 사람 성장·i-frame ${IFR}s 고정 · «적 dmg 곡선을 뗐는가»만 뒤집었다.`
     : V226 ? `  ★ V-226 팔: i-frame ${IFR}s 고정 · «사람이 자라는가»만 뒤집었다.` : `  ★ 헤드라인은 AFTER(i-frame 0.4s = 현재 바이너리) 한 값이다. BEFORE 는 참고.`);
   log(`  hp최저 10~60% 비율 : BEFORE ${before.bandPct}%  |  AFTER ${after.bandPct}%   [≥25%]`);
   log(`  죽은 층 비율       : BEFORE ${before.diedPct}%  |  AFTER ${after.diedPct}%   [5~20%]`);

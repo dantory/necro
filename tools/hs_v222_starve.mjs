@@ -17,6 +17,9 @@
  */
 import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
+const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
+const NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침)으로 되돌린다
+
 const URL = "http://127.0.0.1:8774/hs/index.html";
 const MODE = process.argv[2] === "ab" ? "ab" : process.argv[2] === "nav" ? "nav" : "diag";
 const ARGOFF = (MODE === "ab" || MODE === "nav") ? 3 : 2;   // nav: __V222=true 한 팔만(빠른 ㉠ 진단용)
@@ -49,8 +52,6 @@ const injectSrc = (seed, v222) => `Math.random = (() => { let s = (${seed} >>> 0
 globalThis.__FOE_DMG = 16;
 globalThis.__RANGED_MOB = true;
 globalThis.__MEASURE_REVIVE = true;
-const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
-const NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침)으로 되돌린다
 globalThis.__V222_NAV = ${v222 ? "true" : "false"};
 window.__ft = []; window.__lt = 0;
 (function samp(t){ if(window.__lt) window.__ft.push(t-window.__lt); window.__lt=t;
