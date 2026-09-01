@@ -26,7 +26,9 @@ let NAV_PATHPROG = process.env.NAV_PATHPROG === "1";   // ★ V-227 닫음(2026-
 let BOT_RETREAT = process.env.BOT_RETREAT !== "0";   // ★ V-228 — 자가 hp 바닥에서 물러선다(0 = 옛 자, 안 물러섬). V228_ARMS=1 이면 팔마다 뒤집는다
 const RET_IN = +(process.env.RET_IN || 0.35);    // 이 아래로 떨어지고 적이 가까우면 «물러선다»
 const RET_OUT = +(process.env.RET_OUT || 0.7);   // 이 위로 회복하면 «다시 나간다»
+const RET_HOLD_A = +(process.env.RET_HOLD_A || 1.2);  // ★ V-229 AFTER 팔이 쓰는 유지 시간(초)
 const RET_R = +(process.env.RET_R || 460);       // 이 반경 안의 적을 «붙었다»로 본다
+let RET_HOLD = +(process.env.RET_HOLD || 0);   // ★ V-229 — 물러섬에 들어가면 최소 이만큼(초)은 유지한다(0 = V-228 그대로 = 적이 반경을 벗어나는 순간 즉시 복귀 → 진동)
 
 const URL = "http://127.0.0.1:8774/hs/index.html";
 const IFR = process.argv[2] !== undefined ? +process.argv[2] : 0.4;
@@ -64,7 +66,7 @@ globalThis.__NAV_LEGACY = ${NAV_LEGACY};       // ★ V-225 — 자의 그래프
 globalThis.__NAV_MINPASS = ${NAV_MINPASS};     // ★ V-225 — 지날 수 있는 폭(px)
 globalThis.__NAV_PATHPROG = ${NAV_PATHPROG};   // ★ V-227 — 진척 판정 자(true = 길 위 남은 거리 · false = 옛 직선거리)
 globalThis.__BOT_RETREAT = ${BOT_RETREAT};   // ★ V-228 — 자가 hp 바닥에서 물러서는가(false = 옛 자)
-globalThis.__RET_IN = ${RET_IN}; globalThis.__RET_OUT = ${RET_OUT}; globalThis.__RET_R = ${RET_R};
+globalThis.__RET_IN = ${RET_IN}; globalThis.__RET_OUT = ${RET_OUT}; globalThis.__RET_R = ${RET_R}; globalThis.__RET_HOLD = ${RET_HOLD};
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
@@ -390,11 +392,19 @@ const AUTO = `(SPEC => {
     if (globalThis.__BOT_RETREAT) {
       const hpF = p.maxhp ? p.hp / p.maxhp : 1;
       const foes = foesNear(p, globalThis.__RET_R);
-      if (!nav.retreating) { if (hpF < globalThis.__RET_IN && foes) { nav.retreating = true; A.retreats++; } }
-      else if (hpF > globalThis.__RET_OUT || !foes) nav.retreating = false;
+      if (!nav.retreating) { if (hpF < globalThis.__RET_IN && foes) { nav.retreating = true; nav.retT = performance.now(); A.retreats++; } }
+      else {
+        // ★ V-229 — «적이 반경을 벗어남»만으로 즉시 복귀하면 무리 가장자리에서 진동한다(V-228 에서 31.6s 에 428번).
+        //   최소 유지 시간(RET_HOLD) 안에는 안 나온다. RET_HOLD=0 이면 V-228 과 완전히 같다.
+        const held = performance.now() - (nav.retT || 0) >= globalThis.__RET_HOLD * 1000;
+        if (hpF > globalThis.__RET_OUT || (held && !foes)) nav.retreating = false;
+      }
       if (nav.retreating) {
         // 적 무리 «반대쪽»을 겨눈 가상 목표를 세우고, 그중 실제로 트인 방향으로 민다(벽으로 뒷걸음질 금지).
-        const ax = foes ? p.x - foes.cx : 0, ay = foes ? p.y - foes.cy : 0;
+        //   유지 시간 동안 적이 시야에서 떨어지면 «마지막으로 등진 방향»을 계속 민다(제자리에 서 있지 않게).
+        let ax = 0, ay = 0;
+        if (foes) { ax = p.x - foes.cx; ay = p.y - foes.cy; nav.retVx = ax; nav.retVy = ay; }
+        else { ax = nav.retVx || 0; ay = nav.retVy || 0; }
         const al = Math.hypot(ax, ay) || 1;
         const e = bestEscape(p, p.x + (ax / al) * 400, p.y + (ay / al) * 400);
         want.clear();
@@ -615,7 +625,15 @@ const V227 = process.env.V227_ARMS === "1";
 //   — BEFORE = 옛 자(hp 가 몇이든 계속 걷는다) · AFTER = hp<RET_IN 이고 적이 붙었으면 뒤로 뺀다.
 //   왜: 「죽은 층 66.7%」가 «게임이 치명적»이라는 뜻인지 «자가 안 물러선다»는 뜻인지 아직 안 갈렸다.
 const V228 = process.env.V228_ARMS === "1";
-const before = V228
+//   V229_ARMS=1: 게임 손잡이·물러섬 문턱을 전부 고정하고 «물러섬의 최소 유지 시간»만 뒤집는다
+//   — BEFORE = V-228 그대로(RET_HOLD=0 · 적이 반경 밖으로 나가는 순간 복귀 → 가장자리 진동)
+//   — AFTER  = RET_HOLD 초 동안은 안 나온다. 왜: V-228 AFTER 는 죽음을 53.3%→21.4% 로 반으로 줄였지만
+//     커버리지가 면적 17.3→7.9% · 방문 55.6→23.1% 로 무너지고 한 층은 굶었다(처치 0). 층당 물러섬이
+//     428회/31.6s = 74ms 에 한 번 뒤집힌 것 — 사람처럼 «뒤로 뺀» 게 아니라 무리 가장자리에서 떤 것이다.
+const V229 = process.env.V229_ARMS === "1";
+const before = V229
+  ? (BOT_RETREAT = true, RET_HOLD = 0, await runArm(`BEFORE (물러섬 유지 0s = V-228 그대로 · i-frame ${IFR}s)`, IFR, true, true))
+  : V228
   ? (BOT_RETREAT = false, await runArm(`BEFORE (자가 안 물러선다 · i-frame ${IFR}s)`, IFR, true, true))
   : V227
   ? (NAV_PATHPROG = false, await runArm(`BEFORE (진척=옛 직선거리 · i-frame ${IFR}s)`, IFR, true, true))
@@ -626,7 +644,9 @@ const before = V228
   : V226
   ? await runArm(`BEFORE (__V226_GROW=false · 옛 «박은 빌드» · i-frame ${IFR}s)`, IFR, false, false)
   : await runArm("BEFORE (__V221=false · i-frame 끔)", 0, true, false);
-const after = V228
+const after = V229
+  ? (BOT_RETREAT = true, RET_HOLD = RET_HOLD_A, await runArm(`AFTER (물러섬을 ${RET_HOLD_A}s 는 유지한다 · i-frame ${IFR}s)`, IFR, true, true))
+  : V228
   ? (BOT_RETREAT = true, await runArm(`AFTER (hp<${Math.round(RET_IN*100)}% 면 물러선다 → ${Math.round(RET_OUT*100)}% 회복 · i-frame ${IFR}s)`, IFR, true, true))
   : V227
   ? (NAV_PATHPROG = true, await runArm(`AFTER (진척=길 위 남은 거리 · i-frame ${IFR}s)`, IFR, true, true))
@@ -640,7 +660,8 @@ const after = V228
 
 if (before && after) {
   log(`\n╔═══ 두 팔 (곱 16 고정 · BFS 걷기 · i-frame 손잡이만 뒤집음) ═══╗`);
-  log(V228 ? `  ★ V-228 팔: 게임 손잡이 전부 고정 · «자가 물러설 줄 아는가»만 뒤집었다(BEFORE=안 물러섬).`
+  log(V229 ? `  ★ V-229 팔: 게임 손잡이·물러섬 문턱 전부 고정 · «물러섬 최소 유지 시간»만 뒤집었다(BEFORE=0s 진동).`
+    : V228 ? `  ★ V-228 팔: 게임 손잡이 전부 고정 · «자가 물러설 줄 아는가»만 뒤집었다(BEFORE=안 물러섬).`
     : V227 ? `  ★ V-227 팔: 게임 손잡이·간선 규칙 전부 고정 · «진척을 재는 자»만 뒤집었다(BEFORE=옛 직선거리).`
     : V225 ? `  ★ V-225 팔: 게임 손잡이 전부 고정 · «자의 그래프 간선 규칙»만 뒤집었다(BEFORE=옛 >2px).`
     : V226B ? `  ★ V-226B 팔: 사람 성장·i-frame ${IFR}s 고정 · «적 dmg 곡선을 뗐는가»만 뒤집었다.`
