@@ -179,7 +179,15 @@ export function genFloor(floor) {
         const t = MOB_TYPES[Math.min(MOB_TYPES.length - 1,
           Math.floor(Math.random() * (MOB_TYPES.length - (floor < 1 ? 1 : 0)) * (0.6 + Math.random() * 0.4)))];
         const scale = 1 + floor * 0.35;
-        enemies.push(makeMob(t, px + rint(-90, 90), py + rint(-90, 90), scale, eid++, elite && k === 0));
+        // ★ V-226 — 깊이 곡선이 «사람보다 가파른가»를 재서 답이 나왔다(2026-09-01 tmp/hs_v226_curves2.json):
+        //   층1→층5 에서 적 dmg 중앙은 11→22~25(×2.09) 인데 사람 maxhp 는 4515→4635(×1.03).
+        //   점수를 다 vit 에 부어도 사람이 닿는 천장이 ×1.13 이라, 깊이는 «어려워지는 것»이 아니라
+        //   사람이 자란 만큼을 통째로 지우고 그 위에 두 배를 더 얹고 있었다(죽은 층 80~87%).
+        //   그래서 **hp 곡선은 그대로 두고 dmg 곡선만 눕힌다** — 층5 적은 여전히 두꺼워(×2.75) 싸움이
+        //   길고, 다만 한 대가 사람의 성장을 앞지르지 않는다(dmg ×1.49 대 사람 ×1.13 → 순 압박 ×1.32).
+        //   되돌릴 손잡이: globalThis.__V226B = false → 옛 «한 곡선» 으로 되돌아간다.
+        const dmgScale = globalThis.__V226B === false ? scale : 1 + floor * 0.14;
+        enemies.push(makeMob(t, px + rint(-90, 90), py + rint(-90, 90), scale, eid++, elite && k === 0, dmgScale));
       }
       spreadPack(enemies);
       packs.push({ x: px, y: py, enemies, room: i, awake: false });
@@ -188,7 +196,8 @@ export function genFloor(floor) {
   if (floor >= 2) {
     const br = far;
     packs.push({ x: br.cx, y: br.cy + 40, awake: false, room: rooms.indexOf(br),
-      enemies: [makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true)] });
+      enemies: [makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true,
+        globalThis.__V226B === false ? 1 + floor * 0.4 : 1 + floor * 0.16)] });
   }
 
   const { decals, props } = scatter(rooms, stairs, chests);
@@ -332,11 +341,12 @@ function scatter(rooms, stairs, chests) {
 const BODY = 1.4, HITR = 1.15;
 // ★ V-203 — 팔②·③ 태그 비율(main.js 손잡이가 켜졌을 때만 읽힌다). 새 에셋 없이 색·크기로 갈라 표시한다.
 const RANGED_FRAC = 0.35, CHARGER_FRAC = 0.30;
-function makeMob(t, x, y, scale, id, elite) {
+// ★ V-226 — `dmgScale` 이 없으면 옛 그대로 `scale` 한 곡선을 쓴다(호출부를 안 고쳐도 안 깨진다).
+function makeMob(t, x, y, scale, id, elite, dmgScale) {
   const em = elite ? 3.2 : 1;
   const m = {
     id, base: t.base, x, y, hp: t.hp * scale * em, maxhp: t.hp * scale * em,
-    dmg: t.dmg * scale, spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
+    dmg: t.dmg * (dmgScale == null ? scale : dmgScale), spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
     r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: (id * 2.3) % 6, alive: true,
     tb: id & 3, name: elite ? rollEliteName(t.base) : null,
