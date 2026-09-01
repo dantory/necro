@@ -199,7 +199,7 @@ function fresh(floor, carry) {
     atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
-  p.spearCd = 0; p.hurt = 0; p.r = PLAYER_R;
+  p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
   return {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
@@ -337,6 +337,7 @@ function stepPlayer(dt) {
   }
   if (p.mana < p.maxmana) p.mana = Math.min(p.maxmana, p.mana + 60 * dt);
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
+  if (p.iframe > 0) p.iframe -= dt;
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
@@ -954,16 +955,41 @@ function pickItem(it) {
 
 function hurtPlayer(dmg) {
   const p = G.player;
+  // ★ V-221 — 맞은 뒤 짧은 무적(iframe)으로 「연쇄」를 끊는다. 자로 잰 죽음(hs_v221_forensic)은 단발도 한프레임
+  //   몰림도 아닌 ~7 대 × ~7%maxhp 가 ~0.42s 간격으로 쌓인 것이라, 촘촘한 절반(≤0.4s)을 흘리면 하강이 가운데
+  //   띠에서 멎는다. __V221=false 면 창 0 = 옛 동작(byte-동일) · __V221_IFR 로 창(초)을 잰다(기본 0.4).
+  const ifr = globalThis.__V221 === false ? 0 : (globalThis.__V221_IFR ?? 0.4);
+  if (ifr > 0 && p.iframe > 0) return;
   dmg *= FOE_DMG_MUL;   // ★ V-203b — 사람에게 닿는 피해만 hp 규격으로 키운다(근접·화살·돌진 세 경로가 다 여기로 온다).
+  const eff = dmg * (1 - p.dr);
   METRIC.hitN = (METRIC.hitN || 0) + 1;
-  METRIC.taken += dmg * (1 - p.dr);
-  p.hp -= dmg * (1 - p.dr); p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
+  METRIC.taken += eff;
+  p.hp -= eff; p.hurt = 0.18; cam.shake = Math.max(cam.shake, 8);
   flash = Math.max(flash, 0.14); flashColor = "180,40,40";
+  if (ifr > 0) p.iframe = ifr;
+  // ★ V-221 관찰 전용 — __DEATH_FORENSIC 면 「죽기 직전 몇 대·얼마씩 맞았나」를 링버퍼에 남긴다.
+  //   die() 가 죽는 순간 마지막 3초를 __deathForensic 에 스냅샷한다. 기본 미설정 → 옛 그대로(byte-동일).
+  if (globalThis.__DEATH_FORENSIC) {
+    const ring = window.__hitRing || (window.__hitRing = []);
+    ring.push({ t: gameTime, eff, hpAfter: p.hp, maxhp: p.maxhp, floor: G.floor });
+    const cut = gameTime - 3.2; while (ring.length && ring[0].t < cut) ring.shift();
+  }
   if (p.hp <= 0 && !G.dead) die();
 }
 
 function die() {
   METRIC.deaths++;
+  // ★ V-221 관찰 전용 — 죽는 순간 마지막 3초의 타격열을 __deathForensic 에 스냅샷한다(단발·연쇄·hp곡선을 수로 가르려고).
+  if (globalThis.__DEATH_FORENSIC) {
+    const ring = window.__hitRing || [], t = gameTime;
+    const hits = ring.filter((h) => h.t >= t - 3).map((h) => ({
+      dt: Math.round((t - h.t) * 1000) / 1000, eff: Math.round(h.eff),
+      fracMax: Math.round(1000 * h.eff / h.maxhp) / 1000,
+      hpAfterPct: Math.round(100 * h.hpAfter / h.maxhp) }));
+    (window.__deathForensic || (window.__deathForensic = [])).push({
+      floor: G.floor, maxhp: Math.round(G.player.maxhp), hits });
+    if (window.__hitRing) window.__hitRing.length = 0;
+  }
   // ★ V-220 관찰 전용 — __MEASURE_REVIVE 면 리셋 없이 제자리 만생명(층 1→5 를 죽어도 이어 걷게).
   //   죽음은 METRIC.deaths·__floorLog.died 로 센다. 기본 미설정 → 옛 그대로 판을 끝낸다(byte-동일).
   if (globalThis.__MEASURE_REVIVE) { G.player.hp = G.player.maxhp; return; }
