@@ -12,7 +12,8 @@
  * 걷기·CDP 골격은 hs_v221_danger.mjs 를 그대로 재사용(순간이동 말고 걸어서). 기본 바이너리(손잡이 무변경)를
  * 잰다 — __FOE_DMG=16·__RANGED_MOB·__MEASURE_REVIVE 는 V-220/221 기준선과 같게 두되 i-frame 은 끈다.
  *
- * 앞뒤(A/B): 인자 mode="ab" 면 __V222=false(앞) 대 __V222=true(뒤)를 한 프로세스에서 잰다(고칠 손잡이).
+ * 앞뒤(A/B): 인자 mode="ab" 면 __V222_NAV=false(앞·옛 직선걷기) 대 __V222_NAV=true(뒤·길찾기)를
+ *   한 프로세스에서 잰다. 이건 게임 손잡이가 아니라 «자(측정 봇)»의 걷기 알고리즘 손잡이다(V-222 ②).
  */
 import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
@@ -45,14 +46,20 @@ const injectSrc = (seed, v222) => `Math.random = (() => { let s = (${seed} >>> 0
 globalThis.__FOE_DMG = 16;
 globalThis.__RANGED_MOB = true;
 globalThis.__MEASURE_REVIVE = true;
-globalThis.__V222 = ${v222 ? "true" : "false"};
+globalThis.__V222_NAV = ${v222 ? "true" : "false"};
 window.__ft = []; window.__lt = 0;
 (function samp(t){ if(window.__lt) window.__ft.push(t-window.__lt); window.__lt=t;
   if(window.__ft.length>6000) window.__ft.shift(); requestAnimationFrame(samp); })(performance.now());`;
 
 const MINION = { attr: { int: 20, vit: 10, str: 10 }, skill: { slot: 8, grade: 2, mdmg: 10, mhp: 8, spear: 5 }, grade: 2 };
 
-// ── 걷기 (v221 과 동일 — 순간이동 없이 nearestPack→계단) ──────────────────────
+// ── 걷기 (V-222 ②) — 사각형 그래프 BFS 길찾기로 실제로 층을 걷는다 ────────────────
+// 옛 자(v221)는 nearestPack 을 향해 WASD 직선만 밀어 벽에 끼고, dist<=240 이면 팩 «중심» 앞에
+// 45s 를 그냥 섰다. 맵은 rooms∪corridors 가 전부 사각형이고 inFree 가 그 둘로만 통행을 판정하니
+// A* 격자가 필요 없다 — 사각형을 노드로, 겹치는 사각형끼리 간선을 놓아 BFS 로 최단 사각형 열을 얻고
+// 이웃 겹침의 «중심»을 웨이포인트로 하나씩 통과한다. 정지는 팩 중심이 아니라 «가장 가까운 살아있는
+// 적»이 근접 사거리 안에 들어왔을 때만. 끼면 다음 웨이포인트로 건너뛰거나 팩을 잠시 블랙리스트.
+//   globalThis.__V222_NAV === false → 옛 직선 걷기로 되돌린다(기본은 길찾기 ON).
 const AUTO = `(SPEC => {
   const doc = document, cv = doc.getElementById('board');
   const kd = k => doc.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
@@ -63,8 +70,9 @@ const AUTO = `(SPEC => {
   const tap = k => { kd(k); setTimeout(() => ku(k), 40); };
   const aim = (sx, sy) => cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
   cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, bubbles: true }));
-  const A = { lastQ: 0, lastE: 0, lastPt: 0 }; window.__a222 = A;
+  const A = { lastQ: 0, lastE: 0, lastPt: 0, navFail: 0, noPath: 0, stuckSkips: 0, reTarget: 0, toured: 0 }; window.__a222 = A;
   const Z = window.HSZ;
+  const NAV = () => globalThis.__V222_NAV !== false;   // 기본 켬 · false 면 옛 직선걷기
   function ensureBuild() {
     const p = window.G.player;
     if (p.__built) return;
@@ -79,30 +87,159 @@ const AUTO = `(SPEC => {
     for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) {
       const d = (m.x - p.x) ** 2 + (m.y - p.y) ** 2; if (d < bd) { bd = d; b = m; } }
     return b ? { m: b, d: Math.sqrt(bd) } : null; }
-  function nearestPack(p) { let b = null, bd = 1e18;
-    for (const q of G.packs) { if (q.done) continue; const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; } }
-    return b ? { q: b, d: Math.sqrt(bd) } : null; }
+
+  // ── 사각형 그래프 (방 ∪ 복도) — 층마다 다시 짓는다 ─────────────────────
+  const nav = { floor: -1, rooms: null, nodes: [], adj: [], path: null, wi: 0,
+    goalTok: null, lastPlan: 0, hist: [], black: new Map(), target: null, toured: new Set(),
+    dwellStart: 0, targetStart: 0, roomSeen: new Set() };
+  // 두 사각형이 겹치면(맞닿으면) 겹침 구역의 중심을 돌려준다 — 그 점은 두 사각형 안이라 걸을 수 있다.
+  function rectsMeet(a, b) {
+    const ox0 = Math.max(a.x, b.x), ox1 = Math.min(a.x + a.w, b.x + b.w);
+    const oy0 = Math.max(a.y, b.y), oy1 = Math.min(a.y + a.h, b.y + b.h);
+    if (ox1 > ox0 + 2 && oy1 > oy0 + 2) return { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 };
+    return null;
+  }
+  function buildGraph(G) {
+    const nodes = [];
+    for (const r of G.rooms) nodes.push(r);
+    for (const c of G.corridors) nodes.push(c);
+    const adj = nodes.map(() => []);
+    for (let i = 0; i < nodes.length; i++)
+      for (let j = i + 1; j < nodes.length; j++)
+        if (rectsMeet(nodes[i], nodes[j])) { adj[i].push(j); adj[j].push(i); }
+    nav.floor = G.floor; nav.rooms = G.rooms; nav.nodes = nodes; nav.adj = adj;
+    nav.path = null; nav.wi = 0; nav.goalTok = null; nav.black.clear(); nav.target = null;
+    nav.toured.clear(); nav.dwellStart = 0; nav.roomSeen.clear();
+  }
+  // 그 점이 든 사각형 인덱스 — 밖이면(끼임·모서리) 중심이 가장 가까운 사각형.
+  function nodeAt(x, y) {
+    const N = nav.nodes; let best = -1, bd = 1e18;
+    for (let i = 0; i < N.length; i++) { const r = N[i];
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) return i;
+      const cx = r.x + r.w / 2, cy = r.y + r.h / 2, d = (cx - x) ** 2 + (cy - y) ** 2;
+      if (d < bd) { bd = d; best = i; } }
+    return best;
+  }
+  function bfs(si, gi) {
+    if (si < 0 || gi < 0) return null;
+    if (si === gi) return [si];
+    const prev = new Array(nav.nodes.length).fill(-2); prev[si] = -1;
+    const q = [si];
+    for (let h = 0; h < q.length; h++) { const u = q[h];
+      if (u === gi) break;
+      for (const v of nav.adj[u]) if (prev[v] === -2) { prev[v] = u; q.push(v); } }
+    if (prev[gi] === -2) return null;
+    const seq = []; for (let c = gi; c !== -1; c = prev[c]) seq.push(c); seq.reverse();
+    return seq;
+  }
+  // 목표까지 경로를 짠다 → nav.path = [웨이포인트...], 마지막은 실제 목표점.
+  function planTo(p, gx, gy, tok) {
+    nav.goalTok = tok; nav.lastPlan = performance.now();
+    const seq = bfs(nodeAt(p.x, p.y), nodeAt(gx, gy));
+    if (!seq) { A.noPath++; nav.path = null; nav.wi = 0; return; }
+    const wp = [];
+    for (let i = 0; i + 1 < seq.length; i++) { const w = rectsMeet(nav.nodes[seq[i]], nav.nodes[seq[i + 1]]); if (w) wp.push(w); }
+    wp.push({ x: gx, y: gy });
+    nav.path = wp; nav.wi = 0;
+  }
+  function nearestPack(p) { let b = null, bd = 1e18, bi = -1; const now = performance.now();
+    for (let i = 0; i < G.packs.length; i++) { const q = G.packs[i];
+      if (q.done) continue;
+      const bl = nav.black.get(q); if (bl && bl > now) continue;
+      const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; bi = i; } }
+    return b ? { q: b, i: bi, d: Math.sqrt(bd) } : null; }
+  // 목표 «고정»(hysteresis) — 매 프레임 nearestPack 을 다시 고르면 엇비슷한 두 팩 사이에서 목표가
+  //   퐁당퐁당 튀어 봇이 제자리를 오간다(걸은거리만 폭증·면적 0). 현재 목표가 살아있으면(미완·미투어·비블랙) 유지.
+  //   투어(toured): 한 팩에 «다 훑기»로 잠깐 머문 뒤 걸러 다음 팩으로 넘어가려고 표시한다(45s 안에 층을 돌려면
+  //   한 팩을 끝까지 다 잡고 있으면 안 된다 — 방을 밟고(=visited) 몇 대 잡고 다음 방으로).
+  //   방을 먼저 훑으려면 «아직 안 밟은 방»의 팩을 우선한다(한 방에 2~3 팩이라, 한 방을 다 잡느라
+  //   45s 를 태우면 방 수를 못 늘린다). 안 밟은 방이 없으면 그때 남은 팩(같은 방·먼 방)을 집는다.
+  function candPack(p, now, unseenOnly) { let b = null, bd = 1e18;
+    for (const q of G.packs) { if (q.done || nav.toured.has(q)) continue;
+      const bl = nav.black.get(q); if (bl && bl > now) continue;
+      if (unseenOnly && q.room != null && nav.roomSeen.has(q.room)) continue;
+      const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; } }
+    return b; }
+  function pickTarget(p) { const now = performance.now();
+    const t = nav.target;
+    if (t && !t.done && !nav.toured.has(t)) { const bl = nav.black.get(t); if (!bl || bl <= now) return t; }
+    const b = candPack(p, now, true) || candPack(p, now, false);
+    if (b !== nav.target) { nav.target = b; nav.dwellStart = 0; nav.targetStart = now; }
+    return b; }
+  // 방향 키 — 목표점을 향해 WASD 를 켠다(dead-zone 30).
+  function stepToward(want, tx, ty, p) {
+    const dx = tx - p.x, dy = ty - p.y;
+    if (dx > 30) want.add('d'); else if (dx < -30) want.add('a');
+    if (dy > 30) want.add('s'); else if (dy < -30) want.add('w');
+  }
+
   function tick() {
     const G = window.G, cam = window.cam;
     if (!G || !G.player) { requestAnimationFrame(tick); return; }
     if (G.dead) { tap('r'); requestAnimationFrame(tick); return; }
     ensureBuild();
     const p = G.player;
+    if (nav.floor !== G.floor || nav.rooms !== G.rooms) buildGraph(G);
     const np = nearestPack(p);
-    let tx, ty;
-    if (np) { tx = np.q.x; ty = np.q.y; } else { tx = G.stairs.x; ty = G.stairs.y; }
-    const dx = tx - p.x, dy = ty - p.y, dist = Math.hypot(dx, dy);
-    const want = new Set();
-    if (np && dist <= 240) {
-      const ne0 = nearestEnemy(p);
-      if (ne0 && ne0.d < 70) { if (Math.abs(dx) > 30) want.add(dx > 0 ? 'a' : 'd'); if (Math.abs(dy) > 30) want.add(dy > 0 ? 'w' : 's'); }
-    } else {
-      if (dx > 40) want.add('d'); else if (dx < -40) want.add('a');
-      if (dy > 40) want.add('s'); else if (dy < -40) want.add('w');
-    }
-    setKeys(want);
-    if (!np && Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 66) tap('f');
     const ne = nearestEnemy(p);
+    const want = new Set();
+
+    if (!NAV()) {
+      // ── 옛 직선 걷기(되돌리기) ── nearestPack→계단, dist<=240 이면 정지 ──
+      const tx = np ? np.q.x : G.stairs.x, ty = np ? np.q.y : G.stairs.y;
+      const dx = tx - p.x, dy = ty - p.y, dist = Math.hypot(dx, dy);
+      if (np && dist <= 240) {
+        if (ne && ne.d < 70) { if (Math.abs(dx) > 30) want.add(dx > 0 ? 'a' : 'd'); if (Math.abs(dy) > 30) want.add(dy > 0 ? 'w' : 's'); }
+      } else {
+        if (dx > 40) want.add('d'); else if (dx < -40) want.add('a');
+        if (dy > 40) want.add('s'); else if (dy < -40) want.add('w');
+      }
+    } else {
+      // ── 새 길찾기 ── 살아있는 적이 «근접 사거리»(true-melee) 안일 때만 멈춰 때린다. 느슨한 스웜은
+      //   지나쳐 걷는다(스킬·미니언이 이동 중에도 때린다) — 안 그러면 WAKE 500 이 깨운 무리에 붙박여
+      //   층을 못 훑는다. 팩 «중심»이 아니라 «가장 가까운 살아있는 적» 기준.
+      const now = performance.now();
+      // 지금 든 방을 «밟은 방»으로 기록(목표 우선순위에 쓴다) — 계기(V222ACC)와 같은 판정.
+      for (let i = 0; i < G.rooms.length; i++) { const r = G.rooms[i];
+        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { nav.roomSeen.add(i); break; } }
+      const tgt = pickTarget(p);   // 고정 목표(퐁당 방지) + 방 우선 투어
+      // 다 훑기 — 이동은 «멈추지 않는다». 팩 중심까지 걸어 들어가 방을 밟고(스킬·미니언이 지나가며 때린다),
+      //   중심에서 데드존으로 자연히 선다. 그렇게 DWELL(2.6s) 머문 뒤, 또는 한 팩을 6s 넘게 쫓았는데도
+      //   못 붙으면(막힘) 걸러 다음 팩으로 넘어간다. 봇은 적한테 몸이 안 막힌다(walkable 은 지형만 본다).
+      if (tgt) {
+        const dc = Math.hypot(tgt.x - p.x, tgt.y - p.y);
+        if (dc < 100 && !nav.dwellStart) nav.dwellStart = now;
+        if ((nav.dwellStart && now - nav.dwellStart > 1500) || now - nav.targetStart > 5000) {
+          nav.toured.add(tgt); nav.black.set(tgt, now + 6000);
+          nav.target = null; nav.dwellStart = 0; nav.path = null; nav.goalTok = null; A.toured++;
+        }
+      }
+      const gx = tgt ? tgt.x : G.stairs.x, gy = tgt ? tgt.y : G.stairs.y;
+      const tok = tgt || 'stairs';
+      if (nav.goalTok !== tok || !nav.path || now - nav.lastPlan > 1500) planTo(p, gx, gy, tok);
+      if (nav.path) {
+        while (nav.wi < nav.path.length - 1 && Math.hypot(nav.path[nav.wi].x - p.x, nav.path[nav.wi].y - p.y) < 56) nav.wi++;
+        const w = nav.path[Math.min(nav.wi, nav.path.length - 1)];
+        stepToward(want, w.x, w.y, p);
+      } else { A.navFail++; stepToward(want, gx, gy, p); }   // 경로 실패 — 직선으로라도(끼임감지가 처리)
+      // ── 끼임 감지: «벽에» 낀 것만 잡는다 — 목표 팩 근처(200px)에서 데드존으로 선 건 끼임이 아니다.
+      const combat = ne && ne.d < 200;
+      if (want.size && !combat) {
+        nav.hist.push({ t: now, x: p.x, y: p.y });
+        while (nav.hist.length && now - nav.hist[0].t > 1200) nav.hist.shift();
+        const h0 = nav.hist[0];
+        if (nav.hist.length > 4 && now - h0.t > 1000 && Math.hypot(p.x - h0.x, p.y - h0.y) < 42) {
+          if (nav.path && nav.wi < nav.path.length - 1) { nav.wi++; A.stuckSkips++; }
+          else if (tgt) { nav.black.set(tgt, now + 4000); nav.target = null; nav.path = null; nav.goalTok = null; A.reTarget++; }
+          nav.hist.length = 0;
+        }
+      } else nav.hist.length = 0;
+    }
+
+    setKeys(want);
+    // 계단은 «처리 안 한 팩이 하나도 없을 때»만 밟는다 — NAV 는 done ∪ toured 를 «처리»로 본다(다 훑기).
+    const anyLeft = NAV() ? G.packs.some((q) => !q.done && !nav.toured.has(q)) : G.packs.some((q) => !q.done);
+    if (!anyLeft && Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 66) tap('f');
     if (ne) aim((ne.m.x - cam.x) * Z, (ne.m.y - cam.y) * Z);
     const now = performance.now();
     if (now - A.lastQ > 380) { A.lastQ = now; tap('q'); }
@@ -165,7 +302,8 @@ const SAMPLE = `(() => {
   return { floor: G.floor, projOut, pOut: window.__walkable ? (window.__walkable(p.x, p.y) ? 0 : 1) : 0 };
 })()`;
 
-const median = a => { if (!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+const median = a => { if (!a.length) return null;   // ★ 빈 표본은 0 이 아니라 «없음» — 0 으로 내면 판정이 뒤집힌다(V-222)
+ const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
 const r1 = n => Math.round(n * 10) / 10;
 
 async function runOne(seed, v222) {
@@ -212,6 +350,7 @@ async function runOne(seed, v222) {
   const spat = JSON.parse(await ev(`JSON.stringify(window.__v222.log)`) || "[]");
   const ft = JSON.parse(await ev(`JSON.stringify(window.__ft)`) || "[]").sort((a, b) => a - b);
   const fp95 = ft.length ? +ft[Math.floor(ft.length * 0.95)].toFixed(1) : 0;
+  const nav = (await ev(`(window.__a222 ? { navFail: __a222.navFail, noPath: __a222.noPath, stuckSkips: __a222.stuckSkips, reTarget: __a222.reTarget, toured: __a222.toured } : {})`)) || {};
   await raw("Target.closeTarget", { targetId }).catch(() => {});
 
   // 층 번호로 처치(floorLog) 와 공간(v222) 을 맞춘다.
@@ -222,7 +361,7 @@ async function runOne(seed, v222) {
     cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, sec: f.sec, ...sp });
   }
   const totSec = cells.reduce((a, c) => a + (c.sec || 0), 0);
-  return { seed, cells, fp95, projOutPct: samples ? r1(100 * projOutHits / samples) : 0,
+  return { seed, cells, fp95, nav, projOutPct: samples ? r1(100 * projOutHits / samples) : 0,
     pOutPct: samples ? r1(100 * pOutHits / samples) : 0, totSec: r1(totSec) };
 }
 
@@ -238,7 +377,8 @@ async function runArm(name, v222) {
       const starv = c.kills === 0 ? " ◀굶음" : "";
       log(`  씨앗 ${r.seed} 층${c.floor}: 처치 ${c.kills} · 적수 ${c.enemiesTotal} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}% · 깬팩 ${c.awokePacks}/${c.packsTotal} · 최근접 ${c.minDistEver}(중앙 ${c.minDistMed}) · 걸은거리 ${c.pathLen} · ${c.sec}s(계단 ${c.timeToStairs}s·잔여 ${c.timeAfterStairs}s)${starv}`);
     }
-    log(`    완주 ${r.totSec}s · frame p95 ${r.fp95}ms · 벽밖 ${r.pOutPct}% · 발사체벽밖 ${r.projOutPct}% · 오류 ${r.errs}`);
+    const nv = r.nav || {};
+    log(`    완주 ${r.totSec}s · frame p95 ${r.fp95}ms · 벽밖 ${r.pOutPct}% · 발사체벽밖 ${r.projOutPct}% · 오류 ${r.errs} · 길찾기[투어 ${nv.toured||0}·경로없음 ${nv.noPath||0}·직선폴백 ${nv.navFail||0}·끼임건너뜀 ${nv.stuckSkips||0}·팩재선택 ${nv.reTarget||0}]`);
   }
   if (!runs.length) return null;
 
@@ -260,6 +400,11 @@ async function runArm(name, v222) {
   const roomMed = median(starved.map((c) => c.roomsPct));
   const areaMed = median(starved.map((c) => c.areaPct));
   const pathMed = median(starved.map((c) => c.pathLen));
+  // ★ 끝 조건(면적·방문)은 «모든 층» 기준으로 판정한다 — 굶은 층이 0 이 되면 굶은층 분모가 비어
+  //   median([])→null 이 되고, 그걸 0 으로 읽으면 «성공을 미달로» 뒤집는다(2026-09-01).
+  const roomMedAll = median(cells.map((c) => c.roomsPct));
+  const areaMedAll = median(cells.map((c) => c.areaPct));
+  const pathMedAll = median(cells.map((c) => c.pathLen));
 
   const engaged = cells.filter((c) => c.kills > 0);
   const band = engaged.filter((c) => c.hpMin >= 10 && c.hpMin <= 60).length;
@@ -270,13 +415,16 @@ async function runArm(name, v222) {
   log(`    교전층 밴드(참고)   : ${bandPct}%  (${band}/${engaged.length})   [이번 판 안 건드림]`);
   log(`    ─ 굶은 층 원인 가르기 ─`);
   log(`    ㉠ 적수 0 인 층      : ${spawn0}/${nStarv}`);
-  log(`    ㉡ 방 방문 중앙      : ${roomMed}%  · 면적 중앙 ${areaMed}%  · 걸은거리 중앙 ${pathMed}`);
+  log(`    ㉡ 방 방문 중앙      : 전층 ${show(roomMedAll)}% · 면적 ${show(areaMedAll)}% · 걸은거리 ${show(pathMedAll)}   (굶은층만: 방 ${show(roomMed)}% · 면적 ${show(areaMed)}%)`);
   log(`    ㉡ 팩 깨운 층        : ${woke}/${nStarv}`);
-  log(`    ㉢ 최근접 중앙       : ${nearMed}px  (WAKE 500 안까지 간 층 ${gotClose}/${nStarv})`);
+  log(`    ㉢ 최근접 중앙       : ${show(nearMed)}px  (WAKE 500 안까지 간 층 ${gotClose}/${nStarv})`);
   log(`    회귀 — 완주 ${secMed}s · 벽밖 ${pOutMax}% · 발사체벽밖 ${projOutMax}% · frame p95 ${fp95Max}ms · 오류 ${totErr}`);
+  const navSum = runs.reduce((a, r) => ({ toured: a.toured + (r.nav?.toured || 0), noPath: a.noPath + (r.nav?.noPath || 0), navFail: a.navFail + (r.nav?.navFail || 0),
+    stuckSkips: a.stuckSkips + (r.nav?.stuckSkips || 0), reTarget: a.reTarget + (r.nav?.reTarget || 0) }), { toured: 0, noPath: 0, navFail: 0, stuckSkips: 0, reTarget: 0 });
+  log(`    길찾기 합 — 투어 ${navSum.toured} · 경로없음 ${navSum.noPath} · 직선폴백 ${navSum.navFail} · 끼임건너뜀 ${navSum.stuckSkips} · 팩재선택 ${navSum.reTarget}`);
 
   return { name, v222, cells, nStarv, starvPct, bandPct, secMed, fp95Max, pOutMax, projOutMax, errs: totErr,
-    diag: { spawn0, nearMed, gotClose, woke, roomMed, areaMed, pathMed }, runs };
+    diag: { spawn0, nearMed, gotClose, woke, roomMed, areaMed, pathMed, roomMedAll, areaMedAll, pathMedAll }, navSum, runs };
 }
 
 log(`\n■ hs_v222_starve [${MODE}] — 굶는 층의 원인 가르기 · 창 ${VW}×${VH}`);
@@ -285,11 +433,19 @@ if (MODE === "ab") {
   out.before = await runArm("BEFORE (__V222=false)", false);
   out.after = await runArm("AFTER (__V222=true)", true);
   if (out.before && out.after) {
-    log(`\n╔═══ 앞뒤 비교 (손잡이만 뒤집음) ═══╗`);
-    log(`  굶은 층 비율 : ${out.before.starvPct}%  →  ${out.after.starvPct}%   [≤20%]`);
-    log(`  교전층 밴드  : ${out.before.bandPct}%  →  ${out.after.bandPct}%   (참고 · 안 건드림)`);
-    log(`  완주(중앙)   : ${out.before.secMed}s  →  ${out.after.secMed}s   [137~319s]`);
-    log(`  AFTER 판정: ${out.after.starvPct <= 20 && out.after.secMed >= 137 && out.after.secMed <= 319 && out.after.errs === 0 && out.after.pOutMax === 0 && out.after.projOutMax === 0 ? "★ 통과" : "미달"}`);
+    // 면적/방문 중앙은 «굶은 층» 기준(edb577c 진단과 같은 분모) — 길찾기가 굶은 층에서도 걷는가.
+    const bA = out.before.diag, aA = out.after.diag;
+    log(`\n╔═══ 앞뒤 비교 (자의 걷기 손잡이만 뒤집음) ═══╗`);
+    log(`  굶은 층 비율      : ${out.before.starvPct}%  →  ${out.after.starvPct}%   [≤20%]`);
+    log(`  전층 면적 중앙    : ${show(bA.areaMedAll)}%  →  ${show(aA.areaMedAll)}%   [≥15%]`);
+    log(`  전층 방문 중앙    : ${show(bA.roomMedAll)}%  →  ${show(aA.roomMedAll)}%   [≥40%]`);
+    log(`  전층 걸은거리     : ${show(bA.pathMedAll)}  →  ${show(aA.pathMedAll)}`);
+    log(`  (굶은층만 참고)   : 면적 ${show(bA.areaMed)}%→${show(aA.areaMed)}% · 방 ${show(bA.roomMed)}%→${show(aA.roomMed)}%`);
+    log(`  교전층 밴드       : ${out.before.bandPct}%  →  ${out.after.bandPct}%   (참고 · 안 건드림)`);
+    log(`  완주(중앙)        : ${out.before.secMed}s  →  ${out.after.secMed}s   [137~319s]`);
+    const pass = out.after.starvPct <= 20 && aA.areaMedAll >= 15 && aA.roomMedAll >= 40 &&
+      out.after.secMed >= 137 && out.after.secMed <= 319 && out.after.errs === 0 && out.after.pOutMax === 0 && out.after.projOutMax === 0;
+    log(`  AFTER 판정: ${pass ? "★ 통과" : "미달"}  (굶음 ${out.after.starvPct <= 20 ? "✓" : "✗"} · 면적 ${aA.areaMedAll >= 15 ? "✓" : "✗"} · 방문 ${aA.roomMedAll >= 40 ? "✓" : "✗"} · 완주 ${out.after.secMed >= 137 && out.after.secMed <= 319 ? "✓" : "✗"} · 회귀 ${out.after.errs === 0 && out.after.pOutMax === 0 && out.after.projOutMax === 0 ? "✓" : "✗"})`);
   }
 } else {
   out.before = await runArm("DIAG (현재 바이너리)", false);
