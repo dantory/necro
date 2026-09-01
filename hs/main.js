@@ -78,6 +78,9 @@ if (globalThis.__BOMBER_MOB === undefined) globalThis.__BOMBER_MOB = true;
 //      globalThis.__BONEWALL=false (V 키·막힘·그리기 안 지나감) · globalThis.__FEED=false (R 제물 안 지나감).
 if (globalThis.__BONEWALL === undefined) globalThis.__BONEWALL = true;
 if (globalThis.__FEED === undefined) globalThis.__FEED = true;
+//   ㉦ V-233 — 뼈 골렘(G): 시체 5구를 모아 큰 소환수 하나. 기본 켬. 끄면 옛 판과 byte-동일:
+//      globalThis.__GOLEM=false (G 키가 아무것도 안 함).
+if (globalThis.__GOLEM === undefined) globalThis.__GOLEM = true;
 const PWALL_LIFE = 10.0;   // V-232 — 사람이 세운 뼈벽 유지 시간(초). 뼈 왕 우리(CAGE_LIFE)와 다르다.
 //   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
 //      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
@@ -121,6 +124,7 @@ const SKEL_TIERS = [
   { key: "giant",  scale: 1.55, slot: 3, hpMul: 3.00, dmgMul: 2.15, atkMul: 1.22, spdMul: 0.84, cleave: 60, ring: 4.0, ringCol: "#5fa0e6", shake: 4, label: "거대 해골", filt: "brightness(0.9) saturate(1.4) sepia(0.3) hue-rotate(-10deg)" },
   { key: "titan",  scale: 2.20, slot: 6, hpMul: 6.20, dmgMul: 4.30, atkMul: 1.45, spdMul: 0.74, cleave: 96, ring: 5.5, ringCol: "#8fd0ff", shake: 8, label: "뼈 거인",   filt: "brightness(0.82) saturate(1.8) sepia(0.5) hue-rotate(-18deg)" },
 ];
+const GOLEM = { need: 5, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6, spdMul: 0.6, atkMul: 1.5, cleave: 76, ring: 5.0, ringCol: "#8fd0ff", shake: 7, label: "뼈 골렘", filt: "brightness(0.8) saturate(1.6) sepia(0.5) hue-rotate(-16deg)" };
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
   "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png", "decor/stairs.png"];
@@ -282,6 +286,19 @@ window.__skillPose = (what) => {
     }
     cam.x = (p.x + wx) / 2 - VW / (2 * Z); cam.y = wy - VH / (2 * Z);
     return { x: wx, y: wy, what };
+  }
+  if (what === "golem") {
+    const gx = p.x + 120, gy = p.y + 10;
+    G.minions.length = 0;
+    for (let i = 0; i < GOLEM.need; i++)
+      G.corpses.push({ x: gx - 40 + i * 20, y: gy + 20 + (i % 2) * 14, base: "mob/skelarch", dir: "s", h: 82, used: false, t: 0 });
+    p.mana = p.maxmana;
+    raiseGolem();
+    G.minions.push({ base: SKEL_BASE, x: p.x - 96, y: gy, hp: 200, maxhp: 200, dmg: 34, spd: 250, atkCd: 0.6,
+      r: 15, h: SKEL_H, tier: 0, slot: 1, cleave: 0, ring: 2.5, ringCol: "#3d78c8", shake: 0, filt: null,
+      dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0 });
+    cam.x = (p.x + gx) / 2 - VW / (2 * Z); cam.y = gy - VH / (2 * Z);
+    return { x: gx, y: gy, what };
   }
   const proto = { base: SKEL_BASE, hp: 400, maxhp: 400, dmg: 50, spd: 250, atkCd: 0.6, r: 15, h: SKEL_H,
     tier: 0, slot: 1, cleave: 0, ring: 2.5, ringCol: "#3d78c8", shake: 0, filt: null,
@@ -494,6 +511,7 @@ function handleSkills() {
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
+  if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
@@ -680,6 +698,35 @@ function corpseWall() {
   }
   for (let i = 0; i < 20; i++) burst(tx, ty, "#8fd0ff", 160);
   cam.shake = Math.max(cam.shake, 6);
+}
+
+function raiseGolem() {
+  const p = G.player;
+  if (slotsUsed() + GOLEM.slot > slotCap()) { floatNote(`자리가 부족하다 (뼈 골렘 ${GOLEM.slot}칸)`, "#e0663c", 1.2); return; }
+  if (p.mana < GOLEM.cost) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
+  const eaten = [];
+  let cx = 0, cy = 0;
+  for (let n = 0; n < GOLEM.need; n++) {
+    const ci = nearestCorpse(p.x, p.y, 320);
+    if (ci < 0) break;
+    const c = G.corpses[ci]; c.used = true; eaten.push(ci); cx += c.x; cy += c.y;
+  }
+  if (eaten.length < GOLEM.need) {
+    for (const ci of eaten) G.corpses[ci].used = false;
+    floatNote(`시체가 모자라다 (${GOLEM.need}구 필요·${eaten.length}구)`, "#c8a04a", 1.2);
+    return;
+  }
+  p.mana -= GOLEM.cost;
+  cx /= GOLEM.need; cy /= GOLEM.need;
+  const hp = (200 + G.floor * 40) * GOLEM.hpMul * p.minionHpMul;
+  G.minions.push({ base: SKEL_BASE, x: cx, y: cy, hp, maxhp: hp,
+    dmg: (34 + G.floor * 10) * GOLEM.dmgMul * p.minionMul, spd: 250 * GOLEM.spdMul, atkCd: 0.6 * GOLEM.atkMul,
+    r: 15 * GOLEM.scale, h: SKEL_H * GOLEM.scale, tier: 2, slot: GOLEM.slot, cleave: GOLEM.cleave,
+    ring: GOLEM.ring, ringCol: GOLEM.ringCol, shake: GOLEM.shake, filt: GOLEM.filt,
+    dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0, golem: true });
+  for (let i = 0; i < 30; i++) burst(cx, cy - 20, "#cfe0ef", 200);
+  cam.shake = Math.max(cam.shake, GOLEM.shake);
+  floatNote("뼈 골렘이 일어난다", "#bcd0e8", 1.2);
 }
 
 function corpseFeed() {
@@ -1717,17 +1764,32 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
     ctx.save(); ctx.translate(b.x, b.y);
     ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(0, 4, b.r * 0.9, b.r * 0.4, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = b.foe
-      ? `rgb(${(96 + 70 * hpf) | 0},${(128 + 80 * hpf) | 0},${(168 + 80 * hpf) | 0})`
-      : `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
+    if (b.foe) { drawBoneChunk(b.r, h, hpf); ctx.restore(); continue; }
+    ctx.fillStyle = `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
     ctx.fillRect(-b.r * 0.55, -h, b.r * 1.1, h);
     ctx.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 1; i < 4; i++) ctx.fillRect(-b.r * 0.55, -h * i / 4, b.r * 1.1, 2);
-    ctx.fillStyle = b.foe
-      ? `rgb(${(126 + 70 * hpf) | 0},${(158 + 70 * hpf) | 0},${(196 + 60 * hpf) | 0})`
-      : `rgb(${(175 + 80 * hpf) | 0},${(170 + 80 * hpf) | 0},${(150 + 70 * hpf) | 0})`;
+    ctx.fillStyle = `rgb(${(175 + 80 * hpf) | 0},${(170 + 80 * hpf) | 0},${(150 + 70 * hpf) | 0})`;
     ctx.beginPath(); ctx.moveTo(-b.r * 0.55, -h); ctx.lineTo(0, -h - 14); ctx.lineTo(b.r * 0.55, -h); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
+}
+function drawBoneChunk(r, h, hpf) {
+  const iv = (hi, lo) => (lo + (hi - lo) * hpf) | 0;
+  const boneA = `rgb(${iv(228, 150)},${iv(220, 142)},${iv(196, 120)})`;
+  const boneB = `rgb(${iv(198, 120)},${iv(188, 112)},${iv(160, 92)})`;
+  const boneHi = `rgb(${iv(244, 182)},${iv(238, 174)},${iv(214, 152)})`;
+  const w = r * 0.6, knob = r * 0.5;
+  ctx.fillStyle = boneB; ctx.fillRect(-w / 2 - 1, -h + knob, w + 2, h - knob * 2);
+  ctx.fillStyle = boneA; ctx.fillRect(-w / 2, -h + knob, w, h - knob * 2);
+  for (const ky of [-h + knob * 0.7, -knob * 0.7]) {
+    for (const sx of [-1, 1]) {
+      ctx.fillStyle = boneB; ctx.beginPath(); ctx.arc(sx * knob * 0.5, ky, knob * 0.74, 0, 6.283); ctx.fill();
+      ctx.fillStyle = boneA; ctx.beginPath(); ctx.arc(sx * knob * 0.5, ky, knob * 0.58, 0, 6.283); ctx.fill();
+    }
+  }
+  ctx.fillStyle = boneHi; ctx.fillRect(-w * 0.3, -h + knob, Math.max(2, w * 0.2), h - knob * 2);
+  ctx.fillStyle = "rgba(60,44,30,0.35)";
+  for (let i = 1; i < 3; i++) ctx.fillRect(-w / 2, -h + knob + (h - knob * 2) * i / 3, w, 1.5);
 }
 function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가운데 크게
   const bn = G.bossBanner; if (!bn) return;
@@ -2215,9 +2277,18 @@ function recordSil(who, base, x, y, h) { const r = silScreenRect(base, x, y, h);
 function drawActor(s, base) {
   const fed = (globalThis.__FEED !== false && s.feed) ? s.feed : 0;
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
-  let filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
-  if (fed) filt = (filt ? filt + " " : "") + `hue-rotate(${fed * 14}deg) saturate(${1 + fed * 0.3})`;
+  let filt;
+  if (fed) filt = `sepia(1) saturate(${2.4 + fed * 0.45}) hue-rotate(-24deg) brightness(${0.98 + fed * 0.015}) contrast(1.12)`;
+  else filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
   const dh = fed ? s.h * (1 + 0.06 * fed) : s.h;
+  if (fed) {
+    const cy = s.y - dh * 0.42, a = 0.12 + 0.05 * fed;
+    const g = ctx.createRadialGradient(s.x, cy, dh * 0.08, s.x, cy, dh * 0.62);
+    g.addColorStop(0, `rgba(196,18,22,${a})`);
+    g.addColorStop(0.6, `rgba(150,10,14,${a * 0.5})`);
+    g.addColorStop(1, "rgba(150,10,14,0)");
+    ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(s.x, cy, dh * 0.5, dh * 0.62, 0, 0, 6.283); ctx.fill(); ctx.restore();
+  }
   if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, dh, filt))
     fallbackBlob(s.x, s.y, dh, "#d8e8d0");
   if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
