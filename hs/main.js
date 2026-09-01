@@ -74,6 +74,11 @@ if (globalThis.__RANGED_MOB === undefined) globalThis.__RANGED_MOB = true;
 //   ㉢ V-231 — 돌진·자폭도 기본 켬(같은 결). 끄면 `globalThis.__CHARGER_MOB=false`·`__BOMBER_MOB=false` 로 옛 판과 byte-동일.
 if (globalThis.__CHARGER_MOB === undefined) globalThis.__CHARGER_MOB = true;
 if (globalThis.__BOMBER_MOB === undefined) globalThis.__BOMBER_MOB = true;
+//   ㉤ V-232 — 시체를 쓰는 길 둘(뼈벽 V · 시체 제물 R). 기본 켬. 끄면 옛 판과 byte-동일:
+//      globalThis.__BONEWALL=false (V 키·막힘·그리기 안 지나감) · globalThis.__FEED=false (R 제물 안 지나감).
+if (globalThis.__BONEWALL === undefined) globalThis.__BONEWALL = true;
+if (globalThis.__FEED === undefined) globalThis.__FEED = true;
+const PWALL_LIFE = 10.0;   // V-232 — 사람이 세운 뼈벽 유지 시간(초). 뼈 왕 우리(CAGE_LIFE)와 다르다.
 //   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
 //      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
 //      소환수 vs 적 밸런스는 유지 — hurtPlayer 한 곳에서만 곱한다). 되돌리려면 `globalThis.__FOE_DMG = 1`.
@@ -257,6 +262,42 @@ window.__mobPose = (what) => {
   cam.x = (best.x + p.x) / 2 - VW / (2 * Z); cam.y = best.y - VH / (2 * Z);
   return { x: best.x, y: best.y, what };
 };
+// ── V-232 컷용 — 시체를 쓰는 두 길을 «쓴 순간»으로 세운다("wall"|"feed"). 측정 자가 아니다. ──
+window.__skillPose = (what) => {
+  const p = G.player;
+  if (what === "wall") {
+    const wx = p.x + 200, wy = p.y;
+    G.bones = G.bones.filter((b) => !b.foe);
+    for (let i = 0; i < 3; i++)
+      G.corpses.push({ x: wx - 30 + i * 24, y: wy + 26 + i * 10, base: "mob/skelarch", dir: "s", h: 82, used: false, t: 0 });
+    cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
+    mouse.x = (wx - cam.x) * Z; mouse.y = (wy - cam.y) * Z;
+    p.mana = p.maxmana;
+    corpseWall();
+    const pk = G.packs.find((k) => k.enemies.some((e) => e.alive));
+    if (pk) {
+      pk.awake = true;
+      const m = pk.enemies.find((e) => e.alive);
+      m.x = wx + 40; m.y = wy; m.state = "walk"; m.dx = -1; m.dy = 0; m.stun = 0; m.kb.x = 0; m.kb.y = 0; unstick(m, m.r);
+    }
+    cam.x = (p.x + wx) / 2 - VW / (2 * Z); cam.y = wy - VH / (2 * Z);
+    return { x: wx, y: wy, what };
+  }
+  const proto = { base: SKEL_BASE, hp: 400, maxhp: 400, dmg: 50, spd: 250, atkCd: 0.6, r: 15, h: SKEL_H,
+    tier: 0, slot: 1, cleave: 0, ring: 2.5, ringCol: "#3d78c8", shake: 0, filt: null,
+    dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0 };
+  const fed = { ...proto, x: p.x + 70, y: p.y + 30 };
+  const plain = { ...proto, x: p.x - 70, y: p.y + 30 };
+  G.minions.length = 0; G.minions.push(fed, plain);
+  for (let i = 0; i < 5; i++) {
+    const f = (fed.feed += 1);
+    fed.dmg *= (1 + 0.20 * f) / (1 + 0.20 * (f - 1));
+    fed.maxhp *= (1 + 0.15 * f) / (1 + 0.15 * (f - 1));
+  }
+  fed.hp = fed.maxhp;
+  cam.x = p.x - VW / (2 * Z); cam.y = (p.y + 30) - VH / (2 * Z);
+  return { x: p.x, y: p.y + 30, what };
+};
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -350,8 +391,8 @@ function walkable(x, y, r) { return inFree(x, y, r) && !blockedByProp(x, y, r); 
 // 미끄러진다 — 벽에 부딪히면 멈추는 게 아니라 축을 나눠 민다(x 되면 x, y 되면 y). 그래야
 // 벽을 따라 걷고 모서리에서 안 낀다. 이게 없으면 조작이 답답해진다(V-201 주의).
 function stepTo(e, nx, ny, r) {
-  if (nx !== e.x && walkable(nx, e.y, r)) e.x = nx;
-  if (ny !== e.y && walkable(e.x, ny, r)) e.y = ny;
+  if (nx !== e.x && walkable(nx, e.y, r) && !foeWallBlock(nx, e.y, r)) e.x = nx;
+  if (ny !== e.y && walkable(e.x, ny, r) && !foeWallBlock(e.x, ny, r)) e.y = ny;
 }
 // 끼면 빼낸다 — 걸을 수 없는 자리에 서면(층 생성·순간이동·밀림) 가장 가까운 걸을 수 있는 자리로.
 function unstick(e, r) {
@@ -451,6 +492,8 @@ function handleSkills() {
     if (keys.has(k) && !p["_g" + k]) { p["_g" + k] = true; selectGrade(i); } if (!keys.has(k)) p["_g" + k] = false;
   }
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
+  if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
+  if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
@@ -501,7 +544,7 @@ function raiseSkeleton() {
   G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
     dmg: (34 + G.floor * 10) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
     r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
-    filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1 });
+    filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0 });
   const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
   for (let i = 0; i < 12 + tier * 6; i++) burst(c.x, c.y - 20, col, 120 + tier * 50);
   if (T.shake) cam.shake = Math.max(cam.shake, T.shake);
@@ -607,12 +650,55 @@ function explode(x, y, dmg, rad, delay) {
     forEachEnemy((m) => {
       if ((m.x - x) ** 2 + (m.y - y) ** 2 < rad * rad) hurtEnemy(m, dmg, (m.x - x), (m.y - y), "nova");
     });
-    for (const b of G.bones) if ((b.x - x) ** 2 + (b.y - y) ** 2 < rad * rad) b.hp -= dmg;   // V-230 — 폭발도 뼈 우리를 부순다
+    for (const b of G.bones) if (!b.foe && (b.x - x) ** 2 + (b.y - y) ** 2 < rad * rad) b.hp -= dmg;   // V-230 뼈 우리는 폭발이 부순다 · V-232 제 뼈벽(foe)은 안 부순다
   }, (delay || 0) * 1000);
 }
 
 function forEachEnemy(fn) {
   for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) fn(m, pk);
+}
+
+function corpseWall() {
+  const p = G.player;
+  if (p.mana < 25) return;
+  const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
+  const eaten = [];
+  for (let n = 0; n < 3; n++) {
+    const ci = nearestCorpse(tx, ty, 220);
+    if (ci < 0) break;
+    G.corpses[ci].used = true; eaten.push(ci);
+  }
+  if (!eaten.length) { floatNote("가까운 시체가 없다", "#c8a04a", 1.0); return; }
+  p.mana -= 25;
+  const cnt = eaten.length;
+  const dx = tx - p.x, dy = ty - p.y, dl = Math.hypot(dx, dy) || 1;
+  const nx = -dy / dl, ny = dx / dl;
+  const hp = (120 + G.floor * 20) * cnt;
+  for (let i = 0; i < 7; i++) {
+    const t = (i / 6 - 0.5) * 170;
+    G.bones.push({ x: tx + nx * t, y: ty + ny * t, r: 20, hp, maxhp: hp, life: PWALL_LIFE, foe: true });
+  }
+  for (let i = 0; i < 20; i++) burst(tx, ty, "#8fd0ff", 160);
+  cam.shake = Math.max(cam.shake, 6);
+}
+
+function corpseFeed() {
+  const p = G.player;
+  if (p.mana < 20) return;
+  let best = null, bd = Infinity;
+  for (const s of G.minions) { const d = (s.x - p.x) ** 2 + (s.y - p.y) ** 2; if (d < bd) { bd = d; best = s; } }
+  if (!best) { floatNote("소환수가 없다", "#c8a04a", 1.0); return; }
+  if ((best.feed || 0) >= 5) { floatNote("더 못 먹인다", "#c8a04a", 1.0); return; }
+  const ci = nearestCorpse(best.x, best.y, 200);
+  if (ci < 0) { floatNote("가까운 시체가 없다", "#c8a04a", 1.0); return; }
+  G.corpses[ci].used = true;
+  p.mana -= 20;
+  const f = (best.feed = (best.feed || 0) + 1);
+  best.dmg *= (1 + 0.20 * f) / (1 + 0.20 * (f - 1));
+  best.maxhp *= (1 + 0.15 * f) / (1 + 0.15 * (f - 1));
+  best.hp = best.maxhp;
+  for (let i = 0; i < 14; i++) burst(best.x, best.y - 20, "#b0202a", 160);
+  floatNote("제물 — 소환수가 커진다", "#e0663c", 1.0);
 }
 
 function wakePacks() {
@@ -875,9 +961,17 @@ function stepBones(dt) {
   for (const b of G.bones) b.life -= dt;
   G.bones = G.bones.filter((b) => b.life > 0 && b.hp > 0);
 }
-// 뼈 우리는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
+// 뼈 우리(뼈 왕)는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
+//   V-232 — 사람이 세운 뼈벽(b.foe)은 그 반대다. bonesBlock 은 b.foe 를 건너뛰어 사람은 제 벽을 지나고,
+//   foeWallBlock 이 stepTo(적·소환수 이동) 한 자리에서 b.foe 만 막는다. unstick(walkable)은 안 건드려
+//   벽에 낀 적이 지형 벽 «밖»으로 밀려나지 않는다(hs_v207_walk 불변식).
 function bonesBlock(x, y, r) {
-  for (const b of G.bones) { const rr = b.r + r, dx = x - b.x, dy = y - b.y; if (dx * dx + dy * dy < rr * rr) return true; }
+  for (const b of G.bones) { if (b.foe) continue; const rr = b.r + r, dx = x - b.x, dy = y - b.y; if (dx * dx + dy * dy < rr * rr) return true; }
+  return false;
+}
+function foeWallBlock(x, y, r) {
+  if (globalThis.__BONEWALL === false) return false;
+  for (const b of G.bones) { if (!b.foe) continue; const rr = b.r + r, dx = x - b.x, dy = y - b.y; if (dx * dx + dy * dy < rr * rr) return true; }
   return false;
 }
 function walkableP(x, y, r) { return walkable(x, y, r) && !bonesBlock(x, y, r); }
@@ -1007,7 +1101,8 @@ function stepSpears(dt) {
         sp.dead = true;
       }
     });
-    if (!sp.dead) for (const b of G.bones) {   // V-230 — 뼈 창이 뼈 우리를 부순다(갇힌 데서 나가게)
+    if (!sp.dead) for (const b of G.bones) {   // V-230 뼈 창이 뼈 우리를 부순다(갇힌 데서 나가게) · V-232 제 뼈벽(foe)은 안 부순다
+      if (b.foe) continue;
       if ((b.x - sp.x) ** 2 + (b.y - sp.y) ** 2 < (b.r + 9) ** 2) { b.hp -= sp.dmg; sp.dead = true; for (let i = 0; i < 5; i++) burst(b.x, b.y, "#e8ecf0", 120); break; }
     }
   }
@@ -1622,10 +1717,14 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
     ctx.save(); ctx.translate(b.x, b.y);
     ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(0, 4, b.r * 0.9, b.r * 0.4, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
+    ctx.fillStyle = b.foe
+      ? `rgb(${(96 + 70 * hpf) | 0},${(128 + 80 * hpf) | 0},${(168 + 80 * hpf) | 0})`
+      : `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
     ctx.fillRect(-b.r * 0.55, -h, b.r * 1.1, h);
     ctx.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 1; i < 4; i++) ctx.fillRect(-b.r * 0.55, -h * i / 4, b.r * 1.1, 2);
-    ctx.fillStyle = `rgb(${(175 + 80 * hpf) | 0},${(170 + 80 * hpf) | 0},${(150 + 70 * hpf) | 0})`;
+    ctx.fillStyle = b.foe
+      ? `rgb(${(126 + 70 * hpf) | 0},${(158 + 70 * hpf) | 0},${(196 + 60 * hpf) | 0})`
+      : `rgb(${(175 + 80 * hpf) | 0},${(170 + 80 * hpf) | 0},${(150 + 70 * hpf) | 0})`;
     ctx.beginPath(); ctx.moveTo(-b.r * 0.55, -h); ctx.lineTo(0, -h - 14); ctx.lineTo(b.r * 0.55, -h); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
@@ -2114,10 +2213,13 @@ function silScreenRect(base, x, y, h) {
 function recordSil(who, base, x, y, h) { const r = silScreenRect(base, x, y, h); r.who = who; silRects.push(r); }
 
 function drawActor(s, base) {
+  const fed = (globalThis.__FEED !== false && s.feed) ? s.feed : 0;
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
-  const filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
-  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, s.h, filt))
-    fallbackBlob(s.x, s.y, s.h, "#d8e8d0");
+  let filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
+  if (fed) filt = (filt ? filt + " " : "") + `hue-rotate(${fed * 14}deg) saturate(${1 + fed * 0.3})`;
+  const dh = fed ? s.h * (1 + 0.06 * fed) : s.h;
+  if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, dh, filt))
+    fallbackBlob(s.x, s.y, dh, "#d8e8d0");
   if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
 }
 function drawEnemy(m) {
