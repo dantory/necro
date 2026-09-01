@@ -98,6 +98,29 @@ const AUTO = `(SPEC => {
     p.attrPts = 0; p.sklPts = 0; window.recalc(); p.grade = SPEC.grade;
     p.hp = p.maxhp; p.mana = p.maxmana; p.__built = 1;
   }
+  // ── V-226 ① 자 고침 — «사람도 자라야» 두 곡선을 견줄 수 있다 ──────────────────
+  // 옛 자는 SPEC 을 한 번 박고 attrPts/sklPts 를 0 으로 눌러, 층을 내려가며 레벨이 올라도
+  // 사람 maxhp 가 «층1~층5 내내 4515 로 고정»이었다(2026-09-01 측정 10칸 전부 동일).
+  // 그 자로 「깊이 곡선이 사람보다 가파른가」를 물으면 답은 늘 예 — 사람이 상수니까.
+  // 그래서 레벨업으로 «번» 점수만 사람이 하듯 쓴다(초기 SPEC 비율 그대로: int2·vit1·str1).
+  //   globalThis.__V226_GROW === false → 옛 «박은 빌드»로 되돌린다.
+  const GROW_ATTR = ['int', 'int', 'vit', 'str'];
+  const GROW_SKILL = ['mdmg', 'mhp', 'slot', 'grade', 'spear'];
+  let growA = 0;
+  function spendPoints() {
+    if (globalThis.__V226_GROW === false) return;
+    const p = window.G.player;
+    let guard = 64;
+    while (p.attrPts > 0 && guard-- > 0) {
+      if (!window.spendAttr(GROW_ATTR[growA++ % GROW_ATTR.length])) break;
+    }
+    guard = 64;
+    while (p.sklPts > 0 && guard-- > 0) {
+      let spent = false;
+      for (const k of GROW_SKILL) if (window.spendSkill(k)) { spent = true; break; }
+      if (!spent) break;                     // 다 최대치면 남겨 둔다(무한루프 금지)
+    }
+  }
   function nearestEnemy(p) { let b = null, bd = 1e18;
     for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) {
       const d = (m.x - p.x) ** 2 + (m.y - p.y) ** 2; if (d < bd) { bd = d; b = m; } }
@@ -231,6 +254,7 @@ const AUTO = `(SPEC => {
     if (!G || !G.player) { requestAnimationFrame(tick); return; }
     if (G.dead) { tap('r'); requestAnimationFrame(tick); return; }
     ensureBuild();
+    spendPoints();                            // V-226 ① — 번 점수를 사람처럼 쓴다
     const p = G.player;
     if (nav.floor !== G.floor || nav.rooms !== G.rooms) buildGraph(G);
     { const nowT = performance.now();   // 층별 나눔 계기: 층이 바뀌면 앞 층을 밀어 넣고 새 통을 연다.

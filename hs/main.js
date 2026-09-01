@@ -229,6 +229,7 @@ function start(floor, carry) {
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
   window.toggleChar = toggleChar;   // 검수기가 창을 열게(찍기는 창의 + 단추 실클릭으로)
+  window.spendAttr = spendAttr; window.spendSkill = spendSkill;   // V-226 자가 «번 점수»를 실제 문으로 쓰게
   window.__walkable = (x, y, r = PLAYER_R) => walkable(x, y, r);   // V-201 자가 «실제 문»으로 재게
   window.__blockers = () => G.blockProps.map((pr) => ({ x: pr.x, y: pr.y, r: propBlockR(pr) }));
   const p = G.player;
