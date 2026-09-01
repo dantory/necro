@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
@@ -315,6 +315,17 @@ window.__skillPose = (what) => {
   cam.x = p.x - VW / (2 * Z); cam.y = (p.y + 30) - VH / (2 * Z);
   return { x: p.x, y: p.y + 30, what };
 };
+// ── V-234 컷용 — 제단 하나를 사람 곁(반경 70 안)에 세우고 금·카메라를 맞춘다("blood"|"bone"|"ash"). 자 파일이 아니다. ──
+window.__altarPose = (kind) => {
+  const p = G.player;
+  const ax = p.x + 110, ay = p.y + 6;
+  G.altars = [{ x: ax, y: ay, r: 26, used: false, kind: kind || "blood" }];
+  p.x = ax - 58; unstick(p, p.r);   // 반경 70 안 → 이름표가 뜬다
+  G.gold = 5000;
+  cam.x = (p.x + ax) / 2 - VW / (2 * Z); cam.y = ay - VH / (2 * Z);
+  mouse.x = (ax - cam.x) * Z; mouse.y = (ay - cam.y) * Z;
+  return { x: ax, y: ay, kind: kind || "blood", gold: G.gold, maxhp: G.player.maxhp, slots: slotCap() };
+};
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -328,6 +339,7 @@ function fresh(floor, carry) {
     bag: [], equipped: {},
     dmgMul: 1, spearMul: 1, novaDmgMul: 1, minionMul: 1, minionHpMul: 1,
     atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
+    altarHpMul: 1, altarSlots: 0,
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
@@ -351,6 +363,7 @@ function start(floor, carry) {
   window.spendAttr = spendAttr; window.spendSkill = spendSkill;   // V-226 자가 «번 점수»를 실제 문으로 쓰게
   window.__walkable = (x, y, r = PLAYER_R) => walkable(x, y, r);   // V-201 자가 «실제 문»으로 재게
   window.__blockers = () => G.blockProps.map((pr) => ({ x: pr.x, y: pr.y, r: propBlockR(pr) }));
+  window.__buyAltar = buyAltar;   // V-234 컷용 — 「샀다」 상태를 실제 문으로 만든다(자가 아니다)
   const p = G.player;
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
@@ -399,6 +412,10 @@ function blockedByProp(x, y, r) {
   }
   for (const ch of G.chests) {
     const br = (ch.r || 26) + r, dx = x - ch.x, dy = (y - ch.y) / 0.62;
+    if (dx * dx + dy * dy < br * br) return true;
+  }
+  for (const a of G.altars) {   // V-234 — 제단도 상자처럼 발자국이 몸을 막는다(inFree·unstick 은 안 건드려 벽밖 0% 불변)
+    const br = (a.r || 26) + r, dx = x - a.x, dy = (y - a.y) / 0.62;
     if (dx * dx + dy * dy < br * br) return true;
   }
   return false;
@@ -512,6 +529,8 @@ function handleSkills() {
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
+  if (keys.has("b") && !p._b) { p._b = true; buyAltar(); } if (!keys.has("b")) p._b = false;
+  if (keys.has("h") && !p._h) { p._h = true; if (globalThis.__HINTFOLD !== false) toggleHelp(); } if (!keys.has("h")) p._h = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
@@ -746,6 +765,68 @@ function corpseFeed() {
   best.hp = best.maxhp;
   for (let i = 0; i < 14; i++) burst(best.x, best.y - 20, "#b0202a", 160);
   floatNote("제물 — 소환수가 커진다", "#e0663c", 1.0);
+}
+
+// ── V-234 뼈 제단 — 금을 쓰는 첫 길(피/뼈/재 셋 중 층마다 하나). B 로 산다(반경 70·한 층 한 번). ──
+const ALTAR_META = {
+  blood: { name: "피의 제단", col: "#e0663c", note: "최대 생명 +8%" },
+  bone:  { name: "뼈의 제단", col: "#8fd0ff", note: "소환 자리 +1" },
+  ash:   { name: "재의 제단", col: "#c8a04a", note: "가장 값싼 물건의 옵션을 다시 굴린다" },
+};
+// 값은 층에 비례 · 종류마다 ± 조금(재가 가장 쌈).
+function altarPrice(kind) {
+  const base = 120 + 60 * (G.floor - 1);
+  const adj = kind === "ash" ? -30 : kind === "blood" ? 20 : 0;
+  return Math.max(0, Math.round(base + adj));
+}
+function nearestAltar(x, y, rad) {
+  let best = -1, bd = rad * rad;
+  for (let i = 0; i < G.altars.length; i++) {
+    const a = G.altars[i];
+    if (a.used) continue;
+    const d = (a.x - x) ** 2 + (a.y - y) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+function buyAltar() {
+  const p = G.player;
+  const ai = nearestAltar(p.x, p.y, 70);
+  if (ai < 0) return;
+  const a = G.altars[ai];
+  const eq = Object.values(p.equipped).filter(Boolean);
+  if (a.kind === "ash" && !eq.length) { floatNote("걸친 것이 없다", "#c8a04a", 1.2); return; }
+  const price = altarPrice(a.kind);
+  if (G.gold < price) { floatNote(`금이 모자라다 (${price})`, "#c8a04a", 1.2); return; }
+  G.gold -= price;
+  a.used = true;
+  applyAltar(a.kind);
+  const meta = ALTAR_META[a.kind];
+  for (let i = 0; i < 26; i++) burst(a.x, a.y - 20, "#f0d060", 180);
+  flash = Math.max(flash, 0.2); flashColor = "240,208,96";
+  cam.shake = Math.max(cam.shake, 6);
+}
+function applyAltar(kind) {
+  const p = G.player;
+  if (kind === "blood") {
+    const before = p.maxhp;
+    p.altarHpMul = (p.altarHpMul ?? 1) * 1.08;
+    recalc();
+    p.hp = Math.min(p.maxhp, p.hp + (p.maxhp - before));   // 생명·최대 생명 둘 다 올린다
+    floatNote("피의 제단 — 최대 생명 +8%", ALTAR_META.blood.col, 1.6, { sz: 14 });
+  } else if (kind === "bone") {
+    p.altarSlots = (p.altarSlots ?? 0) + 1;
+    recalc();
+    floatNote("뼈의 제단 — 소환 자리 +1", ALTAR_META.bone.col, 1.6, { sz: 14 });
+  } else {
+    const eq = Object.values(p.equipped).filter(Boolean);
+    let low = null; for (const it of eq) if (!low || itemScore(it) < itemScore(low)) low = it;   // 값어치 가장 낮은 하나
+    const n = (low.affixes || []).length;
+    low.affixes = rollAffixes(n, G.floor);   // 개수는 그대로 · 층은 현재 층(loot.js 규칙)
+    recalc();
+    floatNote(`재의 제단 — ${SLOT_LABEL[low.slot] || low.slot} 옵션을 다시 굴렸다`, ALTAR_META.ash.col, 1.6, { sz: 14 });
+    if (invOpen) renderInv();
+  }
 }
 
 function wakePacks() {
@@ -1286,7 +1367,7 @@ function recalc() {
   p.novaDmgMul = 1 + s.nova * 0.18;
   p.minionMul = p.mult.minionDmg * (1 + g.minionDmg / 100) * (1 + a.int * ATTR.int.per / 100) * (1 + s.mdmg * 0.14) * curse;
   p.minionHpMul = 1 + s.mhp * 0.10;
-  p.slots = BASE_SLOTS + s.slot + p.buildSlots;
+  p.slots = BASE_SLOTS + s.slot + p.buildSlots + (p.altarSlots ?? 0);   // V-234 — 뼈의 제단이 얹는 영구 소환 자리(기존 자리 셈과 같은 경로)
   p.maxGrade = s.grade;
   if (p.grade > p.maxGrade) p.grade = p.maxGrade;
   p.spd = BASE_SPD * (1 + g.moveSpeed / 100);
@@ -1294,7 +1375,7 @@ function recalc() {
   p.goldMul = 1 + g.gold / 100;
   p.novaMul = 1 + g.novaRadius / 100;
   p.dr = Math.min(ATTR.def.cap / 100, a.def * ATTR.def.per / 100);
-  p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * ATTR.vit.per) * p.mult.body);
+  p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * ATTR.vit.per) * p.mult.body * (p.altarHpMul ?? 1));   // V-234 — 피의 제단 영구 배수(생명만 · 마나는 안 건드린다)
   p.maxmana = Math.round((BASE_MANA + a.sta * ATTR.sta.per) * p.mult.body);
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
@@ -1580,6 +1661,7 @@ function drawWorld() {
   window.__goldRects = goldRects;
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
+  for (const a of G.altars) drawAltar(a);
   drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
 
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
@@ -1603,6 +1685,7 @@ function drawWorld() {
   window.__ringRects = ringRects;
   window.__eliteLabels = eliteLabels;
   for (const ch of G.chests) drawChestBeacon(ch);
+  for (const a of G.altars) drawAltarBeacon(a);
   PROF.seg("actors");
 
   spearRects = [];
@@ -2451,6 +2534,70 @@ function drawChestBeacon(ch) {
   ctx.strokeStyle = "#7a4e10"; ctx.lineWidth = 1.6; ctx.strokeRect(-s, -s, s * 2, s * 2);
   ctx.restore();
 }
+// ── V-234 제단 그리기 — 새 에셋 없이 statue.png + 발밑 금빛 룬 고리(맥동) + 머리 위 이름표로 상자·소품과 가른다. ──
+// 석상은 소품·상자와 같은 spriteFoot 길로 밑변을 바닥선에 맞춘다(V-170 교훈). 다 쓴 제단은 고리를 끄고 어둡게.
+const ALTAR_STATUE_H = 150;
+function drawAltar(a) {
+  groundMark(a.x, a.y, 30, 8);
+  if (!a.used) {
+    const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const rr = 42 + pulse * 6;
+    const g = ctx.createRadialGradient(a.x, a.y, rr * 0.35, a.x, a.y, rr);
+    g.addColorStop(0, "rgba(248,210,110,0)");
+    g.addColorStop(0.72, `rgba(240,200,90,${0.12 + pulse * 0.14})`);
+    g.addColorStop(1, "rgba(248,214,120,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(a.x, a.y, rr, rr * 0.42, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = `rgba(248,222,150,${0.5 + pulse * 0.4})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(a.x, a.y, rr * 0.8, rr * 0.42 * 0.8, 0, 0, 6.283); ctx.stroke();
+    ctx.restore();
+  }
+  const im = tex("decor/statue.png");
+  if (im && im.width) {
+    const h = ALTAR_STATUE_H, w = h * (im.width / im.height);
+    const fo = spriteFoot(im, "decor/statue.png");
+    const dx = a.x - (fo ? fo.cx * w : w / 2);
+    const dy = a.y - (fo ? fo.b * h : h);
+    ctx.globalAlpha = a.used ? 0.4 : 1;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(im, dx, dy, w, h);
+    ctx.globalAlpha = 1;
+  }
+}
+// 유닛을 다 그린 뒤 얹는 머리 위 표식(상자 비콘과 같은 자리) — 빛기둥 + 반경 70 안에서 이름·값·「B」.
+function drawAltarBeacon(a) {
+  if (a.used || !onScreen(a.x, a.y, 220)) return;
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
+  const topY = a.y - ALTAR_STATUE_H - 24;
+  ctx.globalCompositeOperation = "lighter";
+  const beam = ctx.createLinearGradient(0, topY, 0, a.y - 6);
+  beam.addColorStop(0, "rgba(248,214,120,0)");
+  beam.addColorStop(1, `rgba(248,210,120,${0.08 + pulse * 0.11})`);
+  ctx.fillStyle = beam;
+  const bw = 12 + pulse * 4;
+  ctx.fillRect(a.x - bw, topY, bw * 2, a.y - 6 - topY);
+  ctx.globalCompositeOperation = "source-over";
+  if (Math.hypot(G.player.x - a.x, G.player.y - a.y) >= 70) return;
+  const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
+  const canBuy = G.gold >= price;
+  const sub = `${comma(price)}◈  ·  B`;
+  ctx.textAlign = "center";
+  const ly = a.y - ALTAR_STATUE_H - 2;
+  ctx.font = "bold 15px 'Times New Roman',serif";
+  const w1 = ctx.measureText(meta.name).width;
+  ctx.font = "13px 'Times New Roman',serif";
+  const hw = Math.max(w1, ctx.measureText(sub).width, ctx.measureText(meta.note).width) / 2 + 10;
+  ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 34, hw * 2, 56);
+  ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(a.x - hw, ly - 34, hw * 2, 56);
+  ctx.fillStyle = meta.col; ctx.font = "bold 15px 'Times New Roman',serif";
+  ctx.fillText(meta.name, a.x, ly - 18);
+  ctx.fillStyle = "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
+  ctx.fillText(meta.note, a.x, ly - 2);
+  ctx.fillStyle = canBuy ? "#f2e7cf" : "#c05a4a"; ctx.font = "13px 'Times New Roman',serif";
+  ctx.fillText(sub, a.x, ly + 15);
+}
 function openChest(ch) {
   ch.opened = true;
   const n = 3 + ((Math.random() * 4) | 0);
@@ -2699,6 +2846,19 @@ const DOLL = {
 };
 const CELL = 34;
 
+// ── V-234 조작 판(H) — #inv·#char 창과 같은 결·같은 토글. 짧은 #hint 대신 전체 목록을 화면 가운데로. ──
+let helpOpen = false;
+function toggleHelp() {
+  helpOpen = !helpOpen;
+  el("help").classList.toggle("on", helpOpen);
+}
+// 되돌림: __HINTFOLD === false 면 옛 긴 한 줄 그대로(짧은 줄·H 판 안 켠다). 아니면 짧은 줄 + H 로 전체.
+function applyHintFold() {
+  if (globalThis.__HINTFOLD === false) return;
+  const h = el("hint");
+  h.classList.add("short");
+  h.textContent = "WASD 이동 · 좌클릭 뼈창 · Q 소환 · F 아래로 · H 조작 전체";
+}
 function toggleInv() {
   invOpen = !invOpen;
   el("inv").classList.toggle("on", invOpen);
@@ -3030,6 +3190,7 @@ function drawMini() {
     mctx.fillStyle = "#ffd24a"; mctx.fillRect(-d, -d, d * 2, d * 2);
     mctx.restore();
   }
+  for (const a of G.altars) if (!a.used) { mctx.fillStyle = "#f0d060"; mctx.beginPath(); mctx.arc(a.x * sx, a.y * sy, 2.6, 0, 6.283); mctx.fill(); }   // V-234 제단(상자 마름모와 달리 금빛 원)
   mctx.fillStyle = "#7fe6a0"; mctx.beginPath(); mctx.arc(G.stairs.x * sx, G.stairs.y * sy, 3, 0, 6.283); mctx.fill();
   mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(G.player.x * sx, G.player.y * sy, 2.5, 0, 6.283); mctx.fill();
 }
@@ -3085,6 +3246,7 @@ function loop(now) {
   tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png"); tex("fx/gold.png"); tex("fx/foeshot.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
+  applyHintFold();
   bindChar();
   start(1, null);
   requestAnimationFrame(loop);

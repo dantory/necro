@@ -209,9 +209,28 @@ export function genFloor(floor) {
     packs.push({ x: br.cx, y: br.cy + 40, awake: false, room: rooms.indexOf(br), enemies: [bm], boss: true });
   }
 
-  const { decals, props } = scatter(rooms, stairs, chests);
-  return { W, H, rooms, corridors, packs, chests, stairs, startX, startY, decals, props };
+  // ── V-234 뼈 제단 — 층마다 하나(피/뼈/재 셋 중 굴림). 금을 쓰는 첫 자리(상자와 같은 길). ──
+  // 되돌림: globalThis.__ALTAR === false 면 이 블록이 통째로 건너뛰어 RNG 를 한 톨도 안 건드린다 → 옛 판과 byte-동일.
+  const altars = [];
+  if (globalThis.__ALTAR !== false) {
+    const cand = [];   // 계단 방(far)·시작 방(rooms[0]) 아님 · 상자가 이미 선 방 아님(가운데가 겹친다)
+    for (let i = 1; i < rooms.length; i++) {
+      const rm = rooms[i];
+      if (rm === far) continue;
+      if (chests.some((c) => c.x === rm.cx && c.y === rm.cy)) continue;
+      cand.push(rm);
+    }
+    if (cand.length) {
+      const rm = cand[(Math.random() * cand.length) | 0];
+      const kind = ALTAR_KINDS[(Math.random() * ALTAR_KINDS.length) | 0];
+      altars.push({ x: rm.cx, y: rm.cy, r: 26, used: false, kind });
+    }
+  }
+
+  const { decals, props } = scatter(rooms, stairs, chests, altars);
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props };
 }
+const ALTAR_KINDS = ["blood", "bone", "ash"];
 
 // ★★ V-164 — `decal/stain.png` 를 **줄에서 뺀다.** 그 장은 굽기가 실패한 것이다:
 //   112×112 · 1639B 인데 **안쪽이 통째로 투명하고 스캘럽 윤곽선만** 남았다. 화면에서는
@@ -288,7 +307,7 @@ const PROP_HALFW = {
   "decor/statue.png":  0.21, "decor/urn.png":    0.34,
 };
 function footR(pr) { return Math.max(16, pr.h * (PROP_HALFW[pr.img] ?? 0.30)); }
-function propFits(pr, placed, stairs, chests) {
+function propFits(pr, placed, stairs, chests, altars) {
   for (const q of placed) {
     const r = footR(pr) + footR(q);
     // y(깊이)는 조금만 봐도 된다 — 앞뒤로 놓인 건 겹쳐 보이지 않는다.
@@ -296,10 +315,11 @@ function propFits(pr, placed, stairs, chests) {
   }
   if (stairs && Math.hypot(pr.x - stairs.x, pr.y - stairs.y) < STAIR_R + footR(pr)) return false;
   for (const c of chests || []) if (Math.hypot(pr.x - c.x, pr.y - c.y) < CHEST_R + footR(pr)) return false;
+  for (const a of altars || []) if (Math.hypot(pr.x - a.x, pr.y - a.y) < (a.r || 26) + 20 + footR(pr)) return false;   // V-234 — 제단 위에 소품이 겹쳐 놓이지 않게(상자와 같은 길)
   return true;
 }
 
-function scatter(rooms, stairs, chests) {
+function scatter(rooms, stairs, chests, altars) {
   const decals = [], props = [];
   for (const room of rooms) {
     const area = room.w * room.h;
@@ -338,7 +358,7 @@ function scatter(rooms, stairs, chests) {
       const pr = { x: px, y: py, img, h: rint(hr[0], hr[1]), brazier };
       // 자리가 겹치면 **같은 소품을 다른 자리에** 다시 던진다(수는 안 줄인다 — V-169 의
       // 밀도가 그대로 남아야 한다). 열여섯 번 다 막히면 그 방은 빽빽한 것이니 포기한다.
-      if (!propFits(pr, props, stairs, chests)) { if (++tries < 16) i--; continue; }
+      if (!propFits(pr, props, stairs, chests, altars)) { if (++tries < 16) i--; continue; }
       props.push(pr);
     }
   }

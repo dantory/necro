@@ -77,6 +77,22 @@ body.noreadchip #picklog div{background:none;box-shadow:none;padding:0;text-shad
 
 #hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
   font-size:13px;color:#6b5f4e;text-shadow:0 1px 2px #000}
+/* V-234: 짧은 한 줄 — 두 줄로 절대 안 접히게 폭을 묶고, 좌우 하단 패널(#bl·오른쪽)과 안 겹치게 가운데 좁게. */
+#hint.short{white-space:nowrap;max-width:calc(100vw - 720px);overflow:hidden;text-overflow:ellipsis;
+  background:rgba(6,4,5,.5);padding:2px 12px;border-radius:3px;pointer-events:none}
+
+/* V-234 조작 판(H) — #inv·#char 창과 같은 결(검붉은 어둠·금빛 제목). */
+.helpwin{position:fixed;display:none;z-index:18;left:50%;top:50%;transform:translate(-50%,-50%);
+  pointer-events:auto;padding:16px 22px 14px;min-width:360px;
+  background:linear-gradient(#1a0f10,#0d0708);border:2px solid var(--edge);
+  box-shadow:inset 0 0 0 1px var(--edge2),inset 0 0 40px rgba(0,0,0,.7),0 6px 22px #000}
+.helpwin.on{display:block}
+.helptitle{text-align:center;color:var(--gold);font-size:18px;letter-spacing:.14em;
+  text-transform:uppercase;text-shadow:0 1px 0 #000;margin-bottom:12px}
+.helpgrid{display:grid;grid-template-columns:1fr;gap:5px 0}
+.helpgrid>div{display:flex;align-items:baseline;gap:12px;padding:3px 6px;border-bottom:1px solid var(--edge2)}
+.helpgrid b{color:var(--gold);font-weight:400;min-width:118px;letter-spacing:.04em;font-size:14px}
+.helpgrid span{color:#c9bda0;font-size:13px;letter-spacing:.04em}
 
 /* V-181: 착용 중 일곱 슬롯 한 줄 요약. 색은 JS 가 레어도로 칠한다(빈 칸은 아래 기본색). */
 .gearline{display:flex;gap:8px;font-size:12px;letter-spacing:.04em;

@@ -78,8 +78,8 @@ function makeAffix(key, floor) {
   return { key, label: `${d.label} +${value}${d.pct ? "%" : ""}`, value };
 }
 
-// n 개를 «겹치지 않게» 굴린다.
-function rollAffixes(n, floor) {
+// n 개를 «겹치지 않게» 굴린다. (V-234 — 재의 제단이 착용 물건의 옵션을 이 규칙으로 다시 굴린다)
+export function rollAffixes(n, floor) {
   const pool = [...AFFIX_KEYS], out = [];
   for (let i = 0; i < n && pool.length; i++) {
     const k = pool.splice((Math.random() * pool.length) | 0, 1)[0];
