@@ -144,6 +144,19 @@ const SKEL_TIERS = [
   { key: "titan",  scale: 2.20, slot: 6, hpMul: 6.20, dmgMul: 4.30, atkMul: 1.45, spdMul: 0.74, cleave: 96, ring: 5.5, ringCol: "#8fd0ff", shake: 8, label: "뼈 거인",   filt: "brightness(0.82) saturate(1.8) sepia(0.5) hue-rotate(-18deg)" },
 ];
 const GOLEM = { need: 5, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6, spdMul: 0.6, atkMul: 1.5, cleave: 76, ring: 5.0, ringCol: "#8fd0ff", shake: 7, label: "뼈 골렘", filt: "brightness(0.8) saturate(1.6) sepia(0.5) hue-rotate(-16deg)" };
+// ── V-240 군세 갈래 — 「해골 하나」를 셋으로 벌린다. 해골=고르게 · 구울=싸고 빠르고 물러 터지고 피를 빤다 · 골렘=느리고 두껍고 «도발»로 몸빵. ──
+// ★ 값은 재서 정했다(커밋글에 근거): 구울은 «떼로 붙는 소모품». 시체 2구·마나 25(해골 0 보다 조금 비싸고 골렘 40 보다 쌈)·자리 1칸.
+//   hp 0.45배(물러 터짐)·spd 1.5배(빨리 붙음)·dmg 0.55배지만 atkCd 0.30s(0.6×0.5·짧은 연타)라 초당 피해는 해골의 ~1.0배 근처.
+//   피 빨기 drain 0.35: 준 피해의 35%를 제 hp 로, 제 hp 가 꽉 차면 남는 만큼 주인(p) 회복(앞에서 싸우다 죽어도 나를 살린다).
+const GHOUL = { need: 2, cost: 25, scale: 0.82, slot: 1, hpMul: 0.45, dmgMul: 0.55, spdMul: 1.5, atkMul: 0.5, cleave: 0, ring: 2.2, ringCol: "#5fe08a", shake: 0, label: "구울", drain: 0.35 };
+// 골렘의 «수법»(SKEL_BASE 에 filt 만 입힌 「센 해골」을 그만둔다): 도발(주변 반경 안 적의 표적을 자기로 끈다·주기)·몸으로 막음(밀어내기).
+const GOLEM_TAUNT_CD = 3.5;     // 도발 재사용(초)
+const GOLEM_TAUNT_DUR = 2.0;    // 한 번 도발이 붙어 있는 시간(초) — 이 동안 반경 안 적은 골렘을 문다
+const GOLEM_TAUNT_R = 240;      // 도발 반경
+const GOLEM_BLOCK_PAD = 4;      // 몸으로 막는 여유 — 적을 (골렘r+적r+이만큼) 밖으로 민다(딱 닿는 자리라 도발에 걸린 적은 골렘을 때릴 수 있다)
+// 갈래별 물들임 — teamTintOn() 이 켜 있으면 소환수는 본디 ALLY_TINT(푸름) 하나로 물든다. 구울/골렘은 그 위로 덮어써 «눈에 갈리게».
+const GHOUL_TINT = "sepia(1) saturate(2.4) hue-rotate(52deg) brightness(1.06) contrast(1.05)";   // 병색 초록(작고 빠른 것)
+const GOLEM_TINT = "grayscale(0.55) sepia(0.35) hue-rotate(172deg) saturate(0.9) brightness(0.8) contrast(1.22)"; // 어두운 돌빛(크고 두꺼운 것)
 // ── V-235 물약(소모품) · 벨트 1~4 ──────────────────────────────────────────
 // 두 종: 생명(붉은)·마나(푸른). 회복량은 최대치의 «비율»이라 층·레벨이 오르면 등급이 저절로 오른다
 //   (생명 maxhp×0.35 · 마나 maxmana×0.40, 즉효). 벨트 네 칸, 칸마다 한 종이 쌓인다(칸당 상한 9).
@@ -523,6 +536,31 @@ function start(floor, carry, town) {
   window.__openAscend = () => { if (G.ascendSpot) { ascOpen = true; el("ascend").classList.add("on"); renderAscend(); } };
   window.__setDeepest = (n) => { G.deepest = n; };
   window.__toShrine = () => { if (G.ascendSpot) { G.player.x = G.ascendSpot.x; G.player.y = G.ascendSpot.y + 60; } };
+  // V-240 컷·측정용 — 군세(해골·구울·골렘)를 세운다. 시체를 깔고 마나를 채워 실제 raise 함수를 부른다(자가 아니라 게임 함수 그대로).
+  window.__armyPose = (opt) => {
+    opt = opt || {}; const p = G.player;
+    const nsk = opt.skel != null ? opt.skel : 3, ngh = opt.ghoul != null ? opt.ghoul : 3, ngo = opt.golem != null ? opt.golem : 1;
+    G.minions.length = 0; G.corpses = [];
+    const need = nsk + ngh * GHOUL.need + ngo * GOLEM.need + 8;
+    for (let i = 0; i < need; i++) G.corpses.push({ x: p.x - 240 + (i % 9) * 56, y: p.y - 70 + Math.floor(i / 9) * 46, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 });
+    p.mana = 99999; p.grade = 0; p.maxGrade = 0; p.slots = 24;
+    for (let i = 0; i < nsk; i++) raiseSkeleton();
+    for (let i = 0; i < ngh; i++) raiseGhoul();
+    for (let i = 0; i < ngo; i++) raiseGolem();
+    return armyCounts();
+  };
+  window.__foePack = (n, cx, cy, extra) => {
+    const en = [];
+    for (let i = 0; i < n; i++) en.push(poseMob((extra && extra.mobKind) || "", cx - 90 + (i % 5) * 46, cy - 40 + Math.floor(i / 5) * 46, Object.assign({ hp: 99999, maxhp: 99999, spd: 150 }, extra || {})));
+    G.packs.push({ x: cx, y: cy, awake: true, room: 0, enemies: en });
+    return en.length;
+  };
+  window.__forceTaunt = () => { for (const s of G.minions) if (s.golem) { s.tauntActive = GOLEM_TAUNT_DUR; s.tauntCd = GOLEM_TAUNT_CD; } };
+  window.__kindProfile = (fl) => {
+    const base = 200 + fl * 40, bd = 34 + fl * 10;
+    const prof = (T) => ({ hp: Math.round(base * T.hpMul), dmg: Math.round(bd * T.dmgMul), atkCd: +(0.6 * T.atkMul).toFixed(2), dps: Math.round(bd * T.dmgMul / (0.6 * T.atkMul)), slot: T.slot });
+    return { skel: prof(SKEL_TIERS[0]), ghoul: Object.assign(prof(GHOUL), { drain: GHOUL.drain, cost: GHOUL.cost, need: GHOUL.need }), golem: Object.assign(prof(GOLEM), { cost: GOLEM.cost, need: GOLEM.need, taunt: true, block: true }) };
+  };
 }
 
 // ── V-201 충돌 판정 — 걸을 수 있는 자리 = 방 ∪ 복도, 밖은 암반 ──────────────
@@ -691,6 +729,7 @@ function handleSkills() {
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
+  if (keys.has("k") && !p._k) { p._k = true; if (globalThis.__GHOUL !== false) raiseGhoul(); } if (!keys.has("k")) p._k = false;
   if (keys.has("b") && !p._b) { p._b = true; buyAltar(); } if (!keys.has("b")) p._b = false;
   if (keys.has("h") && !p._h) { p._h = true; if (globalThis.__HINTFOLD !== false) toggleHelp(); } if (!keys.has("h")) p._h = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
@@ -1025,10 +1064,84 @@ function raiseGolem() {
     dmg: (34 + G.floor * 10) * GOLEM.dmgMul * p.minionMul, spd: 250 * GOLEM.spdMul, atkCd: 0.6 * GOLEM.atkMul,
     r: 15 * GOLEM.scale, h: SKEL_H * GOLEM.scale, tier: 2, slot: GOLEM.slot, cleave: GOLEM.cleave,
     ring: GOLEM.ring, ringCol: GOLEM.ringCol, shake: GOLEM.shake, filt: GOLEM.filt,
-    dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0, golem: true });
+    dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0, golem: true, tauntCd: GOLEM_TAUNT_CD, tauntActive: 0 });
   for (let i = 0; i < 30; i++) burst(cx, cy - 20, "#cfe0ef", 200);
   cam.shake = Math.max(cam.shake, GOLEM.shake);
   floatNote("뼈 골렘이 일어난다", "#bcd0e8", 1.2);
+}
+
+function raiseGhoul() {
+  const p = G.player;
+  if (slotsUsed() + GHOUL.slot > slotCap()) { floatNote(`자리가 부족하다 (구울 ${GHOUL.slot}칸)`, "#e0663c", 1.2); return; }
+  if (p.mana < GHOUL.cost) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
+  const eaten = [];
+  let cx = 0, cy = 0;
+  for (let n = 0; n < GHOUL.need; n++) {
+    const ci = nearestCorpse(p.x, p.y, 320);
+    if (ci < 0) break;
+    const c = G.corpses[ci]; c.used = true; eaten.push(ci); cx += c.x; cy += c.y;
+  }
+  if (eaten.length < GHOUL.need) {
+    for (const ci of eaten) G.corpses[ci].used = false;
+    floatNote(`시체가 모자라다 (${GHOUL.need}구 필요·${eaten.length}구)`, "#c8a04a", 1.2);
+    return;
+  }
+  p.mana -= GHOUL.cost;
+  cx /= GHOUL.need; cy /= GHOUL.need;
+  const hp = (200 + G.floor * 40) * GHOUL.hpMul * p.minionHpMul;
+  G.minions.push({ base: SKEL_BASE, x: cx, y: cy, hp, maxhp: hp,
+    dmg: (34 + G.floor * 10) * GHOUL.dmgMul * p.minionMul, spd: 250 * GHOUL.spdMul, atkCd: 0.6 * GHOUL.atkMul,
+    r: 15 * GHOUL.scale, h: SKEL_H * GHOUL.scale, tier: 0, slot: GHOUL.slot, cleave: GHOUL.cleave,
+    ring: GHOUL.ring, ringCol: GHOUL.ringCol, shake: GHOUL.shake, filt: null,
+    dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0, ghoul: true, drain: GHOUL.drain });
+  for (let i = 0; i < 16; i++) burst(cx, cy - 18, "#5fe08a", 150);
+  floatNote("구울이 일어난다", "#8fe0a8", 1.1);
+}
+
+// 구울 피 빨기 — 준 피해(eff)의 drain 만큼 제 hp 로, 꽉 차면 남는 만큼 주인(p) 회복. drawActor 가 s.drainT 로 초록 깜빡임을 그린다.
+function ghoulDrain(s, eff) {
+  if (!(eff > 0)) return;
+  const heal = eff * s.drain;
+  const before = s.hp;
+  s.hp = Math.min(s.maxhp, s.hp + heal);
+  const overflow = heal - (s.hp - before);
+  if (overflow > 0) { const p = G.player; p.hp = Math.min(p.maxhp, p.hp + overflow); }
+  s.drainT = 0.18;
+}
+
+// 골렘 도발 — 반경 안 적의 표적을 자기로 끈다. stepEnemies 의 근접 표적 고르기가 tauntTargetFor 를 먼저 물어 골렘을 문다.
+function golemTaunt(s) {
+  s.tauntActive = GOLEM_TAUNT_DUR;
+  for (let i = 0; i < 20; i++) burst(s.x, s.y - 6, "#e0b84a", 130);
+}
+// 반경 안에서 지금 도발 중인 골렘이 있으면 그 골렘을 표적으로 돌려준다(가장 가까운 것). 없으면 null.
+function tauntTargetFor(m) {
+  let best = null, bd = GOLEM_TAUNT_R * GOLEM_TAUNT_R;
+  for (const s of G.minions) {
+    if (!s.golem || !(s.tauntActive > 0) || globalThis.__GOLEMKIND === false) continue;
+    const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+// 골렘이 몸으로 막는다 — 반경 안 적(주인 제외)을 r+여유 밖으로 민다. 길을 몸으로 틀어막아 앞에서 버틴다.
+function golemBlock(s) {
+  forEachEnemy((m) => {
+    if (m.boss) return;
+    const R = s.r + m.r + GOLEM_BLOCK_PAD;
+    const dx = m.x - s.x, dy = m.y - s.y, d2 = dx * dx + dy * dy;
+    if (d2 < R * R && d2 > 0.01) {
+      const d = Math.sqrt(d2);
+      stepTo(m, m.x + (dx / d) * (R - d), m.y + (dy / d) * (R - d), m.r);
+    }
+  });
+}
+
+// 군세 종별 수 — HUD 「자리」 곁에 적어 군세 구성이 한눈에 읽히게(어느 종도 70% 넘는지도 이 값으로 잰다).
+function armyCounts() {
+  let skel = 0, ghoul = 0, golem = 0;
+  for (const m of G.minions) { if (m.golem) golem++; else if (m.ghoul) ghoul++; else skel++; }
+  return { skel, ghoul, golem };
 }
 
 function corpseFeed() {
@@ -1155,6 +1268,8 @@ function stepEnemies(dt) {
         const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
         if (d < td) { td = d; tx = s.x; ty = s.y; }
       }
+      const taunt = tauntTargetFor(m);
+      if (taunt) { tx = taunt.x; ty = taunt.y; td = (tx - m.x) ** 2 + (ty - m.y) ** 2; }
       const dist = Math.sqrt(td) || 1;
       m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
       m.atk -= dt; m.hit = Math.max(0, m.hit - dt);
@@ -1523,6 +1638,13 @@ function stepMinions(dt) {
   for (let i = 0; i < N; i++) {
     const s = G.minions[i];
     unstick(s, s.r);
+    if (s.drainT > 0) s.drainT -= dt;
+    if (s.golem && globalThis.__GOLEMKIND !== false) {
+      s.tauntActive = Math.max(0, (s.tauntActive || 0) - dt);
+      s.tauntCd = (s.tauntCd || 0) - dt;
+      if (s.tauntCd <= 0) { s.tauntCd = GOLEM_TAUNT_CD; golemTaunt(s); }
+      golemBlock(s);
+    }
     let target = null, bd = 520 * 520;
     forEachEnemy((m) => { const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
     s.atk = Math.max(0, s.atk - dt);
@@ -1535,7 +1657,7 @@ function stepMinions(dt) {
         if (s.atk <= 0) {
           s.atk = s.atkCd || 0.6;
           if (s.cleave) forEachEnemy((m) => { if ((m.x - s.x) ** 2 + (m.y - s.y) ** 2 < s.cleave * s.cleave) hurtEnemy(m, s.dmg, m.x - s.x, m.y - s.y, "minion"); });
-          else hurtEnemy(target, s.dmg, s.dx, s.dy, "minion");
+          else { const eff = hurtEnemy(target, s.dmg, s.dx, s.dy, "minion"); if (s.ghoul && s.drain) ghoulDrain(s, eff); }
           if (s.shake) cam.shake = Math.max(cam.shake, s.shake);
         }
       }
@@ -1576,7 +1698,8 @@ function stepSpears(dt) {
 }
 
 function hurtEnemy(m, dmg, dx, dy, src) {
-  if (src) METRIC[src] += Math.min(dmg, Math.max(0, m.hp));
+  const eff = Math.min(dmg, Math.max(0, m.hp));
+  if (src) METRIC[src] += eff;
   m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
   const l = Math.hypot(dx, dy) || 1;
   m.kb.x += (dx / l) * 240; m.kb.y += (dy / l) * 240;
@@ -1592,6 +1715,7 @@ function hurtEnemy(m, dmg, dx, dy, src) {
     }
   }
   if (m.hp <= 0) killEnemy(m);
+  return eff;
 }
 
 // ── V-190 — 레벨 문턱 «단일 출처». 누적 XP 곡선을 초선형으로.
@@ -2118,6 +2242,7 @@ function drawWorld() {
   silRects = [];
   ringRects = [];
   eliteLabels = [];
+  pendingKindLabels = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
   if (G.town) for (const mc of G.merchants) if (onScreen(mc.x, mc.y, 120)) drawList.push({ y: mc.y, fn: () => drawMerchant(mc), near: false });
@@ -2137,6 +2262,7 @@ function drawWorld() {
   for (const a of G.altars) drawAltarBeacon(a);
   if (G.town) for (const mc of G.merchants) drawMerchantBeacon(mc);   // V-238
   if (G.town && G.ascendSpot && ascendOn()) drawAscendBeacon();       // V-239
+  drawFoldedKindLabels();   // V-240 — 접은 갈래 이름표를 배우 위에 한 장씩(월드 변환 안·restore 앞)
   PROF.seg("actors");
 
   spearRects = [];
@@ -2811,8 +2937,16 @@ function recordSil(who, base, x, y, h) { const r = silScreenRect(base, x, y, h);
 function drawActor(s, base) {
   const fed = (globalThis.__FEED !== false && s.feed) ? s.feed : 0;
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
+  const golemKind = s.golem && globalThis.__GOLEMKIND !== false;
+  if (golemKind && s.tauntActive > 0) {   // V-240 도발 — 발밑 금빛 고리(맥동). 반경 안 적을 끄는 동안 켜진다.
+    const puls = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 130));
+    ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * puls; ctx.strokeStyle = "#e8b840"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(s.x, s.y, GOLEM_TAUNT_R * 0.42 * (0.8 + 0.2 * puls), GOLEM_TAUNT_R * 0.20 * (0.8 + 0.2 * puls), 0, 0, 6.283); ctx.stroke(); ctx.restore();
+  }
   let filt;
   if (fed) filt = `sepia(1) saturate(${2.4 + fed * 0.45}) hue-rotate(-24deg) brightness(${0.98 + fed * 0.015}) contrast(1.12)`;
+  else if (s.ghoul) filt = GHOUL_TINT;
+  else if (golemKind) filt = GOLEM_TINT;
   else filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
   const dh = fed ? s.h * (1 + 0.06 * fed) : s.h;
   if (fed) {
@@ -2823,9 +2957,18 @@ function drawActor(s, base) {
     g.addColorStop(1, "rgba(150,10,14,0)");
     ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(s.x, cy, dh * 0.5, dh * 0.62, 0, 0, 6.283); ctx.fill(); ctx.restore();
   }
+  if (s.drainT > 0) {   // V-240 피 빨기 순간 초록 후광 — 빨았음을 몸에서 읽히게
+    const cy = s.y - dh * 0.42, a = 0.4 * (s.drainT / 0.18);
+    ctx.save(); ctx.fillStyle = `rgba(95,224,138,${a})`; ctx.beginPath(); ctx.ellipse(s.x, cy, dh * 0.42, dh * 0.52, 0, 0, 6.283); ctx.fill(); ctx.restore();
+  }
   if (!drawSprite8(ctx, base, actorDir(s), s.state, frame(s, base), s.x, s.y, dh, filt))
-    fallbackBlob(s.x, s.y, dh, "#d8e8d0");
+    fallbackBlob(s.x, s.y, dh, s.ghoul ? "#8fe0a8" : "#d8e8d0");
   if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
+  if (s.ghoul || golemKind) {   // V-240 — 구울/골렘은 머리 위 이름표로 해골과 갈린다(색은 teamTint 에 묻혀도 이름은 읽힌다). __LABELFOLD 로 접힌다.
+    const wtop = opaqueHeadTop(base, s.y, dh) - 2;
+    if (s.ghoul) pushKindLabel(s.x, wtop, "구울", "#7fe0a0");
+    else pushKindLabel(s.x, wtop, "골렘", "#bcd0e8");
+  }
 }
 const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 색조와 한 결)
   shoot:  { label: "사수",      col: "#7fe0d8" },
@@ -2833,6 +2976,40 @@ const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 
   bomb:   { label: "자폭병",    col: "#ffb060" },
   thief:  { label: "시체 도둑", col: "#c89bff" },
 };
+// ── V-240 이름표 접기(__LABELFOLD) — 잡몹·소환수 갈래 이름표가 떼로 겹쳐 도배되던 것을 «같은 이름끼리 묶어 ×N» 한 장으로. ──
+//   __LABELFOLD===false 면 옛 동작(이름표를 그 자리에서 그대로 그린다·안 접고·안 물린다).
+let pendingKindLabels = [];
+function pushKindLabel(wx, wtop, text, col) {
+  if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 16, text, col); return; }
+  pendingKindLabels.push({ wx, wtop, text, col });
+}
+function drawKindLabel(wx, wy, text, col) {
+  ctx.font = "bold 10px 'Times New Roman',serif"; ctx.textAlign = "center";
+  ctx.save(); ctx.translate(wx, wy); ctx.scale(1 / Z, 1 / Z);
+  ctx.fillStyle = "#000"; ctx.fillText(text, 0.8, 0.8);
+  ctx.fillStyle = col; ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+// 같은 이름 + 화면상 가까운(가로 54·세로 40 px) 것끼리 한 무리로 묶어 무리마다 한 장(여럿이면 「이름 ×N」)을 무리 중앙에.
+//   세로는 화면 상단 안쪽(18px)으로 물려 잘리지 않게 한다. 월드 변환 안에서 부른다(actors 뒤·restore 앞).
+function drawFoldedKindLabels() {
+  const items = pendingKindLabels;
+  if (!items.length) return;
+  const used = new Array(items.length).fill(false);
+  const topY = cam.y + 18 / Z;
+  for (let i = 0; i < items.length; i++) {
+    if (used[i]) continue;
+    const a = items[i], asx = (a.wx - cam.x) * Z, asy = (a.wtop - cam.y) * Z;
+    let sumx = a.wx, top = a.wtop, n = 1;
+    for (let j = i + 1; j < items.length; j++) {
+      if (used[j] || items[j].text !== a.text) continue;
+      const bsx = (items[j].wx - cam.x) * Z, bsy = (items[j].wtop - cam.y) * Z;
+      if (Math.abs(bsx - asx) < 54 && Math.abs(bsy - asy) < 40) { used[j] = true; sumx += items[j].wx; top = Math.min(top, items[j].wtop); n++; }
+    }
+    used[i] = true;
+    drawKindLabel(sumx / n, Math.max(top - 16, topY), n > 1 ? `${a.text} ×${n}` : a.text, a.col);
+  }
+}
 function drawEnemy(m) {
   // ★ V-207 — 잡몹 발밑 붉은 고리를 얇고 옅게(1.6px·α0.4). 팩 10~14 가 뭉치면 0.9 짜리
   //   고리가 겹쳐 바닥이 «붉은 그물»이 됐다(컷으로 봄). 정예는 눈에 띄어야 하니 굵게 둔다.
@@ -2871,13 +3048,15 @@ function drawEnemy(m) {
     ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, totalH);
     ctx.fillStyle = "#e8cf52"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 5);
     const nm = m.name || "정예";
-    const lsx = (m.x - cam.x) * Z, lsy = (by - 6 - cam.y) * Z;
     const bossN = !!m.boss;   // V-230 — 주인 이름은 늘 머리 위에 크게(잡정예보다 큼·주인색)
     ctx.font = (bossN ? "bold 16px" : "bold 11px") + " 'Times New Roman',serif"; ctx.textAlign = "center";
+    // V-240 — 주인 이름표가 화면 상단 밖으로 잘리던 것을 안으로 물린다(글자 높이만큼 여유). __LABELFOLD 로 되돌린다.
+    const labelY = (globalThis.__LABELFOLD !== false) ? Math.max(by - 6, cam.y + (bossN ? 24 : 16) / Z) : by - 6;
+    const lsx = (m.x - cam.x) * Z, lsy = (labelY - cam.y) * Z;
     const lhw = ctx.measureText(nm).width / 2 + 2;
     const onBoom = V211() && labelOverBoom(lsx, lsy, lhw);
     if (!onBoom) {
-      ctx.save(); ctx.translate(m.x, by - 6); ctx.scale(1 / Z, 1 / Z);
+      ctx.save(); ctx.translate(m.x, labelY); ctx.scale(1 / Z, 1 / Z);
       ctx.fillStyle = "#000"; ctx.fillText(nm, 0.8, 0.8);
       ctx.fillStyle = bossN ? BOSS_LABEL_COL[m.bossKind] : "#8ac06a"; ctx.fillText(nm, 0, 0);
       ctx.restore();
@@ -2893,11 +3072,7 @@ function drawEnemy(m) {
   }
   if (globalThis.__MOBKIND !== false && !m.elite && !m.boss && MOBKIND_META[m.mobKind]) {
     const meta = MOBKIND_META[m.mobKind];
-    ctx.font = "bold 10px 'Times New Roman',serif"; ctx.textAlign = "center";
-    ctx.save(); ctx.translate(m.x, headTop - BAR_GAP - 16); ctx.scale(1 / Z, 1 / Z);
-    ctx.fillStyle = "#000"; ctx.fillText(meta.label, 0.8, 0.8);
-    ctx.fillStyle = meta.col; ctx.fillText(meta.label, 0, 0);
-    ctx.restore();
+    pushKindLabel(m.x, headTop - BAR_GAP, meta.label, meta.col);
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
@@ -4023,7 +4198,12 @@ function updateHUD() {
   const used = slotsUsed();
   const cap = slotCap();
   const slotsEl = el("slots");
-  slotsEl.textContent = `자리 ${used} / ${cap}`;
+  const ac = armyCounts();
+  const parts = [];
+  if (ac.skel) parts.push(`해골 ${ac.skel}`);
+  if (ac.ghoul) parts.push(`구울 ${ac.ghoul}`);
+  if (ac.golem) parts.push(`골렘 ${ac.golem}`);
+  slotsEl.textContent = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "");
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
