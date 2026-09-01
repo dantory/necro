@@ -52,6 +52,8 @@ const injectSrc = (seed, ifr, grow, v226b) => `Math.random = (() => { let s = ($
 globalThis.__FOE_DMG = 16;
 globalThis.__RANGED_MOB = true;
 globalThis.__MEASURE_REVIVE = true;
+const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
+const NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침)으로 되돌린다
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
@@ -138,8 +140,17 @@ const AUTO = `(SPEC => {
   function rectsMeet(a, b) {
     const ox0 = Math.max(a.x, b.x), ox1 = Math.min(a.x + a.w, b.x + b.w);
     const oy0 = Math.max(a.y, b.y), oy1 = Math.min(a.y + a.h, b.y + b.h);
-    if (ox1 > ox0 + 2 && oy1 > oy0 + 2) return { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 };
-    return null;
+    // ★ V-225 ① — 옛 규칙은 «두 축 다 2px 넘게 겹칠 것»을 요구했다. 그런데 복도는 방의 «모서리에 딱 붙어»
+    //   생기는 일이 잦아 한 축 겹침이 0 이다(hs/map.js hRect/vRect 는 방 경계에서 시작한다). 그래서 자의
+    //   그래프가 조각나고, 목표가 다른 조각에 있으면 planTo 가 noPath → 옛 직선걷기로 떨어져 벽에 꼈다.
+    //   순수 node 로 1000 판을 세어 보니(tools/hs_v225_graph.mjs) **성분>1 이 10.7%**(층1 5.5% → 층5 18.5%),
+    //   못 가는 방 367 개. 문턱만 0 으로 낮추면 0.8% 로 줄고, «닿기만 해도 이음»이면 0% 다.
+    //   다만 모서리끼리 점으로 스친 것은 사람이 못 지나므로 **지날 수 있는 폭(≥MINPASS)** 을 함께 건다
+    //   (복도폭 150 · 사람 반지름 22 → 48 이면 넉넉히 안쪽). 되돌림: 환경변수 NAV_LEGACY=1 이면 옛 규칙(두 축 다 >2px)으로 정확히 돌아간다.
+    if (${NAV_LEGACY}) return (ox1 > ox0 + 2 && oy1 > oy0 + 2) ? { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 } : null;
+    if (ox1 < ox0 || oy1 < oy0) return null;
+    if (Math.max(ox1 - ox0, oy1 - oy0) < ${NAV_MINPASS}) return null;
+    return { x: (ox0 + ox1) / 2, y: (oy0 + oy1) / 2 };
   }
   function buildGraph(G) {
     const nodes = [];
