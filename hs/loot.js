@@ -88,6 +88,20 @@ export function rollAffixes(n, floor) {
   return out;
 }
 
+// ── V-236 — 소켓 칸. 낮은 레어도에 더 잘 나온다(흰>매직>레어>유니크). 층이 오르면 확률이 조금 오른다. ──
+// 값은 재서 정했다(커밋글): 소켓 나올 기본 확률 흰 0.55·매직 0.35·레어 0.18·유니크 0.08,
+//   층마다 +0.015(기본+0.30 상한). 나오면 1칸, 둘째 칸은 0.30+0.02·(층-1)(0.6 상한) 확률로.
+//   __SOCKET===false 면 sockets 필드를 아예 안 단다 → 옛 물건과 byte-동일.
+const SOCKET_BASE = { white: 0.55, blue: 0.35, yellow: 0.18, gold: 0.08 };
+export function rollSockets(rarityKey, floor) {
+  if (globalThis.__SOCKET === false) return undefined;
+  const base = SOCKET_BASE[rarityKey] ?? 0.3;
+  const chance = Math.min(base + 0.30, base + 0.015 * (floor - 1));
+  if (Math.random() >= chance) return [];
+  const two = Math.random() < Math.min(0.6, 0.30 + 0.02 * (floor - 1));
+  return two ? [null, null] : [null];
+}
+
 let uniquePool = [];
 export function resetUniques() { uniquePool = [...UNIQUES]; }
 
@@ -103,7 +117,9 @@ export function bossUnique(kind, floor) {
   const u = UNIQUES[((kind % UNIQUES.length) + UNIQUES.length) % UNIQUES.length];
   const [lo, hi] = RARITY[3].affixes;
   const n = lo + ((Math.random() * (hi - lo + 1)) | 0);
-  return { name: u.name, slot: u.slot, rarity: RARITY[3], unique: u, affixes: rollAffixes(n, floor) };
+  const it = { name: u.name, slot: u.slot, rarity: RARITY[3], unique: u, affixes: rollAffixes(n, floor) };
+  const sk = rollSockets("gold", floor); if (sk) it.sockets = sk;
+  return it;
 }
 
 export function rollBuildAffix() {
@@ -120,7 +136,9 @@ export function rollItem(floor, lucky) {
     const u = uniquePool.splice((Math.random() * uniquePool.length) | 0, 1)[0];
     const [lo, hi] = RARITY[3].affixes;
     const n = lo + ((Math.random() * (hi - lo + 1)) | 0);
-    return { name: u.name, slot: u.slot, rarity: RARITY[3], unique: u, affixes: rollAffixes(n, floor) };
+    const it = { name: u.name, slot: u.slot, rarity: RARITY[3], unique: u, affixes: rollAffixes(n, floor) };
+    const sk = rollSockets("gold", floor); if (sk) it.sockets = sk;
+    return it;
   }
 
   const rar = r.key === "gold" ? RARITY[2] : r;   // 유니크 소진 → 레어
@@ -130,7 +148,9 @@ export function rollItem(floor, lucky) {
   const name = `${pick(OF)}의 ${pick(ADJ)} ${pick(SLOT_NOUNS[slot])}`;
   const [l2, h2] = rar.affixes;
   const n = l2 + ((Math.random() * (h2 - l2 + 1)) | 0);
-  return { name, slot, rarity: rar, unique: null, affixes: rollAffixes(n, floor) };
+  const it = { name, slot, rarity: rar, unique: null, affixes: rollAffixes(n, floor) };
+  const sk = rollSockets(rar.key, floor); if (sk) it.sockets = sk;
+  return it;
 }
 
 // ── 합산 — «착용»이 반드시 지나는 한 곳(V-182 가 창만 얹으면 되게) ──────────────
@@ -139,8 +159,9 @@ export function sumAffixes(items) {
   const sum = {};
   for (const k of AFFIX_KEYS) sum[k] = 0;
   for (const it of items) {
-    if (!it || !it.affixes) continue;
-    for (const a of it.affixes) sum[a.key] = (sum[a.key] || 0) + a.value;
+    if (!it) continue;
+    if (it.affixes) for (const a of it.affixes) sum[a.key] = (sum[a.key] || 0) + a.value;
+    if (it.sockets) for (const g of it.sockets) if (g && g.aff) sum[g.aff.key] = (sum[g.aff.key] || 0) + g.aff.value;
   }
   return sum;
 }

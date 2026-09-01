@@ -133,6 +133,32 @@ const GOLEM = { need: 5, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6,
 const POTION = { hp: { frac: 0.35, col: "#d0362e", glow: "#ff6a5a", name: "생명 물약" },
                  mp: { frac: 0.40, col: "#2f6ad0", glow: "#5aa0ff", name: "마나 물약" } };
 const POTION_DROP = 0.09, POTION_DROP_ELITE = 0.22, BELT_MAX = 9;
+
+// ── V-236 보석 네 종 × 등급 셋 — 소켓에 박아 스탯을 올린다(디아 결). __GEM=false 면 드랍·주머니·구입·박기 다 꺼진다. ──
+// 종별 옵션은 loot.js 의 AFFIX 키에 얹는다: 루비→피해% · 사파이어→최대 생명 · 토파즈→금 획득% · 에메랄드→소환수 피해%.
+// 등급 셋의 값(재서 정함): 아래 GEM_VAL 이 [흠집난, 보통, 완벽] 순. 사파이어만 flat, 나머지는 %.
+const GEM_TYPES = {
+  ruby:     { name: "루비",     col: "#e0442f", key: "dmg",       pct: true,  label: "피해" },
+  sapphire: { name: "사파이어", col: "#4a86e6", key: "maxHp",     pct: false, label: "최대 생명" },
+  topaz:    { name: "토파즈",   col: "#e0b83a", key: "gold",      pct: true,  label: "금 획득" },
+  emerald:  { name: "에메랄드", col: "#3fbf6a", key: "minionDmg", pct: true,  label: "소환수 피해" },
+};
+const GEM_GRADES = ["흠집난", "보통", "완벽"];
+const GEM_VAL = { ruby: [6, 12, 20], sapphire: [40, 90, 200], topaz: [8, 16, 28], emerald: [7, 15, 26] };
+const GEM_KEYS = Object.keys(GEM_TYPES);
+const GEM_DROP = 0.05, GEM_DROP_ELITE = 0.14;
+function gemVal(type, grade) { return GEM_VAL[type][grade]; }
+function makeGem(type, grade) { return { type, grade, aff: { key: GEM_TYPES[type].key, value: gemVal(type, grade) } }; }
+// 등급은 층이 오를수록 높은 게 잘 나온다(값 재서 정함): 완벽 0.03+0.02·(층-1)(0.5 상한), 보통 0.12+0.02·(층-1)(0.45 상한).
+function rollGemGrade(floor) {
+  const r = Math.random();
+  const perfect = Math.min(0.5, 0.03 + 0.02 * (floor - 1));
+  const normal = Math.min(0.45, 0.12 + 0.02 * (floor - 1));
+  if (r < perfect) return 2;
+  if (r < perfect + normal) return 1;
+  return 0;
+}
+let selectedGem = null;   // 주머니에서 고른 보석 { type, grade } — 소켓 장비를 누르면 박힌다
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
   "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png", "decor/stairs.png"];
@@ -349,6 +375,7 @@ function fresh(floor, carry) {
     atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
     altarHpMul: 1, altarSlots: 0,
     belt: [null, null, null, null],
+    gems: [],
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
@@ -356,7 +383,7 @@ function fresh(floor, carry) {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
     spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
-    hazards: [], bones: [], bossBanner: null,
+    hazards: [], bones: [], bossBanner: null, floorGems: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -378,6 +405,12 @@ function start(floor, carry) {
   window.__dropPotion = (kind, dx = 30) => dropPotion(G.player.x + dx, G.player.y, kind);
   window.__drinkPotion = drinkPotion; window.__buyPotion = buyPotion;
   window.__giveGear = () => { const q = G.player; for (const s of SLOT_ORDER) { const it = rollItem(G.floor, true); it.slot = s; q.equipped[s] = it; } recalc(); };
+  window.__giveGem = (type, grade = 0, n = 1) => { for (let i = 0; i < (n || 1); i++) G.player.gems.push(makeGem(type, grade)); if (invOpen) renderInv(); };
+  window.__dropGem = (type, grade = 1, dx = 30) => G.floorGems.push({ x: G.player.x + dx, y: G.player.y, vx: 0, vy: 0, type, grade, t: 1 });
+  window.__buyGem = buyGem;
+  window.__tipFor = (it, x = 40, y = 110) => { const t = el("tooltip"); if (!it) { t.style.display = "none"; return; } t.innerHTML = tooltipHTML(it); t.style.display = "block"; t.style.left = x + "px"; t.style.top = y + "px"; };
+  window.__giveSocketed = (slot, n = 2) => { const it = rollItem(G.floor, true); it.slot = slot; it.sockets = new Array(n).fill(null); G.player.equipped[slot] = it; recalc(); return it; };
+  window.__socketInto = (slot, type, grade = 0) => { const it = G.player.equipped[slot]; if (!it) return null; if (!it.sockets || !it.sockets.length) it.sockets = [null]; G.player.gems.push(makeGem(type, grade)); selectedGem = { type, grade }; socketGem(it); return { dmgMul: G.player.dmgMul, maxhp: G.player.maxhp, gear: G.player.gear }; };
   const p = G.player;
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
@@ -512,11 +545,13 @@ function stepPlayer(dt) {
     tcx = (x1 - x0 <= vw) ? (x0 + x1) / 2 - vw / 2 : Math.max(x0, Math.min(x1 - vw, tcx));
     tcy = (y1 - y0 <= vh) ? (y0 + y1) / 2 - vh / 2 : Math.max(y0, Math.min(y1 - vh, tcy));
   }
-  cam.x += (tcx - cam.x) * Math.min(1, dt * 8);
-  cam.y += (tcy - cam.y) * Math.min(1, dt * 8);
-  if (globalThis.__CAM_MAPCLAMP === true) {
-    cam.x = Math.max(0, Math.min(G.W - vw, cam.x));
-    cam.y = Math.max(0, Math.min(G.H - vh, cam.y));
+  if (globalThis.__holdCam !== true) {   // 컷용 — 카메라를 손으로 고정할 때만(그 외엔 늘 사람을 따라간다)
+    cam.x += (tcx - cam.x) * Math.min(1, dt * 8);
+    cam.y += (tcy - cam.y) * Math.min(1, dt * 8);
+    if (globalThis.__CAM_MAPCLAMP === true) {
+      cam.x = Math.max(0, Math.min(G.W - vw, cam.x));
+      cam.y = Math.max(0, Math.min(G.H - vh, cam.y));
+    }
   }
 }
 
@@ -541,6 +576,7 @@ function handleSkills() {
     if (keys.has(k) && !p["_g" + k]) { p["_g" + k] = true; if (potionOn) drinkPotion(i); else selectGrade(i); } if (!keys.has(k)) p["_g" + k] = false;
   }
   if (potionOn) { if (keys.has("p") && !p._p) { p._p = true; buyPotion(); } if (!keys.has("p")) p._p = false; }
+  if (globalThis.__GEM !== false) { if (keys.has("j") && !p._j) { p._j = true; buyGem(); } if (!keys.has("j")) p._j = false; }
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
@@ -639,6 +675,62 @@ function stepPotions(dt) {
     }
   }
   G.potions = G.potions.filter((q) => !q.got);
+}
+
+// ── V-236 보석 — 바닥 드랍(물약 옆 길) → 밟으면 주머니에 쌓임 → 소켓에 박기 · 제단에서 J 로 구입 ──
+function dropGem(x, y, floor) {
+  const type = GEM_KEYS[(Math.random() * GEM_KEYS.length) | 0];
+  const grade = rollGemGrade(floor);
+  const a = Math.random() * 6.283, s = 40 + Math.random() * 70;
+  G.floorGems.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, type, grade, t: 0 });
+}
+function stepGems(dt) {
+  if (globalThis.__GEM === false) return;
+  const p = G.player;
+  for (const q of G.floorGems) {
+    q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.8; q.vy *= 0.8;
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (q.t > 0.35 && d < 110) { q.x += (p.x - q.x) * Math.min(1, dt * 9); q.y += (p.y - q.y) * Math.min(1, dt * 9); }
+    if (d < 44 && q.t > 0.3) {
+      q.got = true;
+      p.gems.push(makeGem(q.type, q.grade));
+      G.pickLog.unshift({ name: `${GEM_GRADES[q.grade]} ${GEM_TYPES[q.type].name}`, color: GEM_TYPES[q.type].col, t: 3 });
+      if (G.pickLog.length > 6) G.pickLog.pop();
+      if (invOpen) renderInv();
+    }
+  }
+  G.floorGems = G.floorGems.filter((q) => !q.got);
+}
+function buyGemGrade() { return G.floor >= 13 ? 2 : G.floor >= 6 ? 1 : 0; }
+function gemPrice() { return Math.round((70 + 30 * (G.floor - 1)) * (buyGemGrade() + 1)); }
+function buyGem() {
+  if (globalThis.__GEM === false) return;
+  const p = G.player;
+  const ai = nearestAltarAny(p.x, p.y, 90);
+  if (ai < 0) return;
+  const price = gemPrice();
+  if (G.gold < price) { floatNote(`금이 모자라다 (${price})`, "#c8a04a", 1.1); return; }
+  const grade = buyGemGrade(), type = GEM_KEYS[(Math.random() * GEM_KEYS.length) | 0];
+  G.gold -= price;
+  p.gems.push(makeGem(type, grade));
+  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${comma(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
+  for (let i = 0; i < 12; i++) burst(p.x, p.y - 20, GEM_TYPES[type].col, 120);
+  if (invOpen) renderInv();
+}
+// 고른 보석을 소켓 빈 장비에 박는다. 한 번 박으면 못 뺀다(디아 결). 없거나 다 찼으면 안내만.
+function socketGem(it) {
+  if (globalThis.__GEM === false || globalThis.__SOCKET === false || !selectedGem || !it) return;
+  if (!it.sockets || !it.sockets.length) { floatNote("소켓이 없는 장비다", "#c8a04a", 1.1); return; }
+  const free = it.sockets.indexOf(null);
+  if (free < 0) { floatNote("소켓이 가득 찼다", "#c8a04a", 1.1); return; }
+  const gi = G.player.gems.findIndex((g) => g.type === selectedGem.type && g.grade === selectedGem.grade);
+  if (gi < 0) { selectedGem = null; return; }
+  const gem = G.player.gems.splice(gi, 1)[0];
+  it.sockets[free] = gem;
+  selectedGem = null;
+  recalc();
+  floatNote(`${GEM_GRADES[gem.grade]} ${GEM_TYPES[gem.type].name}를 박았다`, GEM_TYPES[gem.type].col, 1.4);
+  if (invOpen) renderInv();
 }
 
 function raiseSkeleton() {
@@ -1404,6 +1496,8 @@ function dropLoot(m) {
   if (m.elite || Math.random() < 0.16) dropBuild(m.x, m.y);
   if (globalThis.__POTION !== false && Math.random() < (m.elite ? POTION_DROP_ELITE : POTION_DROP))
     dropPotion(m.x, m.y, Math.random() < 0.5 ? "hp" : "mp");
+  if (globalThis.__GEM !== false && Math.random() < (m.elite ? GEM_DROP_ELITE : GEM_DROP))
+    dropGem(m.x, m.y, G.floor);
 }
 
 function dropBuild(x, y) {
@@ -1749,6 +1843,7 @@ function drawWorld() {
   }
   window.__goldRects = goldRects;
   drawPotions();
+  drawGems();
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
   for (const a of G.altars) drawAltar(a);
@@ -2647,6 +2742,29 @@ function drawPotions() {
     ctx.fillStyle = P.glow; ctx.fillRect(cx - 3.5, cy + 1, 2, 5);
   }
 }
+// V-236 바닥 보석 — 어두운 바닥 위에 뜨게 밝은 후광 + 각진 원석. 새 에셋 없이 코드 도형+색.
+function drawGems() {
+  if (globalThis.__GEM === false) return;
+  for (const q of G.floorGems) {
+    if (!onScreen(q.x, q.y, 40)) continue;
+    const gm = GEM_TYPES[q.type], col = gm.col;
+    const cx = q.x, cy = q.y - 6 + Math.sin(nowMs() / 300 + q.x) * 2;
+    const rr = 5 + q.grade;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, 20);
+    g.addColorStop(0, col + "dd"); g.addColorStop(1, col + "00");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 20, 0, 6.283); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(cx, cy + 11, 6, 2.4, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = col; ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - rr); ctx.lineTo(cx + rr, cy); ctx.lineTo(cx, cy + rr); ctx.lineTo(cx - rr, cy);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.beginPath();
+    ctx.moveTo(cx, cy - rr); ctx.lineTo(cx + rr * 0.5, cy - rr * 0.15); ctx.lineTo(cx, cy); ctx.closePath(); ctx.fill();
+  }
+}
 // ── V-234 제단 그리기 — 새 에셋 없이 statue.png + 발밑 금빛 룬 고리(맥동) + 머리 위 이름표로 상자·소품과 가른다. ──
 // 석상은 소품·상자와 같은 spriteFoot 길로 밑변을 바닥선에 맞춘다(V-170 교훈). 다 쓴 제단은 고리를 끄고 어둡게.
 const ALTAR_STATUE_H = 150;
@@ -2687,7 +2805,17 @@ function drawAltar(a) {
     ctx.globalAlpha = 1;
   }
 }
-// 유닛을 다 그린 뒤 얹는 머리 위 표식(상자 비콘과 같은 자리) — 빛기둥 + 반경 70 안에서 이름·값·「B」.
+// V-236 — 제단 이름표(그리고 같은 길로 그리는 떠 있는 글)를 화면 안으로 물린다. 월드 변환 중이라
+//   화면 좌우 가장자리(cam.x ~ cam.x+VW/Z)를 월드 단위로 환산해 라벨 중심을 clamp 한다.
+//   __LABELCLAMP===false 면 옛 동작(a.x 그대로 · 왼쪽이 잘렸다).
+function clampLabelX(cx, hw) {
+  if (globalThis.__LABELCLAMP === false) return cx;
+  const m = 6 / Z;
+  const left = cam.x + m + hw, right = cam.x + VW / Z - m - hw;
+  if (left > right) return cx;
+  return Math.max(left, Math.min(right, cx));
+}
+// 유닛을 다 그린 뒤 얹는 머리 위 표식(상자 비콘과 같은 자리) — 빛기둥 + 반경 70 안에서 이름·값·「B/P/J」.
 function drawAltarBeacon(a) {
   if (!onScreen(a.x, a.y, 220)) return;
   const near = Math.hypot(G.player.x - a.x, G.player.y - a.y) < 90;
@@ -2705,39 +2833,45 @@ function drawAltarBeacon(a) {
     ctx.globalCompositeOperation = "source-over";
     if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70) {
       const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
-      const canBuy = G.gold >= price;
-      const sub = `${comma(price)}◈  ·  B`;
-      const potSub = potionOn ? `물약 ${comma(potionPrice())}◈  ·  P` : null;
+      const gemOn = globalThis.__GEM !== false;
+      const sub = [`${comma(price)}◈  ·  B`, G.gold >= price, "#f2e7cf"];
+      const lines = [sub];
+      if (potionOn) lines.push([`물약 ${comma(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
+      if (gemOn) lines.push([`보석 ${comma(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
       ctx.textAlign = "center";
       const ly = a.y - ALTAR_STATUE_H - 2;
       ctx.font = "bold 15px 'Times New Roman',serif";
       const w1 = ctx.measureText(meta.name).width;
       ctx.font = "13px 'Times New Roman',serif";
-      const hw = Math.max(w1, ctx.measureText(sub).width, ctx.measureText(meta.note).width, potSub ? ctx.measureText(potSub).width : 0) / 2 + 10;
-      const boxH = potSub ? 74 : 56;
-      ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 34, hw * 2, boxH);
-      ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(a.x - hw, ly - 34, hw * 2, boxH);
+      const hw = Math.max(w1, ctx.measureText(meta.note).width, ...lines.map((l) => ctx.measureText(l[0]).width)) / 2 + 10;
+      const boxH = 38 + 18 * lines.length;
+      const lx = clampLabelX(a.x, hw);
+      ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 34, hw * 2, boxH);
+      ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(lx - hw, ly - 34, hw * 2, boxH);
       ctx.fillStyle = meta.col; ctx.font = "bold 15px 'Times New Roman',serif";
-      ctx.fillText(meta.name, a.x, ly - 18);
+      ctx.fillText(meta.name, lx, ly - 18);
       ctx.fillStyle = "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
-      ctx.fillText(meta.note, a.x, ly - 2);
-      ctx.fillStyle = canBuy ? "#f2e7cf" : "#c05a4a"; ctx.font = "13px 'Times New Roman',serif";
-      ctx.fillText(sub, a.x, ly + 15);
-      if (potSub) { ctx.fillStyle = G.gold >= potionPrice() ? "#a8d8ff" : "#c05a4a"; ctx.fillText(potSub, a.x, ly + 33); }
+      ctx.fillText(meta.note, lx, ly - 2);
+      ctx.font = "13px 'Times New Roman',serif";
+      for (let i = 0; i < lines.length; i++) { ctx.fillStyle = lines[i][1] ? lines[i][2] : "#c05a4a"; ctx.fillText(lines[i][0], lx, ly + 15 + i * 18); }
     }
     return;
   }
-  if (potionOn && near) {
-    const price = potionPrice(), canBuy = G.gold >= price;
+  const gemOn = globalThis.__GEM !== false;
+  if ((potionOn || gemOn) && near) {
     ctx.textAlign = "center";
     const ly = a.y - ALTAR_STATUE_H + 10;
     ctx.font = "13px 'Times New Roman',serif";
-    const l1 = "제단 (다 씀)", l2 = `물약 ${comma(price)}◈  ·  P`;
-    const hw = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width) / 2 + 10;
-    ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 18, hw * 2, 38);
-    ctx.strokeStyle = "#7a746a"; ctx.lineWidth = 1.4; ctx.strokeRect(a.x - hw, ly - 18, hw * 2, 38);
-    ctx.fillStyle = "#8f8877"; ctx.fillText(l1, a.x, ly - 3);
-    ctx.fillStyle = canBuy ? "#a8d8ff" : "#c05a4a"; ctx.fillText(l2, a.x, ly + 14);
+    const l1 = "제단 (다 씀)", lines = [];
+    if (potionOn) lines.push([`물약 ${comma(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
+    if (gemOn) lines.push([`보석 ${comma(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
+    const hw = Math.max(ctx.measureText(l1).width, ...lines.map((l) => ctx.measureText(l[0]).width)) / 2 + 10;
+    const boxH = 20 + 18 * lines.length;
+    const lx = clampLabelX(a.x, hw);
+    ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 18, hw * 2, boxH);
+    ctx.strokeStyle = "#7a746a"; ctx.lineWidth = 1.4; ctx.strokeRect(lx - hw, ly - 18, hw * 2, boxH);
+    ctx.fillStyle = "#8f8877"; ctx.fillText(l1, lx, ly - 3);
+    for (let i = 0; i < lines.length; i++) { ctx.fillStyle = lines[i][1] ? lines[i][2] : "#c05a4a"; ctx.fillText(lines[i][0], lx, ly + 14 + i * 18); }
   }
 }
 function openChest(ch) {
@@ -2899,7 +3033,9 @@ function drawFloats() {
     ctx.font = (f.big ? "bold 26px " : fs + "px ") + "'Times New Roman',serif";
     const hw = ctx.measureText(f.txt).width / 2;
     // 캔버스 안으로 민다 — 좌우·상하 모두. 사각은 (sx-hw, sy-fs)~(sx+hw, sy).
-    let sx = Math.max(M + hw, Math.min(VW - M - hw, rx));
+    // V-236 — panel 글(제단 구입 등)은 테두리 pad 까지 화면 안에 들도록 여유를 더 둔다(__LABELCLAMP 로 되돌림).
+    const padX = (f.panel && globalThis.__LABELCLAMP !== false) ? 11 : 0;
+    let sx = Math.max(M + hw + padX, Math.min(VW - M - hw - padX, rx));
     let sy = Math.max(M + fs, Math.min(VH - M, ry));
     // 하단 UI 띠에 «들면»(가로가 겹치고 글자 밑이 띠 위끝을 넘으면) 위로 밀어낸다.
     if (band && sx + hw > band.x0 && sx - hw < band.x1 && sy > band.y0 - M)
@@ -2957,6 +3093,14 @@ function tooltipHTML(it, cmp) {
       rows.push(`<div class="tipaffix">${esc(a.label)}${diff}</div>`);
     }
   } else rows.push(`<div class="tipbase">옵션 없음</div>`);
+  if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
+    const cells = it.sockets.map((g) => g
+      ? `<span class="sock" style="color:${GEM_TYPES[g.type].col}">●</span>`
+      : `<span class="sock">○</span>`).join(" ");
+    rows.push(`<div class="tipsock">${cells} 소켓 ${it.sockets.length}</div>`);
+    for (const g of it.sockets) if (g)
+      rows.push(`<div class="tipaffix">${GEM_TYPES[g.type].label} +${g.aff.value}${GEM_TYPES[g.type].pct ? "%" : ""} <span class="tipgemn">(${GEM_GRADES[g.grade]} ${GEM_TYPES[g.type].name})</span></div>`);
+  }
   if (it.unique) {
     rows.push(`<div class="tipmod">${esc(it.unique.note)}</div>`);
     rows.push(`<div class="tiprule"></div>`);
@@ -3009,7 +3153,7 @@ function applyHintFold() {
 function toggleInv() {
   invOpen = !invOpen;
   el("inv").classList.toggle("on", invOpen);
-  hoverItem = null; hoverRect = null; _prevHover = null;
+  hoverItem = null; hoverRect = null; _prevHover = null; selectedGem = null;
   el("tooltip").style.display = "none"; el("tooltip2").style.display = "none"; tipItem = null;
   if (invOpen) renderInv();
 }
@@ -3023,9 +3167,14 @@ function cellDiv(it, w, h, onClick) {
   d.style.borderColor = it.rarity.color;
   d.style.background = it.rarity.color + "22";
   d.textContent = SLOT_LABEL[it.slot] || it.slot;
+  if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
+    const sr = document.createElement("div"); sr.className = "cellsock";
+    for (const g of it.sockets) { const dot = document.createElement("span"); dot.textContent = g ? "●" : "○"; if (g) dot.style.color = GEM_TYPES[g.type].col; sr.appendChild(dot); }
+    d.appendChild(sr);
+  }
   d.addEventListener("mouseenter", () => { hoverItem = it; hoverRect = d.getBoundingClientRect(); });
   d.addEventListener("mouseleave", () => { if (hoverItem === it) { hoverItem = null; hoverRect = null; } });
-  d.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+  d.addEventListener("click", (e) => { e.stopPropagation(); if (selectedGem) { socketGem(it); return; } onClick(); });
   d.addEventListener("contextmenu", (e) => { e.preventDefault(); if (e.ctrlKey) dropItemFromBag(it); });
   return d;
 }
@@ -3057,6 +3206,35 @@ function renderInv() {
     const d = cellDiv(pl.item, pl.w, pl.h, () => equipFromBag(pl.item));
     d.style.left = (pl.col * CELL) + "px"; d.style.top = (pl.row * CELL) + "px";
     grid.appendChild(d);
+  }
+  renderGems();
+}
+// V-236 보석 주머니 — 종·등급이 같은 것끼리 묶어 개수와 함께 보인다. 눌러 고르고(sel) 소켓 장비를 누르면 박힌다.
+function renderGems() {
+  const pouch = el("gempouch"); if (!pouch) return;
+  pouch.innerHTML = "";
+  if (globalThis.__GEM === false) return;
+  const p = G.player;
+  const groups = {};
+  for (const g of p.gems) { const k = g.type + "_" + g.grade; (groups[k] = groups[k] || { g, n: 0 }).n++; }
+  const keys = Object.keys(groups);
+  const label = document.createElement("div"); label.className = "pouchlabel";
+  label.textContent = keys.length ? (selectedGem ? "박을 소켓 장비를 누르세요" : "보석 — 눌러 고르고 소켓 장비를 누른다") : "보석 없음";
+  pouch.appendChild(label);
+  const strip = document.createElement("div"); strip.className = "pouchstrip"; pouch.appendChild(strip);
+  for (const k of keys) {
+    const grp = groups[k], gm = GEM_TYPES[grp.g.type];
+    const d = document.createElement("div"); d.className = "gemcell";
+    if (selectedGem && selectedGem.type === grp.g.type && selectedGem.grade === grp.g.grade) d.classList.add("sel");
+    d.style.setProperty("--gc", gm.col);
+    d.innerHTML = `<span class="gdot"></span><span class="gn">${grp.n}</span>`;
+    d.title = `${GEM_GRADES[grp.g.grade]} ${gm.name} — ${gm.label} +${gemVal(grp.g.type, grp.g.grade)}${gm.pct ? "%" : ""}`;
+    d.addEventListener("click", (e) => {
+      e.stopPropagation();
+      selectedGem = (selectedGem && selectedGem.type === grp.g.type && selectedGem.grade === grp.g.grade) ? null : { type: grp.g.type, grade: grp.g.grade };
+      renderInv();
+    });
+    strip.appendChild(d);
   }
 }
 
@@ -3336,6 +3514,9 @@ function renderGear() {
     const span = document.createElement("span");
     span.textContent = SLOT_LABEL[s];
     if (it) { span.style.color = it.rarity.color; span.title = it.name; }
+    if (it && globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
+      for (const gem of it.sockets) { const dot = document.createElement("span"); dot.className = "gsock"; dot.textContent = gem ? "●" : "○"; if (gem) dot.style.color = GEM_TYPES[gem.type].col; span.appendChild(dot); }
+    }
     g.appendChild(span);
   }
 }
@@ -3382,7 +3563,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
-    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt); stepPotions(dt);
+    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
     stepHazards(dt); stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
