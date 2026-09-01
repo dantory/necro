@@ -187,6 +187,18 @@ const SELL_FRAC = 0.30, BUY_MARKUP = 1.25, FENCE_MIN = 6, FENCE_MAX = 8;
 let shopOpen = false, shopMerchant = null;
 const townOn = () => globalThis.__TOWN !== false;
 const merchOn = () => globalThis.__MERCHANT !== false;
+// ── V-239 ① 회차(승천) — 마을 승천 제단에서 처음부터 다시 시작하고 영구 배수를 쌓는다. ──
+// 문턱 20층(재서 정함): V-238 테스트가 몇 분에 6층·PLAN 이 20분에 48층이라 20층은 «한 번의 판»에
+//   닿는 진짜 이정표다. deepest 는 승천 때 0 으로 되감아 다음 회차는 다시 내려가야 문턱이 열린다.
+// 되돌림: __ASCEND=false → 제단 상호작용·패널이 꺼진다(회차 안 생김 → ascMul 늘 1 → genFloor 지문 동일).
+const ASCEND_FLOOR = 20;
+const ascendOn = () => globalThis.__ASCEND !== false;
+const ASC_BUFF = {
+  dmg:    { name: "핏빛 각인", desc: "피해 +25%", col: "#e06b4a" },
+  minion: { name: "뼈 군세",  desc: "소환 자리 +1 · 소환수 피해 +20%", col: "#6fd0a8" },
+  gold:   { name: "탐욕의 손", desc: "금 +35% · 드랍 운 ↑", col: "#e8cf52" },
+};
+let ascOpen = false;
 const RARITY_BASE = { white: 8, blue: 30, yellow: 90, gold: 260 };
 function itemValue(it) {
   if (!it) return 0;
@@ -464,10 +476,14 @@ function fresh(floor, carry, town) {
     town: !!town, merchants: f.merchants || [],
     deepest: Math.max((carry && carry.deepest) || 0, floor),
     returnFloor: town ? floor : ((carry && carry.returnFloor) || 0),
+    ascension: (carry && carry.ascension) || 0,
+    ascBuffs: (carry && carry.ascBuffs) || { dmg: 0, minion: 0, gold: 0 },
+    ascendSpot: f.ascendSpot || null,
   };
 }
 
 function start(floor, carry, town) {
+  globalThis.__asc = (carry && carry.ascension) || 0;   // V-239 — genFloor 가 회차 배수를 읽기 전에 심는다
   G = fresh(floor, carry, town);
   G.blockProps = G.props.filter((pr) => BLOCK_IMGS.has(pr.img));
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
@@ -503,6 +519,10 @@ function start(floor, carry, town) {
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
   window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
   window.__doStairs = tryStairs; window.__returnFromTown = returnFromTown;
+  window.__tryAscend = tryAscend; window.__ascend = doAscend;
+  window.__openAscend = () => { if (G.ascendSpot) { ascOpen = true; el("ascend").classList.add("on"); renderAscend(); } };
+  window.__setDeepest = (n) => { G.deepest = n; };
+  window.__toShrine = () => { if (G.ascendSpot) { G.player.x = G.ascendSpot.x; G.player.y = G.ascendSpot.y + 60; } };
 }
 
 // ── V-201 충돌 판정 — 걸을 수 있는 자리 = 방 ∪ 복도, 밖은 암반 ──────────────
@@ -678,6 +698,7 @@ function handleSkills() {
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
   if (keys.has("n") && !p._n) { p._n = true; if (townOn()) tryTownReturn(); } if (!keys.has("n")) p._n = false;
   if (keys.has("t") && !p._t) { p._t = true; if (merchOn()) toggleShopNear(); } if (!keys.has("t")) p._t = false;
+  if (keys.has("y") && !p._y) { p._y = true; if (ascendOn()) tryAscend(); } if (!keys.has("y")) p._y = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
   if (G.dead && keys.has("r")) start(1, null);
@@ -1653,7 +1674,7 @@ function dropBuild(x, y) {
 }
 
 function spawnItem(x, y, lucky) {
-  const it = rollItem(G.floor, lucky);
+  const it = rollItem(G.floor, lucky || !!(G.ascBuffs && G.ascBuffs.gold));   // V-239 — 탐욕의 손: 드랍 운 ↑
   const a = Math.random() * 6.283, s = 30 + Math.random() * 70;
   G.items.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
 }
@@ -1706,6 +1727,11 @@ function recalc() {
   p.dr = Math.min(ATTR.def.cap / 100, a.def * ATTR.def.per / 100);
   p.maxhp = Math.round((BASE_HP + g.maxHp + a.vit * ATTR.vit.per) * p.mult.body * (p.altarHpMul ?? 1));   // V-234 — 피의 제단 영구 배수(생명만 · 마나는 안 건드린다)
   p.maxmana = Math.round((BASE_MANA + a.sta * ATTR.sta.per) * p.mult.body);
+  // V-239 ① — 회차마다 고른 영구 배수를 이 문 끝에서 얹는다(recalc 는 매번 처음부터 다시 세우므로 누수 없음).
+  const ab = (G && G.ascBuffs) || { dmg: 0, minion: 0, gold: 0 };
+  if (ab.dmg) { const m = 1 + 0.25 * ab.dmg; p.dmgMul *= m; p.minionMul *= m; }
+  if (ab.minion) { p.slots += ab.minion; p.minionMul *= 1 + 0.20 * ab.minion; }
+  if (ab.gold) p.goldMul *= 1 + 0.35 * ab.gold;
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
 }
@@ -1814,6 +1840,7 @@ function carryState() {
     player: G.player, minions: G.minions, pickLog: G.pickLog,
     kills: G.kills, picks: G.picks, gold: G.gold, xp: G.xp,
     deepest: G.deepest, returnFloor: G.returnFloor,
+    ascension: G.ascension, ascBuffs: G.ascBuffs,
   };
 }
 function tryStairs() {
@@ -1845,6 +1872,64 @@ function goTown() {
 }
 function returnFromTown() {
   start(G.returnFloor || G.deepest, carryState());   // 가장 깊었던 층을 새로 편다(같은 깊이)
+}
+
+// ── V-239 ① 회차(승천) — 마을 승천 제단에서 열린다. 처음부터 다시 · 영구 배수 3택. ──
+function ascendReady() { return (G.deepest || 0) >= ASCEND_FLOOR; }
+function nearShrine() {
+  const s = G.ascendSpot; if (!s) return false;
+  const p = G.player;
+  return Math.hypot(p.x - s.x, p.y - s.y) < s.r + 44;
+}
+function tryAscend() {
+  if (!G.town || !G.ascendSpot) { floatNote("승천 제단은 마을에 있다 (N 마을귀환)", "#c8a04a", 1.2); return; }
+  if (ascOpen) { closeAscend(); return; }
+  if (!nearShrine()) { floatNote("승천 제단 곁으로 가서 Y", "#c8a04a", 1.0); return; }
+  if (!ascendReady()) {
+    const rem = ASCEND_FLOOR - (G.deepest || 0);
+    floatNote(`승천은 B${ASCEND_FLOOR}층부터 — ${rem}층 더 내려가야`, "#c8a04a", 1.8);
+    return;
+  }
+  ascOpen = true; el("ascend").classList.add("on");
+  el("tooltip").style.display = "none"; el("tooltip2").style.display = "none";
+  renderAscend();
+}
+function closeAscend() { ascOpen = false; el("ascend").classList.remove("on"); }
+function doAscend(choice) {
+  if (!ascendReady() || !ASC_BUFF[choice]) return;
+  G.ascension = (G.ascension || 0) + 1;
+  G.ascBuffs[choice] = (G.ascBuffs[choice] || 0) + 1;
+  const carry = carryState();
+  carry.deepest = 0; carry.returnFloor = 0;   // 다음 회차는 다시 내려가야 문턱이 열린다
+  closeAscend();
+  if (shopOpen) closeShop();
+  start(1, carry);
+  floatNote(`승천 ${G.ascension}회 — ${ASC_BUFF[choice].name}`, ASC_BUFF[choice].col, 2.4);
+}
+function renderAscend() {
+  if (!ascOpen) return;
+  const root = el("ascend");
+  const b = G.ascBuffs || { dmg: 0, minion: 0, gold: 0 };
+  let h = `<div class="asctitle">승  천</div>`;
+  h += `<div class="ascsub">B${G.deepest}층까지 내려섰다 — 처음부터 다시 시작하고 <b>영구 배수</b> 하나를 얻는다.</div>`;
+  h += `<div class="ascsub2">지금 승천 <b>${G.ascension || 0}</b>회 · 회차마다 적도 세진다(적 ×${(1 + 0.12 * (G.ascension || 0)).toFixed(2)})</div>`;
+  h += `<div class="ascpicks">`;
+  for (const k of ["dmg", "minion", "gold"]) {
+    const u = ASC_BUFF[k];
+    h += `<button class="ascpick" data-asc="${k}" style="border-color:${u.col}">` +
+      `<div class="apn" style="color:${u.col}">${u.name}</div>` +
+      `<div class="apd">${u.desc}</div>` +
+      `<div class="aps">현재 ${b[k] || 0}겹</div></button>`;
+  }
+  h += `</div><div class="aschint">고르면 즉시 1층부터 · 장비·성장·금은 그대로 · Y 닫기</div>`;
+  root.innerHTML = h;
+}
+function bindAscend() {
+  el("ascend").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-asc]"); if (!b) return;
+    e.stopPropagation();
+    doAscend(b.dataset.asc);
+  });
 }
 
 function burst(x, y, col, spd) {
@@ -2051,6 +2136,7 @@ function drawWorld() {
   for (const ch of G.chests) drawChestBeacon(ch);
   for (const a of G.altars) drawAltarBeacon(a);
   if (G.town) for (const mc of G.merchants) drawMerchantBeacon(mc);   // V-238
+  if (G.town && G.ascendSpot && ascendOn()) drawAscendBeacon();       // V-239
   PROF.seg("actors");
 
   spearRects = [];
@@ -3108,6 +3194,40 @@ function drawMerchantBeacon(mc) {
   ctx.fillStyle = near ? "#e7dcc0" : "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
   ctx.fillText(sub, lx, ly + 16);
 }
+function drawAscendBeacon() {
+  const s = G.ascendSpot;
+  if (!onScreen(s.x, s.y, 220)) return;
+  const p = G.player, near = Math.hypot(p.x - s.x, p.y - s.y) < s.r + 44;
+  const ready = (G.deepest || 0) >= ASCEND_FLOOR;
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 300);
+  const col = ready ? [216, 180, 90] : [126, 116, 96];
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(s.x, s.y - 10, 0, s.x, s.y - 10, 132);
+  g.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${0.10 + pulse * 0.16})`);
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(s.x, s.y - 10, 132, 0, 6.2832); ctx.fill();
+  ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${0.45 + pulse * 0.4})`; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(s.x, s.y + 34, s.r, s.r * 0.46, 0, 0, 6.2832); ctx.stroke();
+  if (ready) { ctx.fillStyle = `rgba(216,180,90,${0.10 + pulse * 0.12})`; ctx.fillRect(s.x - 6, s.y - 150, 12, 150); }
+  ctx.restore();
+  ctx.textAlign = "center";
+  const ly = s.y - 118;
+  ctx.font = "bold 15px 'Times New Roman',serif";
+  const title = "승천 제단";
+  const rem = ASCEND_FLOOR - (G.deepest || 0);
+  const sub = ready ? (near ? "Y — 승천" : "준비됨") : `B${ASCEND_FLOOR}층 필요 · ${rem}층 더`;
+  ctx.font = "12px 'Times New Roman',serif";
+  const hw = Math.max(ctx.measureText(title).width, ctx.measureText(sub).width) / 2 + 10;
+  const lx = clampLabelX(s.x, hw);
+  ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 16, hw * 2, 40);
+  ctx.strokeStyle = ready ? "#d8b45a" : "#7e746080"; ctx.lineWidth = 1.5; ctx.strokeRect(lx - hw, ly - 16, hw * 2, 40);
+  ctx.fillStyle = ready ? "#e8cf52" : "#b0a488"; ctx.font = "bold 15px 'Times New Roman',serif";
+  ctx.fillText(title, lx, ly);
+  ctx.fillStyle = ready ? (near ? "#f2e2b0" : "#c9b98c") : "#9a8f74"; ctx.font = "12px 'Times New Roman',serif";
+  ctx.fillText(sub, lx, ly + 16);
+  if (G.ascension) { ctx.fillStyle = "#c8a04a"; ctx.font = "11px 'Times New Roman',serif"; ctx.fillText(`승천 ${G.ascension}회`, lx, ly + 32); }
+}
 function nearestMerchant() {
   if (!G.town || !G.merchants) return null;
   let best = null, bd = MERCH_R * MERCH_R;
@@ -3351,10 +3471,7 @@ function tooltipHTML(it, cmp) {
     }
   } else rows.push(`<div class="tipbase">옵션 없음</div>`);
   if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
-    const cells = it.sockets.map((g) => g
-      ? `<span class="sock" style="color:${GEM_TYPES[g.type].col}">●</span>`
-      : `<span class="sock">○</span>`).join(" ");
-    rows.push(`<div class="tipsock">${cells} 소켓 ${it.sockets.length}</div>`);
+    rows.push(`<div class="tipsock">${socketHTML(it)} 소켓 ${it.sockets.length}</div>`);
     for (const g of it.sockets) if (g)
       rows.push(`<div class="tipaffix">${GEM_TYPES[g.type].label} +${g.aff.value}${GEM_TYPES[g.type].pct ? "%" : ""} <span class="tipgemn">(${GEM_GRADES[g.grade]} ${GEM_TYPES[g.type].name})</span></div>`);
   }
@@ -3426,7 +3543,7 @@ function cellDiv(it, w, h, onClick) {
   d.textContent = SLOT_LABEL[it.slot] || it.slot;
   if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
     const sr = document.createElement("div"); sr.className = "cellsock";
-    for (const g of it.sockets) { const dot = document.createElement("span"); dot.textContent = g ? "●" : "○"; if (g) dot.style.color = GEM_TYPES[g.type].col; sr.appendChild(dot); }
+    appendSockets(sr, it);
     d.appendChild(sr);
   }
   d.addEventListener("mouseenter", () => { hoverItem = it; hoverRect = d.getBoundingClientRect(); });
@@ -3593,12 +3710,28 @@ function buyGemTown() {
   if (invOpen) renderInv();
   renderShop();
 }
+// ── V-239 ③ 소켓 표기 — 옛 ○/● 글리프가 폰트에서 「ㅇ」로 떨어져 보였다(CJK 대체 글꼴).
+//   글자 대신 «색 있는 작은 네모»(빈 칸=테두리만·낀 칸=보석 색 채움)로 바꿔 눈에 소켓으로 읽힌다.
+function socketHTML(it) {
+  if (globalThis.__SOCKET === false || !it.sockets || !it.sockets.length) return "";
+  return it.sockets.map((g) => g
+    ? `<span class="sqk fill" style="background:${GEM_TYPES[g.type].col}"></span>`
+    : `<span class="sqk"></span>`).join("");
+}
+function appendSockets(parent, it) {
+  if (globalThis.__SOCKET === false || !it.sockets || !it.sockets.length) return;
+  for (const g of it.sockets) {
+    const b = document.createElement("span");
+    b.className = g ? "sqk fill" : "sqk";
+    if (g) b.style.background = GEM_TYPES[g.type].col;
+    parent.appendChild(b);
+  }
+}
 function shopItemRow(it, rightTxt, rightCol, onClick) {
   const d = document.createElement("div"); d.className = "shoprow";
   const nm = document.createElement("span"); nm.className = "srname"; nm.style.color = it.rarity.color;
-  let label = it.name;
-  if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) label += " " + it.sockets.map((g) => g ? "●" : "○").join("");
-  nm.textContent = label;
+  nm.textContent = it.name;
+  appendSockets(nm, it);
   const pr = document.createElement("span"); pr.className = "srprice"; pr.style.color = rightCol; pr.textContent = rightTxt;
   d.appendChild(nm); d.appendChild(pr);
   d.addEventListener("mouseenter", () => { hoverItem = it; hoverRect = d.getBoundingClientRect(); });
@@ -3705,7 +3838,14 @@ function statTipHTML(a) {
 }
 function renderChar() {
   const p = G.player;
-  let h = `<div class="invtitle">성장</div><div class="charcols">`;
+  let h = `<div class="invtitle">성장</div>`;
+  const ab = G.ascBuffs || { dmg: 0, minion: 0, gold: 0 };
+  if (G.ascension || ab.dmg || ab.minion || ab.gold) {
+    const parts = [];
+    for (const k of ["dmg", "minion", "gold"]) if (ab[k]) parts.push(`<span style="color:${ASC_BUFF[k].col}">${ASC_BUFF[k].name} ×${ab[k]}</span>`);
+    h += `<div class="ascline">승천 <b>${G.ascension || 0}</b>회 · 적 ×${(1 + 0.12 * (G.ascension || 0)).toFixed(2)} — ${parts.join(" · ") || "영구 배수 없음"}</div>`;
+  }
+  h += `<div class="charcols">`;
   h += `<div class="statcol"><div class="ptsleft">Points Left: <b>${p.attrPts}</b></div>`;
   for (const a of ATTRS) {
     h += `<div class="statrow" data-stip="${a.key}"><span class="starw">${star(a.col)}</span>` +
@@ -3863,7 +4003,8 @@ function updateHUD() {
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
   el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
   el("xpbar").style.width = (100 * (G.xp - lvBase) / lvSpan) + "%";
-  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
+  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`
+    + (G.ascension ? ` · <b style="color:#d8b45a">승천 ${G.ascension}회</b>` : "");
   // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데
   //   여기만 영어라 한 화면에 두 말이 섞여 있었다.
   if (G.town) {   // V-238 — 마을에서는 「지하 N층」이 아니라 「마을」로 읽힌다
@@ -3886,7 +4027,11 @@ function updateHUD() {
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
-  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "");
+  const ab = G.ascBuffs || { dmg: 0, minion: 0, gold: 0 };
+  const ascTxt = (ab.dmg || ab.minion || ab.gold)
+    ? " · 승천 " + [ab.dmg && `핏빛${ab.dmg}`, ab.minion && `군세${ab.minion}`, ab.gold && `탐욕${ab.gold}`].filter(Boolean).join("·")
+    : "";
+  el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "") + ascTxt;
   document.body.classList.toggle("notestack", globalThis.__NOTESTACK !== false);   // V-237 — 집는 글 칩에 읽히는 왼쪽 테두리(어두운 바닥에서 「테두리 없이 잘린」 것처럼 보였다)
   const log = el("picklog");
   log.innerHTML = "";
@@ -3925,9 +4070,7 @@ function renderGear() {
       span.style.color = it.rarity.color; span.title = it.name;
       if (colorOn) { span.style.fontWeight = "700"; span.style.textShadow = `0 0 6px ${it.rarity.color}99, 0 1px 0 #000`; }
     } else if (colorOn) { span.style.color = "#5b5044"; }
-    if (it && globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
-      for (const gem of it.sockets) { const dot = document.createElement("span"); dot.className = "gsock"; dot.textContent = gem ? "●" : "○"; if (gem) dot.style.color = GEM_TYPES[gem.type].col; span.appendChild(dot); }
-    }
+    if (it && globalThis.__SOCKET !== false && it.sockets && it.sockets.length) appendSockets(span, it);
     g.appendChild(span);
   }
 }
@@ -4007,6 +4150,7 @@ function loop(now) {
   buildBelt();
   applyHintFold();
   bindChar();
+  bindAscend();
   start(1, null);
   requestAnimationFrame(loop);
 })();

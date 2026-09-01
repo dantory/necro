@@ -104,6 +104,19 @@ export function genFloor(floor) {
   const minH = Math.max(500, 600 - floor * 7);
   const root = bspSplit({ x: 80, y: 80, w: W - 160, h: H - 160 }, 0, maxDepth, minW, minH);
 
+  // ── V-239 ② 21층+ 곡선 — 20층 이하는 손대지 않는다(그 층에선 deep=false → byte-동일). ──
+  //   깊이는 여태 «수만» 커졌다(hp 스케일 1+0.35f 가 직선으로 뻗어 40층=×15, 50층=×18.5 →
+  //   같은 놈이 두꺼워지기만 해 지루했다). 21층부터 세 가지로 «판을 바꾼다»:
+  //     ⓐ hp 팽창을 꺾는다 — 20층(×8.0)에서 기울기 0.35→0.22 로 눕힌다(40층 ×12.4·50층 ×14.6 →
+  //        옛 ×15/×18.5 대비 −17%/−21%. dmg 곡선은 그대로 둬 «위험»은 유지, «부풀기»만 깎는다).
+  //     ⓑ 엘리트 비율 0.25→0.42 · 무리 3~4(옛 2~3) — 밀도로 압박을 준다(수 아닌 «떼»).
+  //     ⓒ 30층+ 주인 둘(다른 주인·다른 방) — 관문이 사건이 되게.
+  //   되돌림: globalThis.__DEEPCURVE===false → deep 상수가 늘 false → 옛 경로만 탄다(어느 층이든 지문 동일).
+  const deep = globalThis.__DEEPCURVE !== false && floor > 20;
+  // ── V-239 ① 회차(승천) 배수 — 회차마다 적이 세진다. 회차 0 → ascMul=1(곱해도 값 불변 → 지문 동일). ──
+  //   RNG 를 한 톨도 안 건드린다(스케일 «값»만 곱한다·Math.random 호출 수 불변). start()가 __asc 를 심는다.
+  const ascMul = 1 + 0.12 * (globalThis.__asc || 0);
+
   const rooms = [];
   const leafList = [];
   bspLeaves(root, leafList);
@@ -174,17 +187,18 @@ export function genFloor(floor) {
     // ★ V-202b — 방당 팩 3~4 → 2~3, 팩당 14~24 → 10~14. 자로 재니 층당 놓인 적이 330~762 마리로
     //   «던전 파밍이 아니라 벌판 학살»이었다(tmp/hs_v202b_before.json). 방 수가 깊이로 느는 건 그대로
     //   두고(V-202) 방당 마릿수만 낮춰 층당 ~300 언저리로 내린다. WAKE·팩 배치 꼴은 안 건드린다.
-    const n = rint(2, 3);
+    const n = deep ? rint(3, 4) : rint(2, 3);
     for (let p = 0; p < n; p++) {
       const count = rint(10, 14);
       const px = rint(room.x + 60, room.x + room.w - 60);
       const py = rint(room.y + 60, room.y + room.h - 60);
       const enemies = [];
-      const elite = floor >= 1 && Math.random() < 0.25;
+      const elite = floor >= 1 && Math.random() < (deep ? 0.42 : 0.25);
       for (let k = 0; k < count; k++) {
         const t = MOB_TYPES[Math.min(MOB_TYPES.length - 1,
           Math.floor(Math.random() * (MOB_TYPES.length - (floor < 1 ? 1 : 0)) * (0.6 + Math.random() * 0.4)))];
-        const scale = 1 + floor * 0.35;
+        let scale = 1 + floor * 0.35;
+        if (deep) scale = 8.0 + (floor - 20) * 0.22;
         // ★ V-226 — 깊이 곡선이 «사람보다 가파른가»를 재서 답이 나왔다(2026-09-01 tmp/hs_v226_curves2.json):
         //   층1→층5 에서 적 dmg 중앙은 11→22~25(×2.09) 인데 사람 maxhp 는 4515→4635(×1.03).
         //   점수를 다 vit 에 부어도 사람이 닿는 천장이 ×1.13 이라, 깊이는 «어려워지는 것»이 아니라
@@ -192,8 +206,8 @@ export function genFloor(floor) {
         //   그래서 **hp 곡선은 그대로 두고 dmg 곡선만 눕힌다** — 층5 적은 여전히 두꺼워(×2.75) 싸움이
         //   길고, 다만 한 대가 사람의 성장을 앞지르지 않는다(dmg ×1.49 대 사람 ×1.13 → 순 압박 ×1.32).
         //   되돌릴 손잡이: globalThis.__V226B = false → 옛 «한 곡선» 으로 되돌아간다.
-        const dmgScale = globalThis.__V226B === false ? scale : 1 + floor * 0.14;
-        enemies.push(makeMob(t, px + rint(-90, 90), py + rint(-90, 90), scale, eid++, elite && k === 0, dmgScale));
+        const dmgScale = (globalThis.__V226B === false ? scale : 1 + floor * 0.14) * ascMul;
+        enemies.push(makeMob(t, px + rint(-90, 90), py + rint(-90, 90), scale * ascMul, eid++, elite && k === 0, dmgScale));
       }
       spreadPack(enemies);
       packs.push({ x: px, y: py, enemies, room: i, awake: false });
@@ -201,12 +215,24 @@ export function genFloor(floor) {
   }
   if (floor >= 2) {
     const br = far;
-    const bm = makeMob(BOSS_TYPE, br.cx, br.cy + 40, 1 + floor * 0.4, eid++, true,
-      globalThis.__V226B === false ? 1 + floor * 0.4 : 1 + floor * 0.16);
+    const bhp = (1 + floor * 0.4) * ascMul;
+    const bdmg = (globalThis.__V226B === false ? 1 + floor * 0.4 : 1 + floor * 0.16) * ascMul;
+    const bm = makeMob(BOSS_TYPE, br.cx, br.cy + 40, bhp, eid++, true, bdmg);
     const kind = bossKindFor(floor);
     bm.boss = true; bm.bossKind = kind; bm.name = BOSS_NAMES[kind];
     bm.h *= BOSS_SIZE[kind]; bm.r *= BOSS_SIZE[kind];
     packs.push({ x: br.cx, y: br.cy + 40, awake: false, room: rooms.indexOf(br), enemies: [bm], boss: true });
+    if (deep && floor >= 30) {   // V-239 ⓒ — 30층+ 주인 둘. 시작·계단 방이 아닌 다른 방에 다음 순번 주인.
+      let r2 = null;
+      for (let i = 1; i < rooms.length; i++) { const rm = rooms[i]; if (rm !== far && !rm.dead) { r2 = rm; break; } }
+      if (r2) {
+        const bm2 = makeMob(BOSS_TYPE, r2.cx, r2.cy + 40, bhp, eid++, true, bdmg);
+        const k2 = (kind + 1) % BOSS_NAMES.length;
+        bm2.boss = true; bm2.bossKind = k2; bm2.name = BOSS_NAMES[k2];
+        bm2.h *= BOSS_SIZE[k2]; bm2.r *= BOSS_SIZE[k2];
+        packs.push({ x: r2.cx, y: r2.cy + 40, awake: false, room: rooms.indexOf(r2), enemies: [bm2], boss: true });
+      }
+    }
   }
 
   // ── V-234 뼈 제단 — 층마다 하나(피/뼈/재 셋 중 굴림). 금을 쓰는 첫 자리(상자와 같은 길). ──
@@ -254,7 +280,9 @@ export function genTown() {
     { img: "decor/urn.png",     x: rm.x + rm.w - 168, y: rm.y + rm.h - 160, h: 62 },
     { img: "decor/bones.png",   x: rm.cx + 300, y: rm.cy + 165, h: 44 },
     { img: "decor/rubble.png",  x: rm.cx - 300, y: rm.cy + 175, h: 40 },
+    { img: "decor/statue.png",  x: rm.cx, y: rm.cy - 130, h: 168, shrine: true },
   ];
+  const ascendSpot = { x: rm.cx, y: rm.cy - 130, r: 46 };
   // 상인 둘 — 같은 스프라이트에 «색조·이름표»로 가른다(장물장수 호박빛 · 잡화상 청록). 컷에서 눈으로 갈린다.
   const merchants = [
     { kind: "fence", name: "장물장수", base: "mob/shaman", r: 26, h: 96,
@@ -265,7 +293,7 @@ export function genTown() {
       x: rm.cx + 260, y: rm.cy - 10, dx: -1, dy: 0.2, state: "idle", anim: 0 },
   ];
   return { W, H, rooms, corridors: [], packs: [], chests: [], altars: [], stairs,
-    startX, startY, decals: [], props, town: true, merchants };
+    startX, startY, decals: [], props, town: true, merchants, ascendSpot };
 }
 
 // ★★ V-164 — `decal/stain.png` 를 **줄에서 뺀다.** 그 장은 굽기가 실패한 것이다:
