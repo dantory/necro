@@ -22,6 +22,7 @@ import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
 const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
 let NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침). V225_ARMS=1 이면 팔마다 뒤집는다
+let NAV_PATHPROG = process.env.NAV_PATHPROG !== "0";   // ★ V-227 — 진척을 «길 위 남은 거리»로 잰다(0 = 옛 직선거리). V227_ARMS=1 이면 팔마다 뒤집는다
 
 const URL = "http://127.0.0.1:8774/hs/index.html";
 const IFR = process.argv[2] !== undefined ? +process.argv[2] : 0.4;
@@ -57,6 +58,7 @@ globalThis.__RANGED_MOB = true;
 globalThis.__MEASURE_REVIVE = true;
 globalThis.__NAV_LEGACY = ${NAV_LEGACY};       // ★ V-225 — 자의 그래프 간선 규칙(true = 옛 «두 축 다 >2px»)
 globalThis.__NAV_MINPASS = ${NAV_MINPASS};     // ★ V-225 — 지날 수 있는 폭(px)
+globalThis.__NAV_PATHPROG = ${NAV_PATHPROG};   // ★ V-227 — 진척 판정 자(true = 길 위 남은 거리 · false = 옛 직선거리)
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
@@ -301,7 +303,7 @@ const AUTO = `(SPEC => {
         if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
           if (!nav.roomSeen.has(i)) { nav.roomSeen.add(i); A.toured++; } break; } }   // ㉠ 실제로 든 방 수(투어) — 순회가 도는지 보이게
       const ri = nextRoom(p, now);
-      if (ri !== nav.roomTarget) { nav.roomTarget = ri; nav.reachMin = Infinity; nav.reachT = now;
+      if (ri !== nav.roomTarget) { nav.roomTarget = ri; nav.reachMin = Infinity; nav.reachT = now; nav.reachMode = null;
         nav.path = null; nav.goalTok = null; if (ri >= 0 && A.cf) A.cf.targets++; }
       let gx, gy, tok;
       if (ri >= 0) { const r = nav.rooms[ri]; gx = r.x + r.w / 2; gy = r.y + r.h / 2; tok = 'room' + ri; }
@@ -309,8 +311,22 @@ const AUTO = `(SPEC => {
       // 방 포기(진척 기반) — «가까워지는 중»이면 안 버린다(긴 복도도 끝까지 간다). 목표 방 중심까지의 최소
       //   도달거리가 4s 동안 조금도 안 줄고 아직 멀면(진짜 막힘) 잠시 접고 다음 방. 시간 기반은 긴 복도를
       //   도착 전에 잘라 «많이 걷는데 방은 못 드는»(㉠ 재현) 병을 만들었다 — 그래서 진척으로 판정한다.
+      // ★ V-227 — 진척은 «길 위 남은 거리»로 잰다. 옛 자는 «목표 중심까지의 직선거리»였는데, 굽은
+      //   복도에서는 제대로 걸어가는 중에도 직선거리가 4초 넘게 안 줄어든다(옆으로·뒤로 도는 구간).
+      //   그래서 깊은 층일수록(복도가 길고 굽음) 멀쩡한 접근이 계속 잘려 방을 못 들었다 —
+      //   층1 거리/방 1051 대 층5 8732, 목표를 17번 갈아타고 방은 2개. 되돌림: NAV_PATHPROG=0.
       if (ri >= 0) {
-        const rc = Math.hypot(gx - p.x, gy - p.y);
+        let rc = Math.hypot(gx - p.x, gy - p.y), mode = 'line';
+        if (globalThis.__NAV_PATHPROG && nav.path && nav.goalTok === tok && nav.path.length) {
+          const i0 = Math.min(nav.wi, nav.path.length - 1);
+          let rem = Math.hypot(nav.path[i0].x - p.x, nav.path[i0].y - p.y);
+          for (let i = i0; i < nav.path.length - 1; i++)
+            rem += Math.hypot(nav.path[i + 1].x - nav.path[i].x, nav.path[i + 1].y - nav.path[i].y);
+          rc = rem; mode = 'path';   // 길이 있으면 그 길 위의 남은 거리가 진짜 진척이다
+        }
+        // 자가 «직선 → 길» 로 바뀌는 순간 값이 통째로 커진다(길 ≥ 직선). 눈금을 안 갈아 끼우면
+        //   최소값이 영원히 안 줄어 4초 뒤 무조건 포기한다 — 바뀔 때마다 다시 박는다.
+        if (mode !== nav.reachMode) { nav.reachMode = mode; nav.reachMin = Infinity; nav.reachT = now; }
         if (rc < nav.reachMin - 8) { nav.reachMin = rc; nav.reachT = now; }
         if (rc > 80 && now - nav.reachT > 4000) {
           nav.roomBlack.set(ri, now + 8000); nav.roomTarget = null; nav.path = null; nav.goalTok = null; A.reTarget++;
@@ -549,14 +565,21 @@ const V226B = process.env.V226B_ARMS === "1";
 //   V225_ARMS=1: 게임 손잡이를 전부 «현재 바이너리»로 고정하고 «자의 그래프 간선 규칙»만 뒤집는다
 //   — BEFORE = 옛 규칙(두 축 다 >2px 겹침 · 방을 조각냈다) · AFTER = 닿음+폭 ≥NAV_MINPASS.
 const V225 = process.env.V225_ARMS === "1";
-const before = V225
+//   V227_ARMS=1: 게임 손잡이·간선 규칙을 전부 «현재 바이너리»로 고정하고 «진척을 재는 자»만 뒤집는다
+//   — BEFORE = 옛 직선거리(굽은 복도에서 멀쩡한 접근을 잘랐다) · AFTER = 길 위 남은 거리.
+const V227 = process.env.V227_ARMS === "1";
+const before = V227
+  ? (NAV_PATHPROG = false, await runArm(`BEFORE (진척=옛 직선거리 · i-frame ${IFR}s)`, IFR, true, true))
+  : V225
   ? (NAV_LEGACY = true, await runArm(`BEFORE (NAV_LEGACY · 옛 간선 «두 축 다 >2px» · i-frame ${IFR}s)`, IFR, true, true))
   : V226B
   ? await runArm(`BEFORE (__V226B=false · 옛 «한 곡선» dmg=hp=1+층×0.35 · i-frame ${IFR}s)`, IFR, true, false)
   : V226
   ? await runArm(`BEFORE (__V226_GROW=false · 옛 «박은 빌드» · i-frame ${IFR}s)`, IFR, false, false)
   : await runArm("BEFORE (__V221=false · i-frame 끔)", 0, true, false);
-const after = V225
+const after = V227
+  ? (NAV_PATHPROG = true, await runArm(`AFTER (진척=길 위 남은 거리 · i-frame ${IFR}s)`, IFR, true, true))
+  : V225
   ? (NAV_LEGACY = false, await runArm(`AFTER (간선 «닿음 + 폭 ≥${NAV_MINPASS}» · i-frame ${IFR}s)`, IFR, true, true))
   : V226B
   ? await runArm(`AFTER (__V226B=true · dmg 곡선 1+층×0.14 · hp 곡선 그대로 · i-frame ${IFR}s)`, IFR, true, true)
@@ -566,7 +589,8 @@ const after = V225
 
 if (before && after) {
   log(`\n╔═══ 두 팔 (곱 16 고정 · BFS 걷기 · i-frame 손잡이만 뒤집음) ═══╗`);
-  log(V225 ? `  ★ V-225 팔: 게임 손잡이 전부 고정 · «자의 그래프 간선 규칙»만 뒤집었다(BEFORE=옛 >2px).`
+  log(V227 ? `  ★ V-227 팔: 게임 손잡이·간선 규칙 전부 고정 · «진척을 재는 자»만 뒤집었다(BEFORE=옛 직선거리).`
+    : V225 ? `  ★ V-225 팔: 게임 손잡이 전부 고정 · «자의 그래프 간선 규칙»만 뒤집었다(BEFORE=옛 >2px).`
     : V226B ? `  ★ V-226B 팔: 사람 성장·i-frame ${IFR}s 고정 · «적 dmg 곡선을 뗐는가»만 뒤집었다.`
     : V226 ? `  ★ V-226 팔: i-frame ${IFR}s 고정 · «사람이 자라는가»만 뒤집었다.` : `  ★ 헤드라인은 AFTER(i-frame 0.4s = 현재 바이너리) 한 값이다. BEFORE 는 참고.`);
   log(`  hp최저 10~60% 비율 : BEFORE ${before.bandPct}%  |  AFTER ${after.bandPct}%   [≥25%]`);
