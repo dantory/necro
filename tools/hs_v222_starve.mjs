@@ -23,9 +23,12 @@ const ARGOFF = (MODE === "ab" || MODE === "nav") ? 3 : 2;   // nav: __V222=true 
 const MAXFLOOR = +(process.argv[ARGOFF] || 5);
 const SEEDS = (process.argv[ARGOFF + 1] || "1,2,3,4,5").split(",").map((s) => +s);
 const VW = 1512, VH = 863;
-const FLOORCAP = 45;
+const FLOORCAP = 45, FLOORCAP_STEP = 5;   // ㉢ 깊은 층일수록 셀이 커지는데(205→374) 시간이 같아 덜 덮인다.
+//   층 깊이로 시간을 준다: 층1..5 = 45·50·55·60·65s(완주 ~275s · 규격 137~319s 안). 얕은 층은 옛 45s 그대로.
+const capFor = (f) => FLOORCAP + Math.max(0, f - 1) * FLOORCAP_STEP;
+const totalCap = Array.from({ length: MAXFLOOR }, (_, i) => capFor(i + 1)).reduce((a, b) => a + b, 0);
 const log = (...a) => process.stdout.write(a.join(" ") + "\n");
-setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (FLOORCAP * MAXFLOOR * SEEDS.length * (MODE === "ab" ? 2 : 1) + 1800) * 1000);
+setTimeout(() => { log("WATCHDOG"); process.exit(9); }, (totalCap * SEEDS.length * (MODE === "ab" ? 2 : 1) + 1800) * 1000);
 
 await ensureChrome({ log, force: true });
 const ver = await (await fetch(CDP + "/json/version")).json();
@@ -99,7 +102,8 @@ const AUTO = `(SPEC => {
   const nav = { floor: -1, rooms: null, nodes: [], adj: [], path: null, wi: 0,
     goalTok: null, lastPlan: 0, hist: [], black: new Map(), target: null, toured: new Set(),
     dwellStart: 0, targetStart: 0, roomSeen: new Set(),
-    roomTarget: null, roomBlack: new Map(), reachMin: Infinity, reachT: 0 };
+    roomTarget: null, roomBlack: new Map(), reachMin: Infinity, reachT: 0,
+    escapeUntil: 0, escapeDx: 0, escapeDy: 0, stuckStreak: 0, lastStuckT: 0 };
   // 두 사각형이 겹치면(맞닿으면) 겹침 구역의 중심을 돌려준다 — 그 점은 두 사각형 안이라 걸을 수 있다.
   function rectsMeet(a, b) {
     const ox0 = Math.max(a.x, b.x), ox1 = Math.min(a.x + a.w, b.x + b.w);
@@ -119,6 +123,7 @@ const AUTO = `(SPEC => {
     nav.path = null; nav.wi = 0; nav.goalTok = null; nav.black.clear(); nav.target = null;
     nav.toured.clear(); nav.dwellStart = 0; nav.roomSeen.clear();
     nav.roomTarget = null; nav.roomBlack.clear(); nav.reachMin = Infinity;
+    nav.escapeUntil = 0; nav.stuckStreak = 0; nav.lastStuckT = 0;
   }
   // 그 점이 든 사각형 인덱스 — 밖이면(끼임·모서리) 중심이 가장 가까운 사각형.
   function nodeAt(x, y) {
@@ -203,6 +208,18 @@ const AUTO = `(SPEC => {
     if (pick[0]) want.add(pick[0] > 0 ? 'd' : 'a');
     if (pick[1]) want.add(pick[1] > 0 ? 's' : 'w');
   }
+  // ── 낀 자리 탈출(㉡) ── 웨이포인트만 넘기면 벽에 박힌 봇은 안 풀린다(ⓑ 재현: net~0 인데 45s 내내 이동).
+  //   8방향으로 걸을 수 있는 길이를 재 «가장 트인 쪽»을 골라 잠깐 그리로만 민다 — 벽에서 물리적으로 떼어낸다.
+  const ESC_DIRS = [[1,0],[-1,0],[0,1],[0,-1],[0.7071,0.7071],[0.7071,-0.7071],[-0.7071,0.7071],[-0.7071,-0.7071]];
+  function clearRun(x, y, ux, uy) { const W = window.__walkable; if (!W) return 0;
+    let d = 0; for (let s = 24; s <= 260; s += 24) { if (W(x + ux * s, y + uy * s)) d = s; else break; } return d; }
+  //   트인 쪽 중에서도 «목표(웨이포인트) 쪽»을 고른다 — 안 그러면 넓은 스폰 방 «안쪽»으로 도로 밀려 좁은 출구를 못 뚫는다.
+  function bestEscape(p, gx, gy) { const tx = gx - p.x, ty = gy - p.y, tl = Math.hypot(tx, ty) || 1;
+    let bx = 0, by = 0, best = -1e9, ok = false;
+    for (const [ux, uy] of ESC_DIRS) { const d = clearRun(p.x, p.y, ux, uy); if (d < 48) continue;
+      const score = d + ((ux * tx + uy * ty) / tl) * 140;   // 트인 길이 + 목표 쪽 가산
+      if (score > best) { best = score; bx = ux; by = uy; ok = true; } }
+    return { ux: bx, uy: by, d: ok ? 1 : 0 }; }
 
   function tick() {
     const G = window.G, cam = window.cam;
@@ -236,7 +253,8 @@ const AUTO = `(SPEC => {
       const now = performance.now();
       // 지금 든 방을 «밟은 방»으로 기록(계기 V222ACC 와 같은 판정) — 목표 선택·완주 판정에 함께 쓴다.
       for (let i = 0; i < G.rooms.length; i++) { const r = G.rooms[i];
-        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { nav.roomSeen.add(i); break; } }
+        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) {
+          if (!nav.roomSeen.has(i)) { nav.roomSeen.add(i); A.toured++; } break; } }   // ㉠ 실제로 든 방 수(투어) — 순회가 도는지 보이게
       const ri = nextRoom(p, now);
       if (ri !== nav.roomTarget) { nav.roomTarget = ri; nav.reachMin = Infinity; nav.reachT = now;
         nav.path = null; nav.goalTok = null; if (ri >= 0 && A.cf) A.cf.targets++; }
@@ -266,10 +284,26 @@ const AUTO = `(SPEC => {
       const h0 = nav.hist[0];
       if (nav.hist.length > 4 && now - h0.t > 1100 && Math.hypot(p.x - h0.x, p.y - h0.y) < 24) {
         A.stuckSkips++;
-        if (nav.path && nav.wi < nav.path.length - 1) nav.wi++; else { nav.path = null; nav.goalTok = null; }
+        nav.stuckStreak = (now - nav.lastStuckT < 2500) ? nav.stuckStreak + 1 : 1;
+        nav.lastStuckT = now;
+        if (nav.stuckStreak >= 2) {   // 같은 자리에서 두 번 이상 끼면 «탈출»한다 — 웨이포인트만 넘기지 않는다.
+          const e = bestEscape(p, w.x, w.y);
+          if (e.d) { nav.escapeDx = e.ux; nav.escapeDy = e.uy; nav.escapeUntil = now + 550; }
+          if (ri >= 0) nav.roomBlack.set(ri, now + 12000);   // 못 가는 방은 잠시 접고 다른 방으로
+          nav.roomTarget = null; nav.path = null; nav.goalTok = null; A.reTarget++;
+          nav.stuckStreak = 0;
+        } else if (nav.path && nav.wi < nav.path.length - 1) nav.wi++;
+        else { nav.path = null; nav.goalTok = null; }
         nav.hist.length = 0;
       }
-      walkStep(want, w.x, w.y, p);   // 벽 인식 조향으로 웨이포인트를 향해 간다
+      if (now < nav.escapeUntil) {   // 탈출 버스트 — 웨이포인트 무시, 트인 쪽으로만 민다(벽에서 떼어낸다)
+        if (nav.escapeDx > 0.3) want.add('d'); else if (nav.escapeDx < -0.3) want.add('a');
+        if (nav.escapeDy > 0.3) want.add('s'); else if (nav.escapeDy < -0.3) want.add('w');
+      } else if (Math.hypot(w.x - p.x, w.y - p.y) < 90) {
+        stepToward(want, w.x, w.y, p);   // 문 코앞 — 웨이포인트 중심(반드시 walkable)을 곧장 겨눠 통과. walkStep 은 off-axis 면 문을 지나쳐 미끄러진다.
+      } else {
+        walkStep(want, w.x, w.y, p);   // 멀리선 벽 인식 조향으로 웨이포인트를 향해 간다
+      }
     }
 
     if (A.cf) { if (nav.dwellStart) A.cf.dwellMs += A.dt; else if (want.size) A.cf.moveMs += A.dt; else A.cf.idleMs += A.dt; }
@@ -374,13 +408,13 @@ async function runOne(seed, v222) {
     if (s.projOut > 0) projOutHits++;
     if (s.pOut > 0) pOutHits++;
     if (s.floor !== curFloor) { curFloor = s.floor; floorStart = Date.now(); if (curFloor > MAXFLOOR) break; }
-    if (Date.now() - floorStart > FLOORCAP * 1000) {
+    if (Date.now() - floorStart > capFor(curFloor) * 1000) {
       await ev(`(() => { const p = G.player; p.x = G.stairs.x; p.y = G.stairs.y; p._f = false;
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', bubbles: true }));
         setTimeout(() => document.dispatchEvent(new KeyboardEvent('keyup', { key: 'f', bubbles: true })), 60); })()`);
       await sleep(200);
     }
-    if (Date.now() - startAll > FLOORCAP * (MAXFLOOR + 1) * 1000) break;
+    if (Date.now() - startAll > (totalCap + FLOORCAP) * 1000) break;
   }
 
   await ev(`window.__v222flush()`);
