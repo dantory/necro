@@ -57,6 +57,30 @@ export const UNIQUES = [
     note: "뼈 창이 두 갈래로 갈라진다", lore: "분노가 창끝을 둘로 쪼갠다." },
 ];
 
+// ── V-241 — 유니크(규칙형). 「수가 커지는 옵션」이 아니라 «노는 법을 바꾸는 규칙» 넷.
+//   주인(보스) 처치·깊은 층 상자에서 낮은 확률로만 나온다. 옛 물건과 눈에 갈리게 고유 색(보라)·「유니크」.
+//   되돌림: globalThis.__UNIQUE===false → rollMythic 이 늘 null → 아무 데서도 안 나온다(옛 판과 동일).
+//   ★ 규칙은 main.js 가 p.uniques.has(key) 로 편다(옛 유니크와 같은 경로) — 여기선 이름·규칙 글만 든다.
+export const MYTHIC_RARITY = { key: "mythic", name: "유니크", color: "#c774ff" };
+export const MYTHIC = [
+  { name: "쌍생의 뼈지팡이", slot: "weapon", key: "twinRaise", mythic: true,
+    note: "해골을 일으키면 둘이 함께 선다", lore: "하나의 주문에 두 넋이 답한다." },
+  { name: "골수를 마시는 그릇", slot: "amulet", key: "corpseMana", mythic: true,
+    note: "적이 스러지면 마나가 스민다", lore: "죽음마다 한 모금씩, 잔은 마르지 않는다." },
+  { name: "부서지는 유해의 투구", slot: "helm", key: "boneBurst", mythic: true,
+    note: "소환수가 스러질 때 뼈 파편이 터진다", lore: "죽어서도 곁의 적을 문다." },
+  { name: "피의 계약 인장", slot: "ring", key: "bloodCast", mythic: true,
+    note: "마나가 모자라면 피로 시전한다", lore: "값은 늘 치러진다 — 마나로든 피로든." },
+];
+
+// 유니크 하나를 굴린다(옵션은 1~2 로 적게 — 규칙이 물건의 값이지 숫자가 아니다).
+export function rollMythic(floor) {
+  if (globalThis.__UNIQUE === false) return null;
+  const u = MYTHIC[(Math.random() * MYTHIC.length) | 0];
+  const n = 1 + ((Math.random() * 2) | 0);
+  return { name: u.name, slot: u.slot, rarity: MYTHIC_RARITY, unique: u, mythic: true, affixes: rollAffixes(n, floor) };
+}
+
 function pick(a) { return a[(Math.random() * a.length) | 0]; }
 
 function rollRarity(floor, lucky) {

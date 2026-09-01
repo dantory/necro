@@ -18070,7 +18070,12 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 되돌림 손잡이: `__GHOUL=false` · `__GOLEMKIND=false` · `__LABELFOLD=false`.
   - 회귀는 **있는 자로만**(`hs_v207_walk` · `hs_v219_foeshot`) · **새 자 파일 금지**(09-01 23:07 지시).
 
-- [ ] **V-241 — 유니크(규칙형) · 일지(도전 과제) · V-240 컷 흠 둘** (착수 2026-09-02)
+- [x] **V-241 — 유니크(규칙형) · 일지(도전 과제) · V-240 컷 흠 둘** (착수 2026-09-02 · 닫음 2026-09-02)
+  - 결과: ① 규칙형 유니크 넷(`__UNIQUE`·보라 #c774ff·「유니크·규칙」·주인 35%+깊은상자(≥8층)15%): 쌍생의 뼈지팡이(twinRaise·해골 둘) · 골수를 마시는 그릇(corpseMana·적 처치당 마나 +6) · 부서지는 유해의 투구(boneBurst·소환수 사망 시 반경130 파편 (30+8·층)·소환수배수) · 피의 계약 인장(bloodCast·마나 모자라면 피로 시전 1마나=피2). ② 일지(`__JOURNAL`·새 키 **L**) 도전 10개, 달성 시 영구 보상(자리+1·금·소환수%) — localStorage `necro_journal_v1`, recalc 끝에서 얹어 회차·죽음·새로고침 넘어 남음. ③ 막대 clamp(hp/mp/xp 0~100%) · 서 있는 해골 소품(bones2) 그리기만 ×0.78(88~104→69~81≈사람75)·발자국·RNG 불변.
+  - 판정(규칙 넷 on/off 숫자): twinRaise 한 번 일으켜 off=1·**on=2** / bloodCast 마나0 off 시전실패(ghoul+0)·**on hp −50·ghoul+1·mana0** / boneBurst 곁 적 피해 off=0·**on=103** / corpseMana 적 처치 뒤 마나 off=0·**on=+6** — 넷 다 «규칙»(%증가 아님) ✅.
+  - 되돌림 실측: `__UNIQUE=false __JOURNAL=false` → genFloor 지문 F4 **2280763142**·F30 **2526265781** = V-239/240 기록과 동일(byte-동일). bones2 는 표(PROP_H) 그대로 두고 그리기만 줄여 scatter RNG 안 흔듦(첫 시도로 F30 어긋난 것을 이 방식으로 고침).
+  - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820) · `hs_v219_foeshot` frame p95 **1.3ms**·오류 **0**·다 규격 안 ✅.
+  - 컷 **직접 열어 봄**: `tmp/hs_v241_{unique_drop,unique_tip,unique_a,unique_b,journal,journal_done,bar_clamp,prop_scale}.png` — 유니크 보라 라벨·툴팁 규칙 글·twin 3캐스트→해골6·마나0 피 시전·일지 8/10 ✔+보상·막대 3배값에도 패널 안·해골 소품 사람 키. 콘솔 오류 0. 만진 곳 hs/(loot.js·main.js·map.js·index.html·hud.css)·새 자 파일 없음(베이커 `tmp/hs_v241_bake.mjs`·되돌림 `tmp/hs_v241_revert.mjs`).
     V-238~240 으로 한 바퀴(마을·회차·군세 갈래)가 닫혔는데, **물건은 아직 전부 «수가 커지는 옵션»**이다 —
     주워도 계산기만 바뀌고 노는 법이 안 바뀐다(PLAN ⑤). 되풀이할 «목표»도 없다(PLAN ⑦).
   - ① **유니크 — 판이 달라지는 물건**(`__UNIQUE`) — 규칙을 바꾸는 유니크 **넷**(%증가 금지).

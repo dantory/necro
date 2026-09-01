@@ -344,7 +344,7 @@ const LOW_PROP = new Set(["decor/bones.png", "decor/column2.png", "decor/urn.png
 const PROP_H = {
   "decor/pillar.png":  [170, 215],   // 서 있는 기둥 — 사람의 1.6~2.1배
   "decor/statue.png":  [132, 168],   // 후드 석상 — 사람보다 조금 큼
-  "decor/bones2.png":  [ 88, 104],   // 서 있는 해골 전신 — 사람 크기
+  "decor/bones2.png":  [ 88, 104],   // 서 있는 해골 전신 — 사람 크기(그리는 키는 main.js drawProps 가 BONES2_DRAW 로 줄인다·자리 잡는 발자국은 이 값 그대로라 RNG 불변)
   "decor/brazier.png": [ 76,  94],   // 화로 — 가슴 높이
   "decor/column2.png": [ 56,  78],   // 누워 부서진 기둥
   "decor/coffin.png":  [ 54,  72],   // 석관 — 무릎~허리

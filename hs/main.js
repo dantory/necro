@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor, genTown } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore, rollMythic, MYTHIC, MYTHIC_RARITY } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
@@ -111,6 +111,7 @@ const PLAYER_BASE = "char/necro";
 //   주변 잡몹(≈100px)·해골(96)보다 혼자 1.5 배라 「사람만 확대된」 그림이었다.
 //   104 로 내린다 — 해골보다 살짝 크되 무리 속에 같이 서는 크기.
 const PLAYER_H = 75;    // V-208 — 화면의 10%(레퍼런스와 같은 급)
+const BONES2_DRAW = 0.78;   // V-241 — 서 있는 해골 소품(bones2)을 그릴 때 키 배율. PROP_H 88~104 ×0.78 = 69~81 ≈ 사람 키 75(발자국·RNG 는 안 건드림)
 const SPEAR_LEN = PLAYER_H * 0.42;   // 뼈창 발사체 길이 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const SPEARHIT_H = PLAYER_H * 0.5;   // 뼈창 명중 임팩트 크기 — 시전자 키에 견줘 정한다(매직 픽셀 아님)
 const GOLD_W = PLAYER_H * 0.2;   // V-217 — 금 스프라이트 폭. 시전자 키에 견줘 정한다(높이는 에셋 비율에서)
@@ -206,6 +207,73 @@ const merchOn = () => globalThis.__MERCHANT !== false;
 // 되돌림: __ASCEND=false → 제단 상호작용·패널이 꺼진다(회차 안 생김 → ascMul 늘 1 → genFloor 지문 동일).
 const ASCEND_FLOOR = 20;
 const ascendOn = () => globalThis.__ASCEND !== false;
+
+// ── V-241 유니크(규칙형) · 일지(도전 과제) ─────────────────────────────────────
+// 되돌림: __UNIQUE=false → rollMythic 이 null(안 떨어짐) · uniques.has(key) 는 늘 false → 규칙 안 켜짐.
+//         __JOURNAL=false → 목표 안 세고 보상 안 얹고 L 판 안 열림. 둘 다 genFloor 는 안 건드림.
+const uniqueOn = () => globalThis.__UNIQUE !== false;
+const journalOn = () => globalThis.__JOURNAL !== false;
+const MYTHIC_BOSS_CHANCE = 0.35, MYTHIC_CHEST_CHANCE = 0.15, MYTHIC_CHEST_FLOOR = 8;
+const CORPSE_MANA = 6;           // corpseMana — 적 처치당 스미는 마나
+const BONEBURST_R = 130;         // boneBurst — 소환수 사망 파편 반경
+const BLOOD_PER_MANA = 2;        // bloodCast — 모자란 마나 1당 피 2
+
+// 일지 상태는 판·회차·죽음·새로고침을 넘어 남는다(localStorage). 저장은 도전 진행뿐 — genFloor RNG 는 안 건드림.
+const JKEY = "necro_journal_v1";
+function loadJournal() {
+  try { const j = JSON.parse(localStorage.getItem(JKEY)); if (j && j.done) return { done: j.done || {}, stats: j.stats || {}, slots: j.slots || 0, minionPct: j.minionPct || 0 }; } catch (e) {}
+  return { done: {}, stats: {}, slots: 0, minionPct: 0 };
+}
+let JOURNAL = loadJournal();
+function saveJournal() { try { localStorage.setItem(JKEY, JSON.stringify(JOURNAL)); } catch (e) {} }
+function journalStat(name, n = 1) { if (!journalOn()) return; JOURNAL.stats[name] = (JOURNAL.stats[name] || 0) + n; saveJournal(); }
+const deepestSoFar = () => Math.max(G.deepest || 0, G.floor || 0);
+const GOALS = [
+  { id: "f5", name: "5층에 내려서다", val: deepestSoFar, need: 5, rew: { gold: 200 } },
+  { id: "f10", name: "10층에 내려서다", val: deepestSoFar, need: 10, rew: { slot: 1 } },
+  { id: "f20", name: "20층에 내려서다", val: deepestSoFar, need: 20, rew: { slot: 1 } },
+  { id: "k200", name: "200 처치", val: () => G.kills, need: 200, rew: { gold: 400 } },
+  { id: "e25", name: "엘리트 25 처치", val: () => JOURNAL.stats.elite || 0, need: 25, rew: { minion: 10 } },
+  { id: "asc1", name: "승천 1회", val: () => G.ascension || 0, need: 1, rew: { slot: 1 } },
+  { id: "gh20", name: "구울 20 소환", val: () => JOURNAL.stats.ghoul || 0, need: 20, rew: { minion: 10 } },
+  { id: "go5", name: "뼈 골렘 5 소환", val: () => JOURNAL.stats.golem || 0, need: 5, rew: { gold: 400 } },
+  { id: "uniq", name: "유니크 하나 줍다", val: () => JOURNAL.stats.mythic || 0, need: 1, rew: { minion: 10 } },
+  { id: "gold9", name: "금 9000 모으다", val: () => G.gold, need: 9000, rew: { slot: 1 } },
+];
+function rewText(r) { return r.slot ? `자리 +${r.slot}` : r.minion ? `소환수 +${r.minion}%` : `금 +${r.gold}`; }
+function applyReward(r) {
+  if (r.slot) JOURNAL.slots += r.slot;
+  if (r.minion) JOURNAL.minionPct += r.minion;
+  if (r.gold) G.gold += r.gold;
+  recalc();
+}
+function journalCheck() {
+  if (!journalOn()) return;
+  for (const g of GOALS) {
+    if (JOURNAL.done[g.id]) continue;
+    if (g.val() >= g.need) {
+      JOURNAL.done[g.id] = true; applyReward(g.rew); saveJournal();
+      floatNote(`일지 달성 — ${g.name}  (${rewText(g.rew)})`, "#e8cf52", 2.4, { sz: 13 });
+      flash = Math.max(flash, 0.18); flashColor = "232,207,82";
+    }
+  }
+}
+
+// 마나 값 치르기 — bloodCast 유니크면 모자란 만큼 피로 낸다(값은 늘 치러진다). 없으면 옛대로 마나만.
+function canPay(cost) {
+  const p = G.player;
+  if (p.mana >= cost) return true;
+  return p.uniques.has("bloodCast") && p.hp > (cost - p.mana) * BLOOD_PER_MANA + 1;
+}
+function payMana(cost) {
+  const p = G.player;
+  if (p.mana >= cost) { p.mana -= cost; return; }
+  if (p.uniques.has("bloodCast")) {
+    const hpCost = (cost - p.mana) * BLOOD_PER_MANA;
+    p.mana = 0; p.hp -= hpCost; p.hurt = Math.max(p.hurt || 0, 0.1);
+    for (let i = 0; i < 6; i++) burst(p.x, p.y - 40, "#c0303a", 100);
+  } else { p.mana = Math.max(0, p.mana - cost); }
+}
 const ASC_BUFF = {
   dmg:    { name: "핏빛 각인", desc: "피해 +25%", col: "#e06b4a" },
   minion: { name: "뼈 군세",  desc: "소환 자리 +1 · 소환수 피해 +20%", col: "#6fd0a8" },
@@ -556,6 +624,22 @@ function start(floor, carry, town) {
     return en.length;
   };
   window.__forceTaunt = () => { for (const s of G.minions) if (s.golem) { s.tauntActive = GOLEM_TAUNT_DUR; s.tauntCd = GOLEM_TAUNT_CD; } };
+  window.__mythicItem = (key, n = 2) => { const u = MYTHIC.find((m) => m.key === key) || MYTHIC[0]; return { name: u.name, slot: u.slot, rarity: MYTHIC_RARITY, unique: u, mythic: true, affixes: rollAffixes(n, G.floor) }; };
+  window.__giveMythic = (key) => { const it = window.__mythicItem(key, 1); G.player.equipped[it.slot] = it; recalc(); return [...G.player.uniques]; };
+  window.__dropMythic = (dx = 40) => { const it = rollMythic(G.floor); dropItemAt(G.player.x + dx, G.player.y, it); return it ? it.name : null; };
+  window.__seedCorpses = (n = 8) => { const p = G.player; G.corpses = []; for (let i = 0; i < n; i++) G.corpses.push({ x: p.x - 120 + (i % 6) * 44, y: p.y - 40 + Math.floor(i / 6) * 40, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 }); return G.corpses.length; };
+  window.__raiseOnce = () => { const b = G.minions.length; raiseSkeleton(); return G.minions.length - b; };
+  window.__journalReset = () => { JOURNAL = { done: {}, stats: {}, slots: 0, minionPct: 0 }; saveJournal(); recalc(); };
+  window.__journalState = () => ({ done: Object.keys(JOURNAL.done), slots: JOURNAL.slots, minionPct: JOURNAL.minionPct, stats: JOURNAL.stats });
+  window.__journalOpen = () => { if (!journalPanelOpen) toggleJournal(); else renderJournal(); };
+  window.__journalClose = () => { if (journalPanelOpen) toggleJournal(); };
+  window.__journalCheck = () => { journalCheck(); return window.__journalState(); };
+  window.__journalSetStat = (k, v) => { JOURNAL.stats[k] = v; };
+  window.__updateHUD = () => updateHUD();
+  window.__raiseGhoul = () => { const b = G.minions.filter((m) => m.ghoul).length; raiseGhoul(); return G.minions.filter((m) => m.ghoul).length - b; };
+  window.__killMinion = (i = 0) => { const s = G.minions[i]; if (s) killMinion(s); return G.minions.length; };
+  window.__killFoe = () => { for (const pk of G.packs) for (const m of pk.enemies) if (m.alive) { killEnemy(m); return true; } return false; };
+  window.__pushProp = (img, dx = 90, dy = 0, h) => { const p = G.player; (G.props || (G.props = [])).push({ x: p.x + dx, y: p.y + dy, img, h: h || 74 }); return G.props.length; };
   window.__kindProfile = (fl) => {
     const base = 200 + fl * 40, bd = 34 + fl * 10;
     const prof = (T) => ({ hp: Math.round(base * T.hpMul), dmg: Math.round(bd * T.dmgMul), atkCd: +(0.6 * T.atkMul).toFixed(2), dps: Math.round(bd * T.dmgMul / (0.6 * T.atkMul)), slot: T.slot });
@@ -740,6 +824,7 @@ function handleSkills() {
   if (keys.has("y") && !p._y) { p._y = true; if (ascendOn()) tryAscend(); } if (!keys.has("y")) p._y = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
+  if (keys.has("l") && !p._l) { p._l = true; if (journalOn()) toggleJournal(); } if (!keys.has("l")) p._l = false;
   if (G.dead && keys.has("r")) start(1, null);
 }
 
@@ -907,6 +992,22 @@ function raiseSkeleton() {
   const col = tier === 0 ? "#9fe6c8" : tier === 1 ? "#bfe08a" : "#e0b060";
   for (let i = 0; i < 12 + tier * 6; i++) burst(c.x, c.y - 20, col, 120 + tier * 50);
   if (T.shake) cam.shake = Math.max(cam.shake, T.shake);
+  if (p.uniques.has("twinRaise")) raiseTwin(tier, T, col);
+}
+
+// twinRaise 유니크 — 곁의 다른 시체 하나에서 쌍둥이 해골을 함께 세운다(자리·시체가 있을 때만).
+function raiseTwin(tier, T, col) {
+  const p = G.player;
+  if (slotsUsed() + T.slot > slotCap()) return;
+  const ci = nearestCorpse(p.x, p.y, 300);
+  if (ci < 0) return;
+  const c = G.corpses[ci]; c.used = true;
+  const hp = (200 + G.floor * 40) * T.hpMul * p.minionHpMul;
+  G.minions.push({ base: SKEL_BASE, x: c.x, y: c.y, hp, maxhp: hp,
+    dmg: (34 + G.floor * 10) * T.dmgMul * p.minionMul, spd: 250 * T.spdMul, atkCd: 0.6 * T.atkMul,
+    r: 15 * T.scale, h: SKEL_H * T.scale, tier, slot: T.slot, cleave: T.cleave, ring: T.ring, ringCol: T.ringCol, shake: T.shake,
+    filt: T.filt, dx: 0, dy: 1, anim: 0, state: "idle", atk: 0, target: -1, feed: 0 });
+  for (let i = 0; i < 10; i++) burst(c.x, c.y - 20, col, 120 + tier * 50);
 }
 
 // ── V-186 성장 자료 (HS_STYLE ⑤) ────────────────────────────────────────────
@@ -984,11 +1085,11 @@ function spendPoint(kind) {
 
 function corpseNova() {
   const p = G.player;
-  if (p.mana < 30) return;
+  if (!canPay(30)) return;
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   const ci = nearestCorpse(tx, ty, 200);
   if (ci < 0) return;
-  p.mana -= 30;
+  payMana(30);
   const c = G.corpses[ci]; c.used = true;
   const times = p.uniques.has("doubleNova") ? 2 : 1;
   for (let t = 0; t < times; t++) explode(c.x, c.y, 18 * p.dmgMul * p.novaDmgMul * curseF(), 150 * p.novaMul, t * 0.09);
@@ -1019,7 +1120,7 @@ function forEachEnemy(fn) {
 
 function corpseWall() {
   const p = G.player;
-  if (p.mana < 25) return;
+  if (!canPay(25)) return;
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   const eaten = [];
   for (let n = 0; n < 3; n++) {
@@ -1028,7 +1129,7 @@ function corpseWall() {
     G.corpses[ci].used = true; eaten.push(ci);
   }
   if (!eaten.length) { floatNote("가까운 시체가 없다", "#c8a04a", 1.0); return; }
-  p.mana -= 25;
+  payMana(25);
   const cnt = eaten.length;
   const dx = tx - p.x, dy = ty - p.y, dl = Math.hypot(dx, dy) || 1;
   const nx = -dy / dl, ny = dx / dl;
@@ -1044,7 +1145,7 @@ function corpseWall() {
 function raiseGolem() {
   const p = G.player;
   if (slotsUsed() + GOLEM.slot > slotCap()) { floatNote(`자리가 부족하다 (뼈 골렘 ${GOLEM.slot}칸)`, "#e0663c", 1.2); return; }
-  if (p.mana < GOLEM.cost) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
+  if (!canPay(GOLEM.cost)) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
   const eaten = [];
   let cx = 0, cy = 0;
   for (let n = 0; n < GOLEM.need; n++) {
@@ -1057,7 +1158,7 @@ function raiseGolem() {
     floatNote(`시체가 모자라다 (${GOLEM.need}구 필요·${eaten.length}구)`, "#c8a04a", 1.2);
     return;
   }
-  p.mana -= GOLEM.cost;
+  payMana(GOLEM.cost); journalStat("golem");
   cx /= GOLEM.need; cy /= GOLEM.need;
   const hp = (200 + G.floor * 40) * GOLEM.hpMul * p.minionHpMul;
   G.minions.push({ base: SKEL_BASE, x: cx, y: cy, hp, maxhp: hp,
@@ -1073,7 +1174,7 @@ function raiseGolem() {
 function raiseGhoul() {
   const p = G.player;
   if (slotsUsed() + GHOUL.slot > slotCap()) { floatNote(`자리가 부족하다 (구울 ${GHOUL.slot}칸)`, "#e0663c", 1.2); return; }
-  if (p.mana < GHOUL.cost) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
+  if (!canPay(GHOUL.cost)) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
   const eaten = [];
   let cx = 0, cy = 0;
   for (let n = 0; n < GHOUL.need; n++) {
@@ -1086,7 +1187,7 @@ function raiseGhoul() {
     floatNote(`시체가 모자라다 (${GHOUL.need}구 필요·${eaten.length}구)`, "#c8a04a", 1.2);
     return;
   }
-  p.mana -= GHOUL.cost;
+  payMana(GHOUL.cost); journalStat("ghoul");
   cx /= GHOUL.need; cy /= GHOUL.need;
   const hp = (200 + G.floor * 40) * GHOUL.hpMul * p.minionHpMul;
   G.minions.push({ base: SKEL_BASE, x: cx, y: cy, hp, maxhp: hp,
@@ -1146,7 +1247,7 @@ function armyCounts() {
 
 function corpseFeed() {
   const p = G.player;
-  if (p.mana < 20) return;
+  if (!canPay(20)) return;
   let best = null, bd = Infinity;
   for (const s of G.minions) { const d = (s.x - p.x) ** 2 + (s.y - p.y) ** 2; if (d < bd) { bd = d; best = s; } }
   if (!best) { floatNote("소환수가 없다", "#c8a04a", 1.0); return; }
@@ -1154,7 +1255,7 @@ function corpseFeed() {
   const ci = nearestCorpse(best.x, best.y, 200);
   if (ci < 0) { floatNote("가까운 시체가 없다", "#c8a04a", 1.0); return; }
   G.corpses[ci].used = true;
-  p.mana -= 20;
+  payMana(20);
   const f = (best.feed = (best.feed || 0) + 1);
   best.dmg *= (1 + 0.20 * f) / (1 + 0.20 * (f - 1));
   best.maxhp *= (1 + 0.15 * f) / (1 + 0.15 * (f - 1));
@@ -1671,7 +1772,19 @@ function stepMinions(dt) {
   separateMinions();
 }
 
-function killMinion(s) { const i = G.minions.indexOf(s); if (i >= 0) G.minions.splice(i, 1); }
+function killMinion(s) {
+  const i = G.minions.indexOf(s); if (i >= 0) G.minions.splice(i, 1);
+  if (G.player.uniques.has("boneBurst")) boneShards(s);
+}
+// boneBurst 유니크 — 소환수가 스러진 자리에서 뼈 파편이 터져 반경 안 적을 문다(피해는 소환수 배수를 탄다).
+function boneShards(s) {
+  const dmg = (30 + G.floor * 8) * G.player.minionMul;
+  forEachEnemy((m) => {
+    const dx = m.x - s.x, dy = m.y - s.y;
+    if (dx * dx + dy * dy < BONEBURST_R * BONEBURST_R) hurtEnemy(m, dmg, dx, dy);
+  });
+  for (let k = 0; k < 14; k++) burst(s.x, s.y - 20, "#e8ecf0", 180);
+}
 
 // ★ V-206 ㉡ — 발사체가 벽에 맞아 죽을 때 남기는 작은 튐. 그냥 사라지면 「먹혔다」로 보인다.
 //   새 배열 없이 기존 파티클(burst→G.parts)만 재활용한다. 색은 부르는 쪽이 준다(창=파랑·화살=주황).
@@ -1728,6 +1841,8 @@ function xpForLevel(n) { return 250 * n * (n - 1); }
 function killEnemy(m) {
   m.alive = false;
   G.kills++; METRIC.kills++;
+  if (m.elite) journalStat("elite");
+  if (G.player.uniques.has("corpseMana")) G.player.mana = Math.min(G.player.maxmana, G.player.mana + CORPSE_MANA);
   // V-190 ㉡ — 처치 XP 에 «층 깊이» 보람. B1 은 +0(초반 곡선을 그대로 두려), 상한 10층까지만 완만히 증가.
   const depth = Math.min(G.floor - 1, 10);
   G.xp += (m.elite ? 40 : 10) + depth * (m.elite ? 8 : 2);
@@ -1770,6 +1885,7 @@ function dropLoot(m) {
     const it = bossUnique(m.bossKind, G.floor);
     const a = Math.random() * 6.283, s = 40 + Math.random() * 60;
     G.items.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
+    if (uniqueOn() && Math.random() < MYTHIC_BOSS_CHANCE) dropItemAt(m.x, m.y, rollMythic(G.floor));   // V-241 — 주인은 규칙형 유니크도 낮은 확률로
   }
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
@@ -1789,6 +1905,12 @@ function dropLoot(m) {
     dropPotion(m.x, m.y, Math.random() < 0.5 ? "hp" : "mp");
   if (globalThis.__GEM !== false && Math.random() < (m.elite ? GEM_DROP_ELITE : GEM_DROP))
     dropGem(m.x, m.y, G.floor);
+}
+
+function dropItemAt(x, y, it) {
+  if (!it) return;
+  const a = Math.random() * 6.283, s = 40 + Math.random() * 60;
+  G.items.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
 }
 
 function dropBuild(x, y) {
@@ -1856,6 +1978,10 @@ function recalc() {
   if (ab.dmg) { const m = 1 + 0.25 * ab.dmg; p.dmgMul *= m; p.minionMul *= m; }
   if (ab.minion) { p.slots += ab.minion; p.minionMul *= 1 + 0.20 * ab.minion; }
   if (ab.gold) p.goldMul *= 1 + 0.35 * ab.gold;
+  if (journalOn()) {   // V-241 — 일지 도전 보상(영구 자리·소환수%)도 이 문 끝에서 얹는다(회차·죽음 넘어 남음)
+    p.slots += JOURNAL.slots;
+    if (JOURNAL.minionPct) p.minionMul *= 1 + JOURNAL.minionPct / 100;
+  }
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
 }
@@ -1895,6 +2021,7 @@ function pickItem(it) {
   G.bagFullAt = -1;   // 하나라도 들어갔다 = 자리가 생겼다, 다음 꽉참은 다시 알린다
   it.got = true;
   G.picks++;
+  if (gear.mythic) journalStat("mythic");
   G.pickLog.unshift({ name: gear.name, color: gear.rarity.color, t: 3 });
   if (G.pickLog.length > 6) G.pickLog.pop();
   const wasEmpty = p.bag.length === 0;
@@ -2739,7 +2866,8 @@ function drawProps() {
   for (const pr of vis) {
     const im = tex(pr.img);
     if (!im || !im.width) continue;
-    const w = pr.h * (im.width / im.height);
+    const dh = pr.img === "decor/bones2.png" ? pr.h * BONES2_DRAW : pr.h;   // V-241 — 서 있는 해골 소품은 그리기만 줄인다(발자국·RNG 는 map.js PROP_H 그대로)
+    const w = dh * (im.width / im.height);
     const fo = spriteFoot(im, pr.img);
     // ★★ V-162 — **방법을 뒤집었다.** V-158·V-160 은 그림을 파일 그대로 놓고 «그림자를
     //   그림에 맞춰 옮기는» 쪽이었다 — 그래서 잰 값이 조금만 어긋나도 그림자가 따로 논다
@@ -2747,13 +2875,13 @@ function drawProps() {
     //   월드 바닥선(pr.y)에 맞춰 놓고**, 그림자는 그 자리(pr.x, pr.y)에 그린다.
     //   그러면 그림자는 어긋날 자리가 없다 — 정의상 발밑이다. ★ [[seam-not-values]]
     const dx = pr.x - (fo ? fo.cx * w : w / 2);          // 보이는 가로중심 → pr.x
-    const dy = pr.y - (fo ? fo.b * pr.h : pr.h);         // 보이는 밑변     → pr.y
+    const dy = pr.y - (fo ? fo.b * dh : dh);         // 보이는 밑변     → pr.y
     const rx = (fo ? fo.w * w : w) * 0.34;
     // ★ V-163 — 어두운 바닥 위에서 42% 검정은 **안 보인다**(항아리는 그림자가 없는 줄 알았다).
     //   진하게 하되 번지지 않게 — 안쪽은 짙고 가장자리는 사라지는 결로.
-    groundMark(pr.x, pr.y, rx, Math.max(4, Math.min(rx * 0.42, pr.h * 0.2)));
+    groundMark(pr.x, pr.y, rx, Math.max(4, Math.min(rx * 0.42, dh * 0.2)));
     ctx.globalAlpha = 1;
-    ctx.drawImage(im, dx, dy, w, pr.h);
+    ctx.drawImage(im, dx, dy, w, dh);
   }
 }
 
@@ -3425,6 +3553,7 @@ function openChest(ch) {
   const n = 3 + ((Math.random() * 4) | 0);
   for (let i = 0; i < n; i++) spawnItem(ch.x, ch.y - 6, Math.random() < 0.3);
   for (let i = 0; i < 8; i++) G.golds.push({ x: ch.x, y: ch.y, vx: (Math.random() * 2 - 1) * 90, vy: (Math.random() * 2 - 1) * 90, val: 8, t: 0 });
+  if (uniqueOn() && G.floor >= MYTHIC_CHEST_FLOOR && Math.random() < MYTHIC_CHEST_CHANCE) dropItemAt(ch.x, ch.y - 6, rollMythic(G.floor));   // V-241 — 깊은 층 상자에서 규칙형 유니크
   flash = Math.max(flash, 0.12); flashColor = "216,180,90";
 }
 
@@ -3629,9 +3758,9 @@ const SLOT_ORDER = ["weapon", "helm", "armor", "gloves", "boots", "ring", "amule
 function esc(s) { return ("" + s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
 function tooltipHTML(it, cmp) {
   if (it.build) return `<div class="tipname">${esc(it.name)}</div><div class="tipmod">즉시 적용 — 집으면 켜진다</div>`;
-  const nameClass = it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
-  const rows = [`<div class="tipname ${nameClass}">${esc(it.name)}</div>`];
-  rows.push(`<div class="tipsub">${it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
+  const nameClass = it.mythic ? "mythic" : it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
+  const rows = [`<div class="tipname ${nameClass}">${it.mythic ? "◆ " : ""}${esc(it.name)}</div>`];
+  rows.push(`<div class="tipsub">${it.mythic ? "유니크 · 규칙" : it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
   rows.push(`<div class="tiprule"></div>`);
   if (it.affixes && it.affixes.length) {
     const cmpMap = {};
@@ -3651,7 +3780,7 @@ function tooltipHTML(it, cmp) {
       rows.push(`<div class="tipaffix">${GEM_TYPES[g.type].label} +${g.aff.value}${GEM_TYPES[g.type].pct ? "%" : ""} <span class="tipgemn">(${GEM_GRADES[g.grade]} ${GEM_TYPES[g.type].name})</span></div>`);
   }
   if (it.unique) {
-    rows.push(`<div class="tipmod">${esc(it.unique.note)}</div>`);
+    rows.push(`<div class="tipmod ${it.mythic ? "tipmythic" : ""}">${esc(it.unique.note)}</div>`);
     rows.push(`<div class="tiprule"></div>`);
     rows.push(`<div class="tiplore">"${esc(it.unique.lore)}"</div>`);
   }
@@ -3692,6 +3821,29 @@ function toggleHelp() {
   helpOpen = !helpOpen;
   el("help").classList.toggle("on", helpOpen);
 }
+// ── V-241 일지 판(L) — #help 와 같은 창 결. 도전 과제와 진행·보상을 한눈에. ──
+let journalPanelOpen = false;
+function toggleJournal() {
+  journalPanelOpen = !journalPanelOpen;
+  el("journal").classList.toggle("on", journalPanelOpen);
+  if (journalPanelOpen) renderJournal();
+}
+function renderJournal() {
+  const done = GOALS.filter((g) => JOURNAL.done[g.id]).length;
+  let h = `<div class="helptitle">일지 — 도전 과제 ${done}/${GOALS.length}</div>`;
+  h += `<div class="jsub">보상은 판·회차·죽음을 넘어 남는다 (지금 자리 +${JOURNAL.slots} · 소환수 +${JOURNAL.minionPct}%)</div>`;
+  h += `<div class="jgrid">`;
+  for (const g of GOALS) {
+    const ok = !!JOURNAL.done[g.id];
+    const cur = Math.min(g.val(), g.need);
+    h += `<div class="jrow ${ok ? "jdone" : ""}"><span class="jmark">${ok ? "✔" : "◻"}</span>` +
+      `<span class="jname">${g.name}</span><span class="jprog">${ok ? "달성" : `${Math.floor(cur)}/${g.need}`}</span>` +
+      `<span class="jrew">${rewText(g.rew)}</span></div>`;
+  }
+  h += `</div><div class="jhint">L: 닫기</div>`;
+  el("journal").innerHTML = h;
+}
+
 // 되돌림: __HINTFOLD === false 면 옛 긴 한 줄 그대로(짧은 줄·H 판 안 켠다). 아니면 짧은 줄 + H 로 전체.
 function applyHintFold() {
   if (globalThis.__HINTFOLD === false) return;
@@ -4167,17 +4319,19 @@ function buildBelt() {
   }
 }
 function comma(n) { return ("" + Math.floor(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+const barPct = (v) => Math.max(0, Math.min(100, v));   // V-241 — 막대 폭은 0~100% 로 가둔다(값이 최대를 넘어도 패널 밖으로 안 샌다)
 function updateHUD() {
   const p = G.player;
-  el("hpbar").style.width = (100 * p.hp / p.maxhp) + "%";
+  if (journalOn()) journalCheck();
+  el("hpbar").style.width = barPct(100 * p.hp / p.maxhp) + "%";
   el("hptxt").textContent = `${Math.round(p.hp)} / ${p.maxhp}`;
-  el("mpbar").style.width = (100 * p.mana / p.maxmana) + "%";
+  el("mpbar").style.width = barPct(100 * p.mana / p.maxmana) + "%";
   el("mptxt").textContent = `${Math.round(p.mana)} / ${p.maxmana}`;
   el("lvl").textContent = p.level;
   el("gold").textContent = comma(G.gold);
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
   el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
-  el("xpbar").style.width = (100 * (G.xp - lvBase) / lvSpan) + "%";
+  el("xpbar").style.width = barPct(100 * (G.xp - lvBase) / lvSpan) + "%";
   el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`
     + (G.ascension ? ` · <b style="color:#d8b45a">승천 ${G.ascension}회</b>` : "");
   // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데

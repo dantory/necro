@@ -98,6 +98,18 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 .helpgrid>div{display:flex;align-items:baseline;gap:12px;padding:3px 6px;border-bottom:1px solid var(--edge2)}
 .helpgrid b{color:var(--gold);font-weight:400;min-width:118px;letter-spacing:.04em;font-size:14px}
 .helpgrid span{color:#c9bda0;font-size:13px;letter-spacing:.04em}
+.journalwin{min-width:440px}
+.jsub{text-align:center;color:#8a8072;font-size:12px;margin:-6px 0 12px}
+.jgrid{display:grid;grid-template-columns:1fr;gap:4px 0}
+.jrow{display:flex;align-items:baseline;gap:10px;padding:4px 6px;border-bottom:1px solid var(--edge2)}
+.jrow .jmark{color:#6a6258;width:16px}
+.jrow .jname{flex:1;color:#c9bda0;font-size:13px;letter-spacing:.04em}
+.jrow .jprog{color:#8a8072;font-size:12px;min-width:64px;text-align:right}
+.jrow .jrew{color:var(--gold);font-size:12px;min-width:92px;text-align:right}
+.jrow.jdone .jmark{color:#7fe6a0}
+.jrow.jdone .jname{color:#e8e0cc}
+.jrow.jdone .jrew{color:#7fe6a0}
+.jhint{text-align:center;color:#6a6258;font-size:12px;margin-top:12px}
 
 /* V-181: 착용 중 일곱 슬롯 한 줄 요약. 색은 JS 가 레어도로 칠한다(빈 칸은 아래 기본색). */
 .gearline{display:flex;gap:8px;font-size:12px;letter-spacing:.04em;
@@ -117,6 +129,8 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 .tipname{font-size:16px;text-transform:uppercase;letter-spacing:.12em;color:#e6e0d0;text-shadow:0 1px 0 #000}
 .tipname.rare{color:#e8cf52}
 .tipname.unique{color:#d8934a}
+.tipname.mythic{color:#c774ff;text-shadow:0 0 8px rgba(199,116,255,.6)}
+.tipmythic{color:#c774ff;font-size:13px}
 .tipsub{font-size:12px;color:#9c8f74;margin-bottom:3px}
 .tiprule{height:1px;background:var(--edge);margin:5px 2px;opacity:.8}
 .tipbase{font-size:13px;color:#e6e0d0}
