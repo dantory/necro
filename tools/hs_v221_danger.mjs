@@ -438,7 +438,7 @@ async function runOne(seed, ifr) {
     if (f.floor < 1 || f.floor > MAXFLOOR) continue;
     const sp = spat.find((x) => x.floor === f.floor) || {};
     const nt = navtl.find((x) => x.floor === f.floor) || {};
-    cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, sec: f.sec,
+    cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, maxhp: f.maxhp || 0, foeDmg: f.foeDmg || 0, sec: f.sec,
       dwellMs: nt.dwellMs || 0, moveMs: nt.moveMs || 0, idleMs: nt.idleMs || 0, targets: nt.targets || 0, ...sp });
   }
   const totSec = cells.reduce((a, c) => a + (c.sec || 0), 0);
@@ -456,7 +456,7 @@ async function runArm(name, ifr) {
     r.errs = errs.length; runs.push(r);
     for (const c of r.cells) {
       const starv = c.kills === 0 ? " ◀굶음" : "";
-      log(`  씨앗 ${r.seed} 층${c.floor}: ${c.sec}s · 처치 ${c.kills} · 맞음 ${c.hitN} · hp최저 ${c.hpMin}% · ${c.died ? "죽음" : "삼"} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}%${starv}`);
+      log(`  씨앗 ${r.seed} 층${c.floor}: ${c.sec}s · 처치 ${c.kills} · 맞음 ${c.hitN} · hp최저 ${c.hpMin}% · 사람maxhp ${c.maxhp} · 적dmg중앙 ${c.foeDmg} · ${c.died ? "죽음" : "삼"} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}%${starv}`);
     }
     const nv = r.nav || {};
     log(`    완주 ${r.totSec}s · frame p95 ${r.fp95}ms · 벽밖 ${r.pOutPct}% · 발사체벽밖 ${r.projOutPct}% · 오류 ${r.errs} · 길찾기[투어 ${nv.toured||0}·경로없음 ${nv.noPath||0}·직선폴백 ${nv.navFail||0}·끼임건너뜀 ${nv.stuckSkips||0}·팩재선택 ${nv.reTarget||0}]`);

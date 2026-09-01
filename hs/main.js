@@ -166,21 +166,34 @@ const METRIC = (window.__hsMetric = window.__hsMetric ||
 // 그래서 층 전환 프레임에 «정확히» 스냅샷을 박아, 결정성 비교가 표본 타이밍에 안 흔들리게 한다.
 const FLOORLOG = (window.__floorLog = []);
 let flFloor = 0, flKills0 = 0, flHit0 = 0, flDeath0 = 0, flG0 = 0, flHpMin = 100;
+// V-226 계기 — «깊이 곡선이 사람보다 가파른가»를 재려면 층마다 두 수가 같이 있어야 한다:
+//   사람 maxhp(그 층에서 본 최대) 와 적 dmg 중앙(층에 들어선 순간). 지표만 늘리고 게임 값은 안 건드린다.
+let flMaxhp = 0, flFoeDmg = 0;
+function foeDmgMedian() {
+  const ds = [];
+  for (const pk of (G && G.packs) || []) for (const m of pk.enemies) if (m.alive) ds.push(m.dmg);
+  if (!ds.length) return 0;
+  ds.sort((a, b) => a - b);
+  return Math.round(ds[ds.length >> 1]);
+}
 function floorLogTick() {
   if (!G || !G.player) return;
   if (G.floor !== flFloor) {
     if (flFloor > 0) FLOORLOG.push({ floor: flFloor, kills: METRIC.kills - flKills0,
       hitN: (METRIC.hitN || 0) - flHit0, died: ((METRIC.deaths || 0) - flDeath0) > 0 ? 1 : 0,
-      hpMin: flHpMin, sec: Math.round((gameTime - flG0) * 1000) / 1000 });
+      hpMin: flHpMin, maxhp: flMaxhp, foeDmg: flFoeDmg, sec: Math.round((gameTime - flG0) * 1000) / 1000 });
     flFloor = G.floor; flKills0 = METRIC.kills; flHit0 = METRIC.hitN || 0;
     flDeath0 = METRIC.deaths || 0; flG0 = gameTime; flHpMin = 100;
+    flMaxhp = Math.round(G.player.maxhp); flFoeDmg = foeDmgMedian();
   }
   const hpP = Math.round(100 * G.player.hp / G.player.maxhp);
   if (hpP < flHpMin) flHpMin = hpP;
+  if (G.player.maxhp > flMaxhp) flMaxhp = Math.round(G.player.maxhp);
+  if (!flFoeDmg) flFoeDmg = foeDmgMedian();
 }
 window.__floorLogReset = () => { FLOORLOG.length = 0; flFloor = (G && G.floor) || 0;
   flKills0 = METRIC.kills; flHit0 = METRIC.hitN || 0; flDeath0 = METRIC.deaths || 0;
-  flG0 = gameTime; flHpMin = 100; };
+  flG0 = gameTime; flHpMin = 100; flMaxhp = (G && G.player) ? Math.round(G.player.maxhp) : 0; flFoeDmg = foeDmgMedian(); };
 // 측정 시작점을 프레임에 안 매이게 — 부팅 동안 흐른 프레임 수만큼 RNG·배치가 달라져 씨앗을 고정해도
 // 두 판이 갈렸다. 자가 여기서 «갓 지은 1층»으로 되돌려 측정을 같은 상태에서 연다(RNG 는 자가 다시 심는다).
 window.__restart = (fl) => start(fl || 1, null);
