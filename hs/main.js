@@ -125,6 +125,14 @@ const SKEL_TIERS = [
   { key: "titan",  scale: 2.20, slot: 6, hpMul: 6.20, dmgMul: 4.30, atkMul: 1.45, spdMul: 0.74, cleave: 96, ring: 5.5, ringCol: "#8fd0ff", shake: 8, label: "뼈 거인",   filt: "brightness(0.82) saturate(1.8) sepia(0.5) hue-rotate(-18deg)" },
 ];
 const GOLEM = { need: 5, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6, spdMul: 0.6, atkMul: 1.5, cleave: 76, ring: 5.0, ringCol: "#8fd0ff", shake: 7, label: "뼈 골렘", filt: "brightness(0.8) saturate(1.6) sepia(0.5) hue-rotate(-16deg)" };
+// ── V-235 물약(소모품) · 벨트 1~4 ──────────────────────────────────────────
+// 두 종: 생명(붉은)·마나(푸른). 회복량은 최대치의 «비율»이라 층·레벨이 오르면 등급이 저절로 오른다
+//   (생명 maxhp×0.35 · 마나 maxmana×0.40, 즉효). 벨트 네 칸, 칸마다 한 종이 쌓인다(칸당 상한 9).
+//   드랍: 처치 시 낮은 확률(잡몹 0.09 · 정예 0.22). 제단(다 쓴 것 포함)에서 금으로도 산다(P·여러 번).
+//   되돌림 __POTION=false → 옛 판(1·2·3 소환 등급 · X 등급 해금 · 드랍/벨트 없음).
+const POTION = { hp: { frac: 0.35, col: "#d0362e", glow: "#ff6a5a", name: "생명 물약" },
+                 mp: { frac: 0.40, col: "#2f6ad0", glow: "#5aa0ff", name: "마나 물약" } };
+const POTION_DROP = 0.09, POTION_DROP_ELITE = 0.22, BELT_MAX = 9;
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
   "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png", "decor/stairs.png"];
@@ -340,13 +348,14 @@ function fresh(floor, carry) {
     dmgMul: 1, spearMul: 1, novaDmgMul: 1, minionMul: 1, minionHpMul: 1,
     atkCd: SPEAR_CD, goldMul: 1, novaMul: 1, dr: 0,
     altarHpMul: 1, altarSlots: 0,
+    belt: [null, null, null, null],
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
   return {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
-    spears: [], golds: [], items: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
+    spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
     hazards: [], bones: [], bossBanner: null,
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
@@ -364,6 +373,11 @@ function start(floor, carry) {
   window.__walkable = (x, y, r = PLAYER_R) => walkable(x, y, r);   // V-201 자가 «실제 문»으로 재게
   window.__blockers = () => G.blockProps.map((pr) => ({ x: pr.x, y: pr.y, r: propBlockR(pr) }));
   window.__buyAltar = buyAltar;   // V-234 컷용 — 「샀다」 상태를 실제 문으로 만든다(자가 아니다)
+  window.__giveBelt = (arr) => { for (let i = 0; i < 4; i++) G.player.belt[i] = arr[i] ? { kind: arr[i].kind, n: arr[i].n } : null; };
+  window.__spendAltar = (i) => { if (G.altars[i]) G.altars[i].used = true; };
+  window.__dropPotion = (kind, dx = 30) => dropPotion(G.player.x + dx, G.player.y, kind);
+  window.__drinkPotion = drinkPotion; window.__buyPotion = buyPotion;
+  window.__giveGear = () => { const q = G.player; for (const s of SLOT_ORDER) { const it = rollItem(G.floor, true); it.slot = s; q.equipped[s] = it; } recalc(); };
   const p = G.player;
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
@@ -521,10 +535,12 @@ function fireSpear(p, tx, ty) {
 function handleSkills() {
   const p = G.player;
   if (keys.has("q") && !p._q) { p._q = true; raiseSkeleton(); } if (!keys.has("q")) p._q = false;
-  for (let i = 0; i < 3; i++) {
+  const potionOn = globalThis.__POTION !== false;
+  for (let i = 0; i < (potionOn ? 4 : 3); i++) {
     const k = "" + (i + 1);
-    if (keys.has(k) && !p["_g" + k]) { p["_g" + k] = true; selectGrade(i); } if (!keys.has(k)) p["_g" + k] = false;
+    if (keys.has(k) && !p["_g" + k]) { p["_g" + k] = true; if (potionOn) drinkPotion(i); else selectGrade(i); } if (!keys.has(k)) p["_g" + k] = false;
   }
+  if (potionOn) { if (keys.has("p") && !p._p) { p._p = true; buyPotion(); } if (!keys.has("p")) p._p = false; }
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
@@ -532,7 +548,7 @@ function handleSkills() {
   if (keys.has("b") && !p._b) { p._b = true; buyAltar(); } if (!keys.has("b")) p._b = false;
   if (keys.has("h") && !p._h) { p._h = true; if (globalThis.__HINTFOLD !== false) toggleHelp(); } if (!keys.has("h")) p._h = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
-  if (keys.has("x") && !p._x) { p._x = true; spendPoint("grade"); } if (!keys.has("x")) p._x = false;
+  if (keys.has("x") && !p._x) { p._x = true; if (potionOn) cycleGrade(); else spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
@@ -561,6 +577,68 @@ function selectGrade(i) {
   }
   p.grade = i;
   raiseSkeleton();
+}
+
+// ── V-235 물약 벨트 — 소환 등급은 X 순환으로 옮겼다(1~4 는 물약 마시기). ────────────
+function cycleGrade() {
+  const p = G.player;
+  if (p.maxGrade <= 0) { floatNote("소환 등급은 C 창에서 해금", "#c8a04a", 1.1); return; }
+  p.grade = (p.grade + 1) % (p.maxGrade + 1);
+  floatNote("소환 등급 ▸ " + SKEL_TIERS[p.grade].label, "#e8a24a", 1.0);
+}
+function beltPush(kind) {
+  const b = G.player.belt;
+  for (const s of b) if (s && s.kind === kind && s.n < BELT_MAX) { s.n++; return true; }
+  for (let i = 0; i < b.length; i++) if (!b[i]) { b[i] = { kind, n: 1 }; return true; }
+  return false;
+}
+function drinkPotion(i) {
+  const p = G.player, s = p.belt[i];
+  if (!s || s.n <= 0) return;
+  const P = POTION[s.kind];
+  if (s.kind === "hp") {
+    if (p.hp >= p.maxhp) { floatNote("생명이 가득하다", "#c8a04a", 0.9); return; }
+    p.hp = Math.min(p.maxhp, p.hp + p.maxhp * P.frac);
+  } else {
+    if (p.mana >= p.maxmana) { floatNote("마나가 가득하다", "#c8a04a", 0.9); return; }
+    p.mana = Math.min(p.maxmana, p.mana + p.maxmana * P.frac);
+  }
+  s.n--; if (s.n <= 0) p.belt[i] = null;
+  for (let k = 0; k < 12; k++) burst(p.x, p.y - 20, P.glow, 90);
+  flash = Math.max(flash, 0.12); flashColor = s.kind === "hp" ? "208,54,46" : "47,106,208";
+}
+function dropPotion(x, y, kind) {
+  const a = Math.random() * 6.283, s = 40 + Math.random() * 70;
+  G.potions.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, kind, t: 0 });
+}
+function potionPrice() { return Math.round(30 + 12 * (G.floor - 1)); }
+function buyNoteExtra() { return globalThis.__BUYTEXT === false ? { sz: 14 } : { sz: 16, panel: true }; }
+function buyPotion() {
+  const p = G.player;
+  const ai = nearestAltarAny(p.x, p.y, 90);
+  if (ai < 0) return;
+  const price = potionPrice();
+  if (G.gold < price) { floatNote(`금이 모자라다 (${price})`, "#c8a04a", 1.1); return; }
+  const kind = (p.hp / p.maxhp) <= (p.mana / p.maxmana) ? "hp" : "mp";
+  if (!beltPush(kind)) { floatNote("벨트가 가득하다", "#c8a04a", 1.1); return; }
+  G.gold -= price;
+  floatNote(`${POTION[kind].name} 구입 (${comma(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
+  for (let i = 0; i < 12; i++) burst(p.x, p.y - 20, POTION[kind].glow, 120);
+}
+function stepPotions(dt) {
+  if (globalThis.__POTION === false) return;
+  const p = G.player;
+  for (const q of G.potions) {
+    q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vx *= 0.8; q.vy *= 0.8;
+    const d = Math.hypot(p.x - q.x, p.y - q.y);
+    if (q.t > 0.35 && d < 110) { q.x += (p.x - q.x) * Math.min(1, dt * 9); q.y += (p.y - q.y) * Math.min(1, dt * 9); }
+    if (d < 44 && q.t > 0.3 && beltPush(q.kind)) {
+      q.got = true;
+      G.pickLog.unshift({ name: POTION[q.kind].name, color: POTION[q.kind].glow, t: 3 });
+      if (G.pickLog.length > 6) G.pickLog.pop();
+    }
+  }
+  G.potions = G.potions.filter((q) => !q.got);
 }
 
 function raiseSkeleton() {
@@ -789,6 +867,15 @@ function nearestAltar(x, y, rad) {
   }
   return best;
 }
+function nearestAltarAny(x, y, rad) {
+  let best = -1, bd = rad * rad;
+  for (let i = 0; i < G.altars.length; i++) {
+    const a = G.altars[i];
+    const d = (a.x - x) ** 2 + (a.y - y) ** 2;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
 function buyAltar() {
   const p = G.player;
   const ai = nearestAltar(p.x, p.y, 70);
@@ -813,18 +900,18 @@ function applyAltar(kind) {
     p.altarHpMul = (p.altarHpMul ?? 1) * 1.08;
     recalc();
     p.hp = Math.min(p.maxhp, p.hp + (p.maxhp - before));   // 생명·최대 생명 둘 다 올린다
-    floatNote("피의 제단 — 최대 생명 +8%", ALTAR_META.blood.col, 1.6, { sz: 14 });
+    floatNote("피의 제단 — 최대 생명 +8%", ALTAR_META.blood.col, 1.6, buyNoteExtra());
   } else if (kind === "bone") {
     p.altarSlots = (p.altarSlots ?? 0) + 1;
     recalc();
-    floatNote("뼈의 제단 — 소환 자리 +1", ALTAR_META.bone.col, 1.6, { sz: 14 });
+    floatNote("뼈의 제단 — 소환 자리 +1", ALTAR_META.bone.col, 1.6, buyNoteExtra());
   } else {
     const eq = Object.values(p.equipped).filter(Boolean);
     let low = null; for (const it of eq) if (!low || itemScore(it) < itemScore(low)) low = it;   // 값어치 가장 낮은 하나
     const n = (low.affixes || []).length;
     low.affixes = rollAffixes(n, G.floor);   // 개수는 그대로 · 층은 현재 층(loot.js 규칙)
     recalc();
-    floatNote(`재의 제단 — ${SLOT_LABEL[low.slot] || low.slot} 옵션을 다시 굴렸다`, ALTAR_META.ash.col, 1.6, { sz: 14 });
+    floatNote(`재의 제단 — ${SLOT_LABEL[low.slot] || low.slot} 옵션을 다시 굴렸다`, ALTAR_META.ash.col, 1.6, buyNoteExtra());
     if (invOpen) renderInv();
   }
 }
@@ -1315,6 +1402,8 @@ function dropLoot(m) {
   const rolls = m.elite ? 3 : 1;
   for (let i = 0; i < rolls; i++) if (Math.random() < chance || (m.elite)) spawnItem(m.x, m.y, m.elite);
   if (m.elite || Math.random() < 0.16) dropBuild(m.x, m.y);
+  if (globalThis.__POTION !== false && Math.random() < (m.elite ? POTION_DROP_ELITE : POTION_DROP))
+    dropPotion(m.x, m.y, Math.random() < 0.5 ? "hp" : "mp");
 }
 
 function dropBuild(x, y) {
@@ -1659,6 +1748,7 @@ function drawWorld() {
     goldRects.push({ x0: (g.x - cam.x) * Z - hx, y0: (g.y - cam.y) * Z - hy, x1: (g.x - cam.x) * Z + hx, y1: (g.y - cam.y) * Z + hy });
   }
   window.__goldRects = goldRects;
+  drawPotions();
   drawStairs();
   for (const ch of G.chests) drawChest(ch);
   for (const a of G.altars) drawAltar(a);
@@ -2534,6 +2624,29 @@ function drawChestBeacon(ch) {
   ctx.strokeStyle = "#7a4e10"; ctx.lineWidth = 1.6; ctx.strokeRect(-s, -s, s * 2, s * 2);
   ctx.restore();
 }
+// ── V-235 바닥 물약 — 새 에셋 없이 코드 도형(병). 발밑 후광이 어둠 위로 띄운다([[gauge-asks-drawn-not-seen]]). ──
+function drawPotions() {
+  for (const q of G.potions) {
+    if (!onScreen(q.x, q.y, 40)) continue;
+    const P = POTION[q.kind];
+    const cx = q.x, cy = q.y - 8 + Math.sin(nowMs() / 300 + q.x) * 2;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, 17);
+    g.addColorStop(0, P.glow + "cc"); g.addColorStop(1, P.glow + "00");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, 6.283); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = "rgba(0,0,0,0.4)"; ctx.beginPath(); ctx.ellipse(cx, cy + 13, 6, 2.4, 0, 0, 6.283); ctx.fill();
+    ctx.fillStyle = P.col; ctx.strokeStyle = "#f4ecd8"; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, cy - 2); ctx.lineTo(cx - 6, cy + 8);
+    ctx.quadraticCurveTo(cx - 6, cy + 12, cx, cy + 12);
+    ctx.quadraticCurveTo(cx + 6, cy + 12, cx + 6, cy + 8); ctx.lineTo(cx + 5, cy - 2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#d8c89a"; ctx.fillRect(cx - 3, cy - 8, 6, 6);
+    ctx.fillStyle = P.glow; ctx.fillRect(cx - 3.5, cy + 1, 2, 5);
+  }
+}
 // ── V-234 제단 그리기 — 새 에셋 없이 statue.png + 발밑 금빛 룬 고리(맥동) + 머리 위 이름표로 상자·소품과 가른다. ──
 // 석상은 소품·상자와 같은 spriteFoot 길로 밑변을 바닥선에 맞춘다(V-170 교훈). 다 쓴 제단은 고리를 끄고 어둡게.
 const ALTAR_STATUE_H = 150;
@@ -2553,6 +2666,14 @@ function drawAltar(a) {
     ctx.strokeStyle = `rgba(248,222,150,${0.5 + pulse * 0.4})`; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(a.x, a.y, rr * 0.8, rr * 0.42 * 0.8, 0, 0, 6.283); ctx.stroke();
     ctx.restore();
+  } else if (globalThis.__ALTARSPENT !== false) {
+    const pulse = 0.4 + 0.2 * Math.sin(nowMs() / 700);
+    ctx.save();
+    ctx.strokeStyle = `rgba(150,140,120,${0.3 + pulse * 0.14})`; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath(); ctx.ellipse(a.x, a.y, 34, 34 * 0.42, 0, 0, 6.283); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
   }
   const im = tex("decor/statue.png");
   if (im && im.width) {
@@ -2568,35 +2689,56 @@ function drawAltar(a) {
 }
 // 유닛을 다 그린 뒤 얹는 머리 위 표식(상자 비콘과 같은 자리) — 빛기둥 + 반경 70 안에서 이름·값·「B」.
 function drawAltarBeacon(a) {
-  if (a.used || !onScreen(a.x, a.y, 220)) return;
-  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
-  const topY = a.y - ALTAR_STATUE_H - 24;
-  ctx.globalCompositeOperation = "lighter";
-  const beam = ctx.createLinearGradient(0, topY, 0, a.y - 6);
-  beam.addColorStop(0, "rgba(248,214,120,0)");
-  beam.addColorStop(1, `rgba(248,210,120,${0.08 + pulse * 0.11})`);
-  ctx.fillStyle = beam;
-  const bw = 12 + pulse * 4;
-  ctx.fillRect(a.x - bw, topY, bw * 2, a.y - 6 - topY);
-  ctx.globalCompositeOperation = "source-over";
-  if (Math.hypot(G.player.x - a.x, G.player.y - a.y) >= 70) return;
-  const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
-  const canBuy = G.gold >= price;
-  const sub = `${comma(price)}◈  ·  B`;
-  ctx.textAlign = "center";
-  const ly = a.y - ALTAR_STATUE_H - 2;
-  ctx.font = "bold 15px 'Times New Roman',serif";
-  const w1 = ctx.measureText(meta.name).width;
-  ctx.font = "13px 'Times New Roman',serif";
-  const hw = Math.max(w1, ctx.measureText(sub).width, ctx.measureText(meta.note).width) / 2 + 10;
-  ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 34, hw * 2, 56);
-  ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(a.x - hw, ly - 34, hw * 2, 56);
-  ctx.fillStyle = meta.col; ctx.font = "bold 15px 'Times New Roman',serif";
-  ctx.fillText(meta.name, a.x, ly - 18);
-  ctx.fillStyle = "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
-  ctx.fillText(meta.note, a.x, ly - 2);
-  ctx.fillStyle = canBuy ? "#f2e7cf" : "#c05a4a"; ctx.font = "13px 'Times New Roman',serif";
-  ctx.fillText(sub, a.x, ly + 15);
+  if (!onScreen(a.x, a.y, 220)) return;
+  const near = Math.hypot(G.player.x - a.x, G.player.y - a.y) < 90;
+  const potionOn = globalThis.__POTION !== false;
+  if (!a.used) {
+    const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
+    const topY = a.y - ALTAR_STATUE_H - 24;
+    ctx.globalCompositeOperation = "lighter";
+    const beam = ctx.createLinearGradient(0, topY, 0, a.y - 6);
+    beam.addColorStop(0, "rgba(248,214,120,0)");
+    beam.addColorStop(1, `rgba(248,210,120,${0.08 + pulse * 0.11})`);
+    ctx.fillStyle = beam;
+    const bw = 12 + pulse * 4;
+    ctx.fillRect(a.x - bw, topY, bw * 2, a.y - 6 - topY);
+    ctx.globalCompositeOperation = "source-over";
+    if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70) {
+      const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
+      const canBuy = G.gold >= price;
+      const sub = `${comma(price)}◈  ·  B`;
+      const potSub = potionOn ? `물약 ${comma(potionPrice())}◈  ·  P` : null;
+      ctx.textAlign = "center";
+      const ly = a.y - ALTAR_STATUE_H - 2;
+      ctx.font = "bold 15px 'Times New Roman',serif";
+      const w1 = ctx.measureText(meta.name).width;
+      ctx.font = "13px 'Times New Roman',serif";
+      const hw = Math.max(w1, ctx.measureText(sub).width, ctx.measureText(meta.note).width, potSub ? ctx.measureText(potSub).width : 0) / 2 + 10;
+      const boxH = potSub ? 74 : 56;
+      ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 34, hw * 2, boxH);
+      ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(a.x - hw, ly - 34, hw * 2, boxH);
+      ctx.fillStyle = meta.col; ctx.font = "bold 15px 'Times New Roman',serif";
+      ctx.fillText(meta.name, a.x, ly - 18);
+      ctx.fillStyle = "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
+      ctx.fillText(meta.note, a.x, ly - 2);
+      ctx.fillStyle = canBuy ? "#f2e7cf" : "#c05a4a"; ctx.font = "13px 'Times New Roman',serif";
+      ctx.fillText(sub, a.x, ly + 15);
+      if (potSub) { ctx.fillStyle = G.gold >= potionPrice() ? "#a8d8ff" : "#c05a4a"; ctx.fillText(potSub, a.x, ly + 33); }
+    }
+    return;
+  }
+  if (potionOn && near) {
+    const price = potionPrice(), canBuy = G.gold >= price;
+    ctx.textAlign = "center";
+    const ly = a.y - ALTAR_STATUE_H + 10;
+    ctx.font = "13px 'Times New Roman',serif";
+    const l1 = "제단 (다 씀)", l2 = `물약 ${comma(price)}◈  ·  P`;
+    const hw = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width) / 2 + 10;
+    ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(a.x - hw, ly - 18, hw * 2, 38);
+    ctx.strokeStyle = "#7a746a"; ctx.lineWidth = 1.4; ctx.strokeRect(a.x - hw, ly - 18, hw * 2, 38);
+    ctx.fillStyle = "#8f8877"; ctx.fillText(l1, a.x, ly - 3);
+    ctx.fillStyle = canBuy ? "#a8d8ff" : "#c05a4a"; ctx.fillText(l2, a.x, ly + 14);
+  }
 }
 function openChest(ch) {
   ch.opened = true;
@@ -2775,6 +2917,11 @@ function drawFloats() {
       if (right + hw <= VW - M && (sx <= hit.x1 || left - hw < M)) sx = right;
       else if (left - hw >= M) sx = left;
       else break;
+    }
+    if (f.panel) {
+      const pad = 9;
+      ctx.fillStyle = "rgba(6,4,5,0.86)"; ctx.fillRect(sx - hw - pad, sy - fs - 2, (hw + pad) * 2, fs + 8);
+      ctx.strokeStyle = f.col || "#fff"; ctx.lineWidth = 1.5; ctx.strokeRect(sx - hw - pad, sy - fs - 2, (hw + pad) * 2, fs + 8);
     }
     ctx.fillStyle = "#000"; ctx.fillText(f.txt, sx + 1, sy + 1);
     ctx.fillStyle = f.col || "#fff"; ctx.fillText(f.txt, sx, sy);
@@ -3124,6 +3271,7 @@ function buildBelt() {
     const cell = document.createElement("div"); cell.className = "scell";
     if (c[1]) { const im = document.createElement("img"); im.src = `../assets/ui/icon/${c[1]}.png`; im.onerror = () => im.remove(); cell.appendChild(im); }
     const k = document.createElement("span"); k.className = "k"; k.textContent = c[0]; cell.appendChild(k);
+    if (/^[1-4]$/.test(c[0])) { cell.id = "belt" + c[0]; const n = document.createElement("span"); n.className = "pcount"; cell.appendChild(n); }
     row.appendChild(cell);
   }
 }
@@ -3159,10 +3307,28 @@ function updateHUD() {
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
   renderGear();
+  if (globalThis.__POTION !== false) updateBelt();
   drawMini();
+}
+function updateBelt() {
+  const b = G.player.belt; if (!b) return;
+  for (let i = 0; i < 4; i++) {
+    const cell = el("belt" + (i + 1)); if (!cell) continue;
+    const s = b[i], cnt = cell.querySelector(".pcount");
+    if (s && s.n > 0) {
+      cell.style.background = s.kind === "hp" ? "radial-gradient(circle at 50% 60%, #7a1a14, #2a0806)" : "radial-gradient(circle at 50% 60%, #163a7a, #06122a)";
+      cell.style.borderColor = POTION[s.kind].glow;
+      cell.style.boxShadow = "inset 0 0 8px #000, 0 0 7px " + POTION[s.kind].glow + "99";
+      if (cnt) cnt.textContent = s.n;
+    } else {
+      cell.style.background = ""; cell.style.borderColor = ""; cell.style.boxShadow = "";
+      if (cnt) cnt.textContent = "";
+    }
+  }
 }
 function renderGear() {
   const g = el("gear"); if (!g) return;
+  g.classList.toggle("readable", globalThis.__GEARLINE !== false);
   const eq = G.player.equipped;
   g.innerHTML = "";
   for (const s of SLOT_ORDER) {
@@ -3216,7 +3382,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills(); wakePacks();
-    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt);
+    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt); stepPotions(dt);
     stepHazards(dt); stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
