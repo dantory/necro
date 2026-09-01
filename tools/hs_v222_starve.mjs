@@ -18,8 +18,8 @@
 import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
 const URL = "http://127.0.0.1:8774/hs/index.html";
-const MODE = process.argv[2] === "ab" ? "ab" : "diag";
-const ARGOFF = MODE === "ab" ? 3 : 2;
+const MODE = process.argv[2] === "ab" ? "ab" : process.argv[2] === "nav" ? "nav" : "diag";
+const ARGOFF = (MODE === "ab" || MODE === "nav") ? 3 : 2;   // nav: __V222=true 한 팔만(빠른 ㉠ 진단용)
 const MAXFLOOR = +(process.argv[ARGOFF] || 5);
 const SEEDS = (process.argv[ARGOFF + 1] || "1,2,3,4,5").split(",").map((s) => +s);
 const VW = 1512, VH = 863;
@@ -70,7 +70,14 @@ const AUTO = `(SPEC => {
   const tap = k => { kd(k); setTimeout(() => ku(k), 40); };
   const aim = (sx, sy) => cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
   cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, bubbles: true }));
-  const A = { lastQ: 0, lastE: 0, lastPt: 0, navFail: 0, noPath: 0, stuckSkips: 0, reTarget: 0, toured: 0 }; window.__a222 = A;
+  const A = { lastQ: 0, lastE: 0, lastPt: 0, navFail: 0, noPath: 0, stuckSkips: 0, reTarget: 0, toured: 0,
+    tl: [], cf: null, lastTick: 0, dt: 0 }; window.__a222 = A;
+  // ── 층별 나눔(㉠ 진단 계기) ── 왜 어떤 층은 «안 걷나»를 수로 가른다:
+  //   dwellMs 다훑기 대기 · moveMs 키 눌러 이동 · idleMs 데드존/무입력 · targets 목표 교체 수.
+  //   dwell 큼 → ⓐ(한 팩에 45s) · move 큼인데 pathLen 작음 → ⓑ(벽끼임: 눌러도 안 감) · targets·방 작음 → ⓒ(한구석 맴돎).
+  function pushFloor() { if (!A.cf) return; A.cf.stuckSkips = A.stuckSkips - A.cf.sk0; A.cf.reTarget = A.reTarget - A.cf.rt0;
+    A.cf.toured = A.toured - A.cf.to0; A.tl.push(A.cf); A.cf = null; }
+  window.__a222flush = pushFloor;
   const Z = window.HSZ;
   const NAV = () => globalThis.__V222_NAV !== false;   // 기본 켬 · false 면 옛 직선걷기
   function ensureBuild() {
@@ -91,7 +98,8 @@ const AUTO = `(SPEC => {
   // ── 사각형 그래프 (방 ∪ 복도) — 층마다 다시 짓는다 ─────────────────────
   const nav = { floor: -1, rooms: null, nodes: [], adj: [], path: null, wi: 0,
     goalTok: null, lastPlan: 0, hist: [], black: new Map(), target: null, toured: new Set(),
-    dwellStart: 0, targetStart: 0, roomSeen: new Set() };
+    dwellStart: 0, targetStart: 0, roomSeen: new Set(),
+    roomTarget: null, roomBlack: new Map(), reachMin: Infinity, reachT: 0 };
   // 두 사각형이 겹치면(맞닿으면) 겹침 구역의 중심을 돌려준다 — 그 점은 두 사각형 안이라 걸을 수 있다.
   function rectsMeet(a, b) {
     const ox0 = Math.max(a.x, b.x), ox1 = Math.min(a.x + a.w, b.x + b.w);
@@ -110,6 +118,7 @@ const AUTO = `(SPEC => {
     nav.floor = G.floor; nav.rooms = G.rooms; nav.nodes = nodes; nav.adj = adj;
     nav.path = null; nav.wi = 0; nav.goalTok = null; nav.black.clear(); nav.target = null;
     nav.toured.clear(); nav.dwellStart = 0; nav.roomSeen.clear();
+    nav.roomTarget = null; nav.roomBlack.clear(); nav.reachMin = Infinity;
   }
   // 그 점이 든 사각형 인덱스 — 밖이면(끼임·모서리) 중심이 가장 가까운 사각형.
   function nodeAt(x, y) {
@@ -148,29 +157,51 @@ const AUTO = `(SPEC => {
       const bl = nav.black.get(q); if (bl && bl > now) continue;
       const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; bi = i; } }
     return b ? { q: b, i: bi, d: Math.sqrt(bd) } : null; }
-  // 목표 «고정»(hysteresis) — 매 프레임 nearestPack 을 다시 고르면 엇비슷한 두 팩 사이에서 목표가
-  //   퐁당퐁당 튀어 봇이 제자리를 오간다(걸은거리만 폭증·면적 0). 현재 목표가 살아있으면(미완·미투어·비블랙) 유지.
-  //   투어(toured): 한 팩에 «다 훑기»로 잠깐 머문 뒤 걸러 다음 팩으로 넘어가려고 표시한다(45s 안에 층을 돌려면
-  //   한 팩을 끝까지 다 잡고 있으면 안 된다 — 방을 밟고(=visited) 몇 대 잡고 다음 방으로).
-  //   방을 먼저 훑으려면 «아직 안 밟은 방»의 팩을 우선한다(한 방에 2~3 팩이라, 한 방을 다 잡느라
-  //   45s 를 태우면 방 수를 못 늘린다). 안 밟은 방이 없으면 그때 남은 팩(같은 방·먼 방)을 집는다.
-  function candPack(p, now, unseenOnly) { let b = null, bd = 1e18;
-    for (const q of G.packs) { if (q.done || nav.toured.has(q)) continue;
-      const bl = nav.black.get(q); if (bl && bl > now) continue;
-      if (unseenOnly && q.room != null && nav.roomSeen.has(q.room)) continue;
-      const d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2; if (d < bd) { bd = d; b = q; } }
-    return b; }
-  function pickTarget(p) { const now = performance.now();
-    const t = nav.target;
-    if (t && !t.done && !nav.toured.has(t)) { const bl = nav.black.get(t); if (!bl || bl <= now) return t; }
-    const b = candPack(p, now, true) || candPack(p, now, false);
-    if (b !== nav.target) { nav.target = b; nav.dwellStart = 0; nav.targetStart = now; }
-    return b; }
+  // ── 층 순회(floor patrol) — «팩 사냥»이 아니라 «안 가 본 방»을 그래프 거리 순으로 돈다 ──────
+  //   ㉠ 진단(2026-09-01): 봇은 45s 내내 키를 눌렀는데(이동 46s·대기 0) 팩 빽빽한 층(30팩)에선 503px 밖에
+  //   못 걸었다 — 원인은 ⓑ(벽끼임). 옛 자는 목표를 «가장 가까운 팩»으로 고르고, 끼임감지를 combat(적<200px)
+  //   이면 꺼서, 적 옆에 낀 봇이 안 풀렸다. 이제 목표는 방이고, 끼임감지는 «항상» 돈다.
+  //   방들은 buildGraph 가 rooms 를 먼저 넣어 노드 0..rooms.length-1 이 곧 방 인덱스다.
+  function graphDist(si) {   // 현재 노드에서 각 노드까지 BFS 홉 수(도달불가 -1)
+    const D = new Array(nav.nodes.length).fill(-1); if (si < 0) return D;
+    D[si] = 0; const q = [si];
+    for (let h = 0; h < q.length; h++) { const u = q[h]; for (const v of nav.adj[u]) if (D[v] < 0) { D[v] = D[u] + 1; q.push(v); } }
+    return D; }
+  // 안 밟은 방 중 그래프상 가장 가까운 방을 고른다. 현재 목표 방이 아직 안 밟혔고 블랙 안이면 유지(퐁당 방지).
+  function nextRoom(p, now) {
+    const rt = nav.roomTarget;
+    if (rt != null && rt >= 0 && !nav.roomSeen.has(rt)) { const bl = nav.roomBlack.get(rt); if (!bl || bl <= now) return rt; }
+    const D = graphDist(nodeAt(p.x, p.y));
+    let best = -1, bd = 1e9;
+    for (let i = 0; i < nav.rooms.length; i++) {
+      if (nav.roomSeen.has(i)) continue;
+      const bl = nav.roomBlack.get(i); if (bl && bl > now) continue;
+      const d = D[i] < 0 ? 1e6 + i : D[i];   // 도달불가(끊긴 방)는 맨 뒤로
+      if (d < bd) { bd = d; best = i; } }
+    return best; }
   // 방향 키 — 목표점을 향해 WASD 를 켠다(dead-zone 30).
   function stepToward(want, tx, ty, p) {
     const dx = tx - p.x, dy = ty - p.y;
     if (dx > 30) want.add('d'); else if (dx < -30) want.add('a');
     if (dy > 30) want.add('s'); else if (dy < -30) want.add('w');
+  }
+  // ── 벽 인식 조향(맨해튼 우선) ── 맵은 축정렬 사각형(방∪복도)이라 «대각선»이 코너 벽에 박힌다(ⓑ 원인).
+  //   그래서 순수 축(상하좌우)을 대각선보다 먼저 시도하고, window.__walkable(x,y)=실제 이동가능(소품 포함)로
+  //   앞이 걸을 수 있는지 찍어 첫 통과 방향을 고른다. 반대편으로 도는 «궤도 돌기»를 없애려 큰 각(반전)은 뒤에 둔다.
+  const PROBE = 30;
+  function walkStep(want, tx, ty, p) {
+    const dx = tx - p.x, dy = ty - p.y, dist = Math.hypot(dx, dy);
+    if (dist < 10) return;
+    const sx = dx >= 0 ? 1 : -1, sy = dy >= 0 ? 1 : -1, domX = Math.abs(dx) >= Math.abs(dy);
+    // 우선순위: 주축(순수) → 부축(순수) → 목표 대각선 → 부축 반대(벽 따라 미끄러짐) → 주축 반대
+    const cands = domX
+      ? [[sx, 0], [0, sy], [sx, sy], [0, -sy], [-sx, 0]]
+      : [[0, sy], [sx, 0], [sx, sy], [-sx, 0], [0, -sy]];
+    const W = window.__walkable;
+    let pick = domX ? [sx, 0] : [0, sy];   // __walkable 없으면 주축
+    if (W) for (const c of cands) { if (W(p.x + c[0] * PROBE, p.y + c[1] * PROBE)) { pick = c; break; } }
+    if (pick[0]) want.add(pick[0] > 0 ? 'd' : 'a');
+    if (pick[1]) want.add(pick[1] > 0 ? 's' : 'w');
   }
 
   function tick() {
@@ -180,6 +211,11 @@ const AUTO = `(SPEC => {
     ensureBuild();
     const p = G.player;
     if (nav.floor !== G.floor || nav.rooms !== G.rooms) buildGraph(G);
+    { const nowT = performance.now();   // 층별 나눔 계기: 층이 바뀌면 앞 층을 밀어 넣고 새 통을 연다.
+      if (!A.cf || A.cf.floor !== G.floor) { pushFloor();
+        A.cf = { floor: G.floor, dwellMs: 0, moveMs: 0, idleMs: 0, targets: 0, sk0: A.stuckSkips, rt0: A.reTarget, to0: A.toured };
+        A.lastTick = nowT; }
+      A.dt = A.lastTick ? Math.min(nowT - A.lastTick, 300) : 0; A.lastTick = nowT; }
     const np = nearestPack(p);
     const ne = nearestEnemy(p);
     const want = new Set();
@@ -195,50 +231,51 @@ const AUTO = `(SPEC => {
         if (dy > 40) want.add('s'); else if (dy < -40) want.add('w');
       }
     } else {
-      // ── 새 길찾기 ── 살아있는 적이 «근접 사거리»(true-melee) 안일 때만 멈춰 때린다. 느슨한 스웜은
-      //   지나쳐 걷는다(스킬·미니언이 이동 중에도 때린다) — 안 그러면 WAKE 500 이 깨운 무리에 붙박여
-      //   층을 못 훑는다. 팩 «중심»이 아니라 «가장 가까운 살아있는 적» 기준.
+      // ── 층 순회(floor patrol) ── 안 가 본 방을 그래프거리 순으로 돈다. 멈추지 않는다 — 지나가며
+      //   스킬·미니언이 팩을 깬다(처치는 덤). 방에 들어서면 밟힘 처리되어 자연히 다음 방으로 넘어간다.
       const now = performance.now();
-      // 지금 든 방을 «밟은 방»으로 기록(목표 우선순위에 쓴다) — 계기(V222ACC)와 같은 판정.
+      // 지금 든 방을 «밟은 방»으로 기록(계기 V222ACC 와 같은 판정) — 목표 선택·완주 판정에 함께 쓴다.
       for (let i = 0; i < G.rooms.length; i++) { const r = G.rooms[i];
         if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { nav.roomSeen.add(i); break; } }
-      const tgt = pickTarget(p);   // 고정 목표(퐁당 방지) + 방 우선 투어
-      // 다 훑기 — 이동은 «멈추지 않는다». 팩 중심까지 걸어 들어가 방을 밟고(스킬·미니언이 지나가며 때린다),
-      //   중심에서 데드존으로 자연히 선다. 그렇게 DWELL(2.6s) 머문 뒤, 또는 한 팩을 6s 넘게 쫓았는데도
-      //   못 붙으면(막힘) 걸러 다음 팩으로 넘어간다. 봇은 적한테 몸이 안 막힌다(walkable 은 지형만 본다).
-      if (tgt) {
-        const dc = Math.hypot(tgt.x - p.x, tgt.y - p.y);
-        if (dc < 100 && !nav.dwellStart) nav.dwellStart = now;
-        if ((nav.dwellStart && now - nav.dwellStart > 1500) || now - nav.targetStart > 5000) {
-          nav.toured.add(tgt); nav.black.set(tgt, now + 6000);
-          nav.target = null; nav.dwellStart = 0; nav.path = null; nav.goalTok = null; A.toured++;
+      const ri = nextRoom(p, now);
+      if (ri !== nav.roomTarget) { nav.roomTarget = ri; nav.reachMin = Infinity; nav.reachT = now;
+        nav.path = null; nav.goalTok = null; if (ri >= 0 && A.cf) A.cf.targets++; }
+      let gx, gy, tok;
+      if (ri >= 0) { const r = nav.rooms[ri]; gx = r.x + r.w / 2; gy = r.y + r.h / 2; tok = 'room' + ri; }
+      else { gx = G.stairs.x; gy = G.stairs.y; tok = 'stairs'; }   // 다 밟았으면 계단으로
+      // 방 포기(진척 기반) — «가까워지는 중»이면 안 버린다(긴 복도도 끝까지 간다). 목표 방 중심까지의 최소
+      //   도달거리가 4s 동안 조금도 안 줄고 아직 멀면(진짜 막힘) 잠시 접고 다음 방. 시간 기반은 긴 복도를
+      //   도착 전에 잘라 «많이 걷는데 방은 못 드는»(㉠ 재현) 병을 만들었다 — 그래서 진척으로 판정한다.
+      if (ri >= 0) {
+        const rc = Math.hypot(gx - p.x, gy - p.y);
+        if (rc < nav.reachMin - 8) { nav.reachMin = rc; nav.reachT = now; }
+        if (rc > 80 && now - nav.reachT > 4000) {
+          nav.roomBlack.set(ri, now + 8000); nav.roomTarget = null; nav.path = null; nav.goalTok = null; A.reTarget++;
         }
       }
-      const gx = tgt ? tgt.x : G.stairs.x, gy = tgt ? tgt.y : G.stairs.y;
-      const tok = tgt || 'stairs';
       if (nav.goalTok !== tok || !nav.path || now - nav.lastPlan > 1500) planTo(p, gx, gy, tok);
+      let w;
       if (nav.path) {
         while (nav.wi < nav.path.length - 1 && Math.hypot(nav.path[nav.wi].x - p.x, nav.path[nav.wi].y - p.y) < 56) nav.wi++;
-        const w = nav.path[Math.min(nav.wi, nav.path.length - 1)];
-        stepToward(want, w.x, w.y, p);
-      } else { A.navFail++; stepToward(want, gx, gy, p); }   // 경로 실패 — 직선으로라도(끼임감지가 처리)
-      // ── 끼임 감지: «벽에» 낀 것만 잡는다 — 목표 팩 근처(200px)에서 데드존으로 선 건 끼임이 아니다.
-      const combat = ne && ne.d < 200;
-      if (want.size && !combat) {
-        nav.hist.push({ t: now, x: p.x, y: p.y });
-        while (nav.hist.length && now - nav.hist[0].t > 1200) nav.hist.shift();
-        const h0 = nav.hist[0];
-        if (nav.hist.length > 4 && now - h0.t > 1000 && Math.hypot(p.x - h0.x, p.y - h0.y) < 42) {
-          if (nav.path && nav.wi < nav.path.length - 1) { nav.wi++; A.stuckSkips++; }
-          else if (tgt) { nav.black.set(tgt, now + 4000); nav.target = null; nav.path = null; nav.goalTok = null; A.reTarget++; }
-          nav.hist.length = 0;
-        }
-      } else nav.hist.length = 0;
+        w = nav.path[Math.min(nav.wi, nav.path.length - 1)];
+      } else { A.navFail++; w = { x: gx, y: gy }; }
+      // 가벼운 끼임 감지 — 조향(walkStep)이 대부분 처리하지만, 웨이포인트를 못 넘고 서 있으면 다음
+      //   웨이포인트로 넘기고 재계획한다. 봇 몸은 적한테 안 막히니(지형만 walkable) 정지=벽끼임이다.
+      nav.hist.push({ t: now, x: p.x, y: p.y });
+      while (nav.hist.length && now - nav.hist[0].t > 1300) nav.hist.shift();
+      const h0 = nav.hist[0];
+      if (nav.hist.length > 4 && now - h0.t > 1100 && Math.hypot(p.x - h0.x, p.y - h0.y) < 24) {
+        A.stuckSkips++;
+        if (nav.path && nav.wi < nav.path.length - 1) nav.wi++; else { nav.path = null; nav.goalTok = null; }
+        nav.hist.length = 0;
+      }
+      walkStep(want, w.x, w.y, p);   // 벽 인식 조향으로 웨이포인트를 향해 간다
     }
 
+    if (A.cf) { if (nav.dwellStart) A.cf.dwellMs += A.dt; else if (want.size) A.cf.moveMs += A.dt; else A.cf.idleMs += A.dt; }
     setKeys(want);
-    // 계단은 «처리 안 한 팩이 하나도 없을 때»만 밟는다 — NAV 는 done ∪ toured 를 «처리»로 본다(다 훑기).
-    const anyLeft = NAV() ? G.packs.some((q) => !q.done && !nav.toured.has(q)) : G.packs.some((q) => !q.done);
+    // 계단 — NAV 는 «안 밟은 방이 없을 때»(순회 끝, nextRoom 이 -1) 밟는다. 옛 걷기는 팩을 다 처리했을 때.
+    const anyLeft = NAV() ? (nav.roomTarget !== -1) : G.packs.some((q) => !q.done);
     if (!anyLeft && Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 66) tap('f');
     if (ne) aim((ne.m.x - cam.x) * Z, (ne.m.y - cam.y) * Z);
     const now = performance.now();
@@ -304,6 +341,7 @@ const SAMPLE = `(() => {
 
 const median = a => { if (!a.length) return null;   // ★ 빈 표본은 0 이 아니라 «없음» — 0 으로 내면 판정이 뒤집힌다(V-222)
  const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+const show = v => (v === null || v === undefined) ? "—" : v;   // median 이 null(표본없음) 이면 «—» 로 — 0 으로 못 읽게
 const r1 = n => Math.round(n * 10) / 10;
 
 async function runOne(seed, v222) {
@@ -351,6 +389,8 @@ async function runOne(seed, v222) {
   const ft = JSON.parse(await ev(`JSON.stringify(window.__ft)`) || "[]").sort((a, b) => a - b);
   const fp95 = ft.length ? +ft[Math.floor(ft.length * 0.95)].toFixed(1) : 0;
   const nav = (await ev(`(window.__a222 ? { navFail: __a222.navFail, noPath: __a222.noPath, stuckSkips: __a222.stuckSkips, reTarget: __a222.reTarget, toured: __a222.toured } : {})`)) || {};
+  await ev(`window.__a222flush && window.__a222flush()`);   // 마지막 층을 층별 타임라인에 밀어 넣는다.
+  const navtl = JSON.parse(await ev(`JSON.stringify(window.__a222 ? window.__a222.tl : [])`) || "[]");
   await raw("Target.closeTarget", { targetId }).catch(() => {});
 
   // 층 번호로 처치(floorLog) 와 공간(v222) 을 맞춘다.
@@ -358,7 +398,9 @@ async function runOne(seed, v222) {
   for (const f of flog) {
     if (f.floor < 1 || f.floor > MAXFLOOR) continue;
     const sp = spat.find((x) => x.floor === f.floor) || {};
-    cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, sec: f.sec, ...sp });
+    const nt = navtl.find((x) => x.floor === f.floor) || {};
+    cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, sec: f.sec,
+      dwellMs: nt.dwellMs || 0, moveMs: nt.moveMs || 0, idleMs: nt.idleMs || 0, targets: nt.targets || 0, ...sp });
   }
   const totSec = cells.reduce((a, c) => a + (c.sec || 0), 0);
   return { seed, cells, fp95, nav, projOutPct: samples ? r1(100 * projOutHits / samples) : 0,
@@ -375,7 +417,7 @@ async function runArm(name, v222) {
     r.errs = errs.length; runs.push(r);
     for (const c of r.cells) {
       const starv = c.kills === 0 ? " ◀굶음" : "";
-      log(`  씨앗 ${r.seed} 층${c.floor}: 처치 ${c.kills} · 적수 ${c.enemiesTotal} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}% · 깬팩 ${c.awokePacks}/${c.packsTotal} · 최근접 ${c.minDistEver}(중앙 ${c.minDistMed}) · 걸은거리 ${c.pathLen} · ${c.sec}s(계단 ${c.timeToStairs}s·잔여 ${c.timeAfterStairs}s)${starv}`);
+      log(`  씨앗 ${r.seed} 층${c.floor}: 처치 ${c.kills} · 적수 ${c.enemiesTotal} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}% · 깬팩 ${c.awokePacks}/${c.packsTotal} · 최근접 ${c.minDistEver}(중앙 ${c.minDistMed}) · 걸은거리 ${c.pathLen} · 나눔[이동 ${(c.moveMs/1000).toFixed(0)}s·대기 ${(c.dwellMs/1000).toFixed(0)}s·유휴 ${(c.idleMs/1000).toFixed(0)}s·목표 ${c.targets}] · ${c.sec}s(계단 ${c.timeToStairs}s·잔여 ${c.timeAfterStairs}s)${starv}`);
     }
     const nv = r.nav || {};
     log(`    완주 ${r.totSec}s · frame p95 ${r.fp95}ms · 벽밖 ${r.pOutPct}% · 발사체벽밖 ${r.projOutPct}% · 오류 ${r.errs} · 길찾기[투어 ${nv.toured||0}·경로없음 ${nv.noPath||0}·직선폴백 ${nv.navFail||0}·끼임건너뜀 ${nv.stuckSkips||0}·팩재선택 ${nv.reTarget||0}]`);
@@ -447,6 +489,8 @@ if (MODE === "ab") {
       out.after.secMed >= 137 && out.after.secMed <= 319 && out.after.errs === 0 && out.after.pOutMax === 0 && out.after.projOutMax === 0;
     log(`  AFTER 판정: ${pass ? "★ 통과" : "미달"}  (굶음 ${out.after.starvPct <= 20 ? "✓" : "✗"} · 면적 ${aA.areaMedAll >= 15 ? "✓" : "✗"} · 방문 ${aA.roomMedAll >= 40 ? "✓" : "✗"} · 완주 ${out.after.secMed >= 137 && out.after.secMed <= 319 ? "✓" : "✗"} · 회귀 ${out.after.errs === 0 && out.after.pOutMax === 0 && out.after.projOutMax === 0 ? "✓" : "✗"})`);
   }
+} else if (MODE === "nav") {
+  out.after = await runArm("NAV (__V222=true · ㉠ 진단)", true);
 } else {
   out.before = await runArm("DIAG (현재 바이너리)", false);
 }
