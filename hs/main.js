@@ -61,10 +61,19 @@ const MINION_MUL_CAP = 4;       // 빌드 방울 «소환수 피해» 곱의 천
 const REACH_DMG_MUL = 3, REACH_ADD = 130;                                  // 팔①: 근접 피해 곱·사거리 덧셈
 const RANGED_RANGE = 470, RANGED_CD = 1.4, RANGED_SPD = 520;               // 팔②: 사거리·재장전초·화살 속도
 const CHARGE_CD = 2.6, CHARGE_RANGE = 620, CHARGE_SPD_MUL = 3.4, CHARGE_DUR = 0.6, CHARGE_BITE = 1.6;  // 팔③
+// ★ V-231 — 돌진에 «예고 단계»를 붙인다(예고 없이 3.4배로 달려드는 건 부당하다). tele 동안 멈춰 서서
+//   방향을 겨누다 tele 끝에 방향을 한 번 못박고(m.cdx/cdy) 달린다 — 못박은 뒤엔 사람을 다시 안 겨눈다(피할 틈).
+const CHARGE_TELE = 0.45;
+// ★ V-231 — 자폭병 상수. 표적(사람·소환수)에 BOMB_TRIG(m.r+BOMB_REACH) 안으로 붙으면 점화(멈춘다),
+//   fuse 가 0 이면 BOMB_R 안을 깎고 자기도 죽는다(killEnemy 재사용 → 시체를 남긴다). 소환수 벽을 «깎는» 답.
+const BOMB_REACH = 46, BOMB_FUSE = 0.9, BOMB_R = 150, BOMB_MINION = 2.4, BOMB_PLAYER = 1.5;
 // ★★ V-203b — 병수님 8-31 17:34 「알아서 해라」 → V-203 표대로 **닿게 하는 팔 + 아프게 하는 팔**을 둘 다 켠다.
 //   ㉠ __RANGED_MOB 을 기본 켬으로. 원거리 화살만 소환수 벽을 «원리로» 넘어 사람에게 닿는다(V-203: 맞은수/초 0.8).
 //      끄는 손잡이는 남긴다 — `globalThis.__RANGED_MOB = false` 로 되돌린다.
 if (globalThis.__RANGED_MOB === undefined) globalThis.__RANGED_MOB = true;
+//   ㉢ V-231 — 돌진·자폭도 기본 켬(같은 결). 끄면 `globalThis.__CHARGER_MOB=false`·`__BOMBER_MOB=false` 로 옛 판과 byte-동일.
+if (globalThis.__CHARGER_MOB === undefined) globalThis.__CHARGER_MOB = true;
+if (globalThis.__BOMBER_MOB === undefined) globalThis.__BOMBER_MOB = true;
 //   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
 //      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
 //      소환수 vs 적 밸런스는 유지 — hurtPlayer 한 곳에서만 곱한다). 되돌리려면 `globalThis.__FOE_DMG = 1`.
@@ -229,6 +238,24 @@ window.__bossPose = () => {
   G.bossBanner = { name: boss.name, kind: boss.bossKind, t: 0.35 };
   cam.x = (boss.x + p.x) / 2 - VW / (2 * Z); cam.y = boss.y - VH / (2 * Z) + 30;
   return { x: boss.x, y: boss.y, kind: boss.bossKind, name: boss.name };
+};
+// ── V-231 컷용 — 잡몹 수법의 «예고 뜬 순간»으로 세운다("charge"|"bomb"). 없으면 null(그 층에 그 잡몹이 없음). ──
+window.__mobPose = (what) => {
+  const p = G.player;
+  let best = null, bpk = null, bd = Infinity;
+  for (const pk of G.packs) for (const m of pk.enemies) {
+    if (!m.alive || (what === "bomb" ? !m.bomber : !m.charger)) continue;
+    const d = (m.x - p.x) ** 2 + (m.y - p.y) ** 2;
+    if (d < bd) { bd = d; best = m; bpk = pk; }
+  }
+  if (!best) return null;
+  bpk.awake = true;
+  best.x = p.x + 150; best.y = p.y; unstick(best, best.r);
+  best.stun = 0; best.kb.x = 0; best.kb.y = 0;
+  if (what === "bomb") { best.fuse = BOMB_FUSE * 0.5; best.state = "attack"; }
+  else { best.dx = -1; best.dy = 0; best.chargeCd = 0; best.charging = 0; best.tele = CHARGE_TELE * 0.5; best.state = "attack"; }
+  cam.x = (best.x + p.x) / 2 - VW / (2 * Z); cam.y = best.y - VH / (2 * Z);
+  return { x: best.x, y: best.y, what };
 };
 
 function fresh(floor, carry) {
@@ -615,6 +642,7 @@ function stepEnemies(dt) {
       if (m.boss) { stepBoss(m, p, dt, pk); continue; }
       if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
       if (m.charger && globalThis.__CHARGER_MOB) { stepCharger(m, p, dt); continue; }
+      if (m.bomber && globalThis.__BOMBER_MOB) { stepBomber(m, p, dt, pk); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
       for (const s of G.minions) {
         const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
@@ -675,19 +703,57 @@ function stepCharger(m, p, dt) {
   m.chargeCd = (m.chargeCd || 0) - dt;
   const dx = p.x - m.x, dy = p.y - m.y, dist = Math.hypot(dx, dy) || 1;
   m.dx = dx / dist; m.dy = dy / dist;
-  if (m.charging > 0) {
+  if (m.tele > 0) {
+    // V-231 예고 — 멈춰 서서 사람을 겨눈다(아직 못박지 않음). tele 끝에 방향을 한 번 못박고 달린다.
+    m.tele -= dt; m.state = "attack"; m.anim += dt * 6;
+    if (m.tele <= 0) { m.cdx = m.dx; m.cdy = m.dy; m.charging = CHARGE_DUR; }
+  } else if (m.charging > 0) {
+    // V-231 — 달리는 동안은 못박은 방향(cdx/cdy)만 쓴다. 매 프레임 다시 겨누면 피할 수가 없다.
     m.charging -= dt;
-    stepTo(m, m.x + m.dx * m.spd * CHARGE_SPD_MUL * dt, m.y + m.dy * m.spd * CHARGE_SPD_MUL * dt, m.r);
+    stepTo(m, m.x + m.cdx * m.spd * CHARGE_SPD_MUL * dt, m.y + m.cdy * m.spd * CHARGE_SPD_MUL * dt, m.r);
     m.state = "walk"; m.anim += dt * 14;
     if (dist < p.r + m.r + 8) { hurtPlayer(m.dmg * CHARGE_BITE); m.charging = 0; m.chargeCd = CHARGE_CD; }
     else if (m.charging <= 0) m.chargeCd = CHARGE_CD;
   } else if (m.chargeCd <= 0 && dist < CHARGE_RANGE) {
-    m.charging = CHARGE_DUR; m.state = "attack";
+    m.tele = CHARGE_TELE; m.state = "attack";
   } else {
     stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
     m.state = "walk"; m.anim += dt * 9;
   }
   if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+
+// ★ V-231 새 수법 — 자폭병. 가장 가까운 표적(사람·소환수)을 쫓다 BOMB_TRIG 안에 붙으면 점화(멈춤).
+//   원거리가 벽을 «넘는» 답이라면 자폭은 벽을 «깎는» 답이다 — 사람에 못 닿아도 소환수를 지우며 길을 연다.
+//   스턴 중엔 stepEnemies 가 이 함수 진입 전에 continue 한다 → fuse 정지 = 스턴이 곧 해제 수단이다.
+function stepBomber(m, p, dt, pk) {
+  m.hit = Math.max(0, m.hit - dt);
+  if (m.fuse > 0) {
+    m.fuse -= dt; m.state = "attack"; m.anim += dt * 6;
+    if (m.fuse <= 0) { bombExplode(m); return; }
+  } else {
+    let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
+    for (const s of G.minions) { const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2; if (d < td) { td = d; tx = s.x; ty = s.y; } }
+    const dist = Math.sqrt(td) || 1;
+    m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+    m.anim += dt * 9;
+    if (dist <= m.r + BOMB_REACH) { m.fuse = BOMB_FUSE; m.state = "attack"; }
+    else { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; }
+  }
+  if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+// V-231 — 자폭 터짐. 반경 BOMB_R 안의 소환수·사람을 깎고, «자기도» killEnemy 로 죽는다(옛 사망 경로 그대로 → 시체·kills).
+function bombExplode(m) {
+  const r2 = BOMB_R * BOMB_R;
+  for (let i = G.minions.length - 1; i >= 0; i--) {
+    const s = G.minions[i];
+    if ((s.x - m.x) ** 2 + (s.y - m.y) ** 2 <= r2) { s.hp -= m.dmg * BOMB_MINION; if (s.hp <= 0) killMinion(s); }
+  }
+  const p = G.player;
+  if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= r2) hurtPlayer(m.dmg * BOMB_PLAYER);
+  for (let i = 0; i < 16; i++) burst(m.x, m.y - m.h * 0.4, "#ff9030", 220);
+  cam.shake = Math.max(cam.shake, 12); flash = Math.max(flash, 0.18); flashColor = "255,150,60";
+  killEnemy(m);
 }
 
 // ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(소환수 벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
@@ -1341,6 +1407,7 @@ function drawWorld() {
   }
   drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
   drawBossTele();
+  drawMobTele();
   PROF.seg("terrain");
 
   drawProps();
@@ -1524,6 +1591,25 @@ function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임
         ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 70));
         ctx.fillStyle = "rgba(200,40,40,0.28)"; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.fill();
         ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+function drawMobTele() {   // V-231 — 잡몹 수법 예고(돌진선·자폭 고리). 상태는 m.tele / m.fuse 하나만 읽는다(두 곳에 안 둔다).
+  for (const pk of G.packs) {
+    if (!pk.awake) continue;
+    for (const m of pk.enemies) {
+      if (!m.alive) continue;
+      if (m.tele > 0) {   // 돌진 예고 — 겨눈 방향(m.dx/dy)으로 붉은 띠, 남을수록 옅고 찰수록 진하게
+        const prog = 1 - m.tele / CHARGE_TELE, len = CHARGE_RANGE * 0.8;
+        ctx.lineWidth = 20; ctx.strokeStyle = `rgba(255,50,40,${0.16 + 0.42 * prog})`;
+        ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.dx * len, m.y + m.dy * len); ctx.stroke();
+      } else if (m.fuse > 0) {   // 자폭 예고 — 발밑 붉은 고리, fuse 줄수록 진하고 두껍게
+        const prog = 1 - m.fuse / BOMB_FUSE;
+        ctx.globalAlpha = 0.4 + 0.5 * prog;
+        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 2 + 5 * prog;
+        ctx.beginPath(); ctx.arc(m.x, m.y, BOMB_R, 0, 6.283); ctx.stroke();
         ctx.globalAlpha = 1;
       }
     }
@@ -2044,11 +2130,13 @@ function drawEnemy(m) {
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
   if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
   else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
+  else if (m.bomber) rest = "brightness(1.2) saturate(2.4) hue-rotate(30deg)";   // V-231 — 돌진(-40)·원거리(150)와 안 겹치는 색조
   if (m.boss) rest = BOSS_TINT[m.bossKind];   // V-230 — 주인 넷을 색조로 가른다(뼈·초록·핏·보라)
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
-  if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, m.h, filt))
-    fallbackBlob(m.x, m.y, m.h, "#8a5a5a");
+  const drawH = (m.bomber && m.fuse > 0) ? m.h * (1 + 0.35 * (1 - m.fuse / BOMB_FUSE)) : m.h;   // V-231 — 점화 중 몸이 부푼다
+  if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, drawH, filt))
+    fallbackBlob(m.x, m.y, drawH, "#8a5a5a");
   recordSil("mob", m.base, m.x, m.y, m.h);
   const hpf = Math.max(0, m.hp / m.maxhp);
   // ★ V-196 — 바를 «불투명 위끝»에 건다(m.h 이름값 아님). GAP=2 월드만큼 위, 겹치면 밀어낸다.

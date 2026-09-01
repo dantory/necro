@@ -349,7 +349,7 @@ function scatter(rooms, stairs, chests) {
 //   너무 키우면 서로 밀려나 무리가 흩어진다.
 const BODY = 1.4, HITR = 1.15;
 // ★ V-203 — 팔②·③ 태그 비율(main.js 손잡이가 켜졌을 때만 읽힌다). 새 에셋 없이 색·크기로 갈라 표시한다.
-const RANGED_FRAC = 0.35, CHARGER_FRAC = 0.30;
+const RANGED_FRAC = 0.35, CHARGER_FRAC = 0.18, BOMBER_FRAC = 0.12;   // V-231 — 돌진 0.30→0.18(특수 53% 는 과함) · 자폭 새로 0.12
 // ★ V-226 — `dmgScale` 이 없으면 옛 그대로 `scale` 한 곡선을 쓴다(호출부를 안 고쳐도 안 깨진다).
 function makeMob(t, x, y, scale, id, elite, dmgScale) {
   const em = elite ? 3.2 : 1;
@@ -365,6 +365,8 @@ function makeMob(t, x, y, scale, id, elite, dmgScale) {
     m.ranged = true; m.base = "mob/skelarch";
   } else if (!elite && globalThis.__CHARGER_MOB && Math.random() < CHARGER_FRAC) {
     m.charger = true; m.base = "mob/brute"; m.h *= 1.08; m.r *= 1.05;
+  } else if (!elite && globalThis.__BOMBER_MOB && Math.random() < BOMBER_FRAC) {
+    m.bomber = true; m.base = "mob/brute"; m.h *= 0.92; m.r *= 0.95;
   }
   return m;
 }
