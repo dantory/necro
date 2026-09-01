@@ -47,7 +47,7 @@ bws.addEventListener("message", ev => { const m = JSON.parse(ev.data);
 await new Promise(r => bws.addEventListener("open", r));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-const injectSrc = (seed, ifr) => `Math.random = (() => { let s = (${seed} >>> 0) || 1;
+const injectSrc = (seed, ifr, grow) => `Math.random = (() => { let s = (${seed} >>> 0) || 1;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; })();
 globalThis.__FOE_DMG = 16;
 globalThis.__RANGED_MOB = true;
@@ -55,6 +55,7 @@ globalThis.__MEASURE_REVIVE = true;
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
+globalThis.__V226_GROW = ${grow === false ? "false" : "true"};  // V-226: 사람이 번 점수를 쓰는가(false = 옛 «박은 빌드»)
 window.__ft = []; window.__lt = 0;
 (function samp(t){ if(window.__lt) window.__ft.push(t-window.__lt); window.__lt=t;
   if(window.__ft.length>6000) window.__ft.shift(); requestAnimationFrame(samp); })(performance.now());`;
@@ -407,13 +408,13 @@ const median = a => { if (!a.length) return null;   // ★ 빈 표본은 0 이 �
 const show = v => (v === null || v === undefined) ? "—" : v;   // median 이 null(표본없음) 이면 «—» 로 — 0 으로 못 읽게
 const r1 = n => Math.round(n * 10) / 10;
 
-async function runOne(seed, ifr) {
+async function runOne(seed, ifr, grow) {
   const { targetId } = await raw("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await raw("Target.attachToTarget", { targetId, flatten: true });
   const S = (m, p) => raw(m, p, sessionId);
   const ev = async e => (await S("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true })).result?.value;
   await S("Page.enable"); await S("Runtime.enable");
-  await S("Page.addScriptToEvaluateOnNewDocument", { source: injectSrc(seed, ifr) });
+  await S("Page.addScriptToEvaluateOnNewDocument", { source: injectSrc(seed, ifr, grow) });
   await S("Emulation.setDeviceMetricsOverride", { width: VW, height: VH, deviceScaleFactor: 1, mobile: false });
   await S("Page.navigate", { url: URL });
   let booted = false;
@@ -470,12 +471,12 @@ async function runOne(seed, ifr) {
     pOutPct: samples ? r1(100 * pOutHits / samples) : 0, totSec: r1(totSec) };
 }
 
-async function runArm(name, ifr) {
+async function runArm(name, ifr, grow) {
   log(`\n════ ${name} (i-frame ${ifr}s · 곱 16 · RANGED 켬 · BFS 걷기 · 층 1→${MAXFLOOR} × 씨앗 ${SEEDS.join("/")}) ════`);
   const runs = [];
   for (let i = 0; i < SEEDS.length; i++) {
     errs = [];
-    const r = await runOne(SEEDS[i], ifr);
+    const r = await runOne(SEEDS[i], ifr, grow);
     if (!r) { log(`  씨앗 ${SEEDS[i]} — 실패`); continue; }
     r.errs = errs.length; runs.push(r);
     for (const c of r.cells) {
@@ -523,12 +524,20 @@ async function runArm(name, ifr) {
 }
 
 log(`\n■ hs_v223_band — 가운데 띠를 «걷는 자»로 다시 잰다 (i-frame off vs ${IFR}s · BFS 걷기) · 창 ${VW}×${VH}`);
-const before = await runArm("BEFORE (__V221=false · i-frame 끔)", 0);
-const after = await runArm(`AFTER (i-frame ${IFR}s · 현재 바이너리)`, IFR);
+// ── 팔 고르기 ─────────────────────────────────────────────────────────
+// 기본(V-223): i-frame 손잡이를 뒤집는다.  V226_ARMS=1: i-frame 을 고정하고
+// «사람이 자라는가»(__V226_GROW) 를 뒤집는다 — V-226 의 곡선 기울기 측정용.
+const V226 = process.env.V226_ARMS === "1";
+const before = V226
+  ? await runArm(`BEFORE (__V226_GROW=false · 옛 «박은 빌드» · i-frame ${IFR}s)`, IFR, false)
+  : await runArm("BEFORE (__V221=false · i-frame 끔)", 0, true);
+const after = V226
+  ? await runArm(`AFTER (__V226_GROW=true · 사람이 번 점수를 쓴다 · i-frame ${IFR}s)`, IFR, true)
+  : await runArm(`AFTER (i-frame ${IFR}s · 현재 바이너리)`, IFR, true);
 
 if (before && after) {
   log(`\n╔═══ 두 팔 (곱 16 고정 · BFS 걷기 · i-frame 손잡이만 뒤집음) ═══╗`);
-  log(`  ★ 헤드라인은 AFTER(i-frame 0.4s = 현재 바이너리) 한 값이다. BEFORE 는 참고.`);
+  log(V226 ? `  ★ V-226 팔: i-frame ${IFR}s 고정 · «사람이 자라는가»만 뒤집었다.` : `  ★ 헤드라인은 AFTER(i-frame 0.4s = 현재 바이너리) 한 값이다. BEFORE 는 참고.`);
   log(`  hp최저 10~60% 비율 : BEFORE ${before.bandPct}%  |  AFTER ${after.bandPct}%   [≥25%]`);
   log(`  죽은 층 비율       : BEFORE ${before.diedPct}%  |  AFTER ${after.diedPct}%   [5~20%]`);
   log(`  hp최저 중앙        : BEFORE ${show(before.hpMinMed)}%  |  AFTER ${show(after.hpMinMed)}%`);
@@ -538,7 +547,7 @@ if (before && after) {
   log(`  판정(각 팔)        : BEFORE ${before.pass ? "★통과" : "미달/초과"} · AFTER ${after.pass ? "★통과" : "미달/초과"}`);
 }
 
-fs.writeFileSync(OUT, JSON.stringify({ axis: "V-223", ifr: IFR, seeds: SEEDS, maxfloor: MAXFLOOR, before, after }, null, 2));
+fs.writeFileSync(OUT, JSON.stringify({ axis: V226 ? "V-226" : "V-223", ifr: IFR, seeds: SEEDS, maxfloor: MAXFLOOR, before, after }, null, 2));
 log(`\n  ▸ ${OUT}`);
 
 const list = await (await fetch(CDP + "/json/list")).json();
