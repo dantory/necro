@@ -1,5 +1,5 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
-import { genFloor } from "./map.js";
+import { genFloor, genTown } from "./map.js";
 import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
@@ -178,6 +178,25 @@ function rollGemGrade(floor) {
   return 0;
 }
 let selectedGem = null;   // 주머니에서 고른 보석 { type, grade } — 소켓 장비를 누르면 박힌다
+
+// ── V-238 마을·상인 — 안전 지대에서 팔고 사고 낀다(핵앤슬래시 한 바퀴의 «마을 절반»). ──
+// __TOWN=false 면 N 귀환·마을이 통째로 꺼진다(옛 판과 byte-동일). __MERCHANT=false 면 상인·상점창이 꺼진다.
+// 값·비율은 재서 정함(커밋글): 귀환 시전 1.4s·안전반경 460 · 팔기 30% · 장물 재고 6~8칸 매 방문 재굴림 · 살 때 ×1.25.
+const TOWN_CAST = 1.4, TOWN_SAFE_R = 460;
+const SELL_FRAC = 0.30, BUY_MARKUP = 1.25, FENCE_MIN = 6, FENCE_MAX = 8;
+let shopOpen = false, shopMerchant = null;
+const townOn = () => globalThis.__TOWN !== false;
+const merchOn = () => globalThis.__MERCHANT !== false;
+const RARITY_BASE = { white: 8, blue: 30, yellow: 90, gold: 260 };
+function itemValue(it) {
+  if (!it) return 0;
+  let v = RARITY_BASE[it.rarity && it.rarity.key] || 8;
+  for (const a of (it.affixes || [])) v += a.value * 2;
+  if (it.sockets) for (const g of it.sockets) v += g ? gemVal(g.type, g.grade) + 20 : 12;
+  return Math.round(v);
+}
+function buyPrice(it) { return Math.round(itemValue(it) * BUY_MARKUP); }
+function sellPrice(it) { return Math.max(1, Math.round(itemValue(it) * SELL_FRAC)); }
 const DECOR_PRELOAD = ["decal/stain.png", "decal/crack.png", "decal/pebble.png", "decal/mud.png",
   "decor/pillar.png", "decor/column2.png", "decor/bones.png", "decor/bones2.png", "decor/urn.png",
   "decor/coffin.png", "decor/rubble.png", "decor/statue.png", "decor/brazier.png", "decor/chest.png", "decor/stairs.png"];
@@ -416,8 +435,8 @@ window.__thiefPose = (n = 6) => {
 };
 window.__corpseN = () => G.corpses.length;
 
-function fresh(floor, carry) {
-  const f = genFloor(floor);
+function fresh(floor, carry, town) {
+  const f = town ? genTown() : genFloor(floor);
   const p = carry ? carry.player : {
     maxhp: BASE_HP, hp: BASE_HP, maxmana: BASE_MANA, mana: BASE_MANA, spd: BASE_SPD, level: 1,
     mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: BASE_SLOTS,
@@ -442,11 +461,14 @@ function fresh(floor, carry) {
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
+    town: !!town, merchants: f.merchants || [],
+    deepest: Math.max((carry && carry.deepest) || 0, floor),
+    returnFloor: town ? floor : ((carry && carry.returnFloor) || 0),
   };
 }
 
-function start(floor, carry) {
-  G = fresh(floor, carry);
+function start(floor, carry, town) {
+  G = fresh(floor, carry, town);
   G.blockProps = G.props.filter((pr) => BLOCK_IMGS.has(pr.img));
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
   window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
@@ -472,6 +494,15 @@ function start(floor, carry) {
   cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";
+  if (shopOpen) closeShop();   // V-238 — 층을 옮기면 상점창을 닫는다
+  p.townCast = 0;
+  window.__townReturn = tryTownReturn; window.__goTown = goTown;   // 컷·자용 실제 문
+  window.__openShop = (kind) => { const mc = (G.merchants || []).find((m) => m.kind === kind); if (mc) { if (mc.kind === "fence" && !mc.stock) mc.stock = rollFenceStock(); shopMerchant = mc; shopOpen = true; el("shop").classList.add("on"); renderShop(); } };
+  window.__sellJunk = sellJunk;
+  window.__giveBagLoot = (n = 8) => { for (let i = 0; i < n; i++) G.player.bag.push(rollItem(G.deepest || G.floor, false)); if (invOpen) renderInv(); if (shopOpen) renderShop(); return G.player.bag.length; };
+  window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
+  window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
+  window.__doStairs = tryStairs; window.__returnFromTown = returnFromTown;
 }
 
 // ── V-201 충돌 판정 — 걸을 수 있는 자리 = 방 ∪ 복도, 밖은 암반 ──────────────
@@ -583,7 +614,7 @@ function stepPlayer(dt) {
 
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   p.spearCd -= dt;
-  if (mouse.down && p.spearCd <= 0 && !invOpen && !charOpen) {
+  if (mouse.down && p.spearCd <= 0 && !invOpen && !charOpen && !shopOpen) {
     fireSpear(p, tx, ty);
     p.spearCd = p.atkCd;
   }
@@ -591,6 +622,10 @@ function stepPlayer(dt) {
   if (p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + 22 * dt);
   if (p.iframe > 0) p.iframe -= dt;
   if (p.curse > 0) p.curse -= dt;   // V-230 사제의 저주 — 남은 동안 내 피해가 반(curseF)
+  if (p.townCast > 0) {             // V-238 — 귀환 시전(적이 안전반경에 들면 끊긴다)
+    if (enemyNear(p.x, p.y, TOWN_SAFE_R)) { p.townCast = 0; floatNote("귀환이 끊겼다", "#c8a04a", 1.0); }
+    else { p.townCast -= dt; if (p.townCast <= 0) { p.townCast = 0; goTown(); return; } }
+  }
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
@@ -641,6 +676,8 @@ function handleSkills() {
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; if (potionOn) cycleGrade(); else spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
+  if (keys.has("n") && !p._n) { p._n = true; if (townOn()) tryTownReturn(); } if (!keys.has("n")) p._n = false;
+  if (keys.has("t") && !p._t) { p._t = true; if (merchOn()) toggleShopNear(); } if (!keys.has("t")) p._t = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
   if (G.dead && keys.has("r")) start(1, null);
@@ -1772,14 +1809,42 @@ function die() {
   d.style.display = "flex";
 }
 
+function carryState() {
+  return {
+    player: G.player, minions: G.minions, pickLog: G.pickLog,
+    kills: G.kills, picks: G.picks, gold: G.gold, xp: G.xp,
+    deepest: G.deepest, returnFloor: G.returnFloor,
+  };
+}
 function tryStairs() {
   const p = G.player;
-  if (Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) < 70) {
-    start(G.floor + 1, {
-      player: G.player, minions: G.minions, pickLog: G.pickLog,
-      kills: G.kills, picks: G.picks, gold: G.gold, xp: G.xp,
-    });
+  if (Math.hypot(p.x - G.stairs.x, p.y - G.stairs.y) >= 70) return;
+  if (G.town) { returnFromTown(); return; }   // V-238 — 마을 문은 «가장 깊었던 층»으로 돌려보낸다(내려가지 않는다)
+  start(G.floor + 1, carryState());
+}
+
+// ── V-238 마을 오가기 ──────────────────────────────────────────────────────
+function enemyNear(x, y, r) {
+  const r2 = r * r;
+  for (const pk of G.packs) {
+    if (!pk.awake) continue;
+    for (const m of pk.enemies) if (m.alive && (m.x - x) ** 2 + (m.y - y) ** 2 < r2) return true;
   }
+  return false;
+}
+function tryTownReturn() {
+  if (!townOn() || G.town) return;
+  const p = G.player;
+  if (enemyNear(p.x, p.y, TOWN_SAFE_R)) { floatNote("적이 가까이 있다 — 귀환 못 함", "#c8a04a", 1.2); return; }
+  if (p.townCast > 0) return;
+  p.townCast = TOWN_CAST;
+  floatNote("마을로 귀환…", "#d8b45a", 1.0);
+}
+function goTown() {
+  start(G.deepest, carryState(), true);   // floor = deepest → 문으로 곧장 그 층 복귀(진행 안 되감김)
+}
+function returnFromTown() {
+  start(G.returnFloor || G.deepest, carryState());   // 가장 깊었던 층을 새로 편다(같은 깊이)
 }
 
 function burst(x, y, col, spd) {
@@ -1970,6 +2035,7 @@ function drawWorld() {
   eliteLabels = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
+  if (G.town) for (const mc of G.merchants) if (onScreen(mc.x, mc.y, 120)) drawList.push({ y: mc.y, fn: () => drawMerchant(mc), near: false });
   drawList.sort((a, b) => a.y - b.y);
   for (const d of drawList) {
     if (d.near) ctx.globalAlpha = 0.45;   // 내 앞을 가리는 소환수는 비쳐 보이게
@@ -1978,11 +2044,13 @@ function drawWorld() {
   }
   window.__barRects = barRects;
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
+  drawTownChannel();                       // V-238 — 귀환 시전 고리(사람 발밑)
   window.__silRects = silRects;
   window.__ringRects = ringRects;
   window.__eliteLabels = eliteLabels;
   for (const ch of G.chests) drawChestBeacon(ch);
   for (const a of G.altars) drawAltarBeacon(a);
+  if (G.town) for (const mc of G.merchants) drawMerchantBeacon(mc);   // V-238
   PROF.seg("actors");
 
   spearRects = [];
@@ -2783,7 +2851,10 @@ function drawStairs() {
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
   // V-166: 그림이 «계단»이 아니라 뚜껑문이라 이름을 그림에 맞춘다(픽셀랩이 위에서 본
   // 내려가는 계단을 여덟 번 못 그렸다 — 그릴 수 있는 물건으로 바꾼 것).
-  ctx.fillText(near ? "▼ F — 다음 층" : "▼ 아래로", s.x, s.y - STAIR_H / 2 - 10);
+  const stLabel = G.town   // V-238 — 마을 문은 위로(던전으로 복귀), 던전 계단은 아래로
+    ? (near ? `▲ F — 던전으로 (B${G.deepest}층)` : "▲ 던전으로")
+    : (near ? "▼ F — 다음 층" : "▼ 아래로");
+  ctx.fillText(stLabel, s.x, s.y - STAIR_H / 2 - 10);
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을
@@ -3008,6 +3079,51 @@ function drawAltarBeacon(a) {
     ctx.fillStyle = "#8f8877"; ctx.fillText(l1, lx, ly - 3);
     for (let i = 0; i < lines.length; i++) { ctx.fillStyle = lines[i][1] ? lines[i][2] : "#c05a4a"; ctx.fillText(lines[i][0], lx, ly + 14 + i * 18); }
   }
+}
+// ── V-238 상인 — 머리 위 이름표(색조와 한 결) + 반경 안에서 「T 거래」. drawAltarBeacon 결을 따른다. ──
+const MERCH_R = 130;
+function drawMerchant(mc) {
+  drawShadow(mc.x, mc.y, mc.r, null, 2.5);
+  if (!drawSprite8(ctx, mc.base, actorDir(mc), "idle", 0, mc.x, mc.y, mc.h, mc.filt))
+    fallbackBlob(mc.x, mc.y, mc.h, mc.col);
+}
+function drawMerchantBeacon(mc) {
+  if (!onScreen(mc.x, mc.y, 200)) return;
+  const near = Math.hypot(G.player.x - mc.x, G.player.y - mc.y) < MERCH_R;
+  const role = mc.kind === "fence" ? "사고 팔기" : "물약 · 보석";
+  const sub = near ? `${role}  ·  T` : role;
+  ctx.textAlign = "center";
+  const ly = mc.y - mc.h - 6;
+  ctx.font = "bold 15px 'Times New Roman',serif";
+  const w1 = ctx.measureText(mc.name).width;
+  ctx.font = "12px 'Times New Roman',serif";
+  const hw = Math.max(w1, ctx.measureText(sub).width) / 2 + 10;
+  const boxH = 40;
+  const lx = clampLabelX(mc.x, hw);
+  if (globalThis.__NOTESTACK !== false) reservedFloatRects.push({ x0: (lx - hw - cam.x) * Z, y0: (ly - 16 - cam.y) * Z, x1: (lx + hw - cam.x) * Z, y1: (ly - 16 + boxH - cam.y) * Z });
+  ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 16, hw * 2, boxH);
+  ctx.strokeStyle = mc.col; ctx.lineWidth = 1.5; ctx.strokeRect(lx - hw, ly - 16, hw * 2, boxH);
+  ctx.fillStyle = mc.col; ctx.font = "bold 15px 'Times New Roman',serif";
+  ctx.fillText(mc.name, lx, ly);
+  ctx.fillStyle = near ? "#e7dcc0" : "#b6a888"; ctx.font = "12px 'Times New Roman',serif";
+  ctx.fillText(sub, lx, ly + 16);
+}
+function nearestMerchant() {
+  if (!G.town || !G.merchants) return null;
+  let best = null, bd = MERCH_R * MERCH_R;
+  const p = G.player;
+  for (const mc of G.merchants) { const d = (mc.x - p.x) ** 2 + (mc.y - p.y) ** 2; if (d < bd) { bd = d; best = mc; } }
+  return best;
+}
+function drawTownChannel() {
+  const p = G.player; if (!(p.townCast > 0)) return;
+  const cy = p.y + 16, rad = 30, frac = 1 - p.townCast / TOWN_CAST;
+  ctx.save();
+  ctx.strokeStyle = "rgba(216,180,90,0.30)"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(p.x, cy, rad, 0, 6.283); ctx.stroke();
+  ctx.strokeStyle = "#f0d878"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(p.x, cy, rad, -Math.PI / 2, -Math.PI / 2 + frac * 6.283); ctx.stroke();
+  ctx.restore();
 }
 function openChest(ch) {
   ch.opened = true;
@@ -3403,6 +3519,147 @@ function dropItemFromBag(gear) {
   if (invOpen) renderInv();
 }
 
+// ── V-238 상점 (T) — #inv 결. 장물장수: 재고 사기 + 팔기(한 칸·쓰레기 한꺼번에). 잡화상: 물약·보석. ──
+function rollFenceStock() {
+  const f = Math.max(1, G.deepest || G.floor);
+  const n = FENCE_MIN + ((Math.random() * (FENCE_MAX - FENCE_MIN + 1)) | 0);
+  const out = [];
+  for (let i = 0; i < n; i++) out.push(rollItem(f, true));
+  return out;
+}
+function toggleShopNear() {
+  if (shopOpen) { closeShop(); return; }
+  const mc = nearestMerchant();
+  if (!mc) { floatNote("상인 곁으로 가서 T", "#c8a04a", 1.0); return; }
+  if (mc.kind === "fence" && !mc.stock) mc.stock = rollFenceStock();
+  shopMerchant = mc; shopOpen = true;
+  el("shop").classList.add("on");
+  el("tooltip").style.display = "none"; el("tooltip2").style.display = "none";
+  hoverItem = null; hoverRect = null; _prevHover = null;
+  renderShop();
+}
+function closeShop() {
+  shopOpen = false; shopMerchant = null;
+  el("shop").classList.remove("on");
+  hoverItem = null; hoverRect = null;
+  el("tooltip").style.display = "none"; el("tooltip2").style.display = "none";
+}
+function buyStockItem(mc, idx) {
+  const it = mc.stock[idx]; if (!it) return;
+  const price = buyPrice(it);
+  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  if (!bagFits(G.player.bag, it)) { floatNote("가방이 가득 찼다", "#e0663c", 1.2); return; }
+  G.gold -= price; G.player.bag.push(it); mc.stock.splice(idx, 1);
+  hoverItem = null; hoverRect = null;
+  floatNote(`${it.name} 구입 (${comma(price)}◈)`, it.rarity.color, 1.3, buyNoteExtra());
+  if (invOpen) renderInv();
+  renderShop();
+}
+function sellBagItem(idx) {
+  const it = G.player.bag[idx]; if (!it) return;
+  const gain = sellPrice(it);
+  G.player.bag.splice(idx, 1); G.gold += gain;
+  hoverItem = null; hoverRect = null;
+  floatNote(`${it.name} 판매 (+${comma(gain)}◈)`, "#e8cf52", 1.2);
+  if (invOpen) renderInv();
+  renderShop();
+}
+function sellJunk() {
+  const p = G.player, junk = [], keep = [];
+  for (const it of p.bag) ((it.rarity && (it.rarity.key === "white" || it.rarity.key === "blue")) ? junk : keep).push(it);
+  if (!junk.length) { floatNote("팔 쓰레기가 없다(흰·매직)", "#c8a04a", 1.0); return; }
+  let gain = 0; for (const it of junk) gain += sellPrice(it);
+  p.bag = keep; G.gold += gain;
+  hoverItem = null; hoverRect = null;
+  floatNote(`쓰레기 ${junk.length}개 판매 (+${comma(gain)}◈)`, "#e8cf52", 1.6, buyNoteExtra());
+  if (invOpen) renderInv();
+  renderShop();
+}
+function buyPotionTown(kind) {
+  const price = potionPrice();
+  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  if (!beltPush(kind)) { floatNote("벨트가 가득하다", "#c8a04a", 1.1); return; }
+  G.gold -= price;
+  floatNote(`${POTION[kind].name} 구입 (${comma(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
+  renderShop();
+}
+function buyGemTown() {
+  if (globalThis.__GEM === false) return;
+  const price = gemPrice();
+  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  const grade = buyGemGrade(), type = GEM_KEYS[(Math.random() * GEM_KEYS.length) | 0];
+  G.gold -= price; G.player.gems.push(makeGem(type, grade));
+  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${comma(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
+  if (invOpen) renderInv();
+  renderShop();
+}
+function shopItemRow(it, rightTxt, rightCol, onClick) {
+  const d = document.createElement("div"); d.className = "shoprow";
+  const nm = document.createElement("span"); nm.className = "srname"; nm.style.color = it.rarity.color;
+  let label = it.name;
+  if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) label += " " + it.sockets.map((g) => g ? "●" : "○").join("");
+  nm.textContent = label;
+  const pr = document.createElement("span"); pr.className = "srprice"; pr.style.color = rightCol; pr.textContent = rightTxt;
+  d.appendChild(nm); d.appendChild(pr);
+  d.addEventListener("mouseenter", () => { hoverItem = it; hoverRect = d.getBoundingClientRect(); });
+  d.addEventListener("mouseleave", () => { if (hoverItem === it) { hoverItem = null; hoverRect = null; } });
+  d.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+  return d;
+}
+function shopSection(txt) { const h = document.createElement("div"); h.className = "shopsec"; h.textContent = txt; return h; }
+function renderShop() {
+  if (!shopOpen || !shopMerchant) return;
+  const mc = shopMerchant, root = el("shop");
+  root.innerHTML = "";
+  const title = document.createElement("div"); title.className = "shoptitle"; title.style.color = mc.col;
+  title.textContent = mc.name; root.appendChild(title);
+  const gr = document.createElement("div"); gr.className = "shopgold";
+  gr.innerHTML = `보유 <span class="coin">◈</span> ${comma(G.gold)}`; root.appendChild(gr);
+  if (mc.kind === "fence") {
+    root.appendChild(shopSection(`재고 — 사기 (B${G.deepest}층 기준)`));
+    const stock = document.createElement("div"); stock.className = "shoplist";
+    if (mc.stock.length) for (let i = 0; i < mc.stock.length; i++) {
+      const it = mc.stock[i], price = buyPrice(it);
+      stock.appendChild(shopItemRow(it, `${comma(price)}◈`, G.gold >= price ? "#e8cf52" : "#c05a4a", () => buyStockItem(mc, i)));
+    } else { const e = document.createElement("div"); e.className = "shopempty"; e.textContent = "재고 없음"; stock.appendChild(e); }
+    root.appendChild(stock);
+    const junkN = G.player.bag.filter((it) => it.rarity && (it.rarity.key === "white" || it.rarity.key === "blue")).length;
+    const sec = shopSection("팔기 — 가방 (팔면 30%)");
+    const jb = document.createElement("button"); jb.className = "shopbtn junk";
+    jb.textContent = junkN ? `쓰레기 한꺼번에 팔기 (흰·매직 ${junkN}개)` : "쓰레기 없음";
+    jb.disabled = !junkN; jb.addEventListener("click", (e) => { e.stopPropagation(); sellJunk(); });
+    sec.appendChild(jb); root.appendChild(sec);
+    const sell = document.createElement("div"); sell.className = "shoplist";
+    if (G.player.bag.length) for (let i = 0; i < G.player.bag.length; i++) {
+      const it = G.player.bag[i];
+      sell.appendChild(shopItemRow(it, `+${comma(sellPrice(it))}◈`, "#c9a24a", () => sellBagItem(i)));
+    } else { const e = document.createElement("div"); e.className = "shopempty"; e.textContent = "가방이 비었다"; sell.appendChild(e); }
+    root.appendChild(sell);
+  } else {
+    root.appendChild(shopSection("잡화 — 사기"));
+    const list = document.createElement("div"); list.className = "shoplist";
+    const pp = potionPrice();
+    list.appendChild(shopBuyRow(`${POTION.hp.name} (벨트로)`, pp, POTION.hp.glow, () => buyPotionTown("hp")));
+    list.appendChild(shopBuyRow(`${POTION.mp.name} (벨트로)`, pp, POTION.mp.glow, () => buyPotionTown("mp")));
+    if (globalThis.__GEM !== false) {
+      const gp = gemPrice(), grade = GEM_GRADES[buyGemGrade()];
+      list.appendChild(shopBuyRow(`보석 (${grade}·무작위 종류)`, gp, "#c8a0e0", () => buyGemTown()));
+    }
+    root.appendChild(list);
+  }
+  const hint = document.createElement("div"); hint.className = "shophint";
+  hint.textContent = mc.kind === "fence" ? "재고 클릭=사기 · 가방 클릭=팔기 · T 닫기" : "클릭=사기 · T 닫기";
+  root.appendChild(hint);
+}
+function shopBuyRow(label, price, col, onClick) {
+  const d = document.createElement("div"); d.className = "shoprow buy";
+  const nm = document.createElement("span"); nm.className = "srname"; nm.style.color = col; nm.textContent = label;
+  const pr = document.createElement("span"); pr.className = "srprice"; pr.style.color = G.gold >= price ? "#e8cf52" : "#c05a4a"; pr.textContent = `${comma(price)}◈`;
+  d.appendChild(nm); d.appendChild(pr);
+  d.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
+  return d;
+}
+
 // ── V-186 스킬·스탯 창 (C) — HS_STYLE ⑤ ─────────────────────────────────────
 // 좌: 스탯 여섯(오각별) + Points Left. 우: 스킬트리 두 갈래(선으로 이음·앞칸 잠금).
 // 스탯/스킬 찍기는 전부 spendAttr/spendSkill → recalc() 한 문을 지난다. 창이 열려도 게임은 돈다.
@@ -3546,7 +3803,7 @@ function bindChar() {
 let _prevHover = null, _prevShift = false;
 function updateInvTip() {
   const t1 = el("tooltip"), t2 = el("tooltip2");
-  if (!invOpen || !hoverItem || G.dead) {
+  if (!(invOpen || shopOpen) || !hoverItem || G.dead) {   // V-238 — 상점 칸에도 툴팁
     if (_prevHover) { t1.style.display = "none"; t2.style.display = "none"; _prevHover = null; }
     return;
   }
@@ -3609,11 +3866,19 @@ function updateHUD() {
   el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`;
   // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데
   //   여기만 영어라 한 화면에 두 말이 섞여 있었다.
-  el("region1").textContent = "죽은 자의 묘지";
-  el("region2").textContent = `지하 ${G.floor}층`;
-  el("region3").textContent = G.floor < 2 ? "악몽" : "지옥";
-  el("region4").textContent = `지역 등급 ${G.floor * 40 + 42}`;
-  el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
+  if (G.town) {   // V-238 — 마을에서는 「지하 N층」이 아니라 「마을」로 읽힌다
+    el("region1").textContent = "죽은 자의 묘지 — 마을";
+    el("region2").textContent = "안전 지대";
+    el("region3").textContent = "쉼터";
+    el("region4").textContent = `던전 B${G.deepest}층`;
+    el("cleared").textContent = "상인 둘 · F 던전으로";
+  } else {
+    el("region1").textContent = "죽은 자의 묘지";
+    el("region2").textContent = `지하 ${G.floor}층`;
+    el("region3").textContent = G.floor < 2 ? "악몽" : "지옥";
+    el("region4").textContent = `지역 등급 ${G.floor * 40 + 42}`;
+    el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
+  }
   const used = slotsUsed();
   const cap = slotCap();
   const slotsEl = el("slots");
@@ -3708,9 +3973,10 @@ function loop(now) {
   const _t0 = performance.now();
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
-    stepPlayer(dt); handleSkills(); wakePacks();
-    stepEnemies(dt); stepMinions(dt); stepSpears(dt); stepFoeShots(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
-    stepHazards(dt); stepBones(dt);
+    stepPlayer(dt); handleSkills();
+    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다
+    stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
+    stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
     for (const e of G.pickLog) e.t -= dt;

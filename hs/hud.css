@@ -160,6 +160,29 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 .gemcell .gdot{width:15px;height:15px;background:var(--gc);
   clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%);box-shadow:0 0 5px var(--gc)}
 .gemcell .gn{position:absolute;right:1px;bottom:-2px;font-size:12px;font-weight:bold;color:#f4ecd8;text-shadow:0 1px 2px #000}
+
+/* V-238 상점 창 (T) — #inv 결(검붉은 어둠·금빛 제목). 장물장수 재고/팔기 · 잡화상 물약/보석. */
+.shopwin{position:fixed;display:none;z-index:18;left:50%;top:50%;transform:translate(-50%,-50%);
+  pointer-events:auto;padding:14px 18px 10px;min-width:420px;max-width:470px;
+  background:linear-gradient(#1a0f10,#0d0708);border:2px solid var(--edge);
+  box-shadow:inset 0 0 0 1px var(--edge2),inset 0 0 40px rgba(0,0,0,.7),0 6px 22px #000}
+.shopwin.on{display:block}
+.shoptitle{text-align:center;font-size:18px;letter-spacing:.14em;text-transform:uppercase;text-shadow:0 1px 0 #000;margin-bottom:4px}
+.shopgold{text-align:center;color:#e8cf52;font-size:13px;letter-spacing:.05em;margin-bottom:8px}
+.shopgold .coin{color:#e8c84a}
+.shopsec{color:var(--gold);font-size:13px;letter-spacing:.08em;margin:9px 0 5px;border-bottom:1px solid var(--edge2);padding-bottom:3px}
+.shoplist{display:flex;flex-direction:column;gap:2px;max-height:184px;overflow-y:auto}
+.shoprow{display:flex;justify-content:space-between;align-items:baseline;gap:14px;
+  padding:4px 8px;border:1px solid rgba(90,30,28,.4);background:#0a0607;cursor:pointer;font-size:13px;letter-spacing:.02em}
+.shoprow:hover{background:#1a0f10;border-color:var(--gold-d)}
+.srname{text-shadow:0 1px 0 #000;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srprice{flex:none;font-weight:bold;text-shadow:0 1px 0 #000}
+.shopempty{color:#6b5f4e;font-size:12px;padding:6px 8px;font-style:italic}
+.shopbtn{margin-top:3px;width:100%;padding:6px 8px;font-family:inherit;font-size:13px;letter-spacing:.04em;
+  color:#f0e2c0;background:linear-gradient(#3a1c10,#210f08);border:1px solid var(--gold-d);cursor:pointer}
+.shopbtn:hover{filter:brightness(1.25)}
+.shopbtn:disabled{opacity:.45;cursor:default;filter:none}
+.shophint{text-align:center;color:#6b5f4e;font-size:12px;letter-spacing:.04em;margin-top:10px}
 .cellsock{position:absolute;left:2px;bottom:0;display:flex;gap:1px;font-size:11px;line-height:1;color:#8a7c60;text-shadow:0 1px 2px #000}
 .gsock{margin-left:3px;font-size:11px;color:#8a7c60}
 .tipsock{font-size:13px;color:#c9bda0;letter-spacing:.1em;margin-top:2px}

@@ -232,6 +232,42 @@ export function genFloor(floor) {
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 
+// ── V-238 마을 — 안전 지대(적 0 · 위험 장판 0). 고정된 한 방 + 문(계단)으로 가장 깊었던 층 복귀. ──
+// genFloor 를 «건드리지 않으려고» 따로 둔다 — genFloor 씨앗 지문은 이 함수가 있든 없든 그대로다
+//   (되돌림: main.js __TOWN=false 면 이 함수를 아예 안 부른다). rooms/corridors/props 꼴을 그대로
+//   내어 drawWorld·미니맵이 손 하나 안 대고 마을을 그린다. 자리는 «고정»이라 들를 때마다 같다.
+export function genTown() {
+  const W = 1680, H = 1180;
+  const rm = { x: 300, y: 260, w: 1080, h: 640, dead: false, visited: true, cleared: false };
+  rm.cx = rm.x + rm.w / 2; rm.cy = rm.y + rm.h / 2;
+  const rooms = [rm];
+  const startX = rm.cx, startY = rm.cy + 170;             // 문(아래) 조금 위 — 상인 둘 사이로 들어선다
+  const stairs = { x: rm.cx, y: rm.y + rm.h - 64, r: 46, town: true };   // 던전으로 돌아가는 문(아래 벽)
+  // 고정 배치 소품 — «마을답게»(화톳불 둘 · 기둥 둘 · 석상 · 관 · 항아리). scatter 안 씀 → 자리 늘 같음.
+  const props = [
+    { img: "decor/brazier.png", x: rm.x + 205, y: rm.cy - 30, h: 90, brazier: true },
+    { img: "decor/brazier.png", x: rm.x + rm.w - 205, y: rm.cy - 30, h: 90, brazier: true },
+    { img: "decor/pillar.png",  x: rm.x + 92,  y: rm.y + 150, h: 205 },
+    { img: "decor/pillar.png",  x: rm.x + rm.w - 92, y: rm.y + 150, h: 205 },
+    { img: "decor/statue.png",  x: rm.cx, y: rm.y + 104, h: 150 },
+    { img: "decor/coffin.png",  x: rm.x + 168, y: rm.y + rm.h - 150, h: 64 },
+    { img: "decor/urn.png",     x: rm.x + rm.w - 168, y: rm.y + rm.h - 160, h: 62 },
+    { img: "decor/bones.png",   x: rm.cx + 300, y: rm.cy + 165, h: 44 },
+    { img: "decor/rubble.png",  x: rm.cx - 300, y: rm.cy + 175, h: 40 },
+  ];
+  // 상인 둘 — 같은 스프라이트에 «색조·이름표»로 가른다(장물장수 호박빛 · 잡화상 청록). 컷에서 눈으로 갈린다.
+  const merchants = [
+    { kind: "fence", name: "장물장수", base: "mob/shaman", r: 26, h: 96,
+      filt: "sepia(1) saturate(2.1) hue-rotate(-6deg) brightness(1.12) contrast(1.05)", col: "#e8b24a",
+      x: rm.cx - 260, y: rm.cy - 10, dx: 1, dy: 0.2, state: "idle", anim: 0, stock: null },
+    { kind: "general", name: "잡화상", base: "mob/shaman", r: 26, h: 96,
+      filt: "saturate(1.7) hue-rotate(122deg) brightness(1.1) contrast(1.05)", col: "#6fd0a8",
+      x: rm.cx + 260, y: rm.cy - 10, dx: -1, dy: 0.2, state: "idle", anim: 0 },
+  ];
+  return { W, H, rooms, corridors: [], packs: [], chests: [], altars: [], stairs,
+    startX, startY, decals: [], props, town: true, merchants };
+}
+
 // ★★ V-164 — `decal/stain.png` 를 **줄에서 뺀다.** 그 장은 굽기가 실패한 것이다:
 //   112×112 · 1639B 인데 **안쪽이 통째로 투명하고 스캘럽 윤곽선만** 남았다. 화면에서는
 //   따뜻한 바닥 위에 뜬 «구름 모양 테두리»로 보인다 — 병수님이 말한 「둥둥 떠 있는 것」의
