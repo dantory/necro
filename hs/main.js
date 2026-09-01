@@ -81,6 +81,25 @@ if (globalThis.__FEED === undefined) globalThis.__FEED = true;
 //   ㉦ V-233 — 뼈 골렘(G): 시체 5구를 모아 큰 소환수 하나. 기본 켬. 끄면 옛 판과 byte-동일:
 //      globalThis.__GOLEM=false (G 키가 아무것도 안 함).
 if (globalThis.__GOLEM === undefined) globalThis.__GOLEM = true;
+//   ㉧ V-237 — 잡몹 갈래(사수·돌진꾼·자폭병·시체 도둑)를 이름표·색조로 «눈에» 가르고, 새 갈래 시체 도둑을 켠다.
+//      기본 켬. 끄면 옛 판과 byte-동일: 도둑이 안 스폰되고(map.js && 단락), 이름표·도둑 색조·도둑 처치 보상이 다 꺼진다.
+//      (사수·돌진·자폭 자체는 옛 손잡이 __RANGED_MOB/__CHARGER_MOB/__BOMBER_MOB 로 여전히 돈다.)
+if (globalThis.__MOBKIND === undefined) globalThis.__MOBKIND = true;
+//   ㉨ V-237 — 떠 있는 글/판이 서로 덮거나 화면 밖으로 잘리는 것을 고친다(구입글이 제단 판을 덮음·집는 글이 왼쪽 잘림).
+//      기본 켬. 끄면 옛 동작(구입글이 제단 판 위에 겹침·바닥 이름표 왼쪽 잘림).
+if (globalThis.__NOTESTACK === undefined) globalThis.__NOTESTACK = true;
+//   ㉩ V-237 — 장비줄 낀 칸을 레어도 색으로, 빈 칸은 흐리게(V-235 는 둘 다 밝아 컷에서 안 갈렸다).
+//      기본 켬. 끄면 V-235 동작(빈 칸 __GEARLINE 색·낀 칸 레어도 색이되 대비가 약함).
+if (globalThis.__GEARCOLOR === undefined) globalThis.__GEARCOLOR = true;
+// ★ 시체 도둑 — 바닥 시체를 먹어 없앤다(이 게임의 자원을 뺏는 첫 적). 재미 판정: «먹어 없앰»을 골랐다 —
+//   되살리면 잡을 때 시체가 도로 생겨 자원이 결국 돌아오지만, 먹어 없애면 「서둘러 써라」는 압박이 곧고 세다(NOW.md 의 결).
+//   대신 도둑을 잡으면 삼킨 넋이 시체로 돌아온다(THIEF_BACK) — 그게 도둑을 «먼저 잡을» 이유(처치 보상)다.
+const THIEF_SENSE = 540;     // 시체를 느끼는 반경(월드)
+const THIEF_EAT_REACH = 40;  // 이 안에 들면 삼킨다
+const THIEF_HEAL = 0.5;      // 한 구 삼킬 때 자기 최대 생명의 이만큼 회복(먼저 잡을 이유)
+const THIEF_EAT_CD = 0.8;    // 연달아 삼키는 사이 간격(초) — 연출이 겹치지 않게
+const THIEF_SPD_MUL = 1.15;  // 시체로 달려갈 때 속도(굶주림)
+const THIEF_BACK = 2;        // 도둑을 잡으면 시체로 돌아오는 넋 수
 const PWALL_LIFE = 10.0;   // V-232 — 사람이 세운 뼈벽 유지 시간(초). 뼈 왕 우리(CAGE_LIFE)와 다르다.
 //   ㉡ 적 피해를 사람 hp(≈4,515) 규격에 맞춘다. base 6~18 × scale(1+층×0.35) 는 hp 의 0.1% — 한 대가 안 아프다.
 //      층 깊이 성장 축(scale)은 그대로 두고, 그 위에 **사람에게 닿는 피해에만** 곱을 얹는다(m.dmg 자체는 안 건드려
@@ -360,6 +379,42 @@ window.__altarPose = (kind) => {
   mouse.x = (ax - cam.x) * Z; mouse.y = (ay - cam.y) * Z;
   return { x: ax, y: ay, kind: kind || "blood", gold: G.gold, maxhp: G.player.maxhp, slots: slotCap() };
 };
+// ── V-237 컷용 — 갈래를 한 화면에 세우고(눈으로 갈림), 도둑이 시체를 먹는 전/후를 만든다. 자 파일이 아니다. ──
+function poseMob(kind, x, y, extra) {
+  return Object.assign({ id: (9000 + Math.random() * 1000) | 0, base: "mob/fallen", x, y, hp: 400, maxhp: 400,
+    dmg: 12, spd: 160, h: 70, r: 18, gold: [4, 9], dx: -1, dy: 0, elite: false, alive: true, anim: 0, tb: 0,
+    state: "idle", atk: 0, hit: 0, kb: { x: 0, y: 0 }, mobKind: kind }, extra || {});
+}
+window.__kindsPose = () => {
+  const p = G.player;
+  const cx = p.x, cy = p.y - 30;
+  const shooter = poseMob("shoot", cx - 210, cy, { ranged: true, base: "mob/skelarch", h: 66, shootCd: 999 });
+  const charger = poseMob("charge", cx, cy, { charger: true, base: "mob/brute", h: 82, r: 20, chargeCd: 999 });
+  const thief = poseMob("thief", cx + 210, cy, { thief: true, base: "mob/shaman", h: 72, eatCd: 999 });
+  G.packs = [{ x: cx, y: cy, awake: true, room: 0, enemies: [shooter, charger, thief] }];
+  p.x = cx; p.y = cy + 210; unstick(p, p.r);   // 사람은 갈래 줄 아래로 물러 세운다(겹치지 않게·돌진 예고선 안 생기게)
+  cam.x = cx - VW / (2 * Z); cam.y = cy - VH / (2 * Z) + 80;
+  return { kinds: ["shoot", "charge", "thief"] };
+};
+window.__chargeTellPose = () => {
+  const p = G.player;
+  const m = poseMob("charge", p.x + 230, p.y, { charger: true, base: "mob/brute", h: 82, r: 20, state: "attack", dx: -1, dy: 0, tele: CHARGE_TELE * 0.6, charging: 0, chargeCd: 0 });
+  G.packs = [{ x: p.x, y: p.y, awake: true, room: 0, enemies: [m] }];
+  cam.x = (m.x + p.x) / 2 - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
+  return { x: m.x, y: m.y, tele: m.tele };
+};
+window.__thiefPose = (n = 6) => {
+  const p = G.player;
+  const tx = p.x + 40, ty = p.y + 30;
+  G.corpses = [];
+  for (let i = 0; i < n; i++) G.corpses.push({ x: tx + 70 + (i % 3) * 48, y: ty + Math.floor(i / 3) * 42, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 });
+  const m = poseMob("thief", tx, ty, { thief: true, base: "mob/shaman", h: 72, hp: 99999, maxhp: 99999, spd: 240, state: "walk", dx: 1, dy: 0, eatCd: 0 });
+  G.packs = [{ x: tx, y: ty, awake: true, room: 0, enemies: [m] }];
+  p.x = tx - 280; p.y = ty; unstick(p, p.r);
+  cam.x = tx - VW / (2 * Z) + 30; cam.y = ty - VH / (2 * Z);
+  return { corpses: G.corpses.length };
+};
+window.__corpseN = () => G.corpses.length;
 
 function fresh(floor, carry) {
   const f = genFloor(floor);
@@ -1036,6 +1091,7 @@ function stepEnemies(dt) {
       if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
       if (m.charger && globalThis.__CHARGER_MOB) { stepCharger(m, p, dt); continue; }
       if (m.bomber && globalThis.__BOMBER_MOB) { stepBomber(m, p, dt, pk); continue; }
+      if (m.thief && globalThis.__MOBKIND !== false) { stepThief(m, p, dt); continue; }
       let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
       for (const s of G.minions) {
         const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
@@ -1147,6 +1203,51 @@ function bombExplode(m) {
   for (let i = 0; i < 16; i++) burst(m.x, m.y - m.h * 0.4, "#ff9030", 220);
   cam.shake = Math.max(cam.shake, 12); flash = Math.max(flash, 0.18); flashColor = "255,150,60";
   killEnemy(m);
+}
+
+// ★ V-237 시체 도둑 — 바닥의 성한 시체(안 쓴 것 = 사람의 자원)를 향해 달려가 삼켜 «없앤다». 삼킬 시체가
+//   없으면 여느 잡몹처럼 사람을 쫓아 문다(방에 시체가 있는 동안만 자원 도둑, 없으면 그냥 적). 삼킬 때 보라 넋이
+//   솟아 시체가 사라진 것이 눈에 보인다 — 안 그러면 사람은 「왜 시체가 없지」만 겪는다.
+function stepThief(m, p, dt) {
+  m.hit = Math.max(0, m.hit - dt);
+  m.eatCd = Math.max(0, (m.eatCd || 0) - dt);
+  m.eatGlow = Math.max(0, (m.eatGlow || 0) - dt);
+  const ci = nearestCorpse(m.x, m.y, THIEF_SENSE);
+  if (ci >= 0) {
+    const c = G.corpses[ci];
+    const dx = c.x - m.x, dy = c.y - m.y, dist = Math.hypot(dx, dy) || 1;
+    m.dx = dx / dist; m.dy = dy / dist;
+    if (dist > THIEF_EAT_REACH) {
+      stepTo(m, m.x + m.dx * m.spd * THIEF_SPD_MUL * dt, m.y + m.dy * m.spd * THIEF_SPD_MUL * dt, m.r);
+      m.state = "walk"; m.anim += dt * 10;
+    } else {
+      m.state = "attack"; m.anim += dt * 6;
+      if (m.eatCd <= 0) thiefEat(m, ci);
+    }
+  } else {
+    let tx = p.x, ty = p.y, td = (p.x - m.x) ** 2 + (p.y - m.y) ** 2;
+    for (const s of G.minions) { const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2; if (d < td) { td = d; tx = s.x; ty = s.y; } }
+    const dist = Math.sqrt(td) || 1;
+    m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+    m.atk -= dt;
+    if (dist > m.r + 30) { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; m.anim += dt * 9; }
+    else {
+      m.state = "attack"; m.anim += dt * 9;
+      if (m.atk <= 0) { m.atk = 0.9; if (tx === p.x && ty === p.y) hurtPlayer(m.dmg); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } } }
+    }
+  }
+  if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
+}
+// 시체 한 구를 삼킨다 — 배열에서 «빼서» 눈에 보이게 없애고(자원 감소), 넋이 솟는 연출을 남기고, 자기를 회복한다.
+function thiefEat(m, ci) {
+  const c = G.corpses[ci];
+  G.corpses.splice(ci, 1);
+  m.hp = Math.min(m.maxhp, m.hp + m.maxhp * THIEF_HEAL);
+  m.eatCd = THIEF_EAT_CD; m.eatGlow = 0.6;
+  m.stole = (m.stole || 0) + 1;
+  METRIC.thiefEaten = (METRIC.thiefEaten || 0) + 1;
+  for (let i = 0; i < 14; i++) { const s = 60 + Math.random() * 120; G.parts.push({ x: c.x + (Math.random() * 2 - 1) * 10, y: c.y - c.h * 0.15, vx: (Math.random() * 2 - 1) * 40, vy: -s, life: 0.5 + Math.random() * 0.4, col: i & 1 ? "#c88ae0" : "#7a3ad0", r: 2 + Math.random() * 2.4 }); }
+  cam.shake = Math.max(cam.shake, 3);
 }
 
 // ★ V-203 팔② — 적 화살. 사람만 맞히고 소환수는 통과한다(소환수 벽을 넘는 팔이다). 손잡이가 꺼지면 배열이 비어 no-op.
@@ -1465,6 +1566,14 @@ function killEnemy(m) {
   if (killStreak >= 5) { flash = Math.max(flash, Math.min(0.32, 0.04 + chain * 0.02)); flashColor = "232,224,205"; }
   for (let i = 0; i < (m.elite ? 16 : 9); i++) burst(m.x, m.y - m.h * 0.4, "#e8e2d2", 150);
   addCorpse(m);
+  if (m.thief && globalThis.__MOBKIND !== false) {   // V-237 — 도둑을 잡으면 삼킨 넋이 시체로 돌아온다(먼저 잡을 이유)
+    const back = Math.min(THIEF_BACK, 1 + (m.stole || 0));
+    for (let i = 0; i < back; i++) {
+      G.corpses.push({ x: m.x + (i + 1) * 22 * (i % 2 ? 1 : -1), y: m.y + 10 + i * 8, base: "mob/skelarch", dir: "s", h: 78, used: false, t: 0 });
+      for (let k = 0; k < 6; k++) burst(m.x, m.y - m.h * 0.3, "#c89bff", 120);
+    }
+    if (G.corpses.length > 200) G.corpses.splice(0, G.corpses.length - 200);
+  }
   dropLoot(m);
 }
 
@@ -1770,10 +1879,13 @@ const FLOOR_PATS = new Map();     // 바닥 타일 이름 → CanvasPattern (한
 let wallPatN = null, wallPatS = null, wallPatL = null;  // 벽: 북(정면)·남(윗면)·옆(세로)
 let bedrockPat = null;            // V-212 — 방·복도 밖의 «암반». 빈 검정 대신 화면 전체에 깐다.
 let itemLabels = [];   // V-181: 바닥 이름표의 «화면» 사각들 — 툴팁 마우스 판정이 쓴다
+let reservedFloatRects = [];   // V-237: 이번 프레임 세계-공간 판(제단 안내판 등)의 «화면» 사각 — drawFloats 가 이 위를 피해 쌓는다
+const EMPTY_RECTS = [];
 function onScreen(x, y, pad) { return !(x - cam.x < -pad || x - cam.x > VW / Z + pad || y - cam.y < -pad || y - cam.y > VH / Z + pad); }
 
 function drawWorld() {
   PROF.mark = performance.now();
+  reservedFloatRects = [];   // V-237 — 세계-공간 판 사각을 이 프레임분만 모은다(drawFloats 가 읽음)
   ctx.fillStyle = "#050307";
   ctx.fillRect(0, 0, VW, VH);
   const shx = cam.shake ? (Math.random() * 2 - 1) * cam.shake : 0;
@@ -2561,6 +2673,12 @@ function drawActor(s, base) {
     fallbackBlob(s.x, s.y, dh, "#d8e8d0");
   if (teamTintOn() && s.tier > 0) drawTierCrest(s, base);
 }
+const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 색조와 한 결)
+  shoot:  { label: "사수",      col: "#7fe0d8" },
+  charge: { label: "돌진꾼",    col: "#ff8a6a" },
+  bomb:   { label: "자폭병",    col: "#ffb060" },
+  thief:  { label: "시체 도둑", col: "#c89bff" },
+};
 function drawEnemy(m) {
   // ★ V-207 — 잡몹 발밑 붉은 고리를 얇고 옅게(1.6px·α0.4). 팩 10~14 가 뭉치면 0.9 짜리
   //   고리가 겹쳐 바닥이 «붉은 그물»이 됐다(컷으로 봄). 정예는 눈에 띄어야 하니 굵게 둔다.
@@ -2572,10 +2690,17 @@ function drawEnemy(m) {
   if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
   else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
   else if (m.bomber) rest = "brightness(1.2) saturate(2.4) hue-rotate(30deg)";   // V-231 — 돌진(-40)·원거리(150)와 안 겹치는 색조
+  else if (m.thief) rest = "brightness(1.05) saturate(2.2) hue-rotate(250deg)";   // V-237 — 도둑 보라(자폭 30·원거리 150·돌진 -40 과 안 겹침)
   if (m.boss) rest = BOSS_TINT[m.bossKind];   // V-230 — 주인 넷을 색조로 가른다(뼈·초록·핏·보라)
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   const drawH = (m.bomber && m.fuse > 0) ? m.h * (1 + 0.35 * (1 - m.fuse / BOMB_FUSE)) : m.h;   // V-231 — 점화 중 몸이 부푼다
+  if (m.thief && m.eatGlow > 0) {   // V-237 — 삼킨 직후 보라 넋 후광(먹었음을 몸에서도 읽히게)
+    const cy = m.y - m.h * 0.42, a = 0.28 * m.eatGlow;
+    const g = ctx.createRadialGradient(m.x, cy, m.h * 0.06, m.x, cy, m.h * 0.6);
+    g.addColorStop(0, `rgba(170,90,224,${a})`); g.addColorStop(0.6, `rgba(120,50,208,${a * 0.5})`); g.addColorStop(1, "rgba(120,50,208,0)");
+    ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(m.x, cy, m.h * 0.48, m.h * 0.6, 0, 0, 6.283); ctx.fill(); ctx.restore();
+  }
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, drawH, filt))
     fallbackBlob(m.x, m.y, drawH, "#8a5a5a");
   recordSil("mob", m.base, m.x, m.y, m.h);
@@ -2611,6 +2736,14 @@ function drawEnemy(m) {
     ctx.fillStyle = "#000a"; ctx.fillRect(m.x - bw / 2 - 1, by - 1, bw + 2, totalH);
     ctx.fillStyle = "#b0342e"; ctx.fillRect(m.x - bw / 2, by, bw * hpf, 4);
     recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
+  }
+  if (globalThis.__MOBKIND !== false && !m.elite && !m.boss && MOBKIND_META[m.mobKind]) {
+    const meta = MOBKIND_META[m.mobKind];
+    ctx.font = "bold 10px 'Times New Roman',serif"; ctx.textAlign = "center";
+    ctx.save(); ctx.translate(m.x, headTop - BAR_GAP - 16); ctx.scale(1 / Z, 1 / Z);
+    ctx.fillStyle = "#000"; ctx.fillText(meta.label, 0.8, 0.8);
+    ctx.fillStyle = meta.col; ctx.fillText(meta.label, 0, 0);
+    ctx.restore();
   }
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
@@ -2846,6 +2979,7 @@ function drawAltarBeacon(a) {
       const hw = Math.max(w1, ctx.measureText(meta.note).width, ...lines.map((l) => ctx.measureText(l[0]).width)) / 2 + 10;
       const boxH = 38 + 18 * lines.length;
       const lx = clampLabelX(a.x, hw);
+      if (globalThis.__NOTESTACK !== false) reservedFloatRects.push({ x0: (lx - hw - cam.x) * Z, y0: (ly - 34 - cam.y) * Z, x1: (lx + hw - cam.x) * Z, y1: (ly - 34 + boxH - cam.y) * Z });
       ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 34, hw * 2, boxH);
       ctx.strokeStyle = meta.col; ctx.lineWidth = 1.5; ctx.strokeRect(lx - hw, ly - 34, hw * 2, boxH);
       ctx.fillStyle = meta.col; ctx.font = "bold 15px 'Times New Roman',serif";
@@ -2868,6 +3002,7 @@ function drawAltarBeacon(a) {
     const hw = Math.max(ctx.measureText(l1).width, ...lines.map((l) => ctx.measureText(l[0]).width)) / 2 + 10;
     const boxH = 20 + 18 * lines.length;
     const lx = clampLabelX(a.x, hw);
+    if (globalThis.__NOTESTACK !== false) reservedFloatRects.push({ x0: (lx - hw - cam.x) * Z, y0: (ly - 18 - cam.y) * Z, x1: (lx + hw - cam.x) * Z, y1: (ly - 18 + boxH - cam.y) * Z });
     ctx.fillStyle = "rgba(8,5,5,0.82)"; ctx.fillRect(lx - hw, ly - 18, hw * 2, boxH);
     ctx.strokeStyle = "#7a746a"; ctx.lineWidth = 1.4; ctx.strokeRect(lx - hw, ly - 18, hw * 2, boxH);
     ctx.fillStyle = "#8f8877"; ctx.fillText(l1, lx, ly - 3);
@@ -2996,14 +3131,17 @@ function drawItemLabel(it, sx, sy, ly, count) {
   const label = count > 1 ? it.item.name + "  ×" + count : it.item.name;
   ctx.font = "13px 'Times New Roman',serif";
   const w = ctx.measureText(label).width + 16;
-  if (ly < sy - 2) {
+  // V-237 — 바닥 이름표도 화면 안으로 물린다(clampLabelX 를 제단 이름표에만 걸어 「완벽 루비」 왼쪽이 잘렸다).
+  //   여긴 화면좌표(sx)라 clampLabelX(월드) 가 아니라 화면 폭으로 직접 clamp 한다. 잇는 줄은 물건→이름표로 그린다.
+  const lx = globalThis.__NOTESTACK !== false ? Math.max(FLOAT_MARGIN + w / 2, Math.min(VW - FLOAT_MARGIN - w / 2, sx)) : sx;
+  if (ly < sy - 2 || lx !== sx) {
     ctx.strokeStyle = r.color + "44"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, ly + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(lx, ly + 6); ctx.stroke();
   }
-  ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(sx - w / 2, ly - 10, w, 16);
-  ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(sx - w / 2, ly - 10, w, 16);
-  ctx.fillStyle = r.color; ctx.fillText(label, sx, ly + 2);
-  itemLabels.push({ x0: sx - w / 2, y0: ly - 10, x1: sx + w / 2, y1: ly + 6, it, sy, layer: Math.round((sy - ly) / 18) });
+  ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(lx - w / 2, ly - 10, w, 16);
+  ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(lx - w / 2, ly - 10, w, 16);
+  ctx.fillStyle = r.color; ctx.fillText(label, lx, ly + 2);
+  itemLabels.push({ x0: lx - w / 2, y0: ly - 10, x1: lx + w / 2, y1: ly + 6, it, sy, layer: Math.round((sy - ly) / 18) });
 }
 const FLOAT_MARGIN = 4;   // 떠오르는 글자를 캔버스 안으로 밀 때의 여백(좌우·상하 공통)
 // 하단 UI 예약 띠 — 스킬바 기둥(#bl)과 도움말(#hint)이 차지하는 화면 아래 사각의 합집합.
@@ -3043,8 +3181,11 @@ function drawFloats() {
     // 같은 시각에 뜬 글자끼리 어긋나게 — 겹치면 위로 올려 쌓고, 천장에 닿으면 옆으로 비킨다.
     // ㉠ V-211: 위로만 밀던 옛 방식은 화면 위쪽에서 피해수 여럿이 한 줄에 겹쳐 «10.1K17.1K…»로
     //   뭉갰다(가로 회피가 없었다). 천장에선 겹친 사각의 좌·우 중 캔버스에 남는 쪽으로 옮긴다.
+    // V-237 — 세계-공간 판(제단 안내판)도 피한다. 옛 것은 뜬 글끼리만 어긋냈다 → 초록 구입글이 제단 판을 통째로 덮었다.
+    const avoid = globalThis.__NOTESTACK !== false ? reservedFloatRects : EMPTY_RECTS;
     for (let g = 0; g < 40; g++) {
-      const hit = rects.find((q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 && sy > q.y0);
+      const q0 = (q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 && sy > q.y0;
+      const hit = rects.find(q0) || avoid.find(q0);
       if (!hit) break;
       const up = hit.y0 - 2;
       if (up - fs >= M) { sy = up; continue; }
@@ -3481,6 +3622,7 @@ function updateHUD() {
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
   el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "");
+  document.body.classList.toggle("notestack", globalThis.__NOTESTACK !== false);   // V-237 — 집는 글 칩에 읽히는 왼쪽 테두리(어두운 바닥에서 「테두리 없이 잘린」 것처럼 보였다)
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
@@ -3508,12 +3650,16 @@ function renderGear() {
   const g = el("gear"); if (!g) return;
   g.classList.toggle("readable", globalThis.__GEARLINE !== false);
   const eq = G.player.equipped;
+  const colorOn = globalThis.__GEARCOLOR !== false;   // V-237 — 낀 칸은 레어도 색+발광으로 튀게, 빈 칸은 흐리게(V-235 는 둘 다 밝아 안 갈렸다)
   g.innerHTML = "";
   for (const s of SLOT_ORDER) {
     const it = eq[s];
     const span = document.createElement("span");
     span.textContent = SLOT_LABEL[s];
-    if (it) { span.style.color = it.rarity.color; span.title = it.name; }
+    if (it) {
+      span.style.color = it.rarity.color; span.title = it.name;
+      if (colorOn) { span.style.fontWeight = "700"; span.style.textShadow = `0 0 6px ${it.rarity.color}99, 0 1px 0 #000`; }
+    } else if (colorOn) { span.style.color = "#5b5044"; }
     if (it && globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
       for (const gem of it.sockets) { const dot = document.createElement("span"); dot.className = "gsock"; dot.textContent = gem ? "●" : "○"; if (gem) dot.style.color = GEM_TYPES[gem.type].col; span.appendChild(dot); }
     }

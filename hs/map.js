@@ -370,6 +370,10 @@ function scatter(rooms, stairs, chests, altars) {
 const BODY = 1.4, HITR = 1.15;
 // ★ V-203 — 팔②·③ 태그 비율(main.js 손잡이가 켜졌을 때만 읽힌다). 새 에셋 없이 색·크기로 갈라 표시한다.
 const RANGED_FRAC = 0.35, CHARGER_FRAC = 0.18, BOMBER_FRAC = 0.12;   // V-231 — 돌진 0.30→0.18(특수 53% 는 과함) · 자폭 새로 0.12
+// ★ V-237 — 시체 도둑(주술사) 갈래. 위 셋 뒤에 «얹는다» — __MOBKIND=false 면 && 가 Math.random 앞에서
+//   끊겨 RNG 순서가 옛 그대로라 옛 판과 byte-동일하다. 재서 정한 값(로그): 이 넷을 다 지나면 잡몹 ~40%,
+//   갈래 ~60%(사수 35 · 돌진 12 · 자폭 6 · 도둑 7 %p). 도둑만 시체를 먹으니 실제 압박은 방에 시체가 있을 때만 붙는다.
+const THIEF_FRAC = 0.14;
 // ★ V-226 — `dmgScale` 이 없으면 옛 그대로 `scale` 한 곡선을 쓴다(호출부를 안 고쳐도 안 깨진다).
 function makeMob(t, x, y, scale, id, elite, dmgScale) {
   const em = elite ? 3.2 : 1;
@@ -382,11 +386,13 @@ function makeMob(t, x, y, scale, id, elite, dmgScale) {
   };
   // ★ 손잡이가 꺼져 있으면 && 가 Math.random 앞에서 끊겨 RNG 순서가 옛 그대로다 → off 행이 판을 한 톨도 안 바꾼다.
   if (!elite && globalThis.__RANGED_MOB && Math.random() < RANGED_FRAC) {
-    m.ranged = true; m.base = "mob/skelarch";
+    m.ranged = true; m.mobKind = "shoot"; m.base = "mob/skelarch";
   } else if (!elite && globalThis.__CHARGER_MOB && Math.random() < CHARGER_FRAC) {
-    m.charger = true; m.base = "mob/brute"; m.h *= 1.08; m.r *= 1.05;
+    m.charger = true; m.mobKind = "charge"; m.base = "mob/brute"; m.h *= 1.08; m.r *= 1.05;
   } else if (!elite && globalThis.__BOMBER_MOB && Math.random() < BOMBER_FRAC) {
-    m.bomber = true; m.base = "mob/brute"; m.h *= 0.92; m.r *= 0.95;
+    m.bomber = true; m.mobKind = "bomb"; m.base = "mob/brute"; m.h *= 0.92; m.r *= 0.95;
+  } else if (!elite && globalThis.__MOBKIND !== false && Math.random() < THIEF_FRAC) {
+    m.thief = true; m.mobKind = "thief"; m.base = "mob/shaman"; m.h *= 1.04;
   }
   return m;
 }
