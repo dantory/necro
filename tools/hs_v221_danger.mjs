@@ -22,7 +22,11 @@ import { ensureChrome, CDP } from "./chrome_guard.mjs";
 import fs from "node:fs";
 const NAV_MINPASS = Number(process.env.NAV_MINPASS || 48);   // ★ V-225 — 자의 그래프 간선: 지날 수 있는 폭(px)
 let NAV_LEGACY = process.env.NAV_LEGACY === "1";   // ★ V-225 — 옛 간선 규칙(두 축 다 >2px 겹침). V225_ARMS=1 이면 팔마다 뒤집는다
-let NAV_PATHPROG = process.env.NAV_PATHPROG !== "0";   // ★ V-227 — 진척을 «길 위 남은 거리»로 잰다(0 = 옛 직선거리). V227_ARMS=1 이면 팔마다 뒤집는다
+let NAV_PATHPROG = process.env.NAV_PATHPROG === "1";   // ★ V-227 닫음(2026-09-01) — 「길 위 남은 거리」는 **더 나빴다**(층2~5 방문 25~33% 대 33~87%). 기본 꺼짐 = 옛 직선거리. 켜려면 NAV_PATHPROG=1
+let BOT_RETREAT = process.env.BOT_RETREAT !== "0";   // ★ V-228 — 자가 hp 바닥에서 물러선다(0 = 옛 자, 안 물러섬). V228_ARMS=1 이면 팔마다 뒤집는다
+const RET_IN = +(process.env.RET_IN || 0.35);    // 이 아래로 떨어지고 적이 가까우면 «물러선다»
+const RET_OUT = +(process.env.RET_OUT || 0.7);   // 이 위로 회복하면 «다시 나간다»
+const RET_R = +(process.env.RET_R || 460);       // 이 반경 안의 적을 «붙었다»로 본다
 
 const URL = "http://127.0.0.1:8774/hs/index.html";
 const IFR = process.argv[2] !== undefined ? +process.argv[2] : 0.4;
@@ -59,6 +63,8 @@ globalThis.__MEASURE_REVIVE = true;
 globalThis.__NAV_LEGACY = ${NAV_LEGACY};       // ★ V-225 — 자의 그래프 간선 규칙(true = 옛 «두 축 다 >2px»)
 globalThis.__NAV_MINPASS = ${NAV_MINPASS};     // ★ V-225 — 지날 수 있는 폭(px)
 globalThis.__NAV_PATHPROG = ${NAV_PATHPROG};   // ★ V-227 — 진척 판정 자(true = 길 위 남은 거리 · false = 옛 직선거리)
+globalThis.__BOT_RETREAT = ${BOT_RETREAT};   // ★ V-228 — 자가 hp 바닥에서 물러서는가(false = 옛 자)
+globalThis.__RET_IN = ${RET_IN}; globalThis.__RET_OUT = ${RET_OUT}; globalThis.__RET_R = ${RET_R};
 globalThis.__V222_NAV = true;              // 걷기: V-222 BFS 길찾기 켬(옛 직선걷기로 되돌리려면 false)
 globalThis.__V221 = ${ifr > 0 ? "true" : "false"};   // i-frame 손잡이 — 팔마다 뒤집는다
 globalThis.__V221_IFR = ${ifr};
@@ -87,12 +93,13 @@ const AUTO = `(SPEC => {
   const tap = k => { kd(k); setTimeout(() => ku(k), 40); };
   const aim = (sx, sy) => cv.dispatchEvent(new MouseEvent('mousemove', { clientX: sx, clientY: sy, bubbles: true }));
   cv.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: window.innerWidth / 2, clientY: window.innerHeight / 2, bubbles: true }));
-  const A = { lastQ: 0, lastE: 0, lastPt: 0, navFail: 0, noPath: 0, stuckSkips: 0, reTarget: 0, toured: 0,
+  const A = { lastQ: 0, lastE: 0, lastPt: 0, navFail: 0, noPath: 0, stuckSkips: 0, reTarget: 0, toured: 0, retreats: 0,
     tl: [], cf: null, lastTick: 0, dt: 0 }; window.__a222 = A;
   // ── 층별 나눔(㉠ 진단 계기) ── 왜 어떤 층은 «안 걷나»를 수로 가른다:
   //   dwellMs 다훑기 대기 · moveMs 키 눌러 이동 · idleMs 데드존/무입력 · targets 목표 교체 수.
   //   dwell 큼 → ⓐ(한 팩에 45s) · move 큼인데 pathLen 작음 → ⓑ(벽끼임: 눌러도 안 감) · targets·방 작음 → ⓒ(한구석 맴돎).
   function pushFloor() { if (!A.cf) return; A.cf.stuckSkips = A.stuckSkips - A.cf.sk0; A.cf.reTarget = A.reTarget - A.cf.rt0;
+    A.cf.retreats = A.retreats - A.cf.rr0;
     A.cf.toured = A.toured - A.cf.to0; A.tl.push(A.cf); A.cf = null; }
   window.__a222flush = pushFloor;
   const Z = window.HSZ;
@@ -134,6 +141,13 @@ const AUTO = `(SPEC => {
     for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) {
       const d = (m.x - p.x) ** 2 + (m.y - p.y) ** 2; if (d < bd) { bd = d; b = m; } }
     return b ? { m: b, d: Math.sqrt(bd) } : null; }
+  // ★ V-228 — «물러설 줄 아는 자». 옛 자는 hp 가 몇이든 안 가 본 방으로 계속 걸었다(멈추지 않는다).
+  //   사람은 핵앤슬래시에서 hp 가 바닥나면 뒤로 빠져 재생(22hp/s)을 기다린다 — 그 손잡이가 자에 없었다.
+  //   그래서 「죽은 층 66.7%」는 게임이 치명적이라는 뜻이 아니라 «자가 안 물러선다»는 뜻일 수 있다.
+  function foesNear(p, R) { let n = 0, sx = 0, sy = 0; const R2 = R * R;
+    for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) {
+      if ((m.x - p.x) ** 2 + (m.y - p.y) ** 2 <= R2) { n++; sx += m.x; sy += m.y; } }
+    return n ? { n, cx: sx / n, cy: sy / n } : null; }
 
   // ── 사각형 그래프 (방 ∪ 복도) — 층마다 다시 짓는다 ─────────────────────
   const nav = { floor: -1, rooms: null, nodes: [], adj: [], path: null, wi: 0,
@@ -277,7 +291,7 @@ const AUTO = `(SPEC => {
     if (nav.floor !== G.floor || nav.rooms !== G.rooms) buildGraph(G);
     { const nowT = performance.now();   // 층별 나눔 계기: 층이 바뀌면 앞 층을 밀어 넣고 새 통을 연다.
       if (!A.cf || A.cf.floor !== G.floor) { pushFloor();
-        A.cf = { floor: G.floor, dwellMs: 0, moveMs: 0, idleMs: 0, targets: 0, sk0: A.stuckSkips, rt0: A.reTarget, to0: A.toured };
+        A.cf = { floor: G.floor, dwellMs: 0, moveMs: 0, idleMs: 0, retreatMs: 0, retreats: 0, rr0: A.retreats, targets: 0, sk0: A.stuckSkips, rt0: A.reTarget, to0: A.toured };
         A.lastTick = nowT; }
       A.dt = A.lastTick ? Math.min(nowT - A.lastTick, 300) : 0; A.lastTick = nowT; }
     const np = nearestPack(p);
@@ -311,10 +325,13 @@ const AUTO = `(SPEC => {
       // 방 포기(진척 기반) — «가까워지는 중»이면 안 버린다(긴 복도도 끝까지 간다). 목표 방 중심까지의 최소
       //   도달거리가 4s 동안 조금도 안 줄고 아직 멀면(진짜 막힘) 잠시 접고 다음 방. 시간 기반은 긴 복도를
       //   도착 전에 잘라 «많이 걷는데 방은 못 드는»(㉠ 재현) 병을 만들었다 — 그래서 진척으로 판정한다.
-      // ★ V-227 — 진척은 «길 위 남은 거리»로 잰다. 옛 자는 «목표 중심까지의 직선거리»였는데, 굽은
-      //   복도에서는 제대로 걸어가는 중에도 직선거리가 4초 넘게 안 줄어든다(옆으로·뒤로 도는 구간).
-      //   그래서 깊은 층일수록(복도가 길고 굽음) 멀쩡한 접근이 계속 잘려 방을 못 들었다 —
-      //   층1 거리/방 1051 대 층5 8732, 목표를 17번 갈아타고 방은 2개. 되돌림: NAV_PATHPROG=0.
+      // ★ V-227 «닫음 — 기각»(2026-09-01). 「길 위 남은 거리」로 재면 굽은 복도가 안 잘릴 줄 알았는데
+      //   두 팔로 재 보니 **모든 깊은 층에서 더 나빴다** — 층2~5 방문 중앙 25/27/23/33% 대
+      //   옛 자 50/33/67/50%, 층5 거리/방 4084 대 2473. 길 위 거리는 목표를 갈아탈 때마다
+      //   눈금이 통째로 튀어(길 ≥ 직선) 그때마다 4초 시계가 되감기고, 되감기는 사이 다른 팩이
+      //   재선택을 걸어 결국 «더 자주» 접었다. 기본은 옛 직선거리. 다시 보려면 NAV_PATHPROG=1.
+      //   ※ 이 축을 띄운 근거였던 「층5 방 2/14 · 거리/방 8732」는 **한 판짜리 표본**이었다 —
+      //     같은 자로 세 씨앗을 재니 층5 방문 중앙 50% · 거리/방 2473 이었다.
       if (ri >= 0) {
         let rc = Math.hypot(gx - p.x, gy - p.y), mode = 'line';
         if (globalThis.__NAV_PATHPROG && nav.path && nav.goalTok === tok && nav.path.length) {
@@ -364,6 +381,30 @@ const AUTO = `(SPEC => {
         stepToward(want, w.x, w.y, p);   // 문 코앞 — 웨이포인트 중심(반드시 walkable)을 곧장 겨눠 통과. walkStep 은 off-axis 면 문을 지나쳐 미끄러진다.
       } else {
         walkStep(want, w.x, w.y, p);   // 멀리선 벽 인식 조향으로 웨이포인트를 향해 간다
+      }
+    }
+
+    // ★ V-228 — «물러섬» 이 걷기를 덮어쓴다. 사람은 hp 가 바닥나면 방을 마저 돌지 않고 뒤로 뺀다.
+    //   붙었다가 hp<RET_IN 이면 물러섬에 들어가고, hp>RET_OUT 이거나 적이 다 떨어지면 나온다.
+    //   물러서는 동안에도 겨눔·스킬은 그대로 둔다(카이팅) — 손은 계속 쓰고 발만 뒤로 뺀다.
+    if (globalThis.__BOT_RETREAT) {
+      const hpF = p.maxhp ? p.hp / p.maxhp : 1;
+      const foes = foesNear(p, globalThis.__RET_R);
+      if (!nav.retreating) { if (hpF < globalThis.__RET_IN && foes) { nav.retreating = true; A.retreats++; } }
+      else if (hpF > globalThis.__RET_OUT || !foes) nav.retreating = false;
+      if (nav.retreating) {
+        // 적 무리 «반대쪽»을 겨눈 가상 목표를 세우고, 그중 실제로 트인 방향으로 민다(벽으로 뒷걸음질 금지).
+        const ax = foes ? p.x - foes.cx : 0, ay = foes ? p.y - foes.cy : 0;
+        const al = Math.hypot(ax, ay) || 1;
+        const e = bestEscape(p, p.x + (ax / al) * 400, p.y + (ay / al) * 400);
+        want.clear();
+        if (e.d) {
+          if (e.ux > 0.3) want.add('d'); else if (e.ux < -0.3) want.add('a');
+          if (e.uy > 0.3) want.add('s'); else if (e.uy < -0.3) want.add('w');
+        }
+        // 물러선 시간 때문에 방을 «포기»하지 않게 무진척 시계를 붙잡아 둔다 — 안 그러면 커버리지가 오염된다.
+        nav.reachT = performance.now();
+        if (A.cf) A.cf.retreatMs += A.dt;
       }
     }
 
@@ -495,7 +536,8 @@ async function runOne(seed, ifr, grow, v226b) {
     const sp = spat.find((x) => x.floor === f.floor) || {};
     const nt = navtl.find((x) => x.floor === f.floor) || {};
     cells.push({ seed, floor: f.floor, kills: f.kills, hitN: f.hitN, died: f.died, hpMin: f.hpMin, maxhp: f.maxhp || 0, foeDmg: f.foeDmg || 0, sec: f.sec,
-      dwellMs: nt.dwellMs || 0, moveMs: nt.moveMs || 0, idleMs: nt.idleMs || 0, targets: nt.targets || 0, ...sp });
+      dwellMs: nt.dwellMs || 0, moveMs: nt.moveMs || 0, idleMs: nt.idleMs || 0, targets: nt.targets || 0,
+      retreatMs: nt.retreatMs || 0, retreats: nt.retreats || 0, ...sp });
   }
   const totSec = cells.reduce((a, c) => a + (c.sec || 0), 0);
   return { seed, cells, fp95, nav, projOutPct: samples ? r1(100 * projOutHits / samples) : 0,
@@ -512,7 +554,8 @@ async function runArm(name, ifr, grow, v226b) {
     r.errs = errs.length; runs.push(r);
     for (const c of r.cells) {
       const starv = c.kills === 0 ? " ◀굶음" : "";
-      log(`  씨앗 ${r.seed} 층${c.floor}: ${c.sec}s · 처치 ${c.kills} · 맞음 ${c.hitN} · hp최저 ${c.hpMin}% · 사람maxhp ${c.maxhp} · 적dmg중앙 ${c.foeDmg} · ${c.died ? "죽음" : "삼"} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}%${starv}`);
+      const ret = c.retreats ? ` · 물러섬 ${c.retreats}회/${Math.round((c.retreatMs || 0) / 100) / 10}s` : "";
+      log(`  씨앗 ${r.seed} 층${c.floor}: ${c.sec}s · 처치 ${c.kills} · 맞음 ${c.hitN} · hp최저 ${c.hpMin}% · 사람maxhp ${c.maxhp} · 적dmg중앙 ${c.foeDmg} · ${c.died ? "죽음" : "삼"} · 방 ${c.roomsVisited}/${c.roomsTotal}(${c.roomsPct}%) · 면적 ${c.areaPct}%${ret}${starv}`);
     }
     const nv = r.nav || {};
     log(`    완주 ${r.totSec}s · frame p95 ${r.fp95}ms · 벽밖 ${r.pOutPct}% · 발사체벽밖 ${r.projOutPct}% · 오류 ${r.errs} · 길찾기[투어 ${nv.toured||0}·경로없음 ${nv.noPath||0}·직선폴백 ${nv.navFail||0}·끼임건너뜀 ${nv.stuckSkips||0}·팩재선택 ${nv.reTarget||0}]`);
@@ -568,7 +611,13 @@ const V225 = process.env.V225_ARMS === "1";
 //   V227_ARMS=1: 게임 손잡이·간선 규칙을 전부 «현재 바이너리»로 고정하고 «진척을 재는 자»만 뒤집는다
 //   — BEFORE = 옛 직선거리(굽은 복도에서 멀쩡한 접근을 잘랐다) · AFTER = 길 위 남은 거리.
 const V227 = process.env.V227_ARMS === "1";
-const before = V227
+//   V228_ARMS=1: 게임 손잡이를 전부 «현재 바이너리»로 고정하고 «자가 물러설 줄 아는가»만 뒤집는다
+//   — BEFORE = 옛 자(hp 가 몇이든 계속 걷는다) · AFTER = hp<RET_IN 이고 적이 붙었으면 뒤로 뺀다.
+//   왜: 「죽은 층 66.7%」가 «게임이 치명적»이라는 뜻인지 «자가 안 물러선다»는 뜻인지 아직 안 갈렸다.
+const V228 = process.env.V228_ARMS === "1";
+const before = V228
+  ? (BOT_RETREAT = false, await runArm(`BEFORE (자가 안 물러선다 · i-frame ${IFR}s)`, IFR, true, true))
+  : V227
   ? (NAV_PATHPROG = false, await runArm(`BEFORE (진척=옛 직선거리 · i-frame ${IFR}s)`, IFR, true, true))
   : V225
   ? (NAV_LEGACY = true, await runArm(`BEFORE (NAV_LEGACY · 옛 간선 «두 축 다 >2px» · i-frame ${IFR}s)`, IFR, true, true))
@@ -577,7 +626,9 @@ const before = V227
   : V226
   ? await runArm(`BEFORE (__V226_GROW=false · 옛 «박은 빌드» · i-frame ${IFR}s)`, IFR, false, false)
   : await runArm("BEFORE (__V221=false · i-frame 끔)", 0, true, false);
-const after = V227
+const after = V228
+  ? (BOT_RETREAT = true, await runArm(`AFTER (hp<${Math.round(RET_IN*100)}% 면 물러선다 → ${Math.round(RET_OUT*100)}% 회복 · i-frame ${IFR}s)`, IFR, true, true))
+  : V227
   ? (NAV_PATHPROG = true, await runArm(`AFTER (진척=길 위 남은 거리 · i-frame ${IFR}s)`, IFR, true, true))
   : V225
   ? (NAV_LEGACY = false, await runArm(`AFTER (간선 «닿음 + 폭 ≥${NAV_MINPASS}» · i-frame ${IFR}s)`, IFR, true, true))
@@ -589,7 +640,8 @@ const after = V227
 
 if (before && after) {
   log(`\n╔═══ 두 팔 (곱 16 고정 · BFS 걷기 · i-frame 손잡이만 뒤집음) ═══╗`);
-  log(V227 ? `  ★ V-227 팔: 게임 손잡이·간선 규칙 전부 고정 · «진척을 재는 자»만 뒤집었다(BEFORE=옛 직선거리).`
+  log(V228 ? `  ★ V-228 팔: 게임 손잡이 전부 고정 · «자가 물러설 줄 아는가»만 뒤집었다(BEFORE=안 물러섬).`
+    : V227 ? `  ★ V-227 팔: 게임 손잡이·간선 규칙 전부 고정 · «진척을 재는 자»만 뒤집었다(BEFORE=옛 직선거리).`
     : V225 ? `  ★ V-225 팔: 게임 손잡이 전부 고정 · «자의 그래프 간선 규칙»만 뒤집었다(BEFORE=옛 >2px).`
     : V226B ? `  ★ V-226B 팔: 사람 성장·i-frame ${IFR}s 고정 · «적 dmg 곡선을 뗐는가»만 뒤집었다.`
     : V226 ? `  ★ V-226 팔: i-frame ${IFR}s 고정 · «사람이 자라는가»만 뒤집었다.` : `  ★ 헤드라인은 AFTER(i-frame 0.4s = 현재 바이너리) 한 값이다. BEFORE 는 참고.`);
