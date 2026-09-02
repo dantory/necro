@@ -2197,6 +2197,19 @@ function foeSlot(cx, cy, i) {
   const ang = (k + (t % 2) * 0.5) / cap * Math.PI * 2;
   return { x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad * 0.68 };
 }
+// V-256 ① 군세 진형 — foeSlot 과 같은 결. 한 표적에 여러 소환수가 달려들 때 한 점에 안 포개고 «에워싼다».
+//   안쪽 고리는 «근접 사거리 바로 안»(reach-6)에 두어 앞줄이 실제로 때리고, 넘치면 42px(적과 같은 몸 간격)씩
+//   벌린 바깥 고리로 겹을 쌓는다. 세로 0.68 은 위에서 내려다본 결.
+function minionSlot(cx, cy, i, reach) {
+  const r0 = Math.max(24, reach - 6);
+  const rad = (t) => r0 + t * 30;
+  const cap = (t) => Math.max(4, Math.floor(2 * Math.PI * rad(t) / 42));
+  let t = 0, base = 0, c = cap(0);
+  while (i >= base + c) { base += c; t++; c = cap(t); }
+  const k = i - base, R = rad(t);
+  const ang = (k + (t % 2) * 0.5) / c * Math.PI * 2;
+  return { x: cx + Math.cos(ang) * R, y: cy + Math.sin(ang) * R * 0.68 };
+}
 
 function markRoomCleared(ri) {
   const any = G.packs.some((pk) => pk.room === ri && !pk.done);
@@ -2282,6 +2295,7 @@ function stepMinions(dt) {
   else if (st === 1) { ax = cam.x + mouse.x / Z; ay = cam.y + mouse.y / Z; engR = ORDER_ATTACK_R; formPt = { x: ax, y: ay }; }
   else if (st === 2) { ax = holdX; ay = holdY; engR = ORDER_HOLD_R; formPt = { x: holdX, y: holdY }; }
   const eng2 = engR * engR;
+  const besiege = globalThis.__MINIONFORM !== false ? new Map() : null;
   for (let i = 0; i < N; i++) {
     const s = G.minions[i];
     unstick(s, s.r);
@@ -2302,7 +2316,16 @@ function stepMinions(dt) {
     if (target) {
       const d = Math.sqrt(bd) || 1;
       s.dx = (target.x - s.x) / d; s.dy = (target.y - s.y) / d;
-      if (d > s.r + target.r + 6) { stepTo(s, s.x + s.dx * s.spd * dt, s.y + s.dy * s.spd * dt, s.r); s.state = "walk"; s.anim += dt * 10; }
+      const reach = s.r + target.r + 6;
+      if (d > reach) {
+        if (besiege && !s.ranged) {
+          const bi = besiege.get(target) || 0; besiege.set(target, bi + 1);
+          const sp = minionSlot(target.x, target.y, bi, reach);
+          const gdx = sp.x - s.x, gdy = sp.y - s.y, gd = Math.hypot(gdx, gdy) || 1, stp = Math.min(gd, s.spd * dt);
+          stepTo(s, s.x + gdx / gd * stp, s.y + gdy / gd * stp, s.r);
+        } else stepTo(s, s.x + s.dx * s.spd * dt, s.y + s.dy * s.spd * dt, s.r);
+        s.state = "walk"; s.anim += dt * 10;
+      }
       else {
         s.state = "attack"; s.anim += dt * 10;
         if (s.atk <= 0) {
@@ -3121,11 +3144,40 @@ function drawHazards() {   // 역병 독 장판 (바닥에 깔려 배우 밑)
   }
 }
 const CORPSE_DIR = { n: "north", s: "south", e: "east", w: "west", ne: "north-east", nw: "north-west", se: "south-east", sw: "south-west" };
+// V-256 ② 누운 시체를 «뼈»로 그린다(세 판째 — 스프라이트 눕히기가 흰 고리로만 읽혀 이번엔 유해를 직접 친다).
+//   쓸 수 있는 시체 = 온전한 상아빛 해골(두개골·갈비·척추·팔다리뼈) / 이미 쓴 시체 = 흩어진 잿빛 조각(두개골 없음)이라
+//   빛(상아 유무)만이 아니라 «꼴»로도 갈린다. 넘어뜨린 각도는 c.x 홀짝으로 좌우 번갈아(무리져도 안 똑같이).
+function drawCorpseBody(c, usable) {
+  const s = c.h * 0.21, tilt = (Math.floor(c.x) & 1 ? 1 : -1) * 0.35;
+  const bone = usable ? "#e7ddc4" : "#6f6656", edge = usable ? "#a89a78" : "#514a3d";
+  ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(tilt); ctx.scale(1, 0.82);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = edge; ctx.lineWidth = s * 0.44;                         // 엇갈린 긴뼈 둘(밑 테)
+  for (const a of [0.62, -0.62]) { ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0); ctx.stroke(); ctx.restore(); }
+  ctx.strokeStyle = bone; ctx.lineWidth = s * 0.26;
+  for (const a of [0.62, -0.62]) { ctx.save(); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0); ctx.stroke();
+    ctx.fillStyle = bone; for (const ex of [-s * 1.15, s * 1.15]) for (const ey of [-s * 0.17, s * 0.17]) { ctx.beginPath(); ctx.arc(ex, ey, s * 0.2, 0, 6.283); ctx.fill(); }
+    ctx.restore(); }
+  if (usable) {                                                            // 온전한 두개골(가장 알아보기 쉬운 뼈)
+    ctx.fillStyle = bone; ctx.strokeStyle = edge; ctx.lineWidth = s * 0.12;
+    ctx.beginPath(); ctx.ellipse(0, -s * 0.08, s * 0.8, s * 0.72, 0, 0, 6.283); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, s * 0.5, s * 0.44, s * 0.28, 0, 0, 6.283); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#241d13";                                             // 눈구멍 둘 + 코
+    ctx.beginPath(); ctx.ellipse(-s * 0.32, -s * 0.12, s * 0.2, s * 0.25, 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(s * 0.32, -s * 0.12, s * 0.2, s * 0.25, 0, 0, 6.283); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, s * 0.06); ctx.lineTo(-s * 0.13, s * 0.3); ctx.lineTo(s * 0.13, s * 0.3); ctx.closePath(); ctx.fill();
+  } else {                                                                 // 쓴 것 — 두개골 없이 부서진 조각만
+    ctx.fillStyle = "#4a4335"; ctx.beginPath(); ctx.arc(0, 0, s * 0.34, 0, 6.283); ctx.fill();
+  }
+  ctx.restore();
+}
 function drawCorpse(c) {   // V-243 ②d — 시체를 «알아볼 상아빛 유해»로. 발밑 뼈 고리가 화장(M)·제물(U)·소환(Q)의 대상임을 눈에 준다.
   const usable = !c.used;
   ctx.globalAlpha = 0.42; ctx.fillStyle = "#4a1212";
   ctx.beginPath(); ctx.ellipse(c.x, c.y, c.h * 0.24, c.h * 0.11, 0, 0, 6.283); ctx.fill();
   ctx.globalAlpha = 1;
+  if (globalThis.__CORPSEBODY !== false) { drawCorpseBody(c, usable); return; }
   if (usable) {
     const pl = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 440 + c.x * 0.05));
     ctx.globalAlpha = 0.34 + 0.22 * pl; ctx.strokeStyle = "#cdbb8c"; ctx.lineWidth = 1.6;
@@ -3701,8 +3753,10 @@ function drawLight() {
   //   「시체가 자원」인 게임에서 주울 것이 어디 있는지 읽히게(안 쓴 시체만). __CORPSEGLOW=false 면 옛대로 안 든다.
   if (globalThis.__CORPSEGLOW !== false) for (const c of G.corpses) {
     if (c.used || !onScreen(c.x, c.y, 60)) continue;
-    const r = 40, g = ctx.createRadialGradient(c.x, c.y - 4, 0, c.x, c.y - 4, r);
-    g.addColorStop(0, "rgba(216,199,154,0.30)"); g.addColorStop(1, "rgba(216,199,154,0)");
+    const body = globalThis.__CORPSEBODY !== false;   // V-256 ② 유해를 그린 뒤엔 빛이 몸을 덮어 흰 얼룩이 되지 않게 옅은 후광만
+    const r = body ? 26 : 40, a = body ? 0.14 : 0.30;
+    const g = ctx.createRadialGradient(c.x, c.y - 4, 0, c.x, c.y - 4, r);
+    g.addColorStop(0, `rgba(216,199,154,${a})`); g.addColorStop(1, "rgba(216,199,154,0)");
     ctx.fillStyle = g; ctx.fillRect(c.x - r, c.y - 4 - r, r * 2, r * 2);
   }
   ctx.globalCompositeOperation = "source-over";
