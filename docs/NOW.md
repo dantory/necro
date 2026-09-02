@@ -420,3 +420,25 @@ V-229 가 다 못 돌고 **CDP timeout 으로 죽었다**(rc=1, 씨앗 1 만 마
 
 NOTE=병수님 07:23 「긴장은 니가 알아서 만들어라 왜 자꾸 나한테 정하래」 — 값은 재서 정하고
   되돌릴 손잡이만 남긴다. 「선택 대기」 금지.
+
+--- 2026-09-03 V-268 닫음 (구현+검증·푸시) ---
+AXIS=(열린 축 없음) — V-268 닫음 2026-09-03. 물건에 «그림»(__ITEMICON) · 세트 겉모습(__SETLOOK) · 「YOU DIED」→「죽었다」.
+LAST=V-268
+V-268 결과(다음 감시가 병수님께 보고할 것):
+  만진 곳 hs/(main.js·index.html·hud.css)·loot.js/map.js 무접촉·새 자 없음(일회용 tmp/hs_v268_{fp,cut}.mjs).
+  ① 물건 그림 __ITEMICON = 한 근원 drawItemIcon(iconBase 32×32 캐시·부위별 실루엣·레어도 테/광택·◆유니크).
+     가방·장비줄(#gear)·바닥(drawItems)·상점(재고+팔기)·툴팁이 다 그것만 부름. DOM 칸은 iconDataURL 캐시.
+     여덟 부위 갈림(낫/지팡이 두 갈래·투구·갑옷·장갑·신발·반지·부적).
+     ★ 덫: cellDiv 의 `d.style.background=rc+"22"`(shorthand)가 background-repeat 를 repeat 로 되돌려 32px 아이콘이 타일됨
+       → `backgroundColor` 로 고침(.icell.hasicon 은 contain·no-repeat).
+  ② 세트 겉모습 __SETLOOK(그리기 전용) = 3점 다 낀 동안 발밑 초록(#4fe06a) 오라 + 어깨 룬 셋(맥박 ≈1.8초·알파 낮).
+     2점은 표식 없음. V-266 시체 후광(푸름)과 색 안 겹침.
+  ③ 「YOU DIED」→「죽었다」(index.html·.dtitle letter-spacing .08em·같은 붉은 결).
+  되돌림 실측: __ITEMICON=false __SETLOOK=false → genFloor 지문 F1 4341720539·F3 cebe184b88·F5 07968a97a3·F10 e9e3aa0cbf·F30 b2bea5b359
+    = 브리프 기준선 byte-동일(그리기/UI 전용·map.js 무접촉·tmp/hs_v268_fp.mjs).
+  회귀(있는 자로만): hs_v207_walk 벽밖 0%·오류 0(WAKE 3000·820) · hs_v219_foeshot frame p95 1.4ms(≤16.7)·오류 0·에셋 100%·쏜화살 325.
+    ① 매 프레임 그리기 늘어도 p95 규격 안(iconBase 캐시가 먹음).
+  컷(직접 열어 판정·1512×863·씨앗1337): tmp/hs_v268_{icon_bag(여덟 부위+레어도 테),icon_bag_off(옛 글자 칸),
+    icon_floor(바닥 부위 그림+이름표),icon_shop(재고·팔기 부위 그림),setlook_on(발밑 초록 오라),setlook_off(2점 표식 없음),died(죽었다)}.png. 콘솔 오류 0.
+다음 감시: git log 에 V-268 구현 커밋 있으면 물러서도 된다. 컷 직접 열어 보고 병수님께 보고.
+  ★ 크론 텍스트의 항목번호는 낡았다 — 이 파일 맨 끝(LAST=V-268)이 우선. docs/ROADMAP.md 맨 끝 열린 - [ ] 항목으로 다음을 고른다.

@@ -4219,9 +4219,32 @@ const RIM_OFF = [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4], [-1, -1], [1, -1], [-
 //   먹이면 R 이 1.0 을 넘겨 잘려 나가 색이 안 남는다(1.35→1.0). 먼저 어둡게 눌러
 //   여유를 준 뒤 sepia 를 태워야 금빛이 선다 — 결과 ≒ #ffd45d, 발밑 고리(#e8cf52)와 같은 급.
 const RIM_FILTER = "brightness(0) invert(1) brightness(0.7) sepia(1) saturate(2.5)";
+function completedSetKey() {
+  const cnt = {};
+  for (const it of Object.values(G.player.equipped)) if (it && it.set) cnt[it.set.key] = (cnt[it.set.key] || 0) + 1;
+  let best = null;
+  for (const k in cnt) if (cnt[k] >= 3) best = k;
+  return best;
+}
+// ── V-268 ② 세트를 «몸»에 드러낸다 — 3점을 다 낀 동안 발밑 초록 오라 + 어깨 위 룬 셋(그리기 전용) ──
+// 알파 낮게·맥박 느리게(≈1.8초). 2점만 낀 상태는 표식 없음. __SETLOOK=false → 아무것도 안 그림.
+function drawSetAura(p) {
+  if (globalThis.__SETLOOK === false || !completedSetKey()) return;
+  const puls = 0.5 + 0.5 * Math.sin(nowMs() / 1000 * Math.PI / 0.9);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = 0.10 + 0.10 * puls;
+  ctx.strokeStyle = SET_LOOK_COL; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(p.x, p.y, 26 * (0.92 + 0.08 * puls), 11 * (0.92 + 0.08 * puls), 0, 0, 6.283); ctx.stroke();
+  ctx.globalAlpha = 0.22 + 0.14 * puls; ctx.fillStyle = SET_LOOK_COL;
+  const ry = p.y - PLAYER_H * 0.62;
+  for (const dx of [-14, 0, 14]) { ctx.beginPath(); ctx.arc(p.x + dx, ry - (dx === 0 ? 4 : 0), 1.8, 0, 6.283); ctx.fill(); }
+  ctx.restore();
+}
 function drawPlayer() {
   const p = G.player;
   drawShadow(p.x, p.y, 34, "#e8cf52", 3);
+  drawSetAura(p);
   const st = p.state, dir = actorDir(p), fr = frame(p, PLAYER_BASE);
   ctx.globalAlpha = 0.62;
   for (const [dx, dy] of RIM_OFF)
@@ -4963,6 +4986,118 @@ function itemRank(it) {
   const k = it.item.rarity.key;
   return k === "yellow" ? 2 : k === "blue" ? 1 : 0;
 }
+
+// ── V-268 ① 물건 그림 — 부위별 픽셀 아이콘 «한 근원» ─────────────────────────────
+// drawItemIcon(dst, it, x, y, size) 하나를 가방·장비줄·바닥·상점·툴팁이 다 부른다(코드 복사 금지).
+// 32×32 로 «한 번» 구워 캐시하고(iconKey: 부위+레어도+신화+세트) 스케일해 blit 한다
+//   (imageSmoothingEnabled=false·매 프레임 다시 굽지 않음). DOM 칸은 그 32×32 를 dataURL 로 캐시.
+// __ITEMICON=false → 아무것도 안 그림(부르는 쪽이 옛 글자 칸/마름모로 되돌아간다).
+const ICON_BASE = new Map();   // iconKey → 32×32 canvas(부위 실루엣 + 레어도 테)
+const ICON_URL = new Map();    // iconKey + "@" + size → dataURL(DOM 칸/툴팁용)
+const SET_LOOK_COL = "#4fe06a";   // V-268 ② 세트 겉모습(초록) — V-266 시체 후광(푸름)과 결이 안 겹치게
+const IC = {
+  bone:   ["#e7dcae", "#c9bc86", "#9a8d5f", "#6b6040"],
+  iron:   ["#c6cad2", "#9198a2", "#5e6470", "#3a3e47"],
+  steel:  ["#e2e6ec", "#b2b8c2", "#7c828e"],
+  wood:   ["#7a5a34", "#5c4222", "#3d2c17"],
+  leather:["#8a5a34", "#63401f", "#3f2914"],
+  cloth:  ["#8a3a3a", "#5e2626", "#3a1616"],   // 크림슨 로브
+  gold:   ["#f0d878", "#c8a03a", "#8a6a20"],
+  gem:    ["#7fd0ff", "#3f9be0", "#20608a"],
+};
+function _px(g, x, y, w, h, c) { g.fillStyle = c; g.fillRect(x, y, w, h); }
+function _disc(g, cx, cy, r, c) { g.fillStyle = c; g.beginPath(); g.arc(cx, cy, r, 0, 6.283); g.fill(); }
+function weaponShape(it) { return /지팡이|홀|장대/.test(it.name || "") ? "weapon_staff" : "weapon_scythe"; }
+function iconKey(it) {
+  const part = it.slot === "weapon" ? weaponShape(it) : it.slot;
+  return `${part}|${(it.rarity && it.rarity.key) || "?"}|${it.mythic ? 1 : 0}|${it.set ? 1 : 0}`;
+}
+// 부위별 실루엣 — 32×32 그리드. 각각 도트 결로 «한눈에 무엇인지» 읽히게.
+const ICON_PART = {
+  weapon_scythe(g) {
+    _px(g, 16, 6, 3, 22, IC.wood[1]); _px(g, 16, 6, 1, 22, IC.wood[0]);   // 자루
+    _px(g, 6, 6, 11, 2, IC.steel[1]); _px(g, 6, 8, 4, 3, IC.steel[1]);     // 낫날(초승)
+    _px(g, 9, 10, 4, 2, IC.steel[1]); _px(g, 12, 11, 3, 2, IC.steel[1]);
+    _px(g, 6, 6, 11, 1, IC.steel[0]);                                       // 날 윗빛
+    _px(g, 15, 27, 5, 3, IC.wood[2]);                                       // 자루끝
+  },
+  weapon_staff(g) {
+    _px(g, 15, 8, 3, 21, IC.wood[1]); _px(g, 15, 8, 1, 21, IC.wood[0]);
+    _px(g, 12, 8, 2, 4, IC.wood[2]); _px(g, 19, 8, 2, 4, IC.wood[2]);        // 갈래
+    _disc(g, 16, 7, 4, IC.gem[1]); _disc(g, 15, 6, 2, IC.gem[0]);            // 구슬
+  },
+  helm(g) {
+    _px(g, 10, 8, 12, 3, IC.iron[1]); _px(g, 8, 11, 16, 4, IC.iron[1]); _px(g, 8, 15, 16, 5, IC.iron[1]);
+    _px(g, 10, 8, 12, 1, IC.iron[0]); _px(g, 8, 11, 3, 9, IC.iron[0]);       // 왼빛
+    _px(g, 11, 15, 10, 4, IC.iron[3]);                                       // 얼굴 구멍
+    _px(g, 15, 15, 2, 7, IC.iron[1]);                                        // 코가리개
+    _px(g, 8, 20, 16, 2, IC.iron[2]);                                        // 테
+  },
+  armor(g) {
+    _px(g, 7, 8, 18, 3, IC.cloth[1]); _px(g, 9, 11, 14, 14, IC.cloth[1]); _px(g, 7, 22, 18, 4, IC.cloth[1]);
+    _px(g, 9, 11, 3, 14, IC.cloth[0]);                                       // 왼빛
+    _px(g, 15, 9, 2, 16, IC.cloth[2]); _px(g, 7, 8, 18, 1, IC.cloth[2]);     // 솔기
+    _px(g, 9, 19, 14, 2, IC.leather[1]);                                     // 허리띠
+  },
+  gloves(g) {
+    _px(g, 9, 20, 14, 5, IC.leather[1]); _px(g, 10, 11, 12, 9, IC.leather[1]);
+    _px(g, 7, 13, 3, 5, IC.leather[1]);                                      // 엄지
+    _px(g, 10, 9, 3, 4, IC.iron[1]); _px(g, 14, 8, 3, 5, IC.iron[1]); _px(g, 18, 9, 3, 4, IC.iron[1]); // 손가락 판
+    _px(g, 10, 11, 3, 9, IC.leather[0]);
+    _px(g, 9, 20, 14, 1, IC.iron[2]);
+  },
+  boots(g) {
+    _px(g, 11, 7, 8, 14, IC.leather[1]); _px(g, 11, 21, 15, 6, IC.leather[1]);
+    _px(g, 11, 7, 3, 14, IC.leather[0]);                                     // 앞빛
+    _px(g, 10, 7, 10, 2, IC.leather[0]);                                     // 목
+    _px(g, 11, 26, 17, 2, IC.leather[2]);                                    // 밑창
+  },
+  ring(g) {
+    g.strokeStyle = IC.gold[1]; g.lineWidth = 3; g.beginPath(); g.arc(16, 19, 7, 0, 6.283); g.stroke();
+    g.strokeStyle = IC.gold[0]; g.lineWidth = 1; g.beginPath(); g.arc(14, 17, 7, 3.9, 5.6); g.stroke();
+    _disc(g, 16, 10, 3.2, IC.gem[1]); _disc(g, 15, 9, 1.4, IC.gem[0]);       // 보석
+  },
+  amulet(g) {
+    g.strokeStyle = IC.gold[1]; g.lineWidth = 2; g.beginPath();
+    g.moveTo(8, 7); g.lineTo(16, 17); g.lineTo(24, 7); g.stroke();           // 사슬
+    _disc(g, 16, 21, 6, IC.gold[1]); _disc(g, 16, 21, 4.4, IC.gem[1]); _disc(g, 15, 20, 2, IC.gem[0]); // 펜던트
+  },
+};
+function iconBase(it) {
+  const k = iconKey(it);
+  let c = ICON_BASE.get(k);
+  if (c) return c;
+  c = document.createElement("canvas"); c.width = 32; c.height = 32;
+  const g = c.getContext("2d");
+  const part = ICON_PART[it.slot === "weapon" ? weaponShape(it) : it.slot] || ICON_PART.armor;
+  part(g);
+  const rc = (it.rarity && it.rarity.color) || "#e6e0d0";
+  g.globalAlpha = 0.6; g.strokeStyle = rc; g.lineWidth = 2; g.strokeRect(2, 2, 28, 28);   // 레어도 테
+  g.globalAlpha = 0.22; g.strokeStyle = "#ffffff"; g.lineWidth = 2;                        // 광택
+  g.beginPath(); g.moveTo(4, 11); g.lineTo(12, 3); g.stroke();
+  g.globalAlpha = 1;
+  if (it.mythic || it.unique) { g.fillStyle = rc; g.font = "bold 10px serif"; g.textAlign = "left"; g.textBaseline = "top"; g.fillText("◆", 21, 0); }
+  ICON_BASE.set(k, c);
+  return c;
+}
+function drawItemIcon(dst, it, x, y, size) {
+  if (globalThis.__ITEMICON === false || !it || !it.slot) return false;
+  const sm = dst.imageSmoothingEnabled; dst.imageSmoothingEnabled = false;
+  dst.drawImage(iconBase(it), 0, 0, 32, 32, x, y, size, size);
+  dst.imageSmoothingEnabled = sm;
+  return true;
+}
+function iconDataURL(it, size) {
+  const k = iconKey(it) + "@" + size;
+  let u = ICON_URL.get(k);
+  if (u) return u;
+  const c = document.createElement("canvas"); c.width = size; c.height = size;
+  const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
+  g.drawImage(iconBase(it), 0, 0, 32, 32, 0, 0, size, size);
+  u = c.toDataURL(); ICON_URL.set(k, u);
+  return u;
+}
+
 function drawItems() {
   ctx.textAlign = "center";
   itemLabels = [];
@@ -4974,8 +5109,10 @@ function drawItems() {
     const sx = (it.x - cam.x) * Z, sy = (it.y - cam.y) * Z;
     if (sx < -40 || sx > VW + 40 || sy < -20 || sy > VH + 20) continue;
     const rank = itemRank(it), col = it.item.rarity.color;
-    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 2 ? 4 : 3, 0, 6.283); ctx.fill();
-    if (rank >= 2) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 3 ? 7 : 5.5, 0, 6.283); ctx.stroke(); }
+    if (!drawItemIcon(ctx, it.item, sx - 10, sy - 2, 20)) {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 2 ? 4 : 3, 0, 6.283); ctx.fill();
+      if (rank >= 2) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 3 ? 7 : 5.5, 0, 6.283); ctx.stroke(); }
+    }
     vis.push({ it, sx, sy, rank, d: Math.hypot(it.x - p.x, it.y - p.y), dm: Math.hypot(sx - mouse.x, sy + 8 - mouse.y) });
   }
   let picks;
@@ -5160,7 +5297,8 @@ function equippedSet(key) {
 function tooltipHTML(it, cmp) {
   if (it.build) return `<div class="tipname">${esc(it.name)}</div><div class="tipmod">즉시 적용 — 집으면 켜진다</div>`;
   const nameClass = it.mythic ? "mythic" : it.set ? "setname" : it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
-  const rows = [`<div class="tipname ${nameClass}">${it.mythic ? "◆ " : ""}${esc(it.name)}</div>`];
+  const tipIcon = (globalThis.__ITEMICON !== false && it.slot) ? `<img class="tipicon" src="${iconDataURL(it, 32)}">` : "";
+  const rows = [`<div class="tipname ${nameClass}">${tipIcon}${it.mythic ? "◆ " : ""}${esc(it.name)}</div>`];
   rows.push(`<div class="tipsub">${it.mythic ? "유니크 · 규칙" : it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
   rows.push(`<div class="tiprule"></div>`);
   if (it.affixes && it.affixes.length) {
@@ -5316,8 +5454,9 @@ function cellDiv(it, w, h, onClick) {
   d.style.height = (h * CELL) + "px";
   d.style.color = it.rarity.color;
   d.style.borderColor = it.rarity.color;
-  d.style.background = it.rarity.color + "22";
-  d.textContent = SLOT_LABEL[it.slot] || it.slot;
+  d.style.backgroundColor = it.rarity.color + "22";
+  if (globalThis.__ITEMICON === false) d.textContent = SLOT_LABEL[it.slot] || it.slot;
+  else { d.classList.add("hasicon"); d.style.backgroundImage = `url(${iconDataURL(it, 32)})`; }
   if (globalThis.__SOCKET !== false && it.sockets && it.sockets.length) {
     const sr = document.createElement("div"); sr.className = "cellsock";
     appendSockets(sr, it);
@@ -5506,6 +5645,7 @@ function appendSockets(parent, it) {
 }
 function shopItemRow(it, rightTxt, rightCol, onClick) {
   const d = document.createElement("div"); d.className = "shoprow";
+  if (globalThis.__ITEMICON !== false) { const ic = document.createElement("span"); ic.className = "sricon"; ic.style.backgroundImage = `url(${iconDataURL(it, 24)})`; d.appendChild(ic); }
   const nm = document.createElement("span"); nm.className = "srname"; nm.style.color = it.rarity.color;
   nm.textContent = it.name;
   appendSockets(nm, it);
@@ -5855,6 +5995,7 @@ function renderGear() {
     span.textContent = SLOT_LABEL[s];
     if (it) {
       span.style.color = it.rarity.color; span.title = it.name;
+      if (globalThis.__ITEMICON !== false) { const ic = document.createElement("span"); ic.className = "gearicon"; ic.style.backgroundImage = `url(${iconDataURL(it, 20)})`; span.prepend(ic); }
       if (colorOn) { span.style.fontWeight = "700"; span.style.textShadow = `0 0 6px ${it.rarity.color}99, 0 1px 0 #000`; }
     } else if (colorOn) { span.style.color = "#5b5044"; }
     if (it && globalThis.__SOCKET !== false && it.sockets && it.sockets.length) appendSockets(span, it);
