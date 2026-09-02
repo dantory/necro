@@ -134,25 +134,34 @@ const BOOM_CAP = 24, HIT_CAP = 48;   // 동시 연출 개수 상한(parts 400·f
 // 차면 «예고(붉은 자리·번쩍임) → 터짐»을 한 번 쓴다. 예고 사이에 피하면 「넘었다」가 된다.
 const BOSS_CD = [7.0, 3.6, 3.8, 8.5];          // 뼈왕 · 역병 · 도살자 · 사제 — 수법 재충전(초)
 const BOSS_WARN = [0.8, 0.7, 0.7, 0.9];        // 예고가 떠 있는 시간 — 이 사이에 피한다
-const BOSS_TINT = [                             // 새 에셋 없이 색조로 넷을 가른다(창백한 뼈·초록·핏빛·보라)
+const BOSS_TINT_OLD = [                         // 옛 vivid(되돌림 __MOBTINT=false 용): 넷째가 마젠타였다
   "brightness(1.4) saturate(0.3) sepia(0.25) hue-rotate(-8deg)",
   "brightness(1.05) saturate(2.2) hue-rotate(60deg)",
   "brightness(1.05) saturate(2.4) hue-rotate(-28deg)",
   "brightness(1.12) saturate(2.4) hue-rotate(268deg)",
 ];
+// V-262 ③ — 보스 넷도 크립트 결로 좁힌다. V-167 에 「자주는 크립트 색이 아니다」라 적고 또 나온 마젠타(넷째)를
+//   채도를 크게 죽인 강철빛 재보라로 물린다. 넷은 여전히 갈린다(창백한 뼈·썩은 황록·핏빛·강철 재보라)되 다 어둡다.
+const BOSS_TINT = [
+  "brightness(1.4) saturate(0.35) sepia(0.28) hue-rotate(-8deg)",   // 창백한 뼈
+  "brightness(1.1) saturate(1.15) sepia(0.5) hue-rotate(48deg)",    // 썩은 황록
+  "brightness(1.08) saturate(1.3) sepia(0.55) hue-rotate(-22deg)",  // 마른 핏빛
+  "brightness(1.14) saturate(0.6) sepia(0.4) hue-rotate(238deg)",   // 강철빛 재보라(옛 마젠타 대신)
+];
 const BOSS_LABEL_COL = ["#e8ecf0", "#8ce06a", "#ff7a5a", "#c89bff"];
 // V-252 — 갈래마다 «색이 갈리게». 원본 png 를 덧칠하지 않고 그리는 자리에서 얹는다(되돌림 __MOBTINT).
 //   ★ sepia(1) 로 원본 색(붉은 brute·창백한 skelarch)을 한 번 지운 뒤 hue-rotate 로 다시 얹기에
 //   60~82px 에서도 수법이 «색»으로 읽힌다(옛 hue-rotate 만 얹던 것은 붉은 몸 위에서 안 갈렸다).
+// V-262 ③ — 무지개를 잡는다. 옛 채도(2.2~2.7)는 초록·노랑·분홍·파랑 사탕 상자였다(D2 크립트의 통일된
+//   어둠이 아니다). 팔레트를 «크립트 결»(뼈빛·재빛·핏빛·썩은 황록)로 좁히고 채도를 크게 낮춘다.
+//   갈래(돌진·폭탄·궁수·정예)는 색이 아니라 실루엣·크기·표식으로 이미 갈린다(V-231·V-252) — 색은 거들기만.
+//   다만 어둠에 먹히면 안 된다(V-254 ②) → 밝기는 ≥1.06 로 지킨다. 되돌림 __MOBTINT=false → 옛 vivid 값.
 const MOB_TINT = {
-  shoot:  "sepia(1) saturate(2.2) hue-rotate(158deg) brightness(1.05) contrast(1.06)", // 쏘는 놈 — 찬 파랑
-  charge: "sepia(1) saturate(2.7) hue-rotate(-6deg) brightness(1.06) contrast(1.12)",  // 달려드는 놈 — 뜨거운 주황
-  bomb:   "sepia(1) saturate(2.7) hue-rotate(46deg) brightness(1.16) contrast(1.06)",  // 터지는 놈 — 병색 노랑(제 몸=zombie)
-  thief:  "sepia(1) saturate(2.3) hue-rotate(262deg) brightness(1.04) contrast(1.06)", // 훔치는 놈 — 보라
-  // V-253 — 「평범」 갈래에도 제 색. 넷(찬 파랑·뜨거운 주황·병색 노랑·보라)과 안 겹치게 «무채에 가까운 흙빛».
-  //   채도는 낮게 두어(vivid 한 넷과 갈린다) — 몸도 mob/fallen 으로 갈라 실루엣까지 다르다.
-  // V-254 ② — 밝기를 0.82→1.34 로 올린다. 옛 0.82 는 어두운 바닥에서 몸이 배경에 녹아 발밑 붉은 고리만 보였다(감시가 컷으로 봄).
-  //   낮은 채도(0.9)를 지켜 넷과 안 겹치되, 밝은 흙빛 크림으로 어두운 바닥 위에서도 몸이 읽힌다.
+  shoot:  "sepia(1) saturate(0.8) hue-rotate(168deg) brightness(1.14) contrast(1.08)",  // 쏘는 놈 — 재빛(찬 잿빛 슬레이트)
+  charge: "sepia(1) saturate(1.25) hue-rotate(-16deg) brightness(1.08) contrast(1.12)", // 달려드는 놈 — 핏빛(칙칙한 마른 피)
+  bomb:   "sepia(1) saturate(1.15) hue-rotate(38deg) brightness(1.16) contrast(1.06)",  // 터지는 놈 — 썩은 황록(제 몸=zombie)
+  thief:  "sepia(1) saturate(0.72) hue-rotate(232deg) brightness(1.06) contrast(1.06)", // 훔치는 놈 — 잿빛 도는 흐린 보라(순보라 아님)
+  // 「평범」 갈래 — 무채에 가까운 흙빛(V-253/254 로 이미 크립트 결·밝기 유지). 그대로 둔다.
   plain:  "sepia(1) saturate(0.9) hue-rotate(8deg) brightness(1.34) contrast(1.14)",
 };
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
@@ -3034,7 +3043,7 @@ function drawWorld() {
   const rvis = G.rooms.filter((r) => seen(r, WTOP + 6));
   for (const c of cvis) stoneRim(c.x - WT, c.y - WT, c.w + 2 * WT, c.h + 2 * WT);
   for (const r of rvis) stoneRim(r.x - WT, r.y - WTOP, r.w + 2 * WT, r.h + WT + WTOP);
-  for (const r of rvis) { northWall(r, WT, WTOP); sideWalls(r, WT, WTOP); }  // 네 면 다 벽 — 복도가 이 다음에 뚫는다
+  for (const r of rvis) { northWall(r, WT, WTOP); sideWalls(r, WT, WTOP); wallArches(r, WT, WTOP); }  // 네 면 다 벽 · V-262 ① 북벽에 아치 — 복도가 이 다음에 뚫는다
   for (const c of cvis) floorFill(c.x, c.y, c.w, c.h, "rgba(52,38,26,0.5)");   // 복도 바닥이 벽·북벽을 뚫어 문을 낸다
   // 방 바닥이 복도를 덮어 복도는 방 사이에만 남는다. ★ V-165 — 물들이기는 **얼룩 뒤로**
   // 미룬다(위 floorBase/floorTint 주석). 얼룩은 방 안에만 뿌려지므로(map.js `scatter`)
@@ -3738,6 +3747,43 @@ function sideWalls(r, WT, WTOP) {
   ctx.fillStyle = "rgba(150,140,122,0.30)";
   ctx.fillRect(r.x - WT, yTop, 2, hh); ctx.fillRect(r.x + r.w + WT - 2, yTop, 2, hh);
 }
+// V-262 ① — D2 카타콤 벽면. 민 벽돌 한 겹이 「창고」로 읽혀, 북벽(가장 높은 벽면)에 아치 벽감을
+//   연속으로 «판다» — 안쪽은 어둡게(들어간 깊이), 테두리는 밝게(두께가 보이게). 아치 사이 기둥에
+//   벽 횃불을 걸어 불빛이 벽을 만든다(V-261 은 바닥 화로였다). 순수 그리기 — genFloor 지문 무관.
+//   되돌림 __WALLARCH=false → 옛 민 벽면. 복도가 다음에 이 벽을 뚫어 문을 내므로 아치보다 늦다.
+function wallArches(r, WT, WTOP) {
+  if (globalThis.__WALLARCH === false) return;
+  const y0 = r.y - WTOP, x0 = r.x - WT, w = r.w + 2 * WT;
+  const P = 46, aw = 26, top = y0 + 3, bot = r.y - 4, spr = top + aw / 2;
+  const n = Math.floor((w - 20) / P);
+  if (n < 1) return;
+  const off = (w - (n - 1) * P) / 2;                     // 첫 아치 중심(벽면 가운데 정렬)
+  const g = ctx.createLinearGradient(0, top, 0, bot);    // 세로 그늘 — x 무관이라 방마다 하나면 된다
+  g.addColorStop(0, "rgba(0,0,0,0.74)"); g.addColorStop(0.5, "rgba(6,5,8,0.5)"); g.addColorStop(1, "rgba(20,16,13,0.28)");
+  ctx.save();
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + off + i * P, ax = cx - aw / 2, bx = cx + aw / 2;
+    ctx.beginPath();                                     // 반원 머리 + 세로 몸통(벽감 윤곽)
+    ctx.moveTo(ax, bot); ctx.lineTo(ax, spr);
+    ctx.quadraticCurveTo(ax, top, cx, top); ctx.quadraticCurveTo(bx, top, bx, spr);
+    ctx.lineTo(bx, bot); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();                       // 안쪽 깊이
+    ctx.lineWidth = 1.4; ctx.strokeStyle = "rgba(150,140,122,0.4)"; ctx.stroke();   // 밝은 테(빛 받는 기둥)
+    ctx.beginPath();                                     // 오른쪽·바닥은 그늘(빛은 위-왼쪽)
+    ctx.moveTo(bx, spr); ctx.lineTo(bx, bot); ctx.lineTo(ax, bot);
+    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(0,0,0,0.5)"; ctx.stroke();
+    if (i % 2 === 1) wallTorch(cx - P / 2, y0 + WTOP * 0.5);   // 한 칸 건너 기둥에 벽 횃불
+  }
+  ctx.restore();
+}
+function wallTorch(x, y) {
+  ctx.fillStyle = "rgba(30,24,20,0.95)"; ctx.fillRect(x - 1.5, y - 1, 3, 8);        // 철제 자루
+  const g = ctx.createRadialGradient(x, y - 4, 1, x, y - 4, 22);                    // 따뜻한 후광 — 불빛이 벽을 만든다
+  g.addColorStop(0, "rgba(255,196,96,0.5)"); g.addColorStop(0.5, "rgba(220,120,40,0.22)"); g.addColorStop(1, "rgba(220,120,40,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 4, 22, 0, 6.283); ctx.fill();
+  ctx.fillStyle = "rgba(255,150,50,0.95)"; ctx.beginPath(); ctx.ellipse(x, y - 5, 2.4, 4.2, 0, 0, 6.283); ctx.fill();     // 불꽃 겉
+  ctx.fillStyle = "rgba(255,225,150,0.95)"; ctx.beginPath(); ctx.ellipse(x, y - 5.5, 1.2, 2.6, 0, 0, 6.283); ctx.fill(); // 심지
+}
 // 방 벽을 지나는 복도마다 입구에 돌기둥 한 쌍(문틀)을 세운다 — 「방에 들어왔다」가 느껴지게.
 function doorArches(r, WT) {
   for (const c of G.corridors) {
@@ -3937,7 +3983,7 @@ const FOE_TINTS = [
   "grayscale(0.34) sepia(0.62) hue-rotate(-32deg) saturate(2.1) brightness(0.80)",
   "grayscale(0.32) sepia(0.6) hue-rotate(-28deg) saturate(2.05) brightness(0.88)",
 ];
-const ELITE_TINT = "grayscale(0.14) sepia(0.62) hue-rotate(-14deg) saturate(2.3) brightness(1.08)"; // 밝은 핏빛(챔피언)
+const ELITE_TINT = "grayscale(0.2) sepia(0.62) hue-rotate(-16deg) saturate(1.55) brightness(1.1)"; // V-262 ③ — 마른 핏빛(챔피언): 채도 2.3→1.55 로 죽여 크립트 결에 맞춘다(가장 밝은 크립트 톤으로 남되 사탕 아님)
 const teamTintOn = () => window.__teamTint !== false;   // hs_p5 의 앞/뒤 토글
 const ringsOn = () => window.__rings !== false;         // 링을 끄고 «스프라이트만으로» 갈리나 확인
 
@@ -4274,7 +4320,7 @@ function drawEnemy(m) {
     else if (m.thief) rest = MOB_TINT.thief;
     else if (!m.elite) rest = MOB_TINT.plain;   // V-253 — 「평범」에도 제 색(흙빛). 정예/보스는 제 색조를 지킨다.
   }
-  if (m.boss) rest = BOSS_TINT[m.bossKind];
+  if (m.boss) rest = (globalThis.__MOBTINT === false ? BOSS_TINT_OLD : BOSS_TINT)[m.bossKind];
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   const drawH = (m.bomber && m.fuse > 0) ? m.h * (1 + 0.35 * (1 - m.fuse / BOMB_FUSE)) : m.h;   // V-231 — 점화 중 몸이 부푼다
