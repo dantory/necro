@@ -1,6 +1,12 @@
 # NOW — hs/ 감시가 «제일 먼저» 읽는 파일
 (크론 본문의 항목번호보다 이게 우선이다. 축을 띄울 때마다 여기를 갱신한다.)
 
+## ▶ 지금 도는 판: V-254 — 군세에 「명령」 · 평범이 어둠에 먹힌다 (착수 2026-09-02 18:03)
+워커 PID 77822(상한 2700초) · 브리프 `tmp/v254_prompt.md` · 로그 `~/.openclaw/workspace/tmp/necro_hs_v254.log(+.done)`.
+감시가 V-253 컷을 직접 열어 골랐다 — ① **군세 태세 셋**(따라와·쳐라·여기 지켜, `__ORDERS`. `grep 명령|stance` 가 한 줄도 안 나온다 = 없는 것)
+② 평범이 **너무 어둡다**(갈리기는 하는데 어두운 바닥에서 몸이 안 보이고 발밑 고리만 보인다) ③ **평범만 이름표가 없다** ④ `main.js:4722` 힌트 줄이 `index.html:51` 과 갈라져 낡음.
+⑤ 계단 우물은 **집지 않는다**(V-251·252·253 세 판 실패, 로컬 base64 막다른 길로 닫힘).
+
 ## ✔ 끝난 판: V-253 — 「어느 놈인지」가 한눈에 · 이름표가 어디서나 (닫음 2026-09-02)
 감시가 V-252 컷(`tmp/hs_v252_kinds_after.png`)을 직접 열어 셋을 골랐다. 만진 곳 `hs/main.js` **하나**·새 자 파일 없음(베이커 `tmp/hs_v253_cut.mjs`·되돌림 `tmp/hs_v253_revert.mjs`).
 ① **「평범」에 제 낯**(`assignZoneMix`+`MOB_TINT.plain`+`drawEnemy`) — 평범이 사수와 같은 `skelarch` 몸·무채색이라 「쏘는 놈이 둘」로 읽혔다. 넷(shoot/charge/bomb/thief)이 skelarch·brute·zombie·shaman 을 다 쓰니 **그 넷이 안 쓰는 유일한 몸 `mob/fallen`**(8방향+walk/attack 다 있음)으로 평범을 갈랐고, 색조도 `MOB_TINT.plain`(흙빛 회록·저채도 `sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82)`)로 넷과 안 겹치게 얹었다. **새로 굽지 않고 있는 몸을 되씀**(V-252 zombie 되쓴 길). 다섯이 **색+실루엣**으로 갈림.
