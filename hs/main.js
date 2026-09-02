@@ -650,6 +650,7 @@ window.__thiefPose = (n = 6) => {
 window.__corpseN = () => G.corpses.length;
 
 function fresh(floor, carry, town) {
+  closePact();   // V-258 (a) 서약 모달을 연 채 층을 옮기면 그대로 따라와 화면을 덮었다(V-257 컷 전부가 그랬다)
   const f = town ? genTown() : genFloor(floor);
   if (!town) { assignAffixes(f, floor); assignZoneMix(f, floor); assignZoneLook(f, floor); }   // V-246 ①·V-247 ① genFloor 뒤·전역 Math.random 밖에서 굴린다(지문 불변)
   const p = carry ? carry.player : {
@@ -4557,7 +4558,7 @@ function drawAltarBeacon(a) {
     const bw = 12 + pulse * 4;
     ctx.fillRect(a.x - bw, topY, bw * 2, a.y - 6 - topY);
     ctx.globalCompositeOperation = "source-over";
-    if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70) {
+    if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70 && !(pactOpen && a.kind === "curse")) {   // V-258 (b) 모달이 떠 있으면 같은 말(「저주 제단 — 받겠는가」)이 판·배너·모달 세 겹으로 겹친다
       const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
       const gemOn = globalThis.__GEM !== false;
       const curse = a.kind === "curse";   // V-257 ① 저주 제단은 금이 아니라 서약 — 값 대신 「받겠는가 · B」만
