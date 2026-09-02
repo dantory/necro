@@ -88,6 +88,11 @@ if (globalThis.__MINIONKIND === undefined) globalThis.__MINIONKIND = true;
 //      기본 켬. 끄면 옛 판과 byte-동일: 도둑이 안 스폰되고(map.js && 단락), 이름표·도둑 색조·도둑 처치 보상이 다 꺼진다.
 //      (사수·돌진·자폭 자체는 옛 손잡이 __RANGED_MOB/__CHARGER_MOB/__BOMBER_MOB 로 여전히 돈다.)
 if (globalThis.__MOBKIND === undefined) globalThis.__MOBKIND = true;
+//   ㉩ V-247 — 지역 여섯(구간마다 다른 곳). 5층 묶음마다 이름·벽빛·소품 구성·적 비중이 갈리고, 처음 들어서면
+//      이름이 뜬다. 적 비중·소품 구성은 genFloor «뒤»(fresh)에서 「층 씨앗」 산술 PRNG 로 다시 굴려 전역
+//      Math.random 을 한 톨도 안 갉는다 → genFloor 지문 불변(V-246 결). 빛/이름/배너는 순수 렌더.
+//      끄면(globalThis.__ZONE=false) 재배치·재조명이 통째로 꺼져 옛 판과 byte-동일.
+if (globalThis.__ZONE === undefined) globalThis.__ZONE = true;
 //   ㉨ V-237 — 떠 있는 글/판이 서로 덮거나 화면 밖으로 잘리는 것을 고친다(구입글이 제단 판을 덮음·집는 글이 왼쪽 잘림).
 //      기본 켬. 끄면 옛 동작(구입글이 제단 판 위에 겹침·바닥 이름표 왼쪽 잘림).
 if (globalThis.__NOTESTACK === undefined) globalThis.__NOTESTACK = true;
@@ -617,7 +622,7 @@ window.__corpseN = () => G.corpses.length;
 
 function fresh(floor, carry, town) {
   const f = town ? genTown() : genFloor(floor);
-  if (!town) assignAffixes(f, floor);   // V-246 ① genFloor 뒤·전역 Math.random 밖에서 정예 수식어를 굴린다(지문 불변)
+  if (!town) { assignAffixes(f, floor); assignZoneMix(f, floor); assignZoneLook(f, floor); }   // V-246 ①·V-247 ① genFloor 뒤·전역 Math.random 밖에서 굴린다(지문 불변)
   const p = carry ? carry.player : {
     maxhp: BASE_HP, hp: BASE_HP, maxmana: BASE_MANA, mana: BASE_MANA, spd: BASE_SPD, level: 1,
     mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: BASE_SLOTS,
@@ -634,7 +639,10 @@ function fresh(floor, carry, town) {
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
+  const zi = zoneOf(floor), prevZi = carry ? carry.lastZone : -1;   // V-247 — 구간이 갈리면(첫 판 포함) 가운데 지역 이름 배너
+  const zBanner = (!town && globalThis.__ZONE !== false && zi !== prevZi) ? { name: ZONES[zi].name, flavor: ZONES[zi].flavor, t: 0 } : null;
   return {
+    lastZone: town ? prevZi : zi, zoneBanner: zBanner,
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
     spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
@@ -779,6 +787,14 @@ const BLOCK_IMGS = new Set(["decor/pillar.png", "decor/column2.png", "decor/stat
 
 // 막는 크기는 매직넘버가 아니라 spriteFoot 이 낸 «발밑 폭»에서 낸다(이미 있는 함수). 그림이
 // 아직 안 왔으면 임시로 키에서 짐작하되 캐시하지 않는다 — 로드되면 다음에 실측으로 굳는다.
+// V-247 실측용 — 층 fl 을 다시 생성해 잡몹(정예·주인 제외) 갈래 비중을 센다. 컷 대신 수로 지역 차이를 증명한다.
+window.__zoneMix = (fl) => {
+  __restart(fl);
+  let tot = 0; const c = { shoot: 0, charge: 0, bomb: 0, thief: 0, plain: 0 };
+  for (const pk of G.packs) { if (pk.boss) continue; for (const m of pk.enemies) { if (m.elite || m.boss) continue; tot++; c[m.mobKind || "plain"]++; } }
+  const pct = (n) => tot ? +(100 * n / tot).toFixed(1) : 0;
+  return { floor: fl, zone: ZONES[zoneOf(fl)].name, n: tot, shootPct: pct(c.shoot), chargePct: pct(c.charge), bombPct: pct(c.bomb), thiefPct: pct(c.thief), plainPct: pct(c.plain) };
+};
 function propBlockR(pr) {
   if (pr._br != null) return pr._br;
   const im = tex(pr.img);
@@ -1537,6 +1553,46 @@ function applyAffixes(m, keys) {
   }
   m.afxCol = AFFIX[keys[0]].col;
   m.name = keys.map((k) => AFFIX[k].name).join("·") + " " + (m.name || "정예");
+}
+// ── V-247 지역별 적 비중 — genFloor «뒤»에서 「층 씨앗」 산술 PRNG 로 잡몹 갈래를 다시 굴린다. 전역 Math.random
+//   을 안 갉아 genFloor 지문 불변. 정예·주인·특수 손잡이 꺼진 갈래는 안 건드린다. mob0(만든 원본 base)로 평범을 복원. ──
+function assignZoneMix(f, floor) {
+  if (globalThis.__ZONE === false || !f.packs) return;
+  const mix = ZONES[zoneOf(floor)].mix;
+  const cR = globalThis.__RANGED_MOB ? mix.ranged : 0;
+  const cC = cR + (globalThis.__CHARGER_MOB ? mix.charge : 0);
+  const cB = cC + (globalThis.__BOMBER_MOB ? mix.bomb : 0);
+  const cT = cB + (globalThis.__MOBKIND !== false ? mix.thief : 0);
+  let s = ((floor * 2246822519) ^ 0x517cc1b7) >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (const pk of f.packs) {
+    if (pk.boss) continue;
+    for (const m of pk.enemies) {
+      if (m.elite || m.boss) continue;
+      m.ranged = m.charger = m.bomber = m.thief = false; m.mobKind = null;
+      if (m.mob0) m.base = m.mob0;
+      const r = rnd();
+      if (r < cR) { m.ranged = true; m.mobKind = "shoot"; m.base = "mob/skelarch"; }
+      else if (r < cC) { m.charger = true; m.mobKind = "charge"; m.base = "mob/brute"; }
+      else if (r < cB) { m.bomber = true; m.mobKind = "bomb"; m.base = "mob/brute"; }
+      else if (r < cT) { m.thief = true; m.mobKind = "thief"; m.base = "mob/shaman"; }
+    }
+  }
+}
+// ── V-247 지역별 소품 구성 — 자리(x·y)는 그대로 두고 그림·키만 지역 비중표로 다시 굴린다(화톳불은 빛이라 안 건드림). ──
+function assignZoneLook(f, floor) {
+  if (globalThis.__ZONE === false || !f.props) return;
+  const w = ZONES[zoneOf(floor)].props;
+  const bag = [];
+  for (const img of ZONE_PROPS) { const key = img.slice(6, -4); const n = w[key] || 0; for (let i = 0; i < n; i++) bag.push(img); }
+  if (!bag.length) return;
+  let s = ((floor * 40503) ^ 0x1f83d9ab) >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (const pr of f.props) {
+    if (pr.brazier) continue;
+    const img = bag[(rnd() * bag.length) | 0], hr = ZONE_PROP_H[img];
+    pr.img = img; pr.h = (hr[0] + (rnd() * (hr[1] - hr[0])) | 0);
+  }
 }
 // 화상 tick(iframe 밖·dotPlayer)·잔상 자취 기록 — 매 프레임 깨어난 정예마다.
 function affixMobTick(m, p, dt) {
@@ -2755,6 +2811,7 @@ function drawWorld() {
 
   drawItems();
   drawFloats();
+  drawZoneTitle();    // V-247 — 구간 첫 진입 시 화면 가운데 지역 이름(주인 배너보다 아래 z)
   drawBossBanner();   // V-230 — 주인 이름은 창·연출보다 위(들어설 때 한 번)
   PROF.seg("overlay");
 }
@@ -2820,6 +2877,20 @@ function teleReach(x, y, dx, dy, maxLen, r) {   // V-243 ②c — 벽에 닿을 
   for (let d = step; d <= maxLen; d += step) if (!walkable(x + dx * d, y + dy * d, r)) return Math.max(0, d - step);
   return maxLen;
 }
+// V-247 (b)(c) — 모든 경고 도형(원·부채꼴·장판·십자)을 방 벽 안으로 가둔다. 중심에서 각도마다 벽까지
+//   반지름을 teleReach 로 줄여 방 밖으로 안 샌다. stroke·fill 둘 다 이 한 path 를 쓴다(또 빠뜨리지 않게).
+function warnRingPath(cx, cy, r, a0, a1) {
+  if (a0 == null) { a0 = 0; a1 = 6.283; }
+  const N = Math.max(20, Math.round((a1 - a0) / 6.283 * 64));
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const a = a0 + (a1 - a0) * i / N, dx = Math.cos(a), dy = Math.sin(a);
+    const rr = teleReach(cx, cy, dx, dy, r, 4);
+    const x = cx + dx * rr, y = cy + dy * rr;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.closePath();
+}
 function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임(피할 시간을 준다)
   for (const pk of G.packs) {
     if (!pk.awake || !pk.boss) continue;
@@ -2830,18 +2901,18 @@ function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임
         const prog = 1 - c.t / c.warn;
         ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 80));
         ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4;
-        if (k === 0) { ctx.beginPath(); ctx.arc(c.cx, c.cy, CAGE_R, 0, 6.283); ctx.stroke(); }
-        else if (k === 1) { ctx.beginPath(); ctx.arc(c.cx, c.cy, 120, 0, 6.283); ctx.stroke(); }
+        if (k === 0) { warnRingPath(c.cx, c.cy, CAGE_R); ctx.stroke(); }   // V-247 (b) — 원형 경고도 벽에서 끊는다
+        else if (k === 1) { warnRingPath(c.cx, c.cy, 120); ctx.stroke(); }
         else if (k === 2) {
           const reach = teleReach(m.x, m.y, Math.cos(c.dir), Math.sin(c.dir), 640, m.r || 18);   // V-243 ②c — 경고선을 벽에서 끊는다(돌진이 닿는 데까지만).
           ctx.lineWidth = 26; ctx.strokeStyle = `rgba(255,50,40,${0.22 + 0.4 * prog})`;
           ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * reach, m.y + Math.sin(c.dir) * reach); ctx.stroke();
-        } else { ctx.beginPath(); ctx.arc(m.x, m.y - m.h * 0.35, 60 + 130 * prog, 0, 6.283); ctx.stroke(); }
+        } else { warnRingPath(m.x, m.y - m.h * 0.35, 60 + 130 * prog); ctx.stroke(); }
         ctx.globalAlpha = 1;
       } else if (c.phase === "sweepWarn") {
         ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 70));
-        ctx.fillStyle = "rgba(200,40,40,0.28)"; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.fill();
-        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(c.cx, c.cy, c.r, 0, 6.283); ctx.stroke();
+        ctx.fillStyle = "rgba(200,40,40,0.28)"; warnRingPath(c.cx, c.cy, c.r); ctx.fill();   // V-247 (b) — 장판(fill)도 같은 path 로 벽에서 끊는다
+        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.stroke();
         ctx.globalAlpha = 1;
       }
     }
@@ -2870,6 +2941,7 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
   drawCageRails();
   for (const b of G.bones) {
     if (!onScreen(b.x, b.y, 60)) continue;
+    if (!b.foe && globalThis.__TELLCLIP !== false && !walkable(b.x, b.y, 4)) continue;   // V-247 (a) — 우리뼈 조각도 벽 밖이면 아예 안 그린다(선만 잘렸던 것 → 스프라이트까지)
     const hpf = Math.max(0, b.hp / b.maxhp), h = 46;
     ctx.save(); ctx.translate(b.x, b.y);
     ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(0, 4, b.r * 0.9, b.r * 0.4, 0, 0, 6.283); ctx.fill();
@@ -2921,6 +2993,7 @@ function drawCageOverlay() {   // V-245 ②b — 유닛을 다 그린 뒤 우리
   drawCageRails();
   for (const b of cage) {
     if (!onScreen(b.x, b.y, 60)) continue;
+    if (globalThis.__TELLCLIP !== false && !walkable(b.x, b.y, 4)) continue;   // V-247 (a) — 덧그림도 벽 밖 조각은 건너뛴다
     ctx.save(); ctx.translate(b.x, b.y); drawBoneChunk(b.r, 46, Math.max(0, b.hp / b.maxhp), true); ctx.restore();
   }
   ctx.restore();
@@ -2961,6 +3034,20 @@ function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가�
   ctx.font = "16px 'Times New Roman',serif"; ctx.fillStyle = "#c8b8a0";
   ctx.fillText("이 층의 주인", VW / 2, cy + 30);
   ctx.globalAlpha = 1;
+}
+function drawZoneTitle() {   // V-247 — 구간 첫 진입 배너(D2 결): 이름이 잠깐 떴다 사라진다. 페이드 인 0.4s·유지·아웃 0.8s.
+  const zb = G.zoneBanner; if (!zb) return;
+  const a = zb.t < 0.4 ? zb.t / 0.4 : zb.t > 2.0 ? Math.max(0, (2.8 - zb.t) / 0.8) : 1;
+  const cy = VH * 0.34;
+  ctx.save(); ctx.globalAlpha = a; ctx.textAlign = "center";
+  ctx.font = "42px 'Times New Roman',serif";
+  ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.strokeText(zb.name, VW / 2, cy);
+  ctx.fillStyle = "#e6d6a8"; ctx.fillText(zb.name, VW / 2, cy);
+  ctx.font = "15px 'Times New Roman',serif";
+  ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 3;
+  ctx.strokeText("─  " + `지하 ${G.floor}층` + "  ─", VW / 2, cy + 26);
+  ctx.fillStyle = "#b8a888"; ctx.fillText("─  " + `지하 ${G.floor}층` + "  ─", VW / 2, cy + 26);
+  ctx.restore();
 }
 
 function stoneRim(x, y, w, h) {
@@ -3007,6 +3094,26 @@ function buildFloorPat(tile) {
 //   같은 회색이던 것을 층으로 물들인다. 무늬 자체는 buildFloorPat 이 4×4 로 돌려 벽지를 끊는다.
 const FLOOR_TILES = ["crypt_tile", "crypt_tile", "bone_tile", "bone_tile", "rot_tile", "rot_tile", "blood_tile", "blood_tile", "abyss_tile", "abyss_tile", "sanctum_tile"];
 function floorTileName(f) { const i = Math.max(0, ((f | 0) - 1)); return FLOOR_TILES[Math.min(i, FLOOR_TILES.length - 1)]; }
+// ── V-247 지역 여섯 — 5층 묶음마다 「다른 곳」. 이름(FLOOR_TILES 결과 맞춤)·빛(wash 전체 색칠·dark 어둠·warm 화톳불)·
+//   소품 비중(props)·적 비중(mix: 사수·돌진·자폭·도둑 %·큰무리 pack)가 갈린다. 0번은 옛 결(wash 없음·mix 옛 상수). ──
+const ZONE_PROPS = ["decor/pillar.png", "decor/statue.png", "decor/bones2.png", "decor/column2.png", "decor/coffin.png", "decor/urn.png", "decor/bones.png", "decor/rubble.png"];
+const ZONE_PROP_H = { "decor/pillar.png": [170, 215], "decor/statue.png": [132, 168], "decor/bones2.png": [88, 104], "decor/column2.png": [56, 78], "decor/coffin.png": [54, 72], "decor/urn.png": [50, 70], "decor/bones.png": [34, 50], "decor/rubble.png": [28, 44] };
+const ZONES = [
+  { name: "죽은 자의 묘지", flavor: "묘지", wash: null,                  dark: 0.20, warm: 0.11, wallTint: null,
+    props: { pillar: 3, statue: 2, bones2: 2, column2: 2, coffin: 3, urn: 3, bones: 3, rubble: 2 }, mix: { ranged: 0.35, charge: 0.18, bomb: 0.12, thief: 0.14 } },
+  { name: "뼈 무덤",       flavor: "무덤", wash: "rgba(150,140,104,0.11)", dark: 0.24, warm: 0.10, wallTint: "rgba(150,138,100,0.16)",
+    props: { pillar: 1, statue: 1, bones2: 5, column2: 1, coffin: 5, urn: 2, bones: 6, rubble: 1 }, mix: { ranged: 0.14, charge: 0.24, bomb: 0.06, thief: 0.22 } },
+  { name: "썩은 굴",       flavor: "굴",   wash: "rgba(56,84,44,0.17)",   dark: 0.30, warm: 0.08, wallTint: "rgba(48,74,40,0.22)",
+    props: { pillar: 1, statue: 0, bones2: 2, column2: 3, coffin: 2, urn: 5, bones: 3, rubble: 5 }, mix: { ranged: 0.44, charge: 0.10, bomb: 0.22, thief: 0.08 } },
+  { name: "피의 회랑",     flavor: "회랑", wash: "rgba(112,26,24,0.17)",  dark: 0.22, warm: 0.15, wallTint: "rgba(96,24,22,0.24)",
+    props: { pillar: 3, statue: 4, bones2: 1, column2: 1, coffin: 3, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.16, charge: 0.40, bomb: 0.08, thief: 0.06 } },
+  { name: "심연",          flavor: "심연", wash: "rgba(26,32,64,0.22)",   dark: 0.40, warm: 0.06, wallTint: "rgba(24,30,58,0.30)",
+    props: { pillar: 0, statue: 0, bones2: 1, column2: 5, coffin: 1, urn: 1, bones: 2, rubble: 6 }, mix: { ranged: 0.08, charge: 0.12, bomb: 0.06, thief: 0.04 } },
+  { name: "성소",          flavor: "성소", wash: "rgba(120,98,38,0.15)",  dark: 0.15, warm: 0.18, wallTint: "rgba(126,102,44,0.20)",
+    props: { pillar: 4, statue: 4, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
+];
+function zoneOf(f) { return Math.max(0, Math.min(ZONES.length - 1, Math.floor(((f | 0) - 1) / 5))); }
+function curZone() { return (globalThis.__ZONE === false || G.town) ? ZONES[0] : ZONES[zoneOf(G.floor)]; }
 function floorPatFor(f) {
   const name = floorTileName(f);
   let pat = FLOOR_PATS.get(name);
@@ -3259,17 +3366,19 @@ function drawProps() {
 
 function drawLight() {
   const p = G.player;
+  const z = curZone();   // V-247 — 구간마다 어둠·화톳불 세기·전체 색칠이 갈린다(눈으로 바로 구간이 읽힘)
+  const rect = () => ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
+  if (z.wash) { ctx.fillStyle = z.wash; rect(); }   // 지역 색조 — 방·벽·소품 다 이 색이 덮여 「다른 곳」으로 읽힘
   const lg = ctx.createRadialGradient(p.x, p.y - 20, 110 / Z, p.x, p.y - 20, 720 / Z);
   lg.addColorStop(0, "rgba(0,0,0,0)");
   lg.addColorStop(0.55, "rgba(4,2,3,0.06)");
-  lg.addColorStop(1, "rgba(2,1,2,0.2)");
-  ctx.fillStyle = lg;
-  ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
+  lg.addColorStop(1, `rgba(2,1,2,${z.dark})`);
+  ctx.fillStyle = lg; rect();
   ctx.globalCompositeOperation = "lighter";
-  warmGlow(p.x, p.y - 20, 320, 0.11);
+  warmGlow(p.x, p.y - 20, 320, z.warm);
   for (const pr of G.props) {
     if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
-    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, 0.22);
+    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, z.warm * 2);
   }
   ctx.globalCompositeOperation = "source-over";
 }
@@ -3428,7 +3537,10 @@ function drawEliteNames() {
   for (const q of pendingEliteLabels) {
     ctx.font = "bold " + q.bold + "px 'Times New Roman',serif"; ctx.textAlign = "center";
     ctx.save(); ctx.translate(q.wx, q.wy); ctx.scale(1 / Z, 1 / Z);
-    ctx.fillStyle = "#000"; ctx.fillText(q.nm, 0.8, 0.8);
+    // V-247 (e) — 외곽선 없던 이름 글이 벽 무늬 위에서 안 읽혔다. 어두운 밑판 + 두꺼운 외곽선으로 어디서나 읽히게.
+    const tw = ctx.measureText(q.nm).width;
+    ctx.fillStyle = "rgba(8,6,4,0.5)"; ctx.fillRect(-tw / 2 - 4, -q.bold + 1, tw + 8, q.bold + 4);
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineJoin = "round"; ctx.strokeText(q.nm, 0, 0);
     ctx.fillStyle = q.col; ctx.fillText(q.nm, 0, 0);
     ctx.restore();
     const hw = ctx.measureText(q.nm).width / 2 + 2, sx = (q.wx - cam.x) * Z, sy = (q.wy - cam.y) * Z;
@@ -3565,7 +3677,10 @@ function drawAffixGround(m) {
   }
 }
 function drawShellOutline(m) {
-  const cy = m.y - m.h * 0.42, rx = m.r * 1.55, ry = m.h * 0.5;
+  // V-247 (d) — 육각 테 위끝을 머리(체력 바 밑)까지만 올린다. 옛 테는 몸 절반 위(m.h*0.92)까지 뻗어 이름 글을 관통했다.
+  const headTop = opaqueHeadTop(m.base, m.y, m.h), bottom = m.y + m.h * 0.04;
+  const topV = Math.max(headTop + 3, m.y - m.h * 0.82);
+  const cy = (topV + bottom) / 2, rx = m.r * 1.55, ry = (bottom - topV) / 2;
   ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = "#e6e0cc"; ctx.lineWidth = 2.5;
   ctx.beginPath();
   for (let i = 0; i <= 6; i++) { const a = i / 6 * 6.283 - 1.5708; const px = m.x + Math.cos(a) * rx, py = cy + Math.sin(a) * ry; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
@@ -3574,14 +3689,15 @@ function drawShellOutline(m) {
 function drawBolts() {
   if (!G.bolts || !G.bolts.length) return;
   for (const b of G.bolts) {
+    const len = teleReach(b.x, b.y, b.dx, b.dy, AFFIX_BOLT_LEN, 4);   // V-247 (c) — 십자 경고·발사선도 벽에서 끊는다(경고 도형과 같은 뿌리)
     if (b.warn > 0) {
       ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(nowMs() / 60));
       ctx.strokeStyle = "#7fd8ff"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
-      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * AFFIX_BOLT_LEN, b.y + b.dy * AFFIX_BOLT_LEN); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();
       ctx.restore();
     } else if (b.life > 0) {
       ctx.save(); ctx.globalAlpha = Math.max(0, b.life / 0.15); ctx.strokeStyle = "#eaffff"; ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * AFFIX_BOLT_LEN, b.y + b.dy * AFFIX_BOLT_LEN); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();
       ctx.restore();
     }
   }
@@ -4819,7 +4935,7 @@ function updateHUD() {
     el("region4").textContent = `던전 B${G.deepest}층`;
     el("cleared").textContent = "상인 둘 · F 던전으로";
   } else {
-    el("region1").textContent = "죽은 자의 묘지";
+    el("region1").textContent = curZone().name;
     el("region2").textContent = `지하 ${G.floor}층`;
     el("region3").textContent = G.floor < 2 ? "악몽" : "지옥";
     el("region4").textContent = `지역 등급 ${G.floor * 40 + 42}`;
@@ -4933,6 +5049,7 @@ function loop(now) {
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
+    if (G.zoneBanner) { G.zoneBanner.t += dt; if (G.zoneBanner.t > 2.8) G.zoneBanner = null; }
     for (const e of G.pickLog) e.t -= dt;
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;

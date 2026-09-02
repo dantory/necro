@@ -446,7 +446,7 @@ function makeMob(t, x, y, scale, id, elite, dmgScale) {
     dmg: t.dmg * (dmgScale == null ? scale : dmgScale), spd: t.spd * (elite ? 0.9 : 1), h: t.h * BODY * (elite ? 1.25 : 1),
     r: t.r * HITR * (elite ? 1.2 : 1), gold: t.gold, dx: 0, dy: 1, elite,
     hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: (id * 2.3) % 6, alive: true,
-    tb: id & 3, name: elite ? rollEliteName(t.base) : null,
+    tb: id & 3, name: elite ? rollEliteName(t.base) : null, mob0: t.base,
   };
   // ★ 손잡이가 꺼져 있으면 && 가 Math.random 앞에서 끊겨 RNG 순서가 옛 그대로다 → off 행이 판을 한 톨도 안 바꾼다.
   if (!elite && globalThis.__RANGED_MOB && Math.random() < RANGED_FRAC) {
