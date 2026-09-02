@@ -836,7 +836,7 @@ window.__curse = (which, px, py) => {
   let n = 0;
   if (which === "weak") n = castCurse("weak", WEAK_DUR, WEAK_MANA, "#c774ff", "약화");
   else if (which === "plague") n = castCurse("plague", PLAGUE_DUR, PLAGUE_MANA, "#79c04a", "역병");
-  else if (which === "fear") n = castCurse("fear", FEAR_DUR, FEAR_MANA, "#e8cf52", "공포");
+  else if (which === "fear") n = castCurse("fear", FEAR_DUR, FEAR_MANA, "#46d6e0", "공포");
   return { which, hit: n, manaSpent: before - Math.round(p.mana), manaWas: m0 };
 };
 // V-249 저주 표식이 몇 마리 머리 위에 떠 있는지(눈으로 갈리는지 수로) — 걸린 종류별로 센다.
@@ -1537,12 +1537,12 @@ function castCurse(field, dur, mana, col, name) {
   for (let i = 0; i < 30; i++) { const a = Math.random() * 6.283, s = 40 + Math.random() * CURSE_R; burst(tx + Math.cos(a) * s * 0.4, ty + Math.sin(a) * s * 0.4, col, 150); }
   G.curseFx.push({ x: tx, y: ty, t: 0, col });
   cam.shake = Math.max(cam.shake, 6);
-  floatNote(`${name} — 적 ${hit.length}`, col, 1.2, { sz: 13 });
+  floatNote(`${name} — 적 ${hit.length}`, col, 1.2, { sz: 13, panel: true, note: true });   // V-250 (a) — 벽 무늬 위에서도 읽히게 어두운 밑판+저주색 외곽선(panel)·천장에 닿으면 아래로 흐르게(note)
   return hit.length;
 }
 function curseWeaken() { castCurse("weak", WEAK_DUR, WEAK_MANA, "#c774ff", "약화"); }     // 키 5
 function cursePlague() { castCurse("plague", PLAGUE_DUR, PLAGUE_MANA, "#79c04a", "역병"); } // 키 6
-function curseFear() { castCurse("fear", FEAR_DUR, FEAR_MANA, "#e8cf52", "공포"); }         // 키 7
+function curseFear() { castCurse("fear", FEAR_DUR, FEAR_MANA, "#46d6e0", "공포"); }         // 키 7 · V-250 (b) 시안(사람 발밑 노랑과 갈리게)
 
 // V-249 저주 매 프레임 — 시간을 깎고, 역병이면 부패 피해를 0.5초마다 tick 한다(죽으면 killEnemy 가 번짐을 처리).
 function curseTick(m, dt) {
@@ -2128,19 +2128,23 @@ function separateEnemies() {
   // ── V-248 ②a 무리 겹침 — 한 자리에 열댓이 포개져 실루엣·이름표가 안 갈리던 것. 최소 간격(GAP)을 두고
   //    여러 번 풀어 «몸끼리 자리»를 벌린다(몸-사람 판정은 안 건드려 근접 공격 사거리는 그대로). 끄면 옛 한 패스.
   const spread = globalThis.__CROWDSPREAD !== false;
-  const passes = spread ? 3 : 1, gap = spread ? 14 : 0;
+  // V-250 (c) — 역병 번짐처럼 열 몇이 한 점에 몰리면 세 패스로는 안 풀려 「99 ×2」 숫자·표식이 겹쳤다.
+  //   패스를 6 으로 늘려 촘촘한 무리도 벌어지게 하고, 벽으로 밀린 몸은 밀기 전 자리로 되돌린다(벽밖으로 새지 않게).
+  const passes = spread ? 6 : 1, gap = spread ? 14 : 0;
+  const ox = spread ? arr.map((m) => m.x) : null, oy = spread ? arr.map((m) => m.y) : null;
   for (let pass = 0; pass < passes; pass++)
     for (let i = 0; i < n; i++) {
       const s = arr[i];
       for (let j = i + 1; j < n; j++) {
         const t = arr[j], min = s.r + t.r + gap;
         const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
-        if (d2 === 0) { t.x += 0.5; continue; }
+        if (d2 === 0) { t.x += 0.5 + (j & 3) * 0.3; continue; }
         if (d2 >= min * min) continue;
         const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
         s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
       }
     }
+  if (spread) for (let i = 0; i < n; i++) { const m = arr[i]; if (!walkable(m.x, m.y, m.r)) { m.x = ox[i]; m.y = oy[i]; } }
 }
 
 function markRoomCleared(ri) {
@@ -3102,7 +3106,8 @@ function drawMobTele() {   // V-231 — 잡몹 수법 예고(돌진선·자폭 �
     for (const m of pk.enemies) {
       if (!m.alive) continue;
       if (m.tele > 0) {   // 돌진 예고 — 겨눈 방향(m.dx/dy)으로 붉은 띠, 남을수록 옅고 찰수록 진하게
-        const prog = 1 - m.tele / CHARGE_TELE, len = teleReach(m.x, m.y, m.dx, m.dy, CHARGE_RANGE * 0.8, m.r || 18);
+        const reach = m.spd * CHARGE_SPD_MUL * CHARGE_DUR;   // V-250 (e) — 띠를 «실제 돌진이 닿는 거리»까지만(옛 CHARGE_RANGE*0.8=496 은 탁 트인 성소서 벽에 안 닿아 방 밖·미니맵까지 뻗었다)
+        const prog = 1 - m.tele / CHARGE_TELE, len = teleReach(m.x, m.y, m.dx, m.dy, reach, m.r || 18);
         ctx.lineWidth = 20; ctx.strokeStyle = `rgba(255,50,40,${0.16 + 0.42 * prog})`;
         ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.dx * len, m.y + m.dy * len); ctx.stroke();
       } else if (m.fuse > 0) {   // 자폭 예고 — 발밑 붉은 고리, fuse 줄수록 진하고 두껍게
@@ -3295,7 +3300,7 @@ const ZONES = [
   { name: "심연",          flavor: "심연", wash: "rgba(26,32,64,0.22)",   dark: 0.40, warm: 0.06, wallTint: "rgba(24,30,58,0.30)",
     props: { pillar: 0, statue: 0, bones2: 1, column2: 5, coffin: 1, urn: 1, bones: 2, rubble: 6 }, mix: { ranged: 0.08, charge: 0.12, bomb: 0.06, thief: 0.04 } },
   { name: "성소",          flavor: "성소", wash: "rgba(120,98,38,0.15)",  dark: 0.15, warm: 0.18, wallTint: "rgba(126,102,44,0.20)",
-    props: { pillar: 9, statue: 5, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
+    props: { pillar: 14, statue: 7, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
 ];
 const ZONE_MINI = [   // V-248 ②e 미니맵 지역 색조 — HUD 이름만 바뀌고 결은 같던 것. 세계 wash 와 같은 계열로 「다른 곳」이 되게.
   "rgba(122,112,80,0.42)", "rgba(158,144,96,0.44)", "rgba(66,124,54,0.50)",
@@ -3333,13 +3338,16 @@ function buildWallPats() {
   if (globalThis.__WALLVARY === false) {   // 되돌림 — 옛 64px 한 조각 반복(반복이 「글자열」로 읽히던 V-248 (a) 전 상태)
     wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
   } else {
-    const WNC = 6; let ws = 0x2545f491; const wrnd = () => { ws = (ws * 1664525 + 1013904223) >>> 0; return ws / 4294967296; };
+    // V-250 (d) — 옛 여섯 칸은 «같은 조각»을 뒤집기+밝기만 흔들어 멀리서 「글자열」로 읽혔다.
+    //   128×64 벽 그림에서 칸마다 서로 다른 조각(열 0/32/64·행 0/8/16 의 9-arg 크롭)을 뽑아 진짜로 섞고, 칸을 8 로 늘려 주기를 512px 로.
+    const WNC = 8; let ws = 0x2545f491; const wrnd = () => { ws = (ws * 1664525 + 1013904223) >>> 0; return ws / 4294967296; };
+    const SX = [0, 32, 64], SY = [0, 8, 16];
     wallPatN = ctx.createPattern(bakeCanvas(64 * WNC, 30, g => {
       for (let i = 0; i < WNC; i++) {
         g.save();
         if (wrnd() < 0.5) { g.translate((i + 1) * 64, 0); g.scale(-1, 1); } else g.translate(i * 64, 0);
-        g.drawImage(im, 0, 0, 64, 30);
-        g.fillStyle = `rgba(0,0,0,${(0.05 + wrnd() * 0.18).toFixed(3)})`; g.fillRect(0, 0, 64, 30);
+        g.drawImage(im, SX[(wrnd() * SX.length) | 0], SY[(wrnd() * SY.length) | 0], 64, 48, 0, 0, 64, 30);
+        g.fillStyle = `rgba(0,0,0,${(0.05 + wrnd() * 0.20).toFixed(3)})`; g.fillRect(0, 0, 64, 30);
         g.restore();
       }
       shadeV(g, 64 * WNC, 30, 0.0, 0.58);
@@ -3552,7 +3560,7 @@ function drawProps() {
     if (!im || !im.width) continue;
     // V-248 (e) — 성소는 기둥이 157개라는데 시야 안엔 서넛뿐이라 심연과 안 갈렸다. 성소에서만 기둥을 크게 그려 몇 안 되어도 «기둥 전당»으로 읽히게(그림만·발자국·RNG 불변).
     const grand = pr.img === "decor/pillar.png" && !G.town && globalThis.__ZONE !== false && zoneOf(G.floor) === 5;
-    const dh = pr.img === "decor/bones2.png" ? pr.h * BONES2_DRAW : (grand ? pr.h * 1.3 : pr.h);   // V-241 — 서 있는 해골 소품은 그리기만 줄인다(발자국·RNG 는 map.js PROP_H 그대로)
+    const dh = pr.img === "decor/bones2.png" ? pr.h * BONES2_DRAW : (grand ? pr.h * 1.55 : pr.h);   // V-241 — 서 있는 해골 소품은 그리기만 줄인다(발자국·RNG 는 map.js PROP_H 그대로) · V-250 (e) 성소 기둥 1.3→1.55 로 더 크게(몇 안 되어도 「기둥 전당」)
     const w = dh * (im.width / im.height);
     const fo = spriteFoot(im, pr.img);
     // ★★ V-162 — **방법을 뒤집었다.** V-158·V-160 은 그림을 파일 그대로 놓고 «그림자를
@@ -3989,7 +3997,7 @@ function drawEnemy(m) {
   if (globalThis.__CURSE !== false && (m.weak > 0 || m.plague > 0 || m.fear > 0)) drawCurseMark(m, headTop);
 }
 // V-249 저주 표식 — 걸린 적의 발밑에 저주 색 고리, 머리 위에 저주마다 다른 도형(약화 ∨·역병 방울 셋·공포 !)을 쌓는다.
-const CURSE_COL = { weak: "#c774ff", plague: "#79c04a", fear: "#e8cf52" };
+const CURSE_COL = { weak: "#c774ff", plague: "#79c04a", fear: "#46d6e0" };   // V-250 (b) — 공포는 시안. 옛 노랑(#e8cf52)이 사람 발밑 노란 고리와 같아 내 자리와 안 갈렸다.
 function drawCurseMark(m, headTop) {
   const t = nowMs() / 1000;
   const marks = [];
