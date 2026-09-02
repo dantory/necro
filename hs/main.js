@@ -134,6 +134,21 @@ const BOSS_TINT = [                             // 새 에셋 없이 색조로 �
 ];
 const BOSS_LABEL_COL = ["#e8ecf0", "#8ce06a", "#ff7a5a", "#c89bff"];
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
+// ── V-246 ① 정예 수식어(접두) — 팩마다 다른 놈(D2 정예 접두처럼 «한 판 한 판이 갈리는 이유»). ──
+//   전부 «규칙»(%증가 아님)이라 만날 때마다 노는 법이 갈린다. genFloor 밖(fresh)에서 「층 씨앗」
+//   산술 PRNG 로 굴려 전역 Math.random 을 한 톨도 안 갉는다 → genFloor 지문 불변(V-242 결).
+//   __AFFIX=false 로 끄면 굴림을 통째로 건너뛰어 옛 정예와 byte-동일.
+const AFFIX = {
+  fire:   { name: "불꽃 두른",  col: "#ff7a3c" },   // 곁(반경 90)에 서면 초당 화상 피해 · 발밑 붉은 고리
+  bolt:   { name: "번개 튀는",  col: "#7fd8ff" },   // 죽을 때 십자 번개 넷(경고 0.4s 뒤 발사)
+  swift:  { name: "날랜",       col: "#b6f06a" },   // 이동 1.5배·공격 간격 0.7배 · 발이 남는 잔상
+  revive: { name: "되살아나는", col: "#e8cf52" },   // 처음 죽으면 40% 체력으로 한 번 일어남(이름표에 † 표식)
+  shell:  { name: "뼈 껍질",    col: "#e6e0cc" },   // 소환수 피해 60% 막음(직접 때려야 함)
+};
+const AFFIX_KEYS = ["fire", "bolt", "swift", "revive", "shell"];
+const AFFIX_BURN_R = 90;                               // 화상 곁 반경
+const AFFIX_BURN_DPS = () => 14 + (G ? G.floor : 1) * 2;   // 초당 화상 피해(층에 조금 비례) — dotPlayer 로 iframe 밖에서 tick
+const AFFIX_BOLT_LEN = 220, AFFIX_BOLT_HALF = 26;     // 십자 번개 길이·반폭 · 경고 0.4s
 const POOL_LIFE = 4.5;                                 // 역병 — 독 장판 지속(초)
 const CURSE_DUR = 4.0;                                 // 사제 — 저주(내 피해 반) 지속(초)
 const SKEL_BASE = "minion/skel";
@@ -261,7 +276,7 @@ function journalCheck() {
     if (JOURNAL.done[g.id]) continue;
     if (g.val() >= g.need) {
       JOURNAL.done[g.id] = true; applyReward(g.rew); saveJournal();
-      floatNote(`일지 달성 — ${g.name}  (${rewText(g.rew)})`, "#e8cf52", 2.4, { sz: 13 });
+      floatNote(foldNums(`일지 달성 — ${g.name}  (${rewText(g.rew)})`), "#e8cf52", 2.4, { sz: 13, note: true });
       flash = Math.max(flash, 0.18); flashColor = "232,207,82";
     }
   }
@@ -602,6 +617,7 @@ window.__corpseN = () => G.corpses.length;
 
 function fresh(floor, carry, town) {
   const f = town ? genTown() : genFloor(floor);
+  if (!town) assignAffixes(f, floor);   // V-246 ① genFloor 뒤·전역 Math.random 밖에서 정예 수식어를 굴린다(지문 불변)
   const p = carry ? carry.player : {
     maxhp: BASE_HP, hp: BASE_HP, maxmana: BASE_MANA, mana: BASE_MANA, spd: BASE_SPD, level: 1,
     mult: { dmg: 1, body: 1, minionDmg: 1 }, uniques: new Set(), slots: BASE_SLOTS,
@@ -622,7 +638,7 @@ function fresh(floor, carry, town) {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
     spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
-    hazards: [], bones: [], bossBanner: null, floorGems: [],
+    hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -724,6 +740,22 @@ function start(floor, carry, town) {
   window.__raiseGhoul = () => { const b = G.minions.filter((m) => m.ghoul).length; raiseGhoul(); return G.minions.filter((m) => m.ghoul).length - b; };
   window.__killMinion = (i = 0) => { const s = G.minions[i]; if (s) killMinion(s); return G.minions.length; };
   window.__killFoe = () => { for (const pk of G.packs) for (const m of pk.enemies) if (m.alive) { killEnemy(m); return true; } return false; };
+  window.__spawnAffixElite = (key, dx = 150, dy = -18) => {   // V-246 컷용 — 지정 수식어 정예를 사람 곁에 세운다(실제 문 applyAffixes 를 지난다)
+    const p = G.player;
+    const m = { id: -900 - (G._afxId = (G._afxId || 0) + 1), base: "mob/brute", x: p.x + dx, y: p.y + dy,
+      hp: 4000, maxhp: 4000, dmg: 40, spd: 116 * 0.9, h: 85 * 1.4 * 1.25, r: 26 * 1.15 * 1.2,
+      gold: [12, 22], dx: -1, dy: 0, elite: true, hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: 0, alive: true, tb: 0, name: "정예" };
+    applyAffixes(m, Array.isArray(key) ? key : [key]);
+    G.packs.push({ x: m.x, y: m.y, awake: true, room: 0, enemies: [m] });
+    window.__afxMob = m;
+    return { name: m.name, affix: m.affix, spd: Math.round(m.spd) };
+  };
+  window.__afxShellTest = (dmg = 1000) => {   // V-246 컷용 — 뼈 껍질이 소환수 피해를 실제로 얼마 막는지 잰다
+    const m = window.__afxMob; if (!m) return null; const before = m.hp;
+    hurtEnemy(m, dmg, 1, 0, "minion"); const minionApplied = Math.round(before - m.hp); m.hp = before; m.alive = true;
+    hurtEnemy(m, dmg, 1, 0, "spear"); const directApplied = Math.round(before - m.hp); m.hp = before; m.alive = true;
+    return { raw: dmg, minionApplied, directApplied };
+  };
   window.__pushProp = (img, dx = 90, dy = 0, h) => { const p = G.player; (G.props || (G.props = [])).push({ x: p.x + dx, y: p.y + dy, img, h: h || 74 }); return G.props.length; };
   window.__kindProfile = (fl) => {
     const base = 200 + fl * 40, bd = 34 + fl * 10;
@@ -1479,6 +1511,72 @@ function wakePacks() {
   }
 }
 
+// ── V-246 ① 정예 수식어 굴림 — genFloor 밖(fresh)에서 「층 씨앗」 산술 PRNG 로 굴린다(전역 Math.random 불변). ──
+function assignAffixes(f, floor) {
+  if (globalThis.__AFFIX === false || !f.packs) return;
+  let s = ((floor * 2654435761) ^ 0x9e3779b9) >>> 0;
+  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+  for (const pk of f.packs) {
+    const lead = pk.enemies && pk.enemies.find((m) => m.elite || m.boss);
+    if (!lead) continue;
+    const pool = AFFIX_KEYS.slice();
+    const n = rnd() < 0.35 ? 2 : 1;
+    const chosen = [];
+    for (let i = 0; i < n && pool.length; i++) chosen.push(pool.splice((rnd() * pool.length) | 0, 1)[0]);
+    applyAffixes(lead, chosen);
+  }
+}
+function applyAffixes(m, keys) {
+  m.affix = keys;
+  for (const k of keys) {
+    if (k === "swift") { m.spd *= 1.5; m.swift = true; }
+    else if (k === "fire") m.afxBurn = true;
+    else if (k === "bolt") m.afxBolt = true;
+    else if (k === "revive") m.afxRevive = true;
+    else if (k === "shell") m.afxShell = true;
+  }
+  m.afxCol = AFFIX[keys[0]].col;
+  m.name = keys.map((k) => AFFIX[k].name).join("·") + " " + (m.name || "정예");
+}
+// 화상 tick(iframe 밖·dotPlayer)·잔상 자취 기록 — 매 프레임 깨어난 정예마다.
+function affixMobTick(m, p, dt) {
+  if (m.afxBurn && (p.x - m.x) ** 2 + (p.y - m.y) ** 2 < AFFIX_BURN_R * AFFIX_BURN_R) {
+    dotPlayer(AFFIX_BURN_DPS() * dt); p.hurt = Math.max(p.hurt, 0.1);
+    G._burnAcc = (G._burnAcc || 0) + AFFIX_BURN_DPS() * dt;
+    if (G.parts.length < 380 && Math.random() < 0.25) burst(p.x, p.y - 10, "#ff7a3c", 70);
+  }
+  if (m.swift) {   // 잔상은 시간 간격으로 남긴다(매 프레임이면 몸에 겹쳐 안 읽힌다) — 0.06s 마다 다섯 자국
+    m.trailT = (m.trailT || 0) - dt;
+    if (m.trailT <= 0) {
+      m.trailT = 0.06;
+      (m.trail || (m.trail = [])).unshift({ x: m.x, y: m.y, dir: actorDir(m), state: m.state, fr: frame(m, m.base) });
+      if (m.trail.length > 5) m.trail.pop();
+    }
+  }
+}
+// 십자 번개 넷 — 죽는 자리에서 상·하·좌·우로. 경고 0.4s 뒤 그 선 위 사람에게 한 번 피해.
+function spawnAffixBolts(x, y, dmg) {
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (const [dx, dy] of dirs) G.bolts.push({ x, y, dx, dy, warn: 0.4, life: 0.55, dmg, fired: false });
+}
+function stepBolts(dt) {
+  if (!G.bolts || !G.bolts.length) return;
+  const p = G.player;
+  for (const b of G.bolts) {
+    if (b.warn > 0) { b.warn -= dt; if (b.warn <= 0) fireBolt(b, p); continue; }
+    b.life -= dt;
+  }
+  G.bolts = G.bolts.filter((b) => b.warn > 0 || b.life > 0);
+}
+function fireBolt(b, p) {
+  b.fired = true;
+  const px = p.x - b.x, py = p.y - b.y;
+  const along = px * b.dx + py * b.dy, perp = Math.abs(px * -b.dy + py * b.dx);
+  if (along >= -AFFIX_BOLT_HALF && along <= AFFIX_BOLT_LEN && perp <= AFFIX_BOLT_HALF) {
+    dotPlayer(b.dmg); p.hurt = Math.max(p.hurt, 0.14); cam.shake = Math.max(cam.shake, 9);
+  }
+  for (let i = 0; i < 10; i++) burst(b.x + b.dx * i * 22, b.y + b.dy * i * 22, "#bfeaff", 160);
+}
 function stepEnemies(dt) {
   const p = G.player;
   for (const pk of G.packs) {
@@ -1488,6 +1586,7 @@ function stepEnemies(dt) {
       if (!m.alive) continue;
       live++;
       unstick(m, m.r);   // 밀림(separation)·순간이동으로 벽 밖에 나가면 매 프레임 도로 끌어들인다
+      if (m.affix) affixMobTick(m, p, dt);   // V-246 — 화상 aura·잔상은 스턴 중에도(수동 효과)
       if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
       if (m.boss) { stepBoss(m, p, dt, pk); continue; }
       if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
@@ -1512,7 +1611,7 @@ function stepEnemies(dt) {
       } else {
         m.state = "attack"; m.anim += dt * 9;
         if (m.atk <= 0) {
-          m.atk = 0.9;
+          m.atk = 0.9 * (m.swift ? 0.7 : 1);   // V-246 날랜 — 공격 간격 0.7배
           if (tx === p.x && ty === p.y) hurtPlayer(dmg);
           else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= dmg; if (s.hp <= 0) killMinion(s); } }
         }
@@ -1943,6 +2042,7 @@ function stepSpears(dt) {
 
 function hurtEnemy(m, dmg, dx, dy, src) {
   if (m.hex > 0) dmg *= HEX_VULN;   // V-242 ② 제물 저주가 걸린 주인은 받는 피해가 늘어난다(비-주인은 m.hex undefined → 불변)
+  if (m.afxShell && src === "minion") dmg *= 0.4;   // V-246 뼈 껍질 — 소환수 피해 60% 막음(직접 때려야 죽는다)
   const eff = Math.min(dmg, Math.max(0, m.hp));
   if (src) METRIC[src] += eff;
   m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
@@ -1959,8 +2059,17 @@ function hurtEnemy(m, dmg, dx, dy, src) {
       window.__hitDrawnN = (window.__hitDrawnN || 0) + 1;
     }
   }
-  if (m.hp <= 0) killEnemy(m);
+  if (m.hp <= 0) {
+    if (m.afxRevive && !m.revived) reviveMob(m);   // V-246 되살아나는 — 처음 죽으면 40% 체력으로 한 번 일어난다
+    else killEnemy(m);
+  }
   return eff;
+}
+function reviveMob(m) {
+  m.revived = true; m.hp = m.maxhp * 0.4; m.stun = 0.35; m.kb.x = 0; m.kb.y = 0;
+  m.name = m.name + " (부활)";   // 이름표에 표식 — 뒤에 「(부활)」(수식어 이름과 안 겹치게)
+  for (let i = 0; i < 18; i++) burst(m.x, m.y - m.h * 0.4, "#e8cf52", 170);
+  cam.shake = Math.max(cam.shake, 7);
 }
 
 // ── V-190 — 레벨 문턱 «단일 출처». 누적 XP 곡선을 초선형으로.
@@ -1973,6 +2082,7 @@ function xpForLevel(n) { return 250 * n * (n - 1); }
 function killEnemy(m) {
   m.alive = false;
   G.kills++; METRIC.kills++;
+  if (m.afxBolt) spawnAffixBolts(m.x, m.y, m.dmg * 2);   // V-246 번개 튀는 — 죽을 때 십자 번개 넷(경고 0.4s)
   if (m.elite) journalStat("elite");
   if (G.player.uniques.has("corpseMana")) G.player.mana = Math.min(G.player.maxmana, G.player.mana + CORPSE_MANA);
   // V-190 ㉡ — 처치 XP 에 «층 깊이» 보람. B1 은 +0(초반 곡선을 그대로 두려), 상한 10층까지만 완만히 증가.
@@ -2364,16 +2474,38 @@ function floatNote(txt, col, t, extra) {
  * 한 함수를 지난다. 넉 자리부터 접어(1234→1.2천·1234567→1.2백만) 글자 사각이 두 배로 넓어져 칸을
  * 밀어내던 것을 막는다(성장창·툴팁의 원수 정확값은 그대로 둔다). __BIGNUM=false 면 옛 묶음 표기로
  * 되돌린다. 순수 표기라 genFloor 지문 밖. */
+const NUM_UNITS = [[1e3, "천"], [1e6, "백만"], [1e8, "억"], [1e12, "조"]];
 function fmtNum(n) {
   n = Math.round(Number(n) || 0);
   if (globalThis.__BIGNUM === false) return comma(n);
   const neg = n < 0 ? "-" : ""; n = Math.abs(n);
   if (n < 1000) return neg + n;
-  if (n < 1e6) { const k = n / 1000; return neg + (k < 100 ? k.toFixed(1) : Math.round(k)) + "천"; }
-  if (n < 1e8) { const m = n / 1e6; return neg + (m < 100 ? m.toFixed(1) : Math.round(m)) + "백만"; }
-  const b = n / 1e8; return neg + (b < 100 ? b.toFixed(1) : Math.round(b)) + "억";
+  // V-245 흠(a) — 999,999 가 「1000천」으로 접히던 것을 막는다. 반올림이 1000 에 닿으면 다음 단위로 굴린다.
+  for (let i = 0; i < NUM_UNITS.length; i++) {
+    const [div, suf] = NUM_UNITS[i], next = NUM_UNITS[i + 1] ? NUM_UNITS[i + 1][0] : Infinity;
+    if (n < next) {
+      const v = n / div, str = v < 100 ? v.toFixed(1) : "" + Math.round(v);
+      if (parseFloat(str) >= 1000 && NUM_UNITS[i + 1]) continue;   // 위 단위로 굴린다(1000천 → 1.0백만)
+      return neg + str + suf;
+    }
+  }
+  return neg + Math.round(n / 1e12) + "조";
 }
 window.__fmtNum = fmtNum;
+// V-245 흠(a) — 분자·분모를 «같은 자»로 접는다(옛건 분자만 접혀 「5.2백만 / 500」처럼 단위가 어긋났다).
+function fmtPair(a, b) {
+  a = Math.round(Number(a) || 0); b = Math.round(Number(b) || 0);
+  if (globalThis.__BIGNUM === false) return comma(a) + " / " + comma(b);
+  const mag = Math.max(Math.abs(a), Math.abs(b));
+  if (mag < 1000) return a + " / " + b;
+  let div = 1e3, suf = "천";
+  for (const [d, s] of NUM_UNITS) if (mag >= d) { div = d; suf = s; }
+  const f = (x) => { const v = x / div; return (v < 100 ? v.toFixed(1) : "" + Math.round(v)); };
+  return f(a) + " / " + f(b) + suf;
+}
+window.__fmtPair = fmtPair;
+// V-245 흠(b) — 알림 문구 안의 큰 수(넉 자리+)도 fmtNum 을 지나게 한다(「금 9000 모으다」 → 「금 9.0천 모으다」).
+function foldNums(str) { return globalThis.__BIGNUM === false ? str : str.replace(/\d{4,}/g, (d) => fmtNum(+d)); }
 function dmgTxt(n) { return fmtNum(n); }
 function mulTxt(x) { return "×" + (x >= 1000 ? fmtNum(Math.round(x)) : x.toFixed(2)); }
 function floatDmg(m, n, col) {
@@ -2504,6 +2636,7 @@ function drawWorld() {
   for (const ch of G.chests) drawChest(ch);
   for (const a of G.altars) drawAltar(a);
   drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
+  drawBolts();   // V-246 — 십자 번개(경고 점선·발사 흰 선)는 바닥 층에
 
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
@@ -2512,6 +2645,7 @@ function drawWorld() {
   silRects = [];
   ringRects = [];
   eliteLabels = [];
+  pendingEliteLabels = [];
   pendingKindLabels = [];
   for (const s of G.minions) if (onScreen(s.x, s.y, 80)) drawList.push({ y: s.y, fn: () => drawActor(s, SKEL_BASE), near: nearPlayer(s) });
   forEachEnemy((m) => { if (onScreen(m.x, m.y, 80)) drawList.push({ y: m.y, fn: () => drawEnemy(m), near: false }); });
@@ -2534,6 +2668,8 @@ function drawWorld() {
   if (G.town) for (const mc of G.merchants) drawMerchantBeacon(mc);   // V-238
   if (G.town && G.ascendSpot && ascendOn()) drawAscendBeacon();       // V-239
   drawFoldedKindLabels();   // V-240 — 접은 갈래 이름표를 배우 위에 한 장씩(월드 변환 안·restore 앞)
+  drawEliteNames();         // V-246 ③d — 정예/주인 이름표는 맨 위(유닛 전부보다 위)
+  drawStairsLabel();        // V-246 ③d — 계단 안내는 이름표를 피해 그린다
   PROF.seg("actors");
 
   spearRects = [];
@@ -2759,8 +2895,21 @@ function drawCageRails() {   // V-244 ②b — 창살(뼈 토막)을 위·아래
   let sr = 0; for (const b of G.bones) if (!b.foe) sr += Math.hypot(b.x - cx, b.y - cy);
   const rx = sr / n, ry = rx * 0.42;
   ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(198,180,138,0.55)";
-  for (const ry0 of [cy, cy - 40]) { ctx.beginPath(); ctx.ellipse(cx, ry0, rx, ry, 0, 0, 6.283); ctx.stroke(); }
+  strokeCageRing(cx, cy, rx, ry, 0);    // V-246 ③e — 바닥 테는 벽 밖 조각을 지운다(walkable 로 잘라라)
+  strokeCageRing(cx, cy, rx, ry, 40);   // 들린 테(원래 cy-40)도 같은 바닥점으로 잘라 벽 밖에 안 뜬다
   ctx.restore();
+}
+// 벽 밖 조각을 지운 채 테를 그린다 — 바닥점(gx,gy)이 walkable 인 구간만 이어 긋는다(lift 만큼 올려 그림).
+function strokeCageRing(cx, cy, rx, ry, lift) {
+  const N = 60; let drawing = false;
+  for (let i = 0; i <= N; i++) {
+    const a = i / N * 6.283, gx = cx + Math.cos(a) * rx, gy = cy + Math.sin(a) * ry;
+    if (walkable(gx, gy, 4)) {
+      if (!drawing) { ctx.beginPath(); ctx.moveTo(gx, gy - lift); drawing = true; }
+      else ctx.lineTo(gx, gy - lift);
+    } else if (drawing) { ctx.stroke(); drawing = false; }
+  }
+  if (drawing) ctx.stroke();
 }
 function drawCageOverlay() {   // V-245 ②b — 유닛을 다 그린 뒤 우리뼈를 반투명으로 다시 얹어 «가두는 것»으로 읽히게 한다.
   if (globalThis.__BONECAGE === false) return;
@@ -3272,6 +3421,20 @@ function recordBar(m, halfW, top, totalH, headTop, anchorBottom, dir) {
 // 사각을 구해 화면좌표로 낸다. 바닥 이름표가 이 사각을 덮으면(주인공은 특히) 위로 밀어낸다.
 let silRects = [];
 let eliteLabels = [];   // V-211 ㉢: 이 프레임에 그린 정예 이름표의 «화면» 사각 + 그렸는지(폭발과 겹치면 접는다)
+let pendingEliteLabels = [];   // V-246 ③d: 배우를 다 그린 뒤 한 판으로 그리는 정예/주인 이름표(늘 유닛 위)
+let eliteNameRects = [];       // V-246 ③d: 실제로 그린 이름표 «화면» 사각 — 계단 안내가 이걸 피한다
+function drawEliteNames() {
+  eliteNameRects = [];
+  for (const q of pendingEliteLabels) {
+    ctx.font = "bold " + q.bold + "px 'Times New Roman',serif"; ctx.textAlign = "center";
+    ctx.save(); ctx.translate(q.wx, q.wy); ctx.scale(1 / Z, 1 / Z);
+    ctx.fillStyle = "#000"; ctx.fillText(q.nm, 0.8, 0.8);
+    ctx.fillStyle = q.col; ctx.fillText(q.nm, 0, 0);
+    ctx.restore();
+    const hw = ctx.measureText(q.nm).width / 2 + 2, sx = (q.wx - cam.x) * Z, sy = (q.wy - cam.y) * Z;
+    eliteNameRects.push({ x0: sx - hw, y0: sy - q.bold, x1: sx + hw, y1: sy });
+  }
+}
 // V-211 손잡이 — 세 고침(㉠피해수 가로회피·㉡같은이름표 ×N·㉢폭발 위 이름표 접기)을 한 번에
 //   되돌린다. `globalThis.__V211=false` 면 옛 동작(자가 before 를 이 한 손잡이로 잰다).
 const V211 = () => globalThis.__V211 !== false;
@@ -3331,7 +3494,7 @@ const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 
 //   __LABELFOLD===false 면 옛 동작(이름표를 그 자리에서 그대로 그린다·안 접고·안 물린다).
 let pendingKindLabels = [];
 function pushKindLabel(wx, wtop, text, col) {
-  if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 3, text, col); return; }
+  if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 9, text, col); return; }
   pendingKindLabels.push({ wx, wtop, text, col });
 }
 function drawKindLabel(wx, wy, text, col) {
@@ -3359,7 +3522,7 @@ function drawFoldedKindLabels() {
       if (Math.abs(bsx - asx) < 54 && Math.abs(bsy - asy) < 40) { used[j] = true; sumx += items[j].wx; top = Math.min(top, items[j].wtop); n++; }
     }
     used[i] = true;
-    let wy = Math.max(top - 3, topY);   // V-245 ②e — 앵커를 머리 바로 위로(옛 -16 은 벽 위까지 떠 어느 유닛 것인지 모호했다). 쌓을 때만 아래 루프가 위로 민다.
+    let wy = Math.max(top - 9, topY);   // V-246 ③c — 앵커를 머리 «바로 위»(몸 위·-9)로. -3 은 유닛 몸에 잘렸고 -16 은 너무 떠 모호했다. 쌓을 때만 아래 루프가 위로 민다.
     const kx = (sumx / n - cam.x) * Z;
     const label = n > 1 ? `${a.text} ×${n}` : a.text;
     if (globalThis.__LABELFOLD !== false) {   // V-244 ②d — 부하 이름표끼리(다른 갈래 포함) 겹치면 아래로 쌓는다(drawFloats·barRects 와 같은 결). 주인 이름표(eliteLabels)도 피한다.
@@ -3379,11 +3542,56 @@ function drawFoldedKindLabels() {
     drawKindLabel(sumx / n, wy, label, a.col);
   }
 }
+// V-246 ① 수식어 시각 — 발밑 고리(화상·번개)와 날랜 잔상은 몸 뒤에, 뼈 껍질 테는 몸 앞에.
+function drawAffixGround(m) {
+  if (m.swift && m.trail) for (let i = m.trail.length - 1; i >= 0; i--) {
+    const t = m.trail[i];
+    ctx.save(); ctx.globalAlpha = 0.34 * (1 - i / (m.trail.length + 1));
+    if (!drawSprite8(ctx, m.base, t.dir, t.state, t.fr, t.x, t.y, m.h, "brightness(1.5) saturate(1.6) hue-rotate(70deg)"))
+      fallbackBlob(t.x, t.y, m.h, "#9de060");
+    ctx.restore();
+  }
+  if (m.afxBurn) {
+    const puls = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 160));
+    ctx.save();
+    ctx.globalAlpha = 0.14 + 0.10 * puls; ctx.fillStyle = "#ff5a2a";
+    ctx.beginPath(); ctx.ellipse(m.x, m.y, AFFIX_BURN_R, AFFIX_BURN_R * 0.42, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 0.30 + 0.22 * puls; ctx.strokeStyle = "#ff5a2a"; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
+  if (m.afxBolt) {
+    ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = "#7fd8ff"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(m.x, m.y, m.r * 1.8, m.r * 0.74, 0, 0, 6.283); ctx.stroke(); ctx.restore();
+  }
+}
+function drawShellOutline(m) {
+  const cy = m.y - m.h * 0.42, rx = m.r * 1.55, ry = m.h * 0.5;
+  ctx.save(); ctx.globalAlpha = 0.6; ctx.strokeStyle = "#e6e0cc"; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let i = 0; i <= 6; i++) { const a = i / 6 * 6.283 - 1.5708; const px = m.x + Math.cos(a) * rx, py = cy + Math.sin(a) * ry; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+  ctx.closePath(); ctx.stroke(); ctx.restore();
+}
+function drawBolts() {
+  if (!G.bolts || !G.bolts.length) return;
+  for (const b of G.bolts) {
+    if (b.warn > 0) {
+      ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(nowMs() / 60));
+      ctx.strokeStyle = "#7fd8ff"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * AFFIX_BOLT_LEN, b.y + b.dy * AFFIX_BOLT_LEN); ctx.stroke();
+      ctx.restore();
+    } else if (b.life > 0) {
+      ctx.save(); ctx.globalAlpha = Math.max(0, b.life / 0.15); ctx.strokeStyle = "#eaffff"; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * AFFIX_BOLT_LEN, b.y + b.dy * AFFIX_BOLT_LEN); ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
 function drawEnemy(m) {
   // ★ V-207 — 잡몹 발밑 붉은 고리를 얇고 옅게(1.6px·α0.4). 팩 10~14 가 뭉치면 0.9 짜리
   //   고리가 겹쳐 바닥이 «붉은 그물»이 됐다(컷으로 봄). 정예는 눈에 띄어야 하니 굵게 둔다.
   drawShadow(m.x, m.y, m.r, ringsOn() ? (m.elite ? "#f0902a" : "#c0342c") : null,
     m.elite ? 2.5 : 1.6, m.elite ? 0.85 : 0.4);
+  if (m.affix) drawAffixGround(m);   // V-246 — 화상 붉은 고리·번개 청록 고리·날랜 잔상(몸 뒤)
   const tb = m.tb & 3;
   let rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
@@ -3404,6 +3612,7 @@ function drawEnemy(m) {
   if (!drawSprite8(ctx, m.base, actorDir(m), m.state, frame(m, m.base), m.x, m.y, drawH, filt))
     fallbackBlob(m.x, m.y, drawH, "#8a5a5a");
   recordSil("mob", m.base, m.x, m.y, m.h);
+  if (m.afxShell) drawShellOutline(m);   // V-246 뼈 껍질 — 몸을 두른 상아빛 육각 테
   const hpf = Math.max(0, m.hp / m.maxhp);
   // ★ V-196 — 바를 «불투명 위끝»에 건다(m.h 이름값 아님). GAP=2 월드만큼 위, 겹치면 밀어낸다.
   const headTop = opaqueHeadTop(m.base, m.y, m.h);
@@ -3437,12 +3646,10 @@ function drawEnemy(m) {
       labelY = lsy / Z + cam.y;
     }
     const onBoom = V211() && labelOverBoom(lsx, lsy, lhw);
-    if (!onBoom) {
-      ctx.save(); ctx.translate(m.x, labelY); ctx.scale(1 / Z, 1 / Z);
-      ctx.fillStyle = "#000"; ctx.fillText(nm, 0.8, 0.8);
-      ctx.fillStyle = bossN ? BOSS_LABEL_COL[m.bossKind] : "#8ac06a"; ctx.fillText(nm, 0, 0);
-      ctx.restore();
-    }
+    // V-246 ③d — 이름표 텍스트를 «배우 뒤» 한 판으로 미룬다(앞에 선 유닛이 글을 반 가리던 것 → 늘 유닛 위·수식어 색).
+    if (!onBoom)
+      pendingEliteLabels.push({ wx: m.x, wy: labelY, nm,
+        bold: bossN ? 16 : 11, col: bossN ? BOSS_LABEL_COL[m.bossKind] : (m.afxCol || "#8ac06a") });
     eliteLabels.push({ x0: lsx - lhw, y0: lsy - 13, x1: lsx + lhw, y1: lsy, drawn: !onBoom });
     recordBar(m, halfW, top, totalH, headTop, headTop - BAR_GAP, dir);
   } else if (hpf < 1) {
@@ -3490,14 +3697,25 @@ function drawStairs() {
     const w = STAIR_H * (im.width / im.height);
     ctx.drawImage(im, s.x - w / 2, s.y - STAIR_H / 2, w, STAIR_H);
   }
+}
+// V-246 ③d — 계단 안내 글은 배우·이름표를 다 그린 뒤 그린다. 주인 이름표(eliteNameRects)와 겹치면 위로 비킨다.
+function drawStairsLabel() {
+  const s = G.stairs;
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
-  // V-166: 그림이 «계단»이 아니라 뚜껑문이라 이름을 그림에 맞춘다(픽셀랩이 위에서 본
-  // 내려가는 계단을 여덟 번 못 그렸다 — 그릴 수 있는 물건으로 바꾼 것).
-  const stLabel = G.town   // V-238 — 마을 문은 위로(던전으로 복귀), 던전 계단은 아래로
+  const stLabel = G.town
     ? (near ? `▲ F — 던전으로 (B${G.deepest}층)` : "▲ 던전으로")
     : (near ? "▼ F — 다음 층" : "▼ 아래로");
-  ctx.fillText(stLabel, s.x, s.y - STAIR_H / 2 - 10);
+  const sx = (s.x - cam.x) * Z, hw = ctx.measureText(stLabel).width / 2 + 2;
+  let sy = (s.y - STAIR_H / 2 - 10 - cam.y) * Z;
+  for (let g = 0; g < 12; g++) {
+    const hit = eliteNameRects.find((q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - 13 < q.y1 && sy > q.y0);
+    if (!hit) break;
+    sy = hit.y0 - 4;
+  }
+  ctx.save(); ctx.translate(sx, sy); ctx.scale(1 / Z, 1 / Z);
+  ctx.fillText(stLabel, 0, 0);
+  ctx.restore();
 }
 
 // 궤짝은 «바닥에» 그려져 유닛에 가린다(V-154 B: 좀비 몸에 묻혀 동전만 했다). 몸통을
@@ -3986,6 +4204,7 @@ function drawFloats() {
       if (!hit) break;
       const up = hit.y0 - FGAP;
       if (up - fs >= M) { sy = up; continue; }
+      if (f.note) { const down = hit.y1 + fs + FGAP; if (down <= VH - M) { sy = down; continue; } }   // V-245 흠(b) — 천장에 닿은 일지 알림은 아래로 흘려 쌓는다(셋이 맨 위에서 뭉치던 것)
       if (!V211()) break;
       const right = hit.x1 + hw + 1, left = hit.x0 - hw - 1;
       if (right + hw <= VW - M && (sx <= hit.x1 || left - hw < M)) sx = right;
@@ -4581,13 +4800,13 @@ function updateHUD() {
   const p = G.player;
   if (journalOn()) journalCheck();
   el("hpbar").style.width = barPct(100 * p.hp / p.maxhp) + "%";
-  el("hptxt").textContent = `${fmtNum(p.hp)} / ${fmtNum(p.maxhp)}`;
+  el("hptxt").textContent = fmtPair(p.hp, p.maxhp);
   el("mpbar").style.width = barPct(100 * p.mana / p.maxmana) + "%";
-  el("mptxt").textContent = `${fmtNum(p.mana)} / ${fmtNum(p.maxmana)}`;
+  el("mptxt").textContent = fmtPair(p.mana, p.maxmana);
   el("lvl").textContent = p.level;
   el("gold").textContent = fmtNum(G.gold);
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
-  el("xp").textContent = `${fmtNum(G.xp - lvBase)} / ${fmtNum(lvSpan)}`;
+  el("xp").textContent = fmtPair(G.xp - lvBase, lvSpan);
   el("xpbar").style.width = barPct(100 * (G.xp - lvBase) / lvSpan) + "%";
   el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${fmtNum(p.maxhp)}</b>`
     + (G.ascension ? ` · <b style="color:#d8b45a">승천 ${G.ascension}회</b>` : "");
@@ -4709,7 +4928,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills();
-    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다
+    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개
     stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
