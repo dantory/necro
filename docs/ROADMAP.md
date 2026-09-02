@@ -18189,3 +18189,30 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820) · `hs_v219_foeshot` frame p95 **0.5ms**·오류 **0**(쏜화살 표본 <30 은 baseline 도 3 으로 동일·헤드리스 환경 탓·내 변경 아님).
   - 컷 **직접 열어 봄**: `tmp/hs_v249_{weak,fear,plague}_{before,after}·plague_chain·marks·{banner,evpanel,minimap,wall}_{before,after}·pillars.png` — 저주 셋 표식·마나 소모·역병 번짐(초록 「99 ×2」)·공포 흩어짐·벽 띠·배너 밑띠·제단 판 물림·미니맵 색+마름모·성소 기둥 전당. 만진 곳 `hs/`(main.js·index.html)·새 자 파일 없음(tmp 베이커/되돌림/측정). 새 키 셋 5·6·7(`#hint`·H 판·index.html 갱신).
   브리프: `tmp/v249_prompt.md`
+
+
+- [/] **V-250 — 죽음의 값·시체 회수(`__CORPSERUN`)** (착수 2026-09-02 15:03 · **중단** 15:18)
+  병수님 15:15 「에셋 전체적으로 잘 만들어봐」 지시로 에셋 품질 축(V-251)으로 갈아탔다. 중단 시점의
+  `hs/main.js` 작업분은 **검증 전 상태로** 커밋 `7854bac` 에 보존(V-249 컷 흠 (b)(d)(e) 손댄 것 포함). 다시 집으려면 거기서 이어간다.
+
+- [x] **V-251 — 에셋 품질(살아 있는+나쁜 것만 다시 구움)** (닫음 2026-09-02)
+  병수님 15:15 「**에셋 전체적으로 잘 만들어봐, 퀄리티가 너무 안좋은듯**」.
+  ★ **먼저 «무엇이 실제로 화면에 그려지나»를 가렸다** — 브리프가 「이펙트 여덟」을 첫 순위로 꼽았지만,
+    `hs/*.js` 가 파일명으로 부르는 fx 는 **다섯뿐**(spear·spearhit·boom·gold·foeshot). 나머지
+    (`curse·raise·nova·offerfx·bonewall·burnfx·corpse_bones·corpse_small/large·hit`)는 **죽은 파일**이다 —
+    저주·시체·소환 연출은 전부 canvas 로 «절차적»으로 그린다(curseFx·explode·drawFloats). **그 열한 장을
+    다시 구워도 게임 그림은 한 픽셀도 안 바뀐다** → 굽지 않았다(생성 크레딧 아낌). 브리프가 「모든 파일 시트」를
+    보고 짠 순위라 죽은 파일이 섞여 있었다.
+  ★ 그래서 **살아 있으면서 나쁜 것**만 골랐다: 바닥 `bone_tile`·`rot_tile`·`sanctum_tile`(대비 낮아 「갈색 면」) ·
+    소품 `bones2`(흰 선 해골) · `stairs`(우물). 다른 소품 열(상자·화로·석상·관·기둥·항아리…)은 이미 어두운 D2 결이라 손 안 댐.
+  다시 구운 것(세 장, `assets/` 에 옮김):
+  - **`floor/bone_tile.png`** — `create_tiles_pro` **shape mode**(square_topdown 32px·segmentation)로 「꽉 찬 회색 판석+옅은 뼈 조각」.
+    ★ 첫 시도(`style_images`=crypt)는 crypt 타일의 **성김**을 그대로 베껴 뼈 조각만 검은 배경에 떠다녔다(꽉 찬 바닥이 안 됨) → shape mode 로 갈아 꽉 찬 판석을 얻음. 16 변주 중 v2 채택.
+  - **`floor/rot_tile.png`** — 같은 길. 「어두운 돌+금 간 자리마다 초록 이끼」. v3 채택(돌이 읽히고 이끼는 악센트 — 썩은굴 초록 wash 와 안 겹치게 v11 보다 절제된 것).
+  - **`decor/bones2.png`** — `create_map_object`(side·high detail·detailed shading)로 「진한 외곽선의 서 있는 해골」(64×48→64×96·폭은 `w=dh*(im.w/im.h)` 라 더 좁게·발자국/RNG 는 map.js `pr.h` 그대로라 불변).
+  버린 것(옛것 지킴 — 「안 나은 것은 옮기지 말 것」):
+  - **`sanctum_tile`** — shape mode 재굽기가 너무 어둡고 파랑기라 성소의 warm(금빛) wash 와 싸운다. 옛것보다 낫지 않아 **안 옮김**.
+  - **`stairs`** — 네 변주(low/high top-down·bg style-match) 다 「우물」을 못 벗었다(a·c 파랑 계단·b 벽감·d 회색이나 잡티). 옛것보다 확실히 낫지 않아 **안 옮김**. 다음: 실제 게임 화면 조각을 `background_image` 로 주는 길(브리프 B4)이 남음.
+  - 회귀: `hs_v219_foeshot` 에셋 **100%**(2/2)·오류 **0**·frame p95 **0.7ms**·밝은 새 바닥에도 화살 밝기중앙 182.8 ≥ 바닥×1.5 → 다 규격 안 ✅ · `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820).
+  - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
+  브리프: `tmp/hs_v251_prompt.md`

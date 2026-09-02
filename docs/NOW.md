@@ -1,16 +1,15 @@
 # NOW — hs/ 감시가 «제일 먼저» 읽는 파일
 (크론 본문의 항목번호보다 이게 우선이다. 축을 띄울 때마다 여기를 갱신한다.)
 
-## ▶ 지금 도는 일: V-251 — 에셋 품질을 통째로 올린다 (**실제 띄운 시각 2026-09-02 15:33** · PID 48286 · 상한 3600초)
-병수님 15:15: 「**에셋 전체적으로 잘 만들어봐, 퀄리티가 너무 안좋은듯**」
-전체를 한 판에 놓고 보니(`tmp/rep_assets_all.png`) **결이 세 갈래**다 —
-· 소환수·몹은 **좋다**(`create_character` **v3** 로 구움)
-· 소품·바닥·이펙트는 **제일 싼 모드**(`create_map_object` basic)로 구워 결이 튄다
-  (보라 마법진은 SF 같고, 뼈 파편은 흰 막대, 바닥은 갈색 면)
-**뿌리: 좋은 것과 나쁜 것이 다른 도구·다른 모드로 구워졌다.**
-여태 안 쓴 «스타일 물려주기» 셋을 이번에 쓴다 — `mode:"pro"`+`style_character_id` ·
-`background_image`(style matching) · `create_tiles_pro` 의 `style_images`.
-지시문 `tmp/hs_v251_prompt.md` · 로그 `tmp/necro_hs_v251.log`
+## AXIS 없음 — V-251 닫음(2026-09-02·에셋 세 장 교체 커밋 있음). 다음 축은 아래 후보에서 감시가 하나 골라 띄운다.
+
+## ✔ 끝난 판: V-251 — 에셋 품질(살아 있는+나쁜 것만 다시 구움) (닫음 2026-09-02)
+병수님 15:15 「에셋 전체적으로 잘 만들어봐, 퀄리티가 너무 안좋은듯」.
+★ 먼저 **화면에 실제로 그려지는 것**을 가렸다 — fx 파일 16 중 살아 있는 건 다섯(spear·spearhit·boom·gold·foeshot)뿐,
+  나머지(curse·raise·nova·offerfx·bonewall·corpse_bones…)는 **죽은 파일**(연출은 canvas 절차적) → 안 구웠다.
+★ **살아 있으면서 나쁜 것**만 다시 구움 → `floor/bone_tile`·`floor/rot_tile`·`decor/bones2` 세 장 교체(create_tiles_pro shape mode·create_map_object).
+  `sanctum_tile`·`stairs` 는 재굽기가 옛것보다 낫지 않아 **안 옮김**(옛것 지킴). stairs 다음 길: 실제 게임 화면을 background_image 로.
+회귀 `hs_v219_foeshot` 에셋100%·오류0·frame p95 0.7ms · `hs_v207_walk` 벽밖0%·오류0. 코드 안 건드림·새 자 없음. ROADMAP·시트 tmp/hs_v251_sheet_after.png.
 
 ## ★★★ 자(검수기)를 만들지 마라 — 병수님 2026-09-01 23:07
 > 「**"자" 좀 그만 건드려라, 게임 컨텐츠를 만들어**」
