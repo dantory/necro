@@ -60,6 +60,10 @@ function rint(a, b) { return a + ((Math.random() * (b - a + 1)) | 0); }
 //      가까운 방(cx 최대), 오른쪽에선 cx 최소를 골라 이으므로 «제3의 방을 관통하지 않는다».
 //   방∪복도 꼴({x,y,w,h})·room.cx/cy/dead/visited/cleared 는 그대로 — V-201 충돌 코드가 쓴다.
 const CORRIDOR_W = 150, HW = CORRIDOR_W / 2, LEAF_PAD = 36;
+// ★★ V-260 ① 복도 최소 폭 — 지역 계수(0.58~1.15)를 곱하면 87~105px 로 좁아져, 몸 반지름 22 를 양쪽에서
+//   깎으면 걸을 폭이 43~61px 뿐이라 사람+소환수+적이 끼어 못 지나갔다(병수님 「맵 이동 안되는게 너무 많은데」).
+//   최소 126px 를 못박아 «바닥선 아래로는 안 내려가게» 한다(걸을 폭 ≥82px). __CORRWIDE=false → 옛 폭(계수 그대로).
+const CORR_MIN = 126;
 
 function bspSplit(cell, depth, maxDepth, minW, minH) {
   const node = { ...cell, axis: null, mid: 0, left: null, right: null, room: null };
@@ -128,7 +132,8 @@ export function genFloor(floor) {
   const maxDepth = Math.max(3, Math.min(13, 5 + floor) + ZR.dDepth);
   const minW = Math.round(Math.max(600, 700 - floor * 8) * ZR.cellW);
   const minH = Math.round(Math.max(500, 600 - floor * 7) * ZR.cellH);
-  const cw = Math.round(CORRIDOR_W * ZR.corridor), hw = cw / 2;   // V-248 ① 지역별 통로 폭(off=150·75·복도는 지문 밖)
+  const cwRaw = CORRIDOR_W * ZR.corridor;   // V-248 ① 지역별 통로 폭
+  const cw = Math.round(globalThis.__CORRWIDE === false ? cwRaw : Math.max(CORR_MIN, cwRaw)), hw = cw / 2;   // V-260 ① 최소 126px (복도는 지문 밖·RNG 불변)
   const root = bspSplit({ x: 80, y: 80, w: W - 160, h: H - 160 }, 0, maxDepth, minW, minH);
 
   // ── V-239 ② 21층+ 곡선 — 20층 이하는 손대지 않는다(그 층에선 deep=false → byte-동일). ──
@@ -166,6 +171,23 @@ export function genFloor(floor) {
   const corridors = [];
   const hRect = (x1, x2, y, link) => corridors.push({ x: Math.min(x1, x2), y: y - hw, w: Math.abs(x2 - x1), h: cw, horiz: true, link });
   const vRect = (y1, y2, x, link) => corridors.push({ x: x - hw, y: Math.min(y1, y2), w: cw, h: Math.abs(y2 - y1), horiz: false, link });
+  // ★★ V-260 ② 꺾이는 모서리에 정사각 여유칸(폭×폭). 옛 꼴은 가로·세로가 모서리에서 겨우 닿아,
+  //   몸 반지름(22)만큼 안으로 줄이면 두 walkable 띠가 대각선으로만 이어져 축분리 이동(stepTo)이 못 넘었다
+  //   — 「이동 안 됨」의 절반이 여기였다. 정사각 박스로 겹쳐 어느 축으로도 넘어가게 한다.
+  const cornerPad = (x, y, link) => corridors.push({ x: x - hw, y: y - hw, w: cw, h: cw, horiz: true, link, pad: true });
+  // 복도 조각 하나가 어떤 방을 «가로지르나»(중심선이 방 안을 지나며 양끝을 다 넘음) — hs_v202_map 자와 같은 정의.
+  //   끝점(A·B) 방은 조각이 그 안에서 멈추니 안 걸린다.
+  const crosses = (c, r) => {
+    if (c.w >= c.h) { const yc = c.y + c.h / 2; return r.y < yc && yc < r.y + r.h && c.x < r.x && c.x + c.w > r.x + r.w; }
+    const xc = c.x + c.w / 2; return r.x < xc && xc < r.x + r.w && c.y < r.y && c.y + c.h > r.y + r.h;
+  };
+  const rH = (x1, x2, y) => ({ x: Math.min(x1, x2), y: y - hw, w: Math.abs(x2 - x1), h: cw });
+  const rV = (y1, y2, x) => ({ x: x - hw, y: Math.min(y1, y2), w: cw, h: Math.abs(y2 - y1) });
+  const clean = (...cs) => !cs.some((c) => rooms.some((r) => crosses(c, r)));
+  // ★★ V-260 ② 두 토막 L자(옛 세 토막 Z자 = 병수님 「꼬불꼬불」)를 «관통 안 하면» 쓰고, 관통하면 옛 Z(경계 위 세로)로
+  //   물러난다. 순수 L 은 남의 방을 가로지를 수 있어(V-202 를 깬다) 자로 재 걸러낸다. 두 꼴 다 꺾임엔 정사각 여유칸.
+  //   connect 는 Math.random 을 한 톨도 안 쓰므로 __CORRSIMPLE 을 껐다 켜도 rooms/packs 지문은 불변 — 복도 «꼴»만 바뀐다.
+  const simple = globalThis.__CORRSIMPLE !== false;
   (function connect(node) {
     if (!node.left && !node.right) return;
     connect(node.left); connect(node.right);
@@ -173,16 +195,38 @@ export function genFloor(floor) {
       const A = pickExtreme(node.left, "cx", true), B = pickExtreme(node.right, "cx", false);
       if (!A || !B) return;
       const link = [rooms.indexOf(A), rooms.indexOf(B)];
-      hRect(A.cx, node.mid, A.cy, link);
-      if (A.cy !== B.cy) vRect(A.cy, B.cy, node.mid, link);   // 세로 기둥을 «경계 위»에 둬 어떤 방도 관통하지 않는다
-      hRect(node.mid, B.cx, B.cy, link);
+      if (!simple) {
+        hRect(A.cx, node.mid, A.cy, link);
+        if (A.cy !== B.cy) vRect(A.cy, B.cy, node.mid, link);   // 세로 기둥을 «경계 위»에 둬 어떤 방도 관통하지 않는다
+        hRect(node.mid, B.cx, B.cy, link);
+      } else if (A.cy === B.cy) {
+        hRect(A.cx, B.cx, A.cy, link);
+      } else if (clean(rH(A.cx, B.cx, A.cy), rV(A.cy, B.cy, B.cx))) {
+        hRect(A.cx, B.cx, A.cy, link); vRect(A.cy, B.cy, B.cx, link); cornerPad(B.cx, A.cy, link);
+      } else if (clean(rV(A.cy, B.cy, A.cx), rH(A.cx, B.cx, B.cy))) {
+        vRect(A.cy, B.cy, A.cx, link); hRect(A.cx, B.cx, B.cy, link); cornerPad(A.cx, B.cy, link);
+      } else {
+        hRect(A.cx, node.mid, A.cy, link); vRect(A.cy, B.cy, node.mid, link); hRect(node.mid, B.cx, B.cy, link);
+        cornerPad(node.mid, A.cy, link); cornerPad(node.mid, B.cy, link);
+      }
     } else {
       const A = pickExtreme(node.left, "cy", true), B = pickExtreme(node.right, "cy", false);
       if (!A || !B) return;
       const link = [rooms.indexOf(A), rooms.indexOf(B)];
-      vRect(A.cy, node.mid, A.cx, link);
-      if (A.cx !== B.cx) hRect(A.cx, B.cx, node.mid, link);
-      vRect(node.mid, B.cy, B.cx, link);
+      if (!simple) {
+        vRect(A.cy, node.mid, A.cx, link);
+        if (A.cx !== B.cx) hRect(A.cx, B.cx, node.mid, link);
+        vRect(node.mid, B.cy, B.cx, link);
+      } else if (A.cx === B.cx) {
+        vRect(A.cy, B.cy, A.cx, link);
+      } else if (clean(rV(A.cy, B.cy, A.cx), rH(A.cx, B.cx, B.cy))) {
+        vRect(A.cy, B.cy, A.cx, link); hRect(A.cx, B.cx, B.cy, link); cornerPad(A.cx, B.cy, link);
+      } else if (clean(rH(A.cx, B.cx, A.cy), rV(A.cy, B.cy, B.cx))) {
+        hRect(A.cx, B.cx, A.cy, link); vRect(A.cy, B.cy, B.cx, link); cornerPad(B.cx, A.cy, link);
+      } else {
+        vRect(A.cy, node.mid, A.cx, link); hRect(A.cx, B.cx, node.mid, link); vRect(node.mid, B.cy, B.cx, link);
+        cornerPad(A.cx, node.mid, link); cornerPad(B.cx, node.mid, link);
+      }
     }
   })(root);
 
@@ -325,7 +369,7 @@ export function genFloor(floor) {
     }
   }
 
-  const { decals, props } = scatter(rooms, stairs, chests, altars);
+  const { decals, props } = scatter(rooms, stairs, chests, altars, corridors);
   for (const ep of eventProps) props.push(ep);   // V-248 ① 사건방 소품은 scatter 뒤에 얹는다(자리 고정·assignZoneLook 이 건너뛴다)
 
   // ── V-257 ① 층마다 «사건 방»(__EVENTROOM) — 소굴·보물방·저주 제단 중 하나(층당 1개). genFloor 맨 끝(scatter 뒤)에
@@ -506,7 +550,20 @@ function propFits(pr, placed, stairs, chests, altars) {
   return true;
 }
 
-function scatter(rooms, stairs, chests, altars) {
+// ★ V-260 ② 복도를 막는 «서 있는» 소품 종류(main.js BLOCK_IMGS 와 같은 줄). 바닥에 눕는 것(뼈·잔해·항아리)은 안 막으니 뺀다.
+const CORRIDOR_BLOCK = new Set(["decor/pillar.png", "decor/column2.png", "decor/statue.png", "decor/coffin.png", "decor/brazier.png"]);
+function blocksCorridor(pr, corridors) {
+  if (!corridors || !CORRIDOR_BLOCK.has(pr.img)) return false;
+  const fr = footR(pr);
+  for (const c of corridors) {
+    const nx = Math.max(c.x, Math.min(pr.x, c.x + c.w)), ny = Math.max(c.y, Math.min(pr.y, c.y + c.h));
+    const dx = pr.x - nx, dy = pr.y - ny;
+    if (dx * dx + dy * dy < fr * fr) return true;
+  }
+  return false;
+}
+
+function scatter(rooms, stairs, chests, altars, corridors) {
   const decals = [], props = [];
   for (const room of rooms) {
     const area = room.w * room.h;
@@ -549,7 +606,9 @@ function scatter(rooms, stairs, chests, altars) {
       props.push(pr);
     }
   }
-  return { decals, props };
+  // ★ V-260 ② 통로 막는 소품은 «다 놓은 뒤» 걷어낸다 — 배치 중엔 props 를 그대로 둬(다른 소품의 propFits·재던짐 불변)
+  //   scatter 의 Math.random 소비가 옛과 한 톨도 안 달라진다(지문 byte-동일). 걷어낸 자리는 그냥 빈다.
+  return { decals, props: globalThis.__CORRSIMPLE === false ? props : props.filter((p) => !blocksCorridor(p, corridors)) };
 }
 
 // ★ 스프라이트가 작아 보여서(task 5) 몸을 1.4배 키운다. 충돌 반지름은 살짝만(1.15) —
