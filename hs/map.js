@@ -420,6 +420,59 @@ export function genFloor(floor) {
       }
     }
   }
+
+  // ── V-261 「던전 꼴」(__FLOORMIX) — D2 카타콤 도면(docs/NOW.md ①③④⑤)에서 읽은 것을 얹는다.
+  //   ★ genFloor 맨 끝(EVENTROOM 뒤)에 두고 **Math.random 을 한 톨도 안 쓴다** — 층 번호로 씨앗을 잡는
+  //   산술 PRNG `dr` 만 굴린다. 그래서 켜도 꺼도 앞선 모든 굴림이 그대로라 **지문 byte-동일**이다
+  //   (기준선 F4=3270493314·F30=1688181880). __FLOORMIX=false 면 블록 통째로 건너뛴다.
+  if (globalThis.__FLOORMIX !== false) {
+    let ds = ((floor + 1) * 0x9E3779B1 ^ 0x85EBCA6B) >>> 0;
+    const dr = () => { ds = (ds + 0x6D2B79F5) | 0; let t = Math.imul(ds ^ (ds >>> 15), 1 | ds);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const dint = (a, b) => a + Math.floor(dr() * (b - a + 1));
+    // 이미 놓인 것(scatter·사건방)과 겹치지 않고 복도도 안 막을 때만 놓는다 — V-260 ② 와 같은 자.
+    const put = (pr) => {
+      if (!propFits(pr, props, stairs, chests, altars)) return false;
+      if (blocksCorridor(pr, corridors)) return false;
+      props.push(pr); return true;
+    };
+    // 벽 안쪽 한 점(네 벽 중 하나·t 는 0~1 벽을 따라간 자리)
+    const wallSpot = (rm, side, t, inset) => {
+      if (side === 0) return { x: rm.x + inset + t * (rm.w - inset * 2), y: rm.y + inset };
+      if (side === 1) return { x: rm.x + inset + t * (rm.w - inset * 2), y: rm.y + rm.h - inset };
+      if (side === 2) return { x: rm.x + inset, y: rm.y + inset + t * (rm.h - inset * 2) };
+      return { x: rm.x + rm.w - inset, y: rm.y + inset + t * (rm.h - inset * 2) };
+    };
+    for (let ri = 0; ri < rooms.length; ri++) {
+      const rm = rooms[ri];
+      // ① **불을 열댓 개로** — D2 카타콤은 화로가 방마다 여럿이라 「불빛이 던전을 만든다」.
+      //    지금은 scatter 가 22% 로 흘려 층 전체에 두셋뿐이었다. 방마다 둘(넓으면 셋)을 벽에 못박는다.
+      const fires = 2 + (rm.w * rm.h > 420000 ? 1 : 0);
+      for (let k = 0; k < fires; k++) {
+        const side = (dint(0, 3) + k) & 3;
+        for (let a = 0; a < 5; a++) {   // 자리가 막히면 같은 벽에서 다섯 번까지 다시 던진다
+          const sp = wallSpot(rm, side, 0.16 + dr() * 0.68, 52);
+          if (put({ x: Math.round(sp.x), y: Math.round(sp.y), img: "decor/brazier.png", h: dint(78, 94), brazier: true, dungeon: true })) break;
+        }
+      }
+      // ② **방마다 랜드마크 하나** — 방이 다 「같은 창고」로 읽히던 것. 벽에 붙여 남보다 큰 것 하나를
+      //    세워 «이 방은 그 방»이 되게 한다(가운데가 아니라 벽 — 싸움을 안 가린다).
+      const LAND = ["decor/statue.png", "decor/pillar.png", "decor/bones2.png", "decor/coffin.png"];
+      const limg = LAND[dint(0, LAND.length - 1)], lhr = PROP_H[limg];
+      for (let a = 0; a < 6; a++) {
+        const sp = wallSpot(rm, dint(0, 3), 0.24 + dr() * 0.52, 48);
+        if (put({ x: Math.round(sp.x), y: Math.round(sp.y), img: limg,
+                  h: Math.round(lhr[1] * 1.18), landmark: true, dungeon: true })) break;
+      }
+      // ③ **바닥 자취 촘촘히** — D2 바닥은 얼룩·자취가 빽빽하다. scatter 밀도(넓이/13000) 위에
+      //    같은 만큼을 더 얹어 두 배로(겹침 검사 없음 — 얼룩은 납작해 겹쳐도 결이 짙어질 뿐).
+      const extra = Math.round(rm.w * rm.h / 12000);
+      for (let k = 0; k < extra; k++) {
+        decals.push({ x: dint(rm.x + 26, rm.x + rm.w - 26), y: dint(rm.y + 26, rm.y + rm.h - 26),
+          img: DEC_IMG[dint(0, DEC_IMG.length - 1)], s: dint(58, 132), a: 0.34 + dr() * 0.32 });
+      }
+    }
+  }
   return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];

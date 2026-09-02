@@ -1751,7 +1751,7 @@ function assignZoneLook(f, floor) {
   let s = ((floor * 40503) ^ 0x1f83d9ab) >>> 0;
   const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
   for (const pr of f.props) {
-    if (pr.brazier || pr.event) continue;   // V-248 ① 사건방 소품(뼈 무더기·관)은 지역 재굴림에서 뺀다(자리·그림 고정)
+    if (pr.brazier || pr.event || pr.dungeon) continue;   // V-248 ① 사건방 소품(뼈 무더기·관) · V-261 ② 랜드마크는 지역 재굴림에서 뺀다(자리·그림·키 고정)
     const img = bag[(rnd() * bag.length) | 0], hr = ZONE_PROP_H[img];
     pr.img = img; pr.h = (hr[0] + (rnd() * (hr[1] - hr[0])) | 0);
   }
@@ -3040,7 +3040,7 @@ function drawWorld() {
   // 미룬다(위 floorBase/floorTint 주석). 얼룩은 방 안에만 뿌려지므로(map.js `scatter`)
   // 방 바닥칠과 물들이기 사이가 정확히 그 자리다. 안 밝힌 방이 어두워질 때 얼룩도 같이
   // 잠기는 것 또한 이 순서라야 맞다 — 전에는 어둠 위에 얼룩만 훤히 떠 있었다.
-  for (const r of rvis) floorBase(r.x, r.y, r.w, r.h);
+  for (const r of rvis) floorBase(r.x, r.y, r.w, r.h, G.rooms.indexOf(r));   // V-261 ① 방 인덱스로 결을 섞는다
   drawDecals();
   for (const r of rvis) {
     const tint = !r.visited ? "rgba(18,15,24,0.26)" : r.cleared ? "rgba(40,70,52,0.28)" : "rgba(94,66,42,0.26)";
@@ -3647,9 +3647,55 @@ function buildWallPats() {
   }), "repeat");
   return true;
 }
-function floorBase(x, y, w, h) {
+function floorBase(x, y, w, h, ri) {
   ctx.fillStyle = "#241f1b"; ctx.fillRect(x, y, w, h);
   if (curFPat) { ctx.globalAlpha = 0.55; ctx.fillStyle = curFPat; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; }
+  // ★ V-261 ① 바닥 섞기 — 「던전같은 느낌으로 맵 다시」(V-259 문제 진술)의 절반은 **바닥이 한 결**인 것이었다.
+  //   층 하나가 타일 한 종(`floorTileName`)이라 방을 열 개 지나도 같은 회색 판이 이어져 «창고»로 읽혔다.
+  //   D2 카타콤은 방마다 결이 갈린다 — 그래서 방 인덱스로 **이웃 타일 하나를 골라 옅게 겹치고**,
+  //   그 위에 큰 얼룩 셋을 더 짙게 얹어 한 방 안도 고르지 않게 한다. **순수 그리기**(RNG·세계 데이터 무접촉).
+  if (globalThis.__FLOORMIX === false || ri == null) return;
+  const m = roomMix(ri);
+  if (!m || !m.pat) return;
+  ctx.fillStyle = m.pat;
+  ctx.globalAlpha = m.a; ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = m.a + 0.24;
+  for (const sp of m.spots) {
+    ctx.beginPath();
+    ctx.ellipse(x + sp[0] * w, y + sp[1] * h, sp[2] * w, sp[2] * h * 0.78, 0, 0, 6.2832);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+// V-261 ① — 방마다 「이웃 결」과 얼룩 자리. 층+방 인덱스로 결정하니 프레임마다 같고 씨앗과 무관하다.
+const MIX_TILES = ["crypt_tile", "bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"];
+const ROOM_MIX = new Map();
+let roomMixFloor = null;
+function floorPatByName(name) {
+  let pat = FLOOR_PATS.get(name);
+  if (pat) return pat;
+  const tile = tex(`floor/${name}.png`);
+  if (!tile || !tile.width) return null;          // 아직 안 왔으면 이번 프레임은 섞지 않는다(다음에 붙는다)
+  pat = buildFloorPat(tile); FLOOR_PATS.set(name, pat);
+  return pat;
+}
+function roomMix(ri) {
+  if (roomMixFloor !== G.floor) { ROOM_MIX.clear(); roomMixFloor = G.floor; }
+  let m = ROOM_MIX.get(ri);
+  if (m && m.pat) return m;
+  let h = Math.imul((ri + 1) ^ ((G.floor | 0) * 0x9E37), 0x85EBCA6B) >>> 0;
+  h = (h ^ (h >>> 13)) >>> 0;
+  const bi = Math.max(0, MIX_TILES.indexOf(floorTileName(G.floor)));
+  const alt = MIX_TILES[(bi + 1 + (h % (MIX_TILES.length - 1))) % MIX_TILES.length];
+  const pat = floorPatByName(alt);
+  const spots = [];
+  for (let k = 0; k < 3; k++) {
+    h = (Math.imul(h ^ (k + 1), 0x27D4EB2F) >>> 0);
+    spots.push([0.16 + ((h >>> 4) & 63) / 100, 0.16 + ((h >>> 12) & 63) / 100, 0.13 + ((h >>> 20) & 15) / 100]);
+  }
+  m = { pat, alt, a: 0.20 + ((h >>> 26) & 7) * 0.015, spots };
+  ROOM_MIX.set(ri, m);
+  return m;
 }
 function floorTint(x, y, w, h, tint) { ctx.fillStyle = tint; ctx.fillRect(x, y, w, h); }
 function floorFill(x, y, w, h, tint) { floorBase(x, y, w, h); floorTint(x, y, w, h, tint); }
