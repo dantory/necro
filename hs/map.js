@@ -594,7 +594,9 @@ export function genFloor(floor) {
     const ur = () => { us = (us + 0x6D2B79F5) | 0; let t = Math.imul(us ^ (us >>> 15), 1 | us);
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const uint = (a, b) => a + Math.floor(ur() * (b - a + 1));
-    const KINDS = ["spike", "gas", "alarm"];
+    // V-271 ② 불길(flame) — 네 번째 갈래. __FLAME=false 면 KINDS 에서 빠진다(런타임 stepTraps 가 flame 을 안 만나 옛 판).
+    //   KINDS.length 가 바뀌어도 uint 은 ur() 을 «한 번» 부르므로 굴림 수 불변 · traps 는 지문 밖이라 genFloor 지문 무관.
+    const KINDS = globalThis.__FLAME === false ? ["spike", "gas", "alarm"] : ["spike", "gas", "alarm", "flame"];
     // 금지 반경 — 계단 앞·시작 자리·제단(상인)에 들어서자마자 밟는 사고를 막는다.
     const forbid = [{ x: stairs.x, y: stairs.y, r: 210 }, { x: startX, y: startY, r: 220 }];
     for (const a of altars) forbid.push({ x: a.x, y: a.y, r: 150 });
@@ -621,7 +623,51 @@ export function genFloor(floor) {
     }
   }
 
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps };
+  // ── V-271 ① 함정 방(__TRAPROOM) — genFloor «맨 끝»(__TRAP 바로 뒤). __TRAP 처럼 층 번호로 씨앗 잡는
+  //   산술 PRNG(tr)만 굴리고 Math.random 은 한 톨도 안 쓴다 → 앞선 굴림 그대로라 genFloor 지문 byte-동일.
+  //   traps 는 fp 밖이고 traproom.chest 는 chests 에 «안» 넣는다(런타임에 G.chests 로 얹는다) → 지문 불변.
+  //   「값을 치르면 후한 상자」: 한 방을 골라 함정을 밀도 높게(6~10) 깔고 가운데에 층+6 상자 하나.
+  let traproom = null;
+  if (globalThis.__TRAPROOM !== false) {
+    let ts = (((floor + 13) * 0x85EBCA77) ^ 0x27D4EB2F) >>> 0;
+    const tr = () => { ts = (ts + 0x6D2B79F5) | 0; let t = Math.imul(ts ^ (ts >>> 15), 1 | ts);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const tint = (a, b) => a + Math.floor(tr() * (b - a + 1));
+    const TKINDS = globalThis.__FLAME === false ? ["spike", "gas", "alarm"] : ["spike", "gas", "alarm", "flame"];
+    const pRoll = Math.min(0.70, 0.35 + floor * 0.02);
+    if (floor >= 3 && tr() < pRoll) {
+      const cand = [];
+      for (let i = 1; i < rooms.length; i++) {
+        const rm = rooms[i];
+        if (rm === far || rm.dead) continue;
+        if (rm.zoneEvent || rm.eventKind) continue;
+        if (rm.w < 260 || rm.h < 220) continue;
+        if (chests.some((c) => Math.abs(c.x - rm.cx) < 40 && Math.abs(c.y - rm.cy) < 40)) continue;
+        if (altars.some((a) => Math.abs(a.x - rm.cx) < 40 && Math.abs(a.y - rm.cy) < 40)) continue;
+        cand.push(rm);
+      }
+      if (cand.length) {
+        const rm = cand[tint(0, cand.length - 1)];
+        rm.trapRoom = true;
+        const chest = { x: rm.cx, y: rm.cy, opened: false, r: 26, traproom: true };
+        const want = 6 + tint(0, 4);
+        const spots = [];
+        let guard = 0;
+        while (spots.length < want && guard++ < 240) {
+          const x = rm.x + tint(40, rm.w - 40), y = rm.y + tint(40, rm.h - 40);
+          if ((x - rm.cx) ** 2 + (y - rm.cy) ** 2 < 70 * 70) continue;
+          let ok = true;
+          for (const s of spots) if ((x - s.x) ** 2 + (y - s.y) ** 2 < 60 * 60) { ok = false; break; }
+          if (!ok) continue;
+          spots.push({ x, y, kind: TKINDS[tint(0, TKINDS.length - 1)] });
+        }
+        for (const s of spots) traps.push({ x: s.x, y: s.y, kind: s.kind, sprung: false, r: 26, room: true });
+        traproom = { room: rm, x: rm.cx, y: rm.cy, chest };
+      }
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)

@@ -18224,6 +18224,12 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
   브리프: `tmp/hs_v251_prompt.md`
 
+## V-271 — 함정 방 · 불길 함정 · 07:00 감시 흠 넷 (닫음 2026-09-03)
+  ① **함정 방 `__TRAPROOM`** — `genFloor` 맨 끝(`__TRAP` 뒤)·산술 PRNG 만. 층3부터 확률로 방 하나를 함정 밭(6~10)+가운데 층+6 후한 상자(chest 는 런타임에 얹어 지문 밖). 문턱에서 보이게 결 반경 ×1.7·지도 표식(붉은 마름모+금 속)+범례.
+  ② **불길 `__FLAME`** — 넷째 갈래. 밟으면 0.5s 예고→발동, 6초 주기로 되솟음(dotPlayer flat 10+층×2·r56). 소환수/적 안 밟음·뼈창 선제 해제.
+  ③ **흠 넷** — ㉮ `__AURAFIX`(세트 발밑 빛무리 좌표 어긋남 = 그라디언트가 translate 앞·arc 뒤라 0픽셀 → local 로 맞춤+룬 sprite 뒤·초록화소 100→1429) · ㉯㉰ `__TRAPART`(함정 결·독구름을 도트 결로·독 탁한 초록·gas r116→64·walkable 밖 안 그림) · ㉱ `__TITLEFIX2`(전체지도 열리면 층 제목 안 비침+상인 색 #48c8b4→#3f86e0).
+  - 되돌림 `__TRAPROOM=false __FLAME=false` → genFloor 지문 F1/F3/F5/F10/F30 **byte-동일**(V-270/V-269 기준선·`tmp/_v271_fp.mjs`·ON=OFF). 회귀 `hs_v207_walk` 벽밖 0%·오류 0 / `hs_v219_foeshot` p95 1.2ms·오류 0·에셋 100%. 컷 `tmp/hs_v271_{traproom_door,traproom_in,traproom_chest,flame_warn,flame_burst,trapart,aura_fix,map_title}.png` 직접 열어 봄·콘솔 0.
+
 ## V-260 — 길을 «단순하고 넓게» (①② 닫음 2026-09-02 · ③ 다음 판)
   병수님 21:53 「맵 이동 안되는게 너무 많은데, 길 굳이 꼬불꼬불 꼬아놓지 말고 단순하게」. 만진 곳 `hs/map.js` **하나**·새 자 파일 없음(있는 자 `hs_v202_map`·`hs_v207_walk`·`hs_v219_foeshot` 로 회귀·베이커 `tmp/hs_v260_cut.mjs`). 구현 커밋 **43f2e8b**.
   ① **복도 최소 폭(`__CORRWIDE`)** — `CORRIDOR_W(150)×지역계수(0.58~1.15)` 가 묘지 87·썩은굴 105·피의회랑 96px 로, 몸 반지름 22 를 양쪽에서 깎으면 걸을 폭이 43~61px 뿐이라 사람+소환수+적이 끼어 못 지났다. `Math.max(126, …)` 로 못박음(걸을 폭 ≥82). 실측 minW: 묘지 **87→126**·썩은굴 **105→126**·피의회랑 **96→126** / 넓은 지역(뼈무덤135·심연173·성소150)은 이미 ≥126 이라 불변.

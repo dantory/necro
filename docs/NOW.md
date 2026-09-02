@@ -28,21 +28,18 @@
 아이콘은 28px 로 부위가 갈림(㉠ 확인).
 **다만 흠 넷**(위 ②) — 특히 ㉢ 은 V-269 가 「초록 빛무리」로 적었으나 컷 확대에서 **안 보인다**.
 
-## ▶ 지금 도는 판: V-271 — 함정 방(`__TRAPROOM`) · 불길 함정 · 07:00 감시 흠 넷 (띄움 2026-09-03 07:0x)
-브리프 `tmp/v271_brief.md` · 로그 `tmp/necro_hs_v271.log`(`.done`).
-
-### 07:00 감시의 V-270 판정 (컷 여덟 직접 열어 봄 · 확대·크롭까지)
-**기능은 통과.** `trap_spike` 쇠가시 솟음+hp 33→28 · `trap_gas` 독 장판 · `trap_alarm` 무리 깨어남 ·
-`title_fix` 제목 깨끗 · `floor_edge` 벽 띠 아이콘 뒤 어두운 판 · `map_legend` 범례에 안치운방/치운방/적 추가.
-**그러나 흠 넷:**
-- **㉮ (제일 무겁다) 세트 발밑 초록 빛무리가 «두 판 연속» 화면에 없다.** `setaura_fix` 4배 확대 →
-  어깨 마름모 **둘**(셋이어야 함) · 발밑 빛무리 **0픽셀**. V-269 가 만들고 V-270 이 알파 0.5→0.82 ·
-  반경 48→56 으로 키웠는데 화면은 그대로 = **값이 아니라 «조용히 버리는 코드»**([[knob-that-does-nothing]]).
-- **㉯ 함정 결·독구름이 픽셀아트가 아니다.** 가시=1px 안티에일리어스 벡터 사각+점 넷 ·
-  독=매끈한 초록 타원선 · 발동한 독구름=거대 소프트 라디얼 초록(화면에서 제일 밝고 벽 위로 넘침).
-- **㉰ 독구름이 너무 크다** — 방 1/4. 「비켜설 자리」가 안 보인다. walkable 밖은 안 그려야.
-- **㉱ 전체지도를 열어도 층 제목이 뒤에 비친다**(`map_legend` 가운데 「뼈 무덤/지하 8층」이 방 블록과 겹침).
-  `__TITLEFIX` 의 `anyModalOpen` 이 전체지도(Tab)를 안 센다. 덤: 범례 상인(청록)↔치운 방(초록) 헷갈림.
+## ✔ 끝난 판: V-271 — 함정 방(`__TRAPROOM`) · 불길 함정(`__FLAME`) · 07:00 감시 흠 넷 (닫음 2026-09-03)
+07:00 감시가 컷 여덟을 열어 V-270 을 「기능은 통과·그림이 결이 아님」으로 판정하고 흠 넷을 넘겼다. 만진 곳 `hs/`(map.js·main.js)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v271_cut.mjs`·지문 `tmp/_v271_fp.mjs`).
+- **① 함정 방 `__TRAPROOM`**(기본 켬) — `genFloor` **맨 끝**(`__TRAP` 바로 뒤) 블록. **`__TRAP`처럼 층 번호로 씨앗 잡는 산술 PRNG(`ts`/`tr`)만 굴리고 Math.random 은 한 톨도 안 쓴다.** `traps` 는 지문 밖·**후한 상자는 `chests` 에 안 넣고 `traproom.chest` 에 담아 런타임(`start`)이 `G.chests` 로 얹는다** → 켜도 꺼도 지문 byte-동일. 층3부터 확률(35%+층×2%p·70% 상한)로 방 하나(시작·계단(far)·제단/사건·상자 낀 방·감춘 방 제외·넓이 ≥260×220)를 골라 `rm.trapRoom=true`, 함정을 밀도 높게(6~10·상자 둘레 70·서로 60) 깔고(`room:true`) 가운데에 **층+6 후한 상자**(`openChest` 새 `traproom` 갈래·rollItem 층+6·정예 유니크 40%). **문턱에서 보이게** `drawTraps` 의 결 반경을 이 방 함정만 `TRAP_REVEAL_R×1.7`(510)로 넓힘. 미니맵·전체지도 표식 `traproom`(붉은 마름모+금 속)+범례(층에 있을 때만).
+- **② 불길 `__FLAME`**(기본 켬·네 번째 갈래) — `KINDS`/`TKINDS` 에 `flame` 추가(`__FLAME=false` 면 빠짐·`traps` 지문 밖이라 무관). `stepTraps(dt)` 가 사람이 밟으면 `t.armed` 로 잡고 **6초 주기**(`FLAME_CYCLE`)로 `emitFlame` — 그 자리에 hazard(warn 0.5 예고→life 1.2 발동·dmg `10+층×2`·gas 와 같은 `dotPlayer` 규격·r 56). **예고 동안 비키면 안 맞는다.** 소환수·적은 사람 좌표만 재므로 안 밟고, 뼈창(`hitTrap`→`springTrap` flame 갈래)이 미리 `t.disarmed`. 실측 층8 서 있으면 hp **3261→2966**·예고 warn 0.28·발동 life 1.08.
+- **③ 07:00 컷 흠 넷**:
+  - **㉮ `__AURAFIX`** — 발밑 초록 빛무리가 「두 판 연속 0픽셀」이던 진짜 까닭은 **값이 아니라 좌표**였다. `drawSetAura` 가 그라디언트를 `translate(p.x,p.y)` **앞** 좌표로 잡고 `arc` 는 **뒤** local(0,0)에 그려 둘이 수백 px 어긋나 arc 가 투명 꼬리만 샘플했다(「조용히 버리는 코드」 [[knob-that-does-nothing]]). 그라디언트를 지금 좌표계(local 0,0)로 옮겨 맞추고, 어깨 룬 셋은 sprite **뒤**(위·`drawSetRunes`)에 그려 몸에 안 가려 셋 다 뜨게. **실측 초록 화소 100→1429**.
+  - **㉯㉰ `__TRAPART`** — 함정 바닥 결(`drawTrapMarkPixel`)·발동 장판(`drawHazardPixel`)을 **도트 결**로 다시 그림(안티에일리어스 끔·정수 격자 3~4px 사각·격자 해시 디더·반경별 링). 독은 **어둡고 탁한 초록**(화면 제일 밝은 건 화로)·발동 독구름 r **116→64**·불길 r 56·**walkable 밖 화소는 안 그림**(벽 밖으로 안 샘). 불길 예고는 도트 링. 옛(벡터) 판은 `drawTrapMarkVector`·radial 로 `__TRAPART=false` 되돌림.
+  - **㉱ `__TITLEFIX2`** — `titleHidden()` 이 UI 창(`anyModalOpen`)에 **전체지도(`bigOpen`)**를 더해 Tab 겹판 뒤로 층 제목이 안 비침. 덤: 미니맵/전체지도 **상인 색 청록(#48c8b4)→하늘빛(#3f86e0)**(치운 방 초록과 안 헷갈리게).
+- **되돌림 실측(genFloor 지문)**: `__TRAPROOM=false __FLAME=false` → **F1/F3/F5/F10/F30 byte-동일**(`tmp/_v271_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359 = V-270/V-269 기준선). 산술 PRNG 라 **ON=OFF** 도 동일. ㉮㉯㉰㉱ 는 그리기/UI 라 지문 무관.
+- **회귀(있는 자로만)**: `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000·820) · `hs_v219_foeshot` **frame p95 1.2ms(≤16.7)·오류 0·에셋 100%·쏜화살 448**.
+- **컷 직접 열어 봄**(1512×863·씨앗1337·모달 먼저 닫음): `tmp/hs_v271_{traproom_door,traproom_in,traproom_chest,flame_warn,flame_burst,trapart,aura_fix,map_title}.png`. traproom_door=문턱에서 방 함정 8 보임 · traproom_in=밀도 · traproom_chest=닫힌 후한 상자 · flame_warn=주황 도트 예고 링 · flame_burst=도트 불길+hp 3261→2966 · trapart=가시/독/경보/불길 도트 결(독 탁한 초록) · aura_fix=발밑 초록 빛무리+어깨 룬 셋(초록 화소 1429) · map_title=제목 안 비침+범례에 함정 방·상인 하늘빛. 콘솔 오류 0. 컷 베이커 실제 문 `window.__traproomInfo·__toTrapRoom·__springTrap·__giveSet`(자 아님).
+다음 후보: ① ROADMAP 맨 끝 열린 `- [ ]`. ② 함정 변주(바닥 꺼짐·화살 벽) / 정예 수식어 새 갈래 / 새 저주 / 새 물건. ③ 감춘 방·함정 방 수수께끼.
 
 ## ✔ 끝난 판: V-270 — 바닥 함정(`__TRAP`) · 05:30 감시 흠 넷 (닫음 2026-09-03)
 05:30 감시가 컷을 열어 보니 층에 **「밟으면 다치는 것」이 없었다**(`grep -rn "함정\|trap" hs/*.js` = 적 우리·보물방 함정뿐·바닥 함정 0). 빈 방을 지나는 동안 긴장이 0 이었다. 만진 곳 `hs/`(map.js·main.js)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v270_cut.mjs`·지문 `tmp/_v270_fp.mjs`).
