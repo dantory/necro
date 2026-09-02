@@ -18216,3 +18216,13 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 회귀: `hs_v219_foeshot` 에셋 **100%**(2/2)·오류 **0**·frame p95 **0.7ms**·밝은 새 바닥에도 화살 밝기중앙 182.8 ≥ 바닥×1.5 → 다 규격 안 ✅ · `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820).
   - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
   브리프: `tmp/hs_v251_prompt.md`
+
+## V-252 — 적이 «수법대로» 달라 보이게 (닫음 2026-09-02)
+  병수님 15:15 「에셋 전체적으로 잘 만들어봐」. V-251 이 바닥 타일만 고쳤는데, 화면에 제일 오래 보이는 것은 **캐릭터**다.
+  감시가 살아 있는 여덟의 south.png 를 한 판에 놓고 보니 낱장이 아니라 **판에서 안 갈리는 것**이 문제였다 — 폭탄병과 돌격병이 같은 `mob/brute` 몸이고, brute·shaman·boss 가 다 붉었다.
+  ① **폭탄병에게 제 몸** — base `mob/brute`→**`mob/zombie`**(부푼 몸 h×1.06). 8방향 `create_character` 는 아는 실패벽이라 **굽지 않고 있는 zombie 몸**을 되썼다(8방향+walk/attack 다 있음). 병색 노랑 색조로 「저건 터진다」가 60px 에서도 읽힌다.
+  ② **`__MOBTINT`** — `drawEnemy` 색조를 **sepia(1) 먼저** 얹어 원본 색(붉은/창백)을 지운 뒤 갈래별로 다시(쏘는 놈 파랑·달려드는 놈 주황·터지는 놈 노랑·훔치는 놈 보라). 옛 hue-rotate 만 얹던 것은 붉은 몸 위에서 안 갈렸다. 보스는 BOSS_TINT(넷 이미 갈림) 그대로.
+  ③ **계단 우물 — 접었다.** V-251 이 네 변주 실패, 나도 한 번 더(high top-down) 구웠으나 옆-원근 사다리로 나와 top-down 바닥에 안 맞음 → 옛 asset 지킴(asset 한 장도 안 바꿈). 남은 길: 실제 바닥 조각을 `background_image` 로(브리프 B4·미착수).
+  - 만진 곳 `hs/main.js` 하나(map.js 안 건드림)·새 자 파일 없음. 컷 `tmp/hs_v252_kinds_{after,before}.png` **직접 열어 봄**(게임 크기 h 66~82px·다섯 갈래 색+실루엣으로 갈림).
+  - 되돌림 `__MOBTINT=false`(+폭탄병 다시 brute) → genFloor 지문 byte-동일(base·h 는 지문 밖·assignZoneMix 는 genFloor 밖 산술 PRNG). 구현 커밋 `7563616`.
+  - 회귀: `hs_v207_walk` 벽밖 **0%**·오류 **0** · `hs_v219_foeshot`(씨앗 1,2,3) 에셋 **100%**·오류 **0**·frame p95 **0.5ms**·쏜화살 154 → 다 규격 안 ✅.
