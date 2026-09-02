@@ -694,7 +694,7 @@ function fresh(floor, carry, town) {
     gems: [],
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
-  p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.r = PLAYER_R;
+  p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.stun = 0; p.r = PLAYER_R;
   const zi = zoneOf(floor), prevZi = carry ? carry.lastZone : -1;   // V-247 — 구간이 갈리면(첫 판 포함) 가운데 지역 이름 배너
   const zBanner = (!town && globalThis.__ZONE !== false && zi !== prevZi) ? { name: ZONES[zi].name, flavor: ZONES[zi].flavor, t: 0 } : null;
   return {
@@ -756,6 +756,9 @@ function start(floor, carry, town) {
   window.__secretInfo = () => G.secret;   // V-269 ① 컷·자용 실제 문(자 아님 — 있는 window.__ 패턴)
   window.__breakSecret = () => { if (G.secret) breakSecret(); return G.secret; };
   window.__toSecret = () => { if (G.secret && G.secret.approach) { G.player.x = G.secret.approach.x; G.player.y = G.secret.approach.y; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return G.secret; };
+  window.__trapInfo = () => (G.traps || []).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), kind: t.kind, sprung: !!t.sprung, inSecret: !!t.inSecret }));
+  window.__toTrap = (kind) => { const t = (G.traps || []).find((q) => (!kind || q.kind === kind) && !q.sprung && !q.inSecret); if (t) { G.player.x = t.x; G.player.y = t.y - 44; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return t || null; };
+  window.__springTrap = (kind) => { const t = (G.traps || []).find((q) => (!kind || q.kind === kind) && !q.sprung); if (t) springTrap(t, false); return t || null; };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
   window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
   window.__doStairs = tryStairs; window.__returnFromTown = returnFromTown;
@@ -1015,6 +1018,7 @@ function stepPlayer(dt) {
   if (keys.has("d") || keys.has("arrowright")) mx += 1;
   if (keys.has("w") || keys.has("arrowup")) my -= 1;
   if (keys.has("s") || keys.has("arrowdown")) my += 1;
+  if (p.stun > 0) { p.stun -= dt; mx = 0; my = 0; }   // V-270 ① 가시 함정의 짧은 경직 — 밟은 순간 잠깐 못 움직인다
   if (mx || my) {
     const l = Math.hypot(mx, my);
     mx /= l; my /= l;
@@ -2214,6 +2218,50 @@ function stepBones(dt) {
   for (const b of G.bones) b.life -= dt;
   G.bones = G.bones.filter((b) => b.life > 0 && b.hp > 0);
 }
+// ── V-270 ① 바닥 함정 발동 — 사람이 밟는 순간만(소환수·적은 좌표를 안 재므로 안 밟는다). ──────
+const TRAP_GAS_LIFE = 4.2;
+function stepTraps() {
+  if (globalThis.__TRAP === false || G.town || !G.traps || !G.traps.length) return;
+  const p = G.player;
+  for (const t of G.traps) {
+    if (t.sprung) continue;
+    if ((p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) springTrap(t, false);
+  }
+}
+function springTrap(t, remote) {
+  if (t.sprung) return;
+  t.sprung = true;
+  const p = G.player, f = G.floor;
+  if (t.kind === "spike") {
+    if (!remote) {   // 밟은 것 — 층 비례 즉발 피해(최대체력 9%+층×0.7%p·28% 상한)+짧은 경직. 뼈창으로 미리 터뜨리면(remote) 사람은 안 다친다.
+      const eff = p.maxhp * Math.min(0.28, 0.09 + f * 0.007) * (1 - p.dr);
+      METRIC.taken += eff; p.hp -= eff; p.hurt = 0.2; p.stun = 0.32; p.iframe = 0;
+      cam.shake = Math.max(cam.shake, 9); flash = Math.max(flash, 0.12); flashColor = "180,40,40";
+      if (p.hp <= 0 && !G.dead) die();
+      floatNote("가시!", "#e0663c", 1.0);
+    } else floatNote("함정을 부쉈다", "#c9b89a", 1.0);
+    for (let i = 0; i < 16; i++) burst(t.x, t.y, "#c9c2b0", 150);
+  } else if (t.kind === "gas") {   // 밟든 부수든 그 자리에 독 장판이 남는다(stepHazards 가 도트) — 사람은 비켜설 수 있다.
+    G.hazards.push({ x: t.x, y: t.y, r: 116, warn: 0, life: TRAP_GAS_LIFE, dmg: 8 + f * 2, trap: true });   // 초당 피해(독 장판과 같은 규격 — dotPlayer 가 FOE_DMG_MUL 을 곱한다). 서 있으면 아프고 비켜서면 적다.
+    for (let i = 0; i < 18; i++) burst(t.x, t.y, "#8fd24a", 120);
+    floatNote("독구름!", "#8fd24a", 1.0);
+  } else {   // alarm — 피해 없이 그 자리에 적 한 무리가 깨어난다(spawnAdd 재사용).
+    const pk = { x: t.x, y: t.y, enemies: [], awake: true, room: -1, alarm: true };
+    const n = 3 + Math.min(4, (f / 4) | 0);
+    for (let i = 0; i < n; i++) { const a = i / n * 6.2832; spawnAdd(pk, t.x + Math.cos(a) * 74, t.y + Math.sin(a) * 74); }
+    G.packs.push(pk);
+    cam.shake = Math.max(cam.shake, 6);
+    floatNote("경보가 울렸다!", "#e8cf52", 1.2);
+  }
+}
+function hitTrap(x, y) {   // 뼈창이 함정 위를 지나면 미리 터뜨린다(remote) — hitSecretWall 결.
+  if (globalThis.__TRAP === false || !G.traps) return false;
+  for (const t of G.traps) {
+    if (t.sprung) continue;
+    if ((x - t.x) ** 2 + (y - t.y) ** 2 < (t.r + 22) ** 2) { springTrap(t, true); return true; }   // 뼈창은 어깨 높이(p.y-34)에서 나가 바닥 함정 위를 살짝 넘는다 — 넉넉히 잡아 선제 해제가 미덥게
+  }
+  return false;
+}
 // 뼈 우리(뼈 왕)는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
 //   V-232 — 사람이 세운 뼈벽(b.foe)은 그 반대다. bonesBlock 은 b.foe 를 건너뛰어 사람은 제 벽을 지나고,
 //   foeWallBlock 이 stepTo(적·소환수 이동) 한 자리에서 b.foe 만 막는다. unstick(walkable)은 안 건드려
@@ -2566,6 +2614,7 @@ function stepSpears(dt) {
   for (const sp of G.spears) {
     sp.life -= dt;
     if (sp.life <= 0) { sp.dead = true; continue; }
+    if (hitTrap(sp.x, sp.y)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-270 ① 뼈창으로 바닥 함정을 미리 터뜨린다
     if (hitSecretWall(sp.x, sp.y, sp.dmg)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-269 ① 갈라진 벽을 뼈창으로 때린다
     if (moveProjHitWall(sp, dt)) { sp.dead = true; if (!hitSecretWall(sp.x, sp.y, sp.dmg)) projSpark(sp.x, sp.y, "#cfe0ef"); continue; }   // V-269 ① 지형 벽에서 죽는 자리가 갈라진 벽이면 그것도 때린 것(뼈창은 12px/프레임이라 프레임머리 검사만으론 샌다)
     forEachEnemy((m) => {
@@ -3218,6 +3267,7 @@ function drawWorld() {
     doorArches(r, WT);
   }
   drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
+  drawTraps();     // V-270 ① 바닥 함정의 «결» — 빛 반경 안에서만(밟기 전에도 보인다·drawSecretWall 결)
   drawBossTele();
   drawMobTele();
   PROF.seg("terrain");
@@ -3636,8 +3686,17 @@ function drawBoneChunk(r, h, hpf, cage) {
   ctx.fillStyle = "rgba(60,44,30,0.35)";
   for (let i = 1; i < 3; i++) ctx.fillRect(-w / 2, -h + knob + (h - knob * 2) * i / 3, w, 1.5);
 }
+function anyModalOpen() { return invOpen || charOpen || shopOpen || ascOpen; }
+// V-270 ㉠ — 화면 가운데 큰 제목이 차지하는 세로 띠. 바닥 이름표를 이 안(가운데)에선 감춰 겹침을 없앤다.
+function bannerBandY() {
+  if (globalThis.__TITLEFIX === false) return null;
+  if (G.bossBanner && globalThis.__BOSSNAME === false) { const cy = VH * 0.26; return [cy - 40, cy + 44]; }
+  if (G.zoneBanner) { const cy = VH * 0.34; return [cy - 48, cy + 36]; }
+  return null;
+}
 function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가운데 크게
   const bn = G.bossBanner; if (!bn) return;
+  if (globalThis.__TITLEFIX !== false && anyModalOpen()) return;   // V-270 ㉠ UI 창이 열리면 제목을 안 그린다(창 뒤에 남아 겹치던 것)
   if (globalThis.__BOSSNAME !== false) return;   // V-243 ②a — 큰 가운데 글 폐지. 주인 이름은 머리 위 한 자리(drawEnemy)에만.
   const a = bn.t < 0.3 ? bn.t / 0.3 : bn.t > 2.2 ? Math.max(0, (3.0 - bn.t) / 0.8) : 1;
   ctx.globalAlpha = a; ctx.textAlign = "center";
@@ -3651,6 +3710,7 @@ function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가�
 }
 function drawZoneTitle() {   // V-247 — 구간 첫 진입 배너(D2 결): 이름이 잠깐 떴다 사라진다. 페이드 인 0.4s·유지·아웃 0.8s.
   const zb = G.zoneBanner; if (!zb) return;
+  if (globalThis.__TITLEFIX !== false && anyModalOpen()) return;   // V-270 ㉠ UI 창이 열리면 제목을 안 그린다(창 뒤 겹침 제거)
   const a = zb.t < 0.4 ? zb.t / 0.4 : zb.t > 2.0 ? Math.max(0, (2.8 - zb.t) / 0.8) : 1;
   const cy = VH * 0.34;
   ctx.save(); ctx.globalAlpha = a; ctx.textAlign = "center";
@@ -4237,22 +4297,22 @@ function completedSetKey() {
 // 알파 낮게·맥박 느리게(≈1.8초). 2점만 낀 상태는 표식 없음. __SETLOOK=false → 아무것도 안 그림.
 function drawSetAura(p) {
   if (globalThis.__SETLOOK === false || !completedSetKey()) return;
-  const puls = 0.5 + 0.5 * Math.sin(nowMs() / 1000 * Math.PI / 0.9);
+  const puls = globalThis.__AURAMAX ? 1 : 0.5 + 0.5 * Math.sin(nowMs() / 1000 * Math.PI / 0.9);   // V-270 ㉢ 컷은 맥박 최대 위상에서(__AURAMAX) 굽는다
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  // V-269 ㉣ — 발밑 오라를 «테(선)»에서 «채운 빛무리»로 바꾼다. 옛 선 오라(반경 26)는 노란 선택 고리(반경 36)
-  //   «안»에 겹쳐 「고리 두 개」로 읽혔다. 노란 고리보다 «바깥까지» 부드럽게 번지는 방사 빛으로 두어 결이 안 겹치게.
-  const rx = 48 * (0.94 + 0.06 * puls), ryr = 20 * (0.94 + 0.06 * puls);
+  // V-270 ㉢ — V-269 채운 빛무리가 컷에서 «안 보였다»(낮은 알파가 노란 고리에 먹힘). 알파 바닥값을 올리고(중간 스톱
+  //   2a→52·globalAlpha 바닥 0.5→0.82) 빛무리를 노란 선택 고리(반경 36) «바깥»(반경 56·세로 26)까지 키워 결이 갈리게.
+  const rx = 56 * (0.95 + 0.05 * puls), ryr = 26 * (0.95 + 0.05 * puls);
   const grd = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, rx);
   grd.addColorStop(0, SET_LOOK_COL + "00");
-  grd.addColorStop(0.62, SET_LOOK_COL + (globalThis.__SETLOOK === "dim" ? "18" : "2a"));
+  grd.addColorStop(0.5, SET_LOOK_COL + (globalThis.__SETLOOK === "dim" ? "2c" : "52"));
   grd.addColorStop(1, SET_LOOK_COL + "00");
-  ctx.globalAlpha = 0.5 + 0.28 * puls;
+  ctx.globalAlpha = 0.82 + 0.18 * puls;
   ctx.save(); ctx.translate(p.x, p.y); ctx.scale(1, ryr / rx);
   ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 6.283); ctx.fill(); ctx.restore();
-  // 어깨 룬 셋 — 옛 «작은 점 둘»(r1.8)이라 셋으로 안 읽혔다. 마름모로 키워 꼴을 준다(가운데는 조금 높게·크게).
-  ctx.globalAlpha = 0.5 + 0.3 * puls; ctx.fillStyle = SET_LOOK_COL;
-  const ry = p.y - PLAYER_H * 0.62;
+  // 어깨 룬 셋 — «머리 옆»에 뜨면 「버프」로 읽혔다(V-269). 어깨 높이(0.62→0.40)로 내려 「장비를 갖췄다」로 읽히게.
+  ctx.globalAlpha = 0.6 + 0.3 * puls; ctx.fillStyle = SET_LOOK_COL;
+  const ry = p.y - PLAYER_H * 0.40;
   for (const [dx, up, s] of [[-15, 0, 3], [0, 5, 4], [15, 0, 3]]) {
     ctx.save(); ctx.translate(p.x + dx, ry - up); ctx.rotate(Math.PI / 4);
     ctx.fillRect(-s, -s, s * 2, s * 2); ctx.restore();
@@ -5058,6 +5118,54 @@ function breakSecret() {
   bigDirty = true; markVisited();
 }
 
+const TRAP_REVEAL_R = 300;   // 이 반경 안에 들어야 함정의 «결»이 보인다(멀리선 안 보인다·drawSecretWall 결)
+function drawTraps() {
+  if (globalThis.__TRAP === false || G.town || !G.traps) return;
+  const p = G.player;
+  for (const t of G.traps) {
+    const d2 = (p.x - t.x) ** 2 + (p.y - t.y) ** 2;
+    if (!t.sprung && d2 > TRAP_REVEAL_R * TRAP_REVEAL_R) continue;
+    if (!onScreen(t.x, t.y, 60)) continue;
+    const near = 1 - Math.min(1, Math.sqrt(d2) / TRAP_REVEAL_R);   // 가까울수록 결이 또렷
+    drawTrapMark(t, t.sprung ? 1 : 0.35 + near * 0.65);
+  }
+}
+function drawTrapMark(t, vis) {
+  const x = t.x, y = t.y, seed = (Math.round(x) * 131 + Math.round(y) * 57) >>> 0;
+  const rnd = (i) => (((seed ^ (i * 2654435761)) >>> 8) & 1023) / 1023;
+  ctx.save();
+  ctx.translate(x, y);
+  if (t.kind === "spike") {
+    ctx.globalAlpha = vis * 0.5; ctx.strokeStyle = "#0c0805"; ctx.lineWidth = 2;   // 바닥 판의 «이음매»(네모난 함정 뚜껑)
+    ctx.strokeRect(-20, -12, 40, 24);
+    ctx.globalAlpha = vis * 0.7; ctx.fillStyle = "#0a0705";                          // 구멍 점 넷(가시가 솟는 자리)
+    for (const [dx, dy] of [[-11, -5], [11, -5], [-11, 5], [11, 5]]) { ctx.beginPath(); ctx.arc(dx, dy, 2.1, 0, 6.283); ctx.fill(); }
+    if (t.sprung) {                                                                  // 발동 — 쇠가시가 솟은 채 남는다(한 번 쓰면 죽음)
+      ctx.globalAlpha = 1; ctx.fillStyle = "#b9bec6"; ctx.strokeStyle = "#3a3d44"; ctx.lineWidth = 1;
+      for (const [dx, dy] of [[-11, -5], [11, -5], [-11, 5], [11, 5], [0, 0]]) {
+        ctx.beginPath(); ctx.moveTo(dx - 4, dy + 4); ctx.lineTo(dx, dy - 9); ctx.lineTo(dx + 4, dy + 4); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
+  } else if (t.kind === "gas") {
+    const st = nowMs() / 600;
+    ctx.globalAlpha = vis * 0.42; ctx.fillStyle = "#4a6a24";                          // 녹빛 얼룩(바닥에 밴 독)
+    for (let i = 0; i < 5; i++) { const a = rnd(i) * 6.283, rr = 8 + rnd(i + 5) * 14; ctx.beginPath(); ctx.ellipse(Math.cos(a) * rr, Math.sin(a) * rr * 0.5, 9 + rnd(i + 2) * 7, 5 + rnd(i + 3) * 4, 0, 0, 6.283); ctx.fill(); }
+    ctx.globalAlpha = vis * 0.5; ctx.strokeStyle = "#7ea83a"; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.ellipse(0, 0, 22, 12, 0, 0, 6.283); ctx.stroke();
+    if (!t.sprung) { ctx.globalAlpha = vis * (0.24 + 0.14 * Math.sin(st * 3.14));      // 옅은 김이 올라온다(살아 있는 신호)
+      ctx.fillStyle = "#9ad24a"; for (let i = 0; i < 3; i++) { const px = (rnd(i + 8) - 0.5) * 26, ph = (st + rnd(i)) % 1; ctx.globalAlpha = vis * 0.28 * (1 - ph); ctx.fillRect(px, -6 - ph * 20, 2, 5); } }
+  } else {   // alarm — 팽팽한 줄 + 바닥 룬
+    ctx.globalAlpha = vis * 0.6; ctx.strokeStyle = t.sprung ? "#6a5a3a" : "#c8b048"; ctx.lineWidth = t.sprung ? 1 : 1.6;
+    if (t.sprung) { ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-4, 3); ctx.moveTo(22, 0); ctx.lineTo(6, -3); ctx.stroke(); }   // 끊긴 줄
+    else { ctx.beginPath(); ctx.moveTo(-24, -2); ctx.lineTo(24, 2); ctx.stroke();                                                   // 팽팽한 줄
+      ctx.globalAlpha = vis * (0.4 + 0.2 * Math.sin(nowMs() / 200)); ctx.beginPath(); ctx.arc(0, 0, 3, 0, 6.283); ctx.stroke(); }
+    ctx.globalAlpha = vis * 0.45; ctx.strokeStyle = "#a98f3a"; ctx.lineWidth = 1.2;   // 바닥 룬 고리
+    ctx.beginPath(); ctx.arc(0, 0, 16, 0, 6.283); ctx.stroke();
+    for (let i = 0; i < 6; i++) { const a = i / 6 * 6.283; ctx.beginPath(); ctx.moveTo(Math.cos(a) * 13, Math.sin(a) * 13); ctx.lineTo(Math.cos(a) * 18, Math.sin(a) * 18); ctx.stroke(); }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 // ── V-184 바닥 이름표 — D2 결: 평소엔 «점»만, ALT 로 다 보이고, 늘 하나는 보인다 ──────
 // V-183 이 밀도를 재다 찍어 보고 찾았다: 이름표가 모든 물건에 늘 뜨고 겹치면 8층까지
 // 위로 밀어 쌓아 화면 한복판을 덮었다(자로 재니 덮음률 p50 14%·최대 44개·8층). D2 처럼
@@ -5201,6 +5309,13 @@ function drawItems() {
     // V-269 ㉠ — 바닥 아이콘을 이름표 글자(13px)의 ~2배로 키우고(글 안 읽어도 부위가 읽히게) 밑에 옅은 바닥 그림자 한 겹(놓인 것으로 읽힘).
     const fib = globalThis.__FLOORICONBIG !== false, isz = fib ? 28 : 20, icy = sy + 6;
     if (fib) { ctx.save(); ctx.globalAlpha = 0.34; ctx.fillStyle = "#0a0705"; ctx.beginPath(); ctx.ellipse(sx, icy + isz * 0.42, isz * 0.42, isz * 0.19, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
+    // V-270 ㉡ — 방 가장자리(벽 띠)에 걸쳐 떨어진 물건은 아이콘 아래 2/3 가 어두운 벽에 먹혀 부위가 안 갈렸다.
+    //   아이콘 둘레(위·아래)가 걸을 수 없는 칸(벽)이면 뒤에 어두운 판을 한 겹 깔아 어디에 놓여도 읽히게 한다.
+    if (fib && (!walkable(it.x, it.y - 16, 3) || !walkable(it.x, it.y + 18, 3))) {
+      ctx.save(); ctx.globalAlpha = 0.82; ctx.fillStyle = "#0d0a07";
+      ctx.beginPath(); ctx.ellipse(sx, icy, isz * 0.62, isz * 0.58, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 0.5; ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke(); ctx.restore();
+    }
     if (!drawItemIcon(ctx, it.item, sx - isz / 2, icy - isz / 2, isz)) {
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 2 ? 4 : 3, 0, 6.283); ctx.fill();
       if (rank >= 2) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 3 ? 7 : 5.5, 0, 6.283); ctx.stroke(); }
@@ -5252,6 +5367,8 @@ function drawItems() {
       for (const q of placed) if (Math.abs(q.x - o.sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; } }
     if (ly < o.sy - 18 * LABEL_STACK) continue;
     ly = liftLabelAboveLiving(o.it, o.sx, ly);
+    const bb = bannerBandY();   // V-270 ㉠ 큰 층 제목 띠 안·가운데의 바닥 이름표는 감춘다(둘 다 못 읽히던 겹침 제거)
+    if (bb && ly + 6 > bb[0] && ly - 10 < bb[1] && Math.abs(o.sx - VW / 2) < 320) continue;
     // V-197 — 붐벼서 밀어내도 몹을 덮으면 «점»으로 접는다(V-184 의 점 모드·밑 색점은 이미 그렸다).
     //   늘 하나(마지막 남은 하나)는 접지 않는다 — V-184/V-192 의 「늘 하나는 보인다」.
     const lastOne = drawn === 0 && pi === picks.length - 1;
@@ -6221,6 +6338,20 @@ function drawBigLegend(rctx, W, H) {
     rctx.fillStyle = "#d8ccb0"; rctx.fillText(label, x + s * 2 + 7, y);
     x += s * 2 + 13 + rctx.measureText(label).width + 24;
   }
+  // V-270 ㉣ — 지도에 있는 색칠·점도 범례에 넣어 「범례 = 지도에 있는 전부」로 맞춘다(전엔 밝은 올리브 방·빨간 점이 범례 밖이었다).
+  if (globalThis.__MAPLEGEND2 !== false) {
+    const swatch = (fill, label) => {
+      rctx.fillStyle = fill; rctx.fillRect(x + s - 6, y - 6, 12, 12);
+      rctx.strokeStyle = "#2a1a08"; rctx.lineWidth = 1; rctx.strokeRect(x + s - 6, y - 6, 12, 12);
+      rctx.fillStyle = "#d8ccb0"; rctx.fillText(label, x + s * 2 + 7, y);
+      x += s * 2 + 13 + rctx.measureText(label).width + 24;
+    };
+    swatch("rgba(170,136,80,0.8)", "안 치운 방");
+    swatch("rgba(96,164,120,0.85)", "치운 방");
+    rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(x + s, y, 4, 0, 6.283); rctx.fill();
+    rctx.fillStyle = "#d8ccb0"; rctx.fillText("적", x + s * 2 + 7, y);
+    x += s * 2 + 13 + rctx.measureText("적").width + 24;
+  }
 }
 function drawBigCache(g) {
   bigCache.width = g.W; bigCache.height = g.H;
@@ -6272,7 +6403,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills();
-    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개
+    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); stepTraps(); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개 · V-270 바닥 함정
     stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt); stepCorpseRun();
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();

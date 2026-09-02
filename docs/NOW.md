@@ -28,6 +28,20 @@
 아이콘은 28px 로 부위가 갈림(㉠ 확인).
 **다만 흠 넷**(위 ②) — 특히 ㉢ 은 V-269 가 「초록 빛무리」로 적었으나 컷 확대에서 **안 보인다**.
 
+## ✔ 끝난 판: V-270 — 바닥 함정(`__TRAP`) · 05:30 감시 흠 넷 (닫음 2026-09-03)
+05:30 감시가 컷을 열어 보니 층에 **「밟으면 다치는 것」이 없었다**(`grep -rn "함정\|trap" hs/*.js` = 적 우리·보물방 함정뿐·바닥 함정 0). 빈 방을 지나는 동안 긴장이 0 이었다. 만진 곳 `hs/`(map.js·main.js)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v270_cut.mjs`·지문 `tmp/_v270_fp.mjs`).
+- **① 바닥 함정 `__TRAP`**(기본 켬) — `genFloor` **맨 끝**(secret 뒤) 블록. **`__FLOORMIX`처럼 층 번호로 씨앗 잡는 산술 PRNG(`ur`)만 굴리고 Math.random 은 한 톨도 안 쓴다** → 켜도 꺼도 앞선 굴림 그대로 = 지문 byte-동일. 층 비례 개수 **`min(6, max(1, floor(층/2)+{0,1}))`**(1층 ~1개·상한 6). **계단(반경210)·시작 자리(220)·제단/상인(150)** 반경엔 안 놓는다(들어서자마자 밟는 사고 방지)·서로 92px 이상. 갈래 셋(런타임 `springTrap`):
+  · **가시(spike)** — 밟으면 즉발 피해 **최대체력×(0.09+층×0.007)·28% 상한**(실측 층8 = **481·14.5%**·FOE_DMG_MUL 안 거침) + **0.32s 경직**(`p.stun` — stepPlayer 가 이동을 막음). 발동하면 쇠가시가 솟은 채 남는다.
+  · **독구름(gas)** — 밟으면 그 자리에 **독 장판**(`G.hazards`·기존 `stepHazards` 재사용) 4.2s. dmg 는 **flat `8+층×2` 기본**(dotPlayer 가 FOE_DMG_MUL 을 곱하는 규격 — 독 장판과 같은 결·실측 층8 서 있으면 ~360/s). 비켜서면 적게 맞는다.
+  · **경보(alarm)** — 피해 없음. 밟으면 그 자리에 적 한 무리(**`3+min(4,층/4)` 해골**·`spawnAdd` 재사용)가 awake 로 깨어난다.
+- **밟는 규칙**: 사람 좌표만 잰다 → **소환수·적은 함정을 안 밟는다**(실측 소환수를 spike 위에 둬도 sprung=false). **뼈창으로 미리 터뜨릴 수 있다**(`hitTrap`·spear 가 함정 위 `r+22`px 지나면 `springTrap(remote)` — 어깨 높이(p.y-34) 발사 여유·실측 사람 hp 불변·sprung=true). **보이게 하는 손**: 밟기 전에도 바닥에 결(가시=판 이음매+구멍 점 넷·독=녹빛 얼룩+김·경보=팽팽한 줄+바닥 룬)이 **빛 반경 300 안에서만** 뜬다(`drawTraps`·`drawSecretWall` 결). **감춘 방(V-269) 안에도 하나** — 「후한 상자에는 값이 붙는다」(부수기 전엔 못 밟는다).
+- **② 05:30 컷 흠 넷**: **㉠**(`bannerBandY`·`drawZoneTitle`/`drawItems`) 큰 층 제목 띠(가운데 세로 띠) 안의 바닥 이름표를 감춰 겹침 제거 + UI 창 열리면 제목을 안 그림(창 뒤 겹침·`anyModalOpen`·`__TITLEFIX`). **㉡**(`drawItems`) 아이콘 둘레(위·아래)가 벽이면(`!walkable`) 아이콘 뒤에 **어두운 판 한 겹** → 벽 띠에 걸쳐도 읽힘. **㉢**(`drawSetAura`) 세트 발밑 초록 빛무리 알파 바닥 **0.5→0.82**·중간 스톱 **2a→52**·반경 **48→56**(노란 고리 밖까지)·룬을 **머리옆→어깨(0.62→0.40)**·컷은 맥박 최대(`__AURAMAX`). **㉣**(`drawBigLegend`·`__MAPLEGEND2`) 전체지도 범례에 **안 치운 방(올리브)·치운 방(초록)·적(빨간 점)** 추가 → 「범례 = 지도에 있는 전부」.
+- **되돌림 실측(genFloor 지문)**: `__TRAP=false` → **F1/F3/F5/F10/F30 byte-동일**(`tmp/_v270_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359 = V-269 기준선). 산술 PRNG 라 **ON=OFF** 도 동일. ㉠~㉣ 는 그리기/UI 라 지문 무관.
+- **회귀(있는 자로만)**: `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000·820) · `hs_v219_foeshot`(25초×씨앗1/2/3) **frame p95 1.7ms(≤16.7)·오류 0·에셋 100%·쏜화살 254·밝기 통과**.
+- **기능 실측**(일회용 조각·자 아님): spike sprung+hp 3315→2834(−481)+stun · gas hazard(trap)+hp 도트 · alarm 팩 awake 5마리 · 소환수 위 sprung=false · 뼈창 remote sprung=true·사람 hp 불변. 콘솔 오류 0.
+- **컷 직접 열어 봄**(1512×863·씨앗1337·모달 먼저 닫음): `tmp/hs_v270_{trap_idle,trap_spike,trap_gas,trap_alarm,title_fix,floor_edge,setaura_fix,map_legend}.png`. trap_idle=세 갈래 바닥 결 · trap_spike=쇠가시 솟음+hp 하강 · trap_gas=초록 장판 · trap_alarm=무리 깨어남+「경보가 울렸다!」 · title_fix=제목 깨끗(띠 안 이름표 수=0) · floor_edge=벽 띠 물건이 어두운 판 위에 읽힘 · setaura_fix=발밑 초록 빛무리+어깨 룬 셋 · map_legend=범례에 방/적 색칠 들어감. 콘솔 오류 0. 컷 베이커 실제 문 `window.__trapInfo·__toTrap·__springTrap`(자 아님).
+다음 후보: ① ROADMAP 맨 끝 열린 `- [ ]`(「게임 안에 새로 생기는 것」 우선). ② 함정 변주(불길·바닥 꺼짐·화살 벽) / 정예 수식어 새 갈래 / 새 저주 / 새 물건. ③ 감춘 방·함정 방 수수께끼.
+
 ## ✔ 끝난 판: V-269 — 감춘 방(`__SECRET`) · 04:30 감시 흠 넷 (닫음 2026-09-03)
 04:30 감시가 컷을 열어 보니 층에 **「내가 찾아낼 것」이 없었다**(`grep -rn "비밀\|secret" hs/*.js`=0). 방은 다 지도에 그려져 걷다 발견하는 게 없었다. 만진 곳 `hs/`(map.js·main.js·hud 무접촉)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v269_cut.mjs`·지문 `tmp/_v269_fp.mjs`).
 - **① 감춘 방 `__SECRET`**(기본 켬) — `genFloor` **맨 끝** 블록: 층 비례 확률(기본 45%+층×2%p·80% 상한)로 「갈라진 벽」 하나 뒤에 **지도에 안 그려지는 방**을 둔다. host 방 벽 밖 void 에 방(340×300)+목(neck)+벽(straddle)을 놓고 **rooms/corridors/chests/packs 엔 안 넣는다**(secret 에 담기만). **찾는 손**: 갈라진 벽은 반경 340 안에서만 결이 뜬다(둘레보다 밝은 돌+큰 균열+곁 균열+먼지·`drawSecretWall`). **여는 손**: 뼈창으로 때리면(hp 4·`hitSecretWall`) 무너지고 `breakSecret` 이 방·목을 G.rooms/G.corridors 에 얹어(그제야 inFree/지도) 상자(레어도 층+8 후하게)+금(+층10↑ **정예 하나 잠**)이 드러난다. ★ 뼈창은 12px/프레임이라 프레임머리 검사만으론 새서 **지형 벽 죽는 자리도 hitSecretWall 로 재검**(functional 검증 hp추이 [4,4,0]→broken). 되돌림 `__SECRET=false` → 블록 short-circuit(RNG 무소비).

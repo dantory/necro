@@ -584,7 +584,44 @@ export function genFloor(floor) {
     }
   }
 
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret };
+  // ── V-270 ① 바닥 함정(__TRAP) — genFloor «맨 끝»(secret 뒤). __FLOORMIX 처럼 층 번호로 씨앗 잡는
+  //   산술 PRNG(ur)만 굴리고 Math.random 은 한 톨도 안 쓴다 → 켜도 꺼도 앞선 굴림 그대로 = 지문 byte-동일
+  //   (V-269 기준선). __TRAP===false 면 블록 통째 건너뛴다. traps 는 fp 필드 밖(방·복도·팩·상자·제단·계단 아님).
+  //   갈래 셋 — spike(즉발 피해+경직) · gas(장판 도트) · alarm(피해 없이 적 한 무리 깨움). 런타임(main.js)이 발동·그림.
+  let traps = [];
+  if (globalThis.__TRAP !== false) {
+    let us = (((floor + 1) * 0x27D4EB2F) ^ 0x2545F491) >>> 0;
+    const ur = () => { us = (us + 0x6D2B79F5) | 0; let t = Math.imul(us ^ (us >>> 15), 1 | us);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const uint = (a, b) => a + Math.floor(ur() * (b - a + 1));
+    const KINDS = ["spike", "gas", "alarm"];
+    // 금지 반경 — 계단 앞·시작 자리·제단(상인)에 들어서자마자 밟는 사고를 막는다.
+    const forbid = [{ x: stairs.x, y: stairs.y, r: 210 }, { x: startX, y: startY, r: 220 }];
+    for (const a of altars) forbid.push({ x: a.x, y: a.y, r: 150 });
+    const okSpot = (x, y) => {
+      for (const f of forbid) if ((x - f.x) ** 2 + (y - f.y) ** 2 < f.r * f.r) return false;
+      for (const t of traps) if ((x - t.x) ** 2 + (y - t.y) ** 2 < 92 * 92) return false;   // 서로 안 겹치게
+      return true;
+    };
+    const troom = [];   // 후보 방 — 시작방(0) 빼고 전부. 계단방은 forbid 반경이 막는다.
+    for (let i = 1; i < rooms.length; i++) troom.push(rooms[i]);
+    const want = Math.min(6, Math.max(1, Math.floor(floor / 2) + (ur() < 0.5 ? 1 : 0)));   // 층 비례·상한 6(1층 ~1개)
+    let guard = 0;
+    while (traps.length < want && guard++ < 160 && troom.length) {
+      const rm = troom[uint(0, troom.length - 1)];
+      if (rm.w < 120 || rm.h < 120) continue;
+      const x = rm.x + uint(46, rm.w - 46), y = rm.y + uint(46, rm.h - 46);
+      if (!okSpot(x, y)) continue;
+      traps.push({ x, y, kind: KINDS[uint(0, KINDS.length - 1)], sprung: false, r: 26 });
+    }
+    // 감춘 방(V-269) 안에도 하나 — 「후한 상자에는 값이 붙는다」(부수기 전엔 못 밟는다).
+    if (secret && secret.room) {
+      const sr = secret.room;
+      traps.push({ x: sr.cx + (ur() < 0.5 ? -74 : 74), y: sr.cy - 46, kind: KINDS[uint(0, KINDS.length - 1)], sprung: false, r: 26, inSecret: true });
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)
