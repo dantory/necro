@@ -445,24 +445,32 @@ export function genFloor(floor) {
     };
     for (let ri = 0; ri < rooms.length; ri++) {
       const rm = rooms[ri];
-      // ① **불을 열댓 개로** — D2 카타콤은 화로가 방마다 여럿이라 「불빛이 던전을 만든다」.
-      //    지금은 scatter 가 22% 로 흘려 층 전체에 두셋뿐이었다. 방마다 둘(넓으면 셋)을 벽에 못박는다.
-      const fires = 2 + (rm.w * rm.h > 420000 ? 1 : 0);
-      for (let k = 0; k < fires; k++) {
-        const side = (dint(0, 3) + k) & 3;
-        for (let a = 0; a < 5; a++) {   // 자리가 막히면 같은 벽에서 다섯 번까지 다시 던진다
-          const sp = wallSpot(rm, side, 0.16 + dr() * 0.68, 52);
-          if (put({ x: Math.round(sp.x), y: Math.round(sp.y), img: "decor/brazier.png", h: dint(78, 94), brazier: true, dungeon: true })) break;
-        }
-      }
-      // ② **방마다 랜드마크 하나** — 방이 다 「같은 창고」로 읽히던 것. 벽에 붙여 남보다 큰 것 하나를
+      // ① **방마다 랜드마크 하나** — 방이 다 「같은 창고」로 읽히던 것. 벽에 붙여 남보다 큰 것 하나를
       //    세워 «이 방은 그 방»이 되게 한다(가운데가 아니라 벽 — 싸움을 안 가린다).
       const LAND = ["decor/statue.png", "decor/pillar.png", "decor/bones2.png", "decor/coffin.png"];
       const limg = LAND[dint(0, LAND.length - 1)], lhr = PROP_H[limg];
-      for (let a = 0; a < 6; a++) {
-        const sp = wallSpot(rm, dint(0, 3), 0.24 + dr() * 0.52, 48);
+      for (let a = 0; a < 22; a++) {
+        // 열네 번까지는 벽, 그 뒤는 안쪽 고리(가운데 20% 는 비운다 — 싸움을 안 가리게)
+        let sp;
+        if (a < 14) sp = wallSpot(rm, dint(0, 3), 0.16 + dr() * 0.68, 48);
+        else {
+          const t = dr() < 0.5 ? 0.14 + dr() * 0.26 : 0.60 + dr() * 0.26;
+          const u = dr() < 0.5 ? 0.16 + dr() * 0.24 : 0.60 + dr() * 0.24;
+          sp = { x: rm.x + t * rm.w, y: rm.y + u * rm.h };
+        }
         if (put({ x: Math.round(sp.x), y: Math.round(sp.y), img: limg,
                   h: Math.round(lhr[1] * 1.18), landmark: true, dungeon: true })) break;
+      }
+      // ② **불을 열댓 개로** — D2 카타콤은 화로가 방마다 여럿이라 「불빛이 던전을 만든다」.
+      //    지금은 scatter 가 22% 로 흘려 층 전체에 두셋뿐이었다. 방마다 둘(넓으면 셋)을 벽에 못박는다.
+      const fires = 2 + (rm.w * rm.h > 420000 ? 1 : 0);
+      for (let k = 0; k < fires; k++) {
+        const side0 = (dint(0, 3) + k) & 3;
+        for (let a = 0; a < 12; a++) {   // 막히면 열두 번까지 다시 던진다 — 네 번째부터는 벽도 바꾼다
+          const side = a < 4 ? side0 : (side0 + a) & 3;
+          const sp = wallSpot(rm, side, 0.12 + dr() * 0.76, 52);
+          if (put({ x: Math.round(sp.x), y: Math.round(sp.y), img: "decor/brazier.png", h: dint(78, 94), brazier: true, dungeon: true })) break;
+        }
       }
       // ③ **바닥 자취 촘촘히** — D2 바닥은 얼룩·자취가 빽빽하다. scatter 밀도(넓이/13000) 위에
       //    같은 만큼을 더 얹어 두 배로(겹침 검사 없음 — 얼룩은 납작해 겹쳐도 결이 짙어질 뿐).
