@@ -73,6 +73,38 @@ export const MYTHIC = [
     note: "마나가 모자라면 피로 시전한다", lore: "값은 늘 치러진다 — 마나로든 피로든." },
 ];
 
+// ── V-267 — 세트 장비. 유니크가 «한 방에 끝나는 뽑기»라면 세트는 «여러 판에 걸쳐 짝을 모으는» 축이다.
+//   세 셋 각 3점(서로 다른 부위) · 2점=작은 것 · 3점=규칙이 바뀌는 것(유니크의 결). 세 셋이 서로 다른 길을 민다:
+//   뼈수확자=군세 / 역병 사제=시체(폭발) / 무덤지기=저주·생존. 짝 보너스는 main.js recalc 끝에서 얹어 누수 0.
+//   되돌림: globalThis.__SETGEAR===false → rollItem 이 세트를 아예 안 굴린다(RNG 무소비 short-circuit → 옛 판과 동일).
+export const SET_COLOR = "#4fe06a";   // D2 세트색(초록)
+export const SET_RARITY = { key: "set", name: "세트", color: SET_COLOR };
+export const SETS = {
+  reaper: { name: "뼈수확자의 예장", color: SET_COLOR,
+    b2: "소환 자리 +2", b3: "소환수 피해 +35% · 해골이 둘씩 일어난다",
+    pieces: [{ slot: "weapon", name: "뼈수확자의 낫" }, { slot: "helm", name: "뼈수확자의 두개관" }, { slot: "armor", name: "뼈수확자의 예장" }] },
+  plague: { name: "역병 사제의 유물", color: SET_COLOR,
+    b2: "시체 폭발 범위 +25%", b3: "시체 폭발 범위 +30% · 시체 폭발이 두 번 터진다",
+    pieces: [{ slot: "amulet", name: "역병 사제의 성물" }, { slot: "ring", name: "역병 사제의 인장" }, { slot: "gloves", name: "역병 사제의 장갑" }] },
+  warden: { name: "무덤지기의 굴레", color: SET_COLOR,
+    b2: "최대 생명 +15%", b3: "최대 생명 +20% · 마나가 모자라면 피로 시전한다",
+    pieces: [{ slot: "boots", name: "무덤지기의 걸음" }, { slot: "helm", name: "무덤지기의 굴레" }, { slot: "amulet", name: "무덤지기의 부적" }] },
+};
+export const SET_KEYS = Object.keys(SETS);
+
+// 드랍 확률 — 유니크(가중 2·게다가 넷 소진 후 안 나옴)보다 «잦게» 둔다(짝을 모으는 게 목적이니
+//   하나만 뜨고 마는 건 재미가 없다). 재서: 기본 4.5% + 층마다 0.6%p(10% 상한).
+function setChance(floor) { return Math.min(0.10, 0.045 + 0.006 * (floor - 1)); }
+export function rollSetItem(floor) {
+  const key = SET_KEYS[(Math.random() * SET_KEYS.length) | 0];
+  const set = SETS[key];
+  const pc = set.pieces[(Math.random() * set.pieces.length) | 0];
+  const n = 2 + ((Math.random() * 2) | 0);   // 옵션 2~3(레어 결)
+  const it = { name: pc.name, slot: pc.slot, rarity: SET_RARITY, set: { key, name: set.name }, unique: null, affixes: rollAffixes(n, floor) };
+  const sk = rollSockets("yellow", floor); if (sk) it.sockets = sk;
+  return it;
+}
+
 // 유니크 하나를 굴린다(옵션은 1~2 로 적게 — 규칙이 물건의 값이지 숫자가 아니다).
 export function rollMythic(floor) {
   if (globalThis.__UNIQUE === false) return null;
@@ -165,6 +197,7 @@ export function rollBuildAffix() {
 }
 
 export function rollItem(floor, lucky) {
+  if (globalThis.__SETGEAR !== false && Math.random() < setChance(floor)) return rollSetItem(floor);
   const r = rollRarity(floor, lucky);
 
   // 유니크 — 고정 규칙 + 옵션 2~3. 넷을 다 쓰면 레어로 떨어진다.

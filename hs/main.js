@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor, genTown } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore, rollMythic, MYTHIC, MYTHIC_RARITY, seedBossRun } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore, rollMythic, MYTHIC, MYTHIC_RARITY, seedBossRun, SETS, SET_RARITY } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
@@ -752,6 +752,7 @@ function start(floor, carry, town) {
   window.__openShop = (kind) => { const mc = (G.merchants || []).find((m) => m.kind === kind); if (mc) { if (mc.kind === "fence" && !mc.stock) mc.stock = rollFenceStock(); shopMerchant = mc; shopOpen = true; el("shop").classList.add("on"); renderShop(); } };
   window.__sellJunk = sellJunk;
   window.__giveBagLoot = (n = 8) => { for (let i = 0; i < n; i++) G.player.bag.push(rollItem(G.deepest || G.floor, false)); if (invOpen) renderInv(); if (shopOpen) renderShop(); return G.player.bag.length; };
+  window.__openInv = () => { if (!invOpen) toggleInv(); else renderInv(); };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
   window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
   window.__doStairs = tryStairs; window.__returnFromTown = returnFromTown;
@@ -788,6 +789,9 @@ function start(floor, carry, town) {
   window.__mythicItem = (key, n = 2) => { const u = MYTHIC.find((m) => m.key === key) || MYTHIC[0]; return { name: u.name, slot: u.slot, rarity: MYTHIC_RARITY, unique: u, mythic: true, affixes: rollAffixes(n, G.floor) }; };
   window.__giveMythic = (key) => { const it = window.__mythicItem(key, 1); G.player.equipped[it.slot] = it; recalc(); return [...G.player.uniques]; };
   window.__dropMythic = (dx = 40) => { const it = rollMythic(G.floor); dropItemAt(G.player.x + dx, G.player.y, it); return it ? it.name : null; };
+  window.__setItem = (key, slot, n = 2) => { const set = SETS[key], pc = set.pieces.find((p) => p.slot === slot) || set.pieces[0]; return { name: pc.name, slot: pc.slot, rarity: SET_RARITY, set: { key, name: set.name }, unique: null, affixes: rollAffixes(n, G.floor) }; };
+  window.__giveSet = (key, cnt = 2) => { const set = SETS[key]; for (let i = 0; i < cnt && i < set.pieces.length; i++) { const it = window.__setItem(key, set.pieces[i].slot, 2); G.player.equipped[it.slot] = it; } recalc(); return { count: G.player.sets[key] || 0, uniques: [...G.player.uniques], slots: G.player.slots, maxhp: G.player.maxhp, novaMul: +G.player.novaMul.toFixed(3), minionMul: +G.player.minionMul.toFixed(3) }; };
+  window.__dropSet = (key, dx = 40) => { const it = window.__setItem(key, SETS[key].pieces[0].slot, 3); dropItemAt(G.player.x + dx, G.player.y, it); return it.name; };
   window.__seedCorpses = (n = 8) => { const p = G.player; G.corpses = []; for (let i = 0; i < n; i++) G.corpses.push({ x: p.x - 120 + (i % 6) * 44, y: p.y - 40 + Math.floor(i / 6) * 40, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 }); return G.corpses.length; };
   window.__raiseOnce = () => { const b = G.minions.length; raiseSkeleton(); return G.minions.length - b; };
   window.__floatDmg = (m, n, c) => floatDmg(m, n, c);
@@ -1131,14 +1135,19 @@ function stepCorpseRun() {   // V-266 ② 시체에 닿으면(반경 60) 장비�
   for (let i = 0; i < 24; i++) burst(p.x, p.y - 20, "#6ab0ff", 150);
   floatNote("모든 것을 되찾았다", "#8fd0ff", 1.8, { sz: 16, panel: true });
 }
-function drawMyCorpse() {   // V-266 ② 내 시체 — 있는 시체 그림(drawCorpseBody)에 푸른 후광
+function drawMyCorpse() {   // V-266 ② 내 시체 — 있는 시체 그림(drawCorpseBody)에 푸른 표식
   const c = G.corpse, t = nowMs() / 1000, pl = 0.6 + 0.4 * Math.sin(t * 2.2);
-  const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 62);
-  g.addColorStop(0, `rgba(96,176,255,${(0.34 * pl).toFixed(3)})`); g.addColorStop(1, "rgba(96,176,255,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, 62, 0, 6.283); ctx.fill();
+  ctx.save();   // V-267 흠 ㉡ — 바닥 그림자 한 겹(시체·소품의 drawCorpse 와 같은 결)으로 「바닥에 놓인 것」이 되게
+  ctx.globalAlpha = 0.42; ctx.fillStyle = "#0a1420";
+  ctx.beginPath(); ctx.ellipse(c.x, c.y + 5, 34, 13, 0, 0, 6.283); ctx.fill(); ctx.restore();
+  ctx.save();   // 푸른빛은 바닥에 깔린 납작한 타원으로(둥근 원이 UI 아이콘처럼 뜨던 것을 눕힌다)
+  ctx.translate(c.x, c.y + 3); ctx.scale(1, 0.42); ctx.translate(-c.x, -(c.y + 3));
+  const g = ctx.createRadialGradient(c.x, c.y + 3, 0, c.x, c.y + 3, 52);
+  g.addColorStop(0, `rgba(96,176,255,${(0.30 * pl).toFixed(3)})`); g.addColorStop(1, "rgba(96,176,255,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y + 3, 52, 0, 6.283); ctx.fill(); ctx.restore();
   drawCorpseBody({ x: c.x, y: c.y, h: 96 }, true);
-  ctx.strokeStyle = `rgba(130,196,255,${(0.55 + 0.3 * pl).toFixed(3)})`; ctx.lineWidth = 2.2;
-  ctx.beginPath(); ctx.ellipse(c.x, c.y + 2, 30, 15, 0, 0, 6.283); ctx.stroke();
+  ctx.strokeStyle = `rgba(130,196,255,${(0.5 + 0.3 * pl).toFixed(3)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(c.x, c.y + 7, 29, 11, 0, 0, 6.283); ctx.stroke();
 }
 function nearestCorpse(x, y, rad) {
   let best = -1, bd = rad * rad;
@@ -1278,7 +1287,7 @@ function socketGem(it) {
   it.sockets[free] = gem;
   selectedGem = null;
   recalc();
-  floatNote(`${GEM_GRADES[gem.grade]} ${GEM_TYPES[gem.type].name}를 박았다`, GEM_TYPES[gem.type].col, 1.4);
+  floatNote(`${GEM_GRADES[gem.grade]} ${josa(GEM_TYPES[gem.type].name, "을", "를")} 박았다`, GEM_TYPES[gem.type].col, 1.4);
   if (invOpen) renderInv();
 }
 
@@ -2723,6 +2732,22 @@ function stepDrops(dt) {
   G.items = G.items.filter((it) => !it.got);
 }
 
+// ── V-267 — 세트 짝 보너스. 세트별 착용 점수 2점/3점에 얹는다(3점은 2점에 누적).
+//   3점 규칙은 옛 유니크 키(twinRaise·doubleNova·bloodCast)를 p.uniques 에 더해 검증된 경로로 편다.
+//   되돌림 손잡이 __SETGEAR=false → 통째로 건너뛴다(옛 판과 동일).
+function setBonuses(eq, p) {
+  const count = {};
+  if (globalThis.__SETGEAR === false) return count;
+  for (const it of eq) if (it && it.set) count[it.set.key] = (count[it.set.key] || 0) + 1;
+  if (count.reaper >= 2) p.slots += 2;
+  if (count.reaper >= 3) { p.minionMul *= 1.35; p.uniques.add("twinRaise"); }
+  if (count.plague >= 2) p.novaMul *= 1.25;
+  if (count.plague >= 3) { p.novaMul *= 1.30; p.uniques.add("doubleNova"); }
+  if (count.warden >= 2) p.maxhp = Math.round(p.maxhp * 1.15);
+  if (count.warden >= 3) { p.maxhp = Math.round(p.maxhp * 1.20); p.uniques.add("bloodCast"); }
+  return count;
+}
+
 // ★ V-181 — 착용에서 스탯으로 가는 한 문. equipped 일곱 슬롯을 sumAffixes 로 합쳐
 //   파생 배수를 다시 편다. 빌드 옵션(p.mult)·유니크·레벨 강화가 바뀔 때도 이 문을 지난다.
 function recalc() {
@@ -2766,6 +2791,7 @@ function recalc() {
     if (G.pact.hpMul) p.maxhp = Math.round(p.maxhp * G.pact.hpMul);
     if (G.pact.goldMul) p.goldMul *= G.pact.goldMul;
   }
+  p.sets = setBonuses(eq, p);   // V-267 세트 짝 보너스 — 이 문 끝에서 얹어 누수 0(V-239 배수와 같은 자리). 3점 규칙은 p.uniques 에 더해 옛 유니크 경로로 편다.
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
 }
@@ -2886,7 +2912,7 @@ function die() {
   recalc();
   const kept = (globalThis.__CORPSERUN !== false) ? "에 두고 왔다" : "을 잃었다";
   d.querySelector(".dstat").innerHTML = `B${G.floor}층까지 · 처치 ${G.kills}`
-    + `<br><span class="dlost">장비 ${lostGear.length}점 · 금 ${fmtNum(lostGold)} 을 B${G.floor}층${kept}</span>`
+    + `<br><span class="dlost">장비 ${lostGear.length}점 · 금 ${josa(fmtNum(lostGold), "을", "를")} B${G.floor}층${kept}</span>`
     + (lostCorpseMsg ? `<br><span class="dlost2">${lostCorpseMsg}</span>` : "");
   d.querySelector(".dhint").innerHTML = `<b>Space / R</b> — 부활한다 (마을)&nbsp;&nbsp;·&nbsp;&nbsp;<b>Shift + R</b> — 처음부터 (1층)`;
   d.style.display = "flex";
@@ -3072,6 +3098,16 @@ function fmtNum(n) {
   return neg + Math.round(n / 1e12) + "조";
 }
 window.__fmtNum = fmtNum;
+// V-267 흠 ㉢ — 숫자·낱말 끝 받침에 맞는 조사(「1.5천 을」→「1.5천을」). 숫자는 읽는 소리의 끝받침으로 가른다.
+const DIGIT_BATCHIM = { "0": 1, "1": 1, "3": 1, "6": 1, "7": 1, "8": 1, "2": 0, "4": 0, "5": 0, "9": 0 };
+function hasBatchim(str) {
+  const s = String(str), ch = s[s.length - 1];
+  if (ch >= "0" && ch <= "9") return DIGIT_BATCHIM[ch] === 1;
+  const code = ch.charCodeAt(0);
+  if (code >= 0xac00 && code <= 0xd7a3) return (code - 0xac00) % 28 !== 0;
+  return false;
+}
+function josa(str, withB, noB) { return String(str) + (hasBatchim(str) ? withB : noB); }
 // V-245 흠(a) — 분자·분모를 «같은 자»로 접는다(옛건 분자만 접혀 「5.2백만 / 500」처럼 단위가 어긋났다).
 function fmtPair(a, b) {
   a = Math.round(Number(a) || 0); b = Math.round(Number(b) || 0);
@@ -5116,9 +5152,14 @@ const el = (id) => document.getElementById(id);
 // 오른쪽에 두고, 화면 밖으로 나면 왼쪽으로 뒤집는다. HTML 은 물건이 바뀔 때만 다시 짠다.
 const SLOT_ORDER = ["weapon", "helm", "armor", "gloves", "boots", "ring", "amulet"];
 function esc(s) { return ("" + s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c])); }
+function equippedSet(key) {
+  const have = new Set();
+  for (const it of Object.values(G.player.equipped)) if (it && it.set && it.set.key === key) have.add(it.slot);
+  return have;
+}
 function tooltipHTML(it, cmp) {
   if (it.build) return `<div class="tipname">${esc(it.name)}</div><div class="tipmod">즉시 적용 — 집으면 켜진다</div>`;
-  const nameClass = it.mythic ? "mythic" : it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
+  const nameClass = it.mythic ? "mythic" : it.set ? "setname" : it.unique ? "unique" : it.rarity.key === "yellow" ? "rare" : "";
   const rows = [`<div class="tipname ${nameClass}">${it.mythic ? "◆ " : ""}${esc(it.name)}</div>`];
   rows.push(`<div class="tipsub">${it.mythic ? "유니크 · 규칙" : it.rarity.name} · ${SLOT_LABEL[it.slot] || ""}</div>`);
   rows.push(`<div class="tiprule"></div>`);
@@ -5138,6 +5179,17 @@ function tooltipHTML(it, cmp) {
     rows.push(`<div class="tipsock">${socketHTML(it)} 소켓 ${it.sockets.length}</div>`);
     for (const g of it.sockets) if (g)
       rows.push(`<div class="tipaffix">${GEM_TYPES[g.type].label} +${g.aff.value}${GEM_TYPES[g.type].pct ? "%" : ""} <span class="tipgemn">(${GEM_GRADES[g.grade]} ${GEM_TYPES[g.type].name})</span></div>`);
+  }
+  if (it.set && SETS[it.set.key]) {
+    const set = SETS[it.set.key], have = equippedSet(it.set.key), owned = have.size;
+    rows.push(`<div class="tiprule"></div>`);
+    rows.push(`<div class="tipsetname">${esc(set.name)} (${owned}/3)</div>`);
+    for (const pc of set.pieces) {
+      const on = have.has(pc.slot);
+      rows.push(`<div class="tipsetpc ${on ? "on" : "off"}">${on ? "◆" : "◇"} ${esc(pc.name)}</div>`);
+    }
+    rows.push(`<div class="tipsetb ${owned >= 2 ? "on" : "off"}">(2점) ${esc(set.b2)}</div>`);
+    rows.push(`<div class="tipsetb ${owned >= 3 ? "on" : "off"}">(3점) ${esc(set.b3)}</div>`);
   }
   if (it.unique) {
     rows.push(`<div class="tipmod ${it.mythic ? "tipmythic" : ""}">${esc(it.unique.note)}</div>`);
@@ -5855,9 +5907,12 @@ function renderMapStatic(rctx, sx, sy, ox, oy, big) {
   //   가 본 복도만 밝게(c.visited, 방과 같은 결). 미니맵에서도 읽히게 폭은 최소 1px.
   if (globalThis.__MAPPATH !== false && G.corridors) {
     for (const c of G.corridors) {
-      rctx.fillStyle = c.visited ? (dim ? "rgba(104,84,50,0.62)" : "rgba(84,68,42,0.44)")
-                                 : (dim ? "rgba(52,44,32,0.44)" : "rgba(38,32,24,0.24)");
-      rctx.fillRect(X(c.x), Y(c.y), Math.max(1, c.w * sx), Math.max(1, c.h * sy));
+      rctx.fillStyle = c.visited ? (dim ? "rgba(70,56,36,0.66)" : "rgba(52,42,26,0.5)")
+                                 : (dim ? "rgba(46,38,28,0.42)" : "rgba(34,28,20,0.22)");
+      const horiz = c.w >= c.h;   // V-267 흠 ㉠ — 지도에서만 복도를 가늘게 그려(굵으면 방과 «붙은 큰 방»으로 읽힌다) 방/길이 갈리게
+      let cx = c.x, cy = c.y, cw = c.w, ch = c.h;
+      if (horiz) { ch = c.h * 0.5; cy = c.y + (c.h - ch) / 2; } else { cw = c.w * 0.5; cx = c.x + (c.w - cw) / 2; }
+      rctx.fillRect(X(cx), Y(cy), Math.max(1, cw * sx), Math.max(1, ch * sy));
     }
   }
   rctx.strokeStyle = dim ? "#6a563a" : "#3a2a1a"; rctx.lineWidth = dim ? 1.4 : 1;
