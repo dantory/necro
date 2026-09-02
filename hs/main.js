@@ -712,6 +712,7 @@ function fresh(floor, carry, town) {
     ascension: (carry && carry.ascension) || 0,
     ascBuffs: (carry && carry.ascBuffs) || { dmg: 0, minion: 0, gold: 0 },
     ascendSpot: f.ascendSpot || null,
+    corpse: (carry && carry.corpse) || null,   // V-266 ② 시체는 하나뿐 — 새 판(carry 없음)이면 없다
   };
 }
 
@@ -741,6 +742,7 @@ function start(floor, carry, town) {
   const p = G.player;
   unstick(p, p.r);
   for (const m of G.minions) unstick(m, m.r || 15);
+  snapCorpse();   // V-266 ② 옛 층 좌표는 새 배치에서 벽일 수 있다 — 걸을 수 있는 자리로 물린다
   cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";
@@ -803,6 +805,10 @@ function start(floor, carry, town) {
   window.__journalCheck = () => { journalCheck(); return window.__journalState(); };
   window.__journalSetStat = (k, v) => { JOURNAL.stats[k] = v; };
   window.__updateHUD = () => updateHUD();
+  window.__die = () => die();   // V-266 컷·회귀용 실제 문 — 죽음/부활/시체를 자가 아니라 진짜 코드로 만든다
+  window.__reviveTown = () => reviveToTown();
+  window.__returnFloor = () => returnFromTown();
+  window.__corpseInfo = () => G.corpse ? { floor: G.corpse.floor, gear: G.corpse.gear.length, gold: G.corpse.gold, x: Math.round(G.corpse.x), y: Math.round(G.corpse.y) } : null;
   window.__raiseGhoul = () => { const b = G.minions.filter((m) => m.ghoul).length; raiseGhoul(); return G.minions.filter((m) => m.ghoul).length - b; };
   window.__killMinion = (i = 0) => { const s = G.minions[i]; if (s) killMinion(s); return G.minions.length; };
   window.__killFoe = () => { for (const pk of G.packs) for (const m of pk.enemies) if (m.alive) { killEnemy(m); return true; } return false; };
@@ -1092,9 +1098,48 @@ function handleSkills() {
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
   if (keys.has("l") && !p._l) { p._l = true; if (journalOn()) toggleJournal(); } if (!keys.has("l")) p._l = false;
-  if (G.dead && keys.has("r")) start(1, null);
+  if (G.dead) {   // V-266 ① 죽음의 두 갈래(옛 판은 R 하나로 1층부터)
+    if (globalThis.__DEATHCOST === false) { if (keys.has("r")) start(1, null); }
+    else if (keys.has("shift") && keys.has("r")) { G.corpse = null; start(1, null); }
+    else if (keys.has(" ") || keys.has("r")) reviveToTown();
+  }
 }
 
+function snapCorpse() {   // V-266 ② 새 배치에서 벽이면 저장 좌표 둘레→계단 곁으로 물린다(사람 발치엔 두지 않아 부활 즉시 회수되지 않게)
+  const c = G.corpse;
+  if (!c || c.floor !== G.floor || G.town) return;
+  if (walkable(c.x, c.y, 20)) return;
+  for (let rad = 40; rad <= 420; rad += 40)
+    for (let a = 0; a < 6.283; a += 0.5) {
+      const x = c.x + Math.cos(a) * rad, y = c.y + Math.sin(a) * rad;
+      if (walkable(x, y, 20)) { c.x = x; c.y = y; return; }
+    }
+  if (G.stairs) for (const [dx, dy] of [[80, 0], [-80, 0], [0, 80], [0, -80]])
+    if (walkable(G.stairs.x + dx, G.stairs.y + dy, 20)) { c.x = G.stairs.x + dx; c.y = G.stairs.y + dy; return; }
+}
+function stepCorpseRun() {   // V-266 ② 시체에 닿으면(반경 60) 장비·금 전액 복구
+  if (globalThis.__CORPSERUN === false || !G.corpse || G.dead || G.town) return;
+  const c = G.corpse;
+  if (c.floor !== G.floor) return;
+  const p = G.player;
+  if (Math.hypot(p.x - c.x, p.y - c.y) > 60) return;
+  for (const g of c.gear) p.equipped[g.slot] = g.it;
+  G.gold = (G.gold || 0) + (c.gold || 0);
+  G.corpse = null;
+  bigDirty = true;   // V-266 ② 전체지도가 열린 채 되찾으면 ✖ 표식이 캐시에 남지 않게 다시 굽는다
+  recalc();
+  for (let i = 0; i < 24; i++) burst(p.x, p.y - 20, "#6ab0ff", 150);
+  floatNote("모든 것을 되찾았다", "#8fd0ff", 1.8, { sz: 16, panel: true });
+}
+function drawMyCorpse() {   // V-266 ② 내 시체 — 있는 시체 그림(drawCorpseBody)에 푸른 후광
+  const c = G.corpse, t = nowMs() / 1000, pl = 0.6 + 0.4 * Math.sin(t * 2.2);
+  const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, 62);
+  g.addColorStop(0, `rgba(96,176,255,${(0.34 * pl).toFixed(3)})`); g.addColorStop(1, "rgba(96,176,255,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(c.x, c.y, 62, 0, 6.283); ctx.fill();
+  drawCorpseBody({ x: c.x, y: c.y, h: 96 }, true);
+  ctx.strokeStyle = `rgba(130,196,255,${(0.55 + 0.3 * pl).toFixed(3)})`; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.ellipse(c.x, c.y + 2, 30, 15, 0, 0, 6.283); ctx.stroke();
+}
 function nearestCorpse(x, y, rad) {
   let best = -1, bd = rad * rad;
   for (let i = 0; i < G.corpses.length; i++) {
@@ -2821,8 +2866,38 @@ function die() {
   if (globalThis.__MEASURE_REVIVE) { G.player.hp = G.player.maxhp; return; }
   G.dead = true;
   const d = document.getElementById("dead");
-  d.querySelector(".dstat").textContent = `B${G.floor}층까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
+  if (globalThis.__DEATHCOST === false) {   // V-266 되돌림 — 옛 판(다 버리고 R 한 번에 1층부터)
+    d.querySelector(".dstat").textContent = `B${G.floor}층까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
+    d.querySelector(".dhint").textContent = "R — 다시";
+    d.style.display = "flex";
+    return;
+  }
+  const p = G.player;
+  const lostGear = [];   // V-266 ① 낀 장비 전부를 벗어 시체에 담는다(가방 p.bag 은 안 건드림)
+  for (const s of SLOT_ORDER) if (p.equipped[s]) lostGear.push({ slot: s, it: p.equipped[s] });
+  const lostGold = Math.floor((G.gold || 0) * 0.25);
+  let lostCorpseMsg = "";
+  if (globalThis.__CORPSERUN !== false) {   // V-266 ② 시체는 하나뿐 — 앞 시체와 그 안의 것은 사라진다
+    if (G.corpse) lostCorpseMsg = `B${G.corpse.floor}층의 시체를 잃었다`;
+    G.corpse = { floor: G.floor, x: p.x, y: p.y, gear: lostGear, gold: lostGold };
+  }
+  p.equipped = {};
+  G.gold = Math.max(0, (G.gold || 0) - lostGold);
+  recalc();
+  const kept = (globalThis.__CORPSERUN !== false) ? "에 두고 왔다" : "을 잃었다";
+  d.querySelector(".dstat").innerHTML = `B${G.floor}층까지 · 처치 ${G.kills}`
+    + `<br><span class="dlost">장비 ${lostGear.length}점 · 금 ${fmtNum(lostGold)} 을 B${G.floor}층${kept}</span>`
+    + (lostCorpseMsg ? `<br><span class="dlost2">${lostCorpseMsg}</span>` : "");
+  d.querySelector(".dhint").innerHTML = `<b>Space / R</b> — 부활한다 (마을)&nbsp;&nbsp;·&nbsp;&nbsp;<b>Shift + R</b> — 처음부터 (1층)`;
   d.style.display = "flex";
+}
+function reviveToTown() {   // V-266 ① 죽어도 판은 안 끝난다 — 마을에서 hp/마나 가득·가장 깊었던 층 계단은 그대로
+  const carry = carryState();
+  carry.minions = [];   // 소환수는 죽음으로 다 사라진다
+  start(G.deepest || 1, carry, true);
+  const p = G.player;
+  p.hp = p.maxhp; p.mana = p.maxmana;
+  updateHUD();
 }
 
 function carryState() {
@@ -2831,6 +2906,7 @@ function carryState() {
     kills: G.kills, picks: G.picks, gold: G.gold, xp: G.xp,
     deepest: G.deepest, returnFloor: G.returnFloor,
     ascension: G.ascension, ascBuffs: G.ascBuffs,
+    corpse: G.corpse,   // V-266 ② 내 시체(장비·금)는 층·마을을 넘어 그 층에 남는다
   };
 }
 function tryStairs() {
@@ -3117,6 +3193,7 @@ function drawWorld() {
     }
     drawCorpse(c);
   }
+  if (globalThis.__CORPSERUN !== false && G.corpse && G.corpse.floor === G.floor && !G.town) drawMyCorpse();
   PROF.seg("corpses");
 
   drawLight();
@@ -5670,6 +5747,8 @@ function updateHUD() {
     el("region4").textContent = `지역 등급 ${G.floor * 40 + 42}`;
     el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
   }
+  const ch = el("corpsehud");   // V-266 ② 시체가 어느 층에 있는지 늘 보이게
+  if (ch) { if (globalThis.__CORPSERUN !== false && G.corpse) { ch.textContent = `✖ 시체: B${G.corpse.floor}층`; ch.style.display = "block"; } else ch.style.display = "none"; }
   const used = slotsUsed();
   const cap = slotCap();
   const slotsEl = el("slots");
@@ -5759,6 +5838,12 @@ function mapIcon(rctx, kind, cx, cy, s) {
       rctx.beginPath(); rctx.rect(cx - s * 0.8, cy - s * 0.8, s * 1.6, s * 1.6); done("#48c8b4", "#062a24"); break;
     case "chest":                        // 작은 점 — 사건방보다 낮게
       rctx.fillStyle = "#e8b840"; rctx.beginPath(); rctx.arc(cx, cy, Math.max(1.3, s * 0.46), 0, 6.283); rctx.fill(); break;
+    case "mycorpse":                     // ✖ 내 시체 — 푸른빛
+      rctx.strokeStyle = "#5aa8ff"; rctx.lineWidth = Math.max(1.6, s * 0.42); rctx.lineCap = "round";
+      rctx.beginPath();
+      rctx.moveTo(cx - s * 0.8, cy - s * 0.8); rctx.lineTo(cx + s * 0.8, cy + s * 0.8);
+      rctx.moveTo(cx + s * 0.8, cy - s * 0.8); rctx.lineTo(cx - s * 0.8, cy + s * 0.8);
+      rctx.stroke(); break;
   }
 }
 // 방·표식(정적) — 미니맵·전체지도 공통. 배율(sx,sy)·자리(ox,oy)만 다르다.
@@ -5770,8 +5855,8 @@ function renderMapStatic(rctx, sx, sy, ox, oy, big) {
   //   가 본 복도만 밝게(c.visited, 방과 같은 결). 미니맵에서도 읽히게 폭은 최소 1px.
   if (globalThis.__MAPPATH !== false && G.corridors) {
     for (const c of G.corridors) {
-      rctx.fillStyle = c.visited ? (dim ? "rgba(150,128,84,0.5)" : "rgba(120,100,64,0.4)")
-                                 : (dim ? "rgba(70,60,46,0.4)" : "rgba(52,44,34,0.22)");
+      rctx.fillStyle = c.visited ? (dim ? "rgba(104,84,50,0.62)" : "rgba(84,68,42,0.44)")
+                                 : (dim ? "rgba(52,44,32,0.44)" : "rgba(38,32,24,0.24)");
       rctx.fillRect(X(c.x), Y(c.y), Math.max(1, c.w * sx), Math.max(1, c.h * sy));
     }
   }
@@ -5812,6 +5897,10 @@ function renderMapStatic(rctx, sx, sy, ox, oy, big) {
     if (icons) mapIcon(rctx, "stairs", X(G.stairs.x), Y(G.stairs.y), isz);
     else { rctx.fillStyle = "#7fe6a0"; rctx.beginPath(); rctx.arc(X(G.stairs.x), Y(G.stairs.y), big ? 5 : 3, 0, 6.283); rctx.fill(); }
   }
+  if (globalThis.__CORPSERUN !== false && G.corpse && G.corpse.floor === G.floor && !G.town) {   // V-266 ② 내 시체 표식
+    if (icons) mapIcon(rctx, "mycorpse", X(G.corpse.x), Y(G.corpse.y), isz);
+    else { rctx.strokeStyle = "#5aa8ff"; rctx.lineWidth = 2; const d = big ? 5 : 3; rctx.beginPath(); rctx.moveTo(X(G.corpse.x) - d, Y(G.corpse.y) - d); rctx.lineTo(X(G.corpse.x) + d, Y(G.corpse.y) + d); rctx.moveTo(X(G.corpse.x) + d, Y(G.corpse.y) - d); rctx.lineTo(X(G.corpse.x) - d, Y(G.corpse.y) + d); rctx.stroke(); }
+  }
 }
 // 사람·적(매 프레임 갱신) — 정적 위에 얹는다(전체지도는 캐시 위에).
 function drawMapLive(rctx, sx, sy, ox, oy, big) {
@@ -5836,6 +5925,7 @@ function bigMapGeom() {
 }
 function drawBigLegend(rctx, W, H) {
   const items = [["stairs", "계단"], ["treasure", "보물방"], ["lair", "소굴"], ["curseAltar", "저주 제단"], ["boneAltar", "뼈 제단"], ["merchant", "상인"], ["chest", "상자"]];
+  if (globalThis.__CORPSERUN !== false && G.corpse) items.push(["mycorpse", "내 시체"]);   // V-266 ② 시체가 있을 때만 범례에
   const y = H - 26, s = 7; let x = 44;
   rctx.font = "14px 'Times New Roman',serif"; rctx.textAlign = "left"; rctx.textBaseline = "middle";
   for (const [kind, label] of items) {
@@ -5895,7 +5985,7 @@ function loop(now) {
   if (!G.dead) {
     stepPlayer(dt); handleSkills();
     if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개
-    stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
+    stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt); stepCorpseRun();
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (!G.town) { stepLair(); clampToLair(); }
