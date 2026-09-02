@@ -747,7 +747,7 @@ function start(floor, carry, town) {
     for (let i = 0; i < ngo; i++) raiseGolem();
     return armyCounts();
   };
-  window.__setStance = (n, hx, hy) => { armyStance = ((n % 3) + 3) % 3; if (armyStance === 2) { holdX = hx != null ? hx : G.player.x; holdY = hy != null ? hy : G.player.y; } return { stance: armyStance, holdX, holdY }; };
+  window.__setStance = (n, hx, hy) => { armyStance = ((n % 3) + 3) % 3; if (armyStance === 2) setHold(hx != null ? hx : G.player.x, hy != null ? hy : G.player.y); return { stance: armyStance, holdX, holdY }; };
   window.__aimAt = (wx, wy) => { mouse.x = (wx - cam.x) * Z; mouse.y = (wy - cam.y) * Z; return { wx, wy }; };
   window.__foePack = (n, cx, cy, extra) => {
     const en = [];
@@ -1789,6 +1789,7 @@ function fireBolt(b, p) {
 }
 function stepEnemies(dt) {
   const p = G.player;
+  let meleeIdx = 0;   // V-255 ① 사람을 에워쌀 근접의 «슬롯» 번호(깨어난 무리 통틀어 이어 매긴다)
   for (const pk of G.packs) {
     if (!pk.awake) continue;
     let live = 0;
@@ -1821,12 +1822,20 @@ function stepEnemies(dt) {
       if (taunt) { tx = taunt.x; ty = taunt.y; td = (tx - m.x) ** 2 + (ty - m.y) ** 2; }
       const dist = Math.sqrt(td) || 1;
       m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+      // V-255 ① 진형 — 사람을 노릴 때만 제 에워싸는 슬롯으로 다가간다(한 점에 안 포개짐). 소환수·도발 대상엔 옛대로 직진.
+      //   바라보는 방향(dx/dy)·근접 공격 판정은 진짜 표적 그대로라 사거리·명중은 안 바뀐다.
+      let gx = tx, gy = ty;
+      if (globalThis.__FORMATION !== false && tx === p.x && ty === p.y && !taunt) {
+        const sp = foeSlot(p.x, p.y, meleeIdx++);
+        gx = sp.x; gy = sp.y;
+      }
       m.atk -= dt; m.hit = Math.max(0, m.hit - dt);
       const reach = globalThis.__ENEMY_REACH ? m.r + 30 + REACH_ADD : m.r + 30;
       const dmg = globalThis.__ENEMY_REACH ? m.dmg * REACH_DMG_MUL : m.dmg;
       if (dist > reach) {
-        stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r);
-        m.state = "walk"; m.anim += dt * 9;
+        const gdx = gx - m.x, gdy = gy - m.y, gd = Math.hypot(gdx, gdy);
+        if (gd > 2) { const stp = Math.min(gd, m.spd * dt); stepTo(m, m.x + gdx / gd * stp, m.y + gdy / gd * stp, m.r); m.state = "walk"; m.anim += dt * 9; }
+        else { m.state = "idle"; m.anim += dt * 5; }
       } else {
         m.state = "attack"; m.anim += dt * 9;
         if (m.atk <= 0) {
@@ -1907,6 +1916,12 @@ function stepBomber(m, p, dt, pk) {
     for (const s of G.minions) { const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2; if (d < td) { td = d; tx = s.x; ty = s.y; } }
     const dist = Math.sqrt(td) || 1;
     m.dx = (tx - m.x) / dist; m.dy = (ty - m.y) / dist;
+    // V-255 ① 자폭병은 정면 줄서기 대신 «옆으로 돌아» 붙는다 — 멀리선 접선(수직) 성분을 섞어 곁을 파고든다(붙는 순간 터짐은 그대로).
+    if (globalThis.__FORMATION !== false && dist > m.r + BOMB_REACH + 70) {
+      const side = (m.id & 1) ? 1 : -1;
+      m.dx = m.dx * 0.72 - m.dy * side * 0.72; m.dy = m.dy * 0.72 + (tx - m.x) / dist * side * 0.72;
+      const l = Math.hypot(m.dx, m.dy) || 1; m.dx /= l; m.dy /= l;
+    }
     m.anim += dt * 9;
     if (dist <= m.r + BOMB_REACH) { m.fuse = BOMB_FUSE; m.state = "attack"; }
     else { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; }
@@ -2170,6 +2185,18 @@ function separateEnemies() {
     }
   if (spread) for (let i = 0; i < n; i++) { const m = arr[i]; if (!walkable(m.x, m.y, m.r)) { m.x = ox[i]; m.y = oy[i]; } }
 }
+// V-255 ① 진형 — 사람을 노리는 근접이 한 점에 포개지지 않게 «에워싸는 슬롯»으로 흩는다. 안쪽 열부터 채워
+//   앞줄이 근접 사거리에 서고, 넘치면 뒤로 겹을 쌓는다(besiege). 세로는 0.68 눌러 위에서 내려다본 결.
+const FOE_RING0 = 40;
+function foeRingRad(t) { return FOE_RING0 + t * 34; }
+function foeRingCap(t) { return Math.max(5, Math.floor(2 * Math.PI * foeRingRad(t) / 40)); }
+function foeSlot(cx, cy, i) {
+  let t = 0, base = 0, cap = foeRingCap(0);
+  while (i >= base + cap) { base += cap; t++; cap = foeRingCap(t); }
+  const k = i - base, rad = foeRingRad(t);
+  const ang = (k + (t % 2) * 0.5) / cap * Math.PI * 2;
+  return { x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad * 0.68 };
+}
 
 function markRoomCleared(ri) {
   const any = G.packs.some((pk) => pk.room === ri && !pk.done);
@@ -2188,9 +2215,20 @@ let armyStance = 0, holdX = 0, holdY = 0;
 const STANCE_NAME = ["따라와", "쳐라", "지켜"];
 const STANCE_COL = ["#7fd0ff", "#ff8a6a", "#7fe0a0"];
 const ORDER_FOLLOW_R = 240, ORDER_HOLD_R = 240, ORDER_ATTACK_R = 600;
+// V-255 ③ — 「지켜」 깃발·설 자리를 걸을 수 있는 칸으로 물린다(벽·소품 위면 가장 가까운 통행 칸으로). 옛 컷은 깃발이 방 밖 어둠에 찍혔다.
+function clampWalkPoint(x, y, r) {
+  if (walkable(x, y, r)) return { x, y };
+  for (let step = 12; step <= 400; step += 12)
+    for (let a = 0; a < 12; a++) {
+      const ang = a / 12 * 6.2832, nx = x + Math.cos(ang) * step, ny = y + Math.sin(ang) * step;
+      if (walkable(nx, ny, r)) return { x: nx, y: ny };
+    }
+  return { x, y };
+}
+function setHold(x, y) { const c = clampWalkPoint(x, y, 16); holdX = c.x; holdY = c.y; }
 function cycleStance() {
   armyStance = (armyStance + 1) % 3;
-  if (armyStance === 2) { holdX = G.player.x; holdY = G.player.y; }
+  if (armyStance === 2) setHold(G.player.x, G.player.y);
   floatNote("태세 ▸ " + STANCE_NAME[armyStance], STANCE_COL[armyStance], 1.1);
 }
 function drawHoldMarker() {
@@ -3659,6 +3697,14 @@ function drawLight() {
     if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
     warmGlow(pr.x, pr.y - pr.h * 0.5, 150, z.warm * 2);
   }
+  // V-255 ④ — 어두운 바닥에 삼켜져 «붉은 고리»만 남던 시체를, 빛 판(lighter) 위에서 옅은 상아빛으로 들어 올린다.
+  //   「시체가 자원」인 게임에서 주울 것이 어디 있는지 읽히게(안 쓴 시체만). __CORPSEGLOW=false 면 옛대로 안 든다.
+  if (globalThis.__CORPSEGLOW !== false) for (const c of G.corpses) {
+    if (c.used || !onScreen(c.x, c.y, 60)) continue;
+    const r = 40, g = ctx.createRadialGradient(c.x, c.y - 4, 0, c.x, c.y - 4, r);
+    g.addColorStop(0, "rgba(216,199,154,0.30)"); g.addColorStop(1, "rgba(216,199,154,0)");
+    ctx.fillStyle = g; ctx.fillRect(c.x - r, c.y - 4 - r, r * 2, r * 2);
+  }
   ctx.globalCompositeOperation = "source-over";
 }
 function warmGlow(x, y, r, a) {
@@ -3811,18 +3857,29 @@ let silRects = [];
 let eliteLabels = [];   // V-211 ㉢: 이 프레임에 그린 정예 이름표의 «화면» 사각 + 그렸는지(폭발과 겹치면 접는다)
 let pendingEliteLabels = [];   // V-246 ③d: 배우를 다 그린 뒤 한 판으로 그리는 정예/주인 이름표(늘 유닛 위)
 let eliteNameRects = [];       // V-246 ③d: 실제로 그린 이름표 «화면» 사각 — 계단 안내가 이걸 피한다
+// V-255 ② — 화면 아래 HUD 띠(#hint·#bl)에 «드는» 세계-공간 이름표를 그 위로 물린다. 옛 판은 위쪽만 물려서
+//   화면 밑에 선 적의 이름표(정예 붉은 이름·부하 이름표)가 힌트 줄과 포개져 둘 다 안 읽혔다(V-254 컷 아래). __LABELBAND=false 면 옛대로.
+function liftLabel(band, wx, wy, hw) {
+  if (!band) return wy;
+  const sx = (wx - cam.x) * Z, sy = (wy - cam.y) * Z;
+  if (sx + hw > band.x0 && sx - hw < band.x1 && sy > band.y0 - 4) return (band.y0 - 4) / Z + cam.y;
+  return wy;
+}
 function drawEliteNames() {
   eliteNameRects = [];
+  const band = globalThis.__LABELBAND === false ? null : hudBandRect();
   for (const q of pendingEliteLabels) {
     ctx.font = "bold " + q.bold + "px 'Times New Roman',serif"; ctx.textAlign = "center";
-    ctx.save(); ctx.translate(q.wx, q.wy); ctx.scale(1 / Z, 1 / Z);
+    const hw = ctx.measureText(q.nm).width / 2 + 2;
+    const wy = liftLabel(band, q.wx, q.wy, hw);
+    ctx.save(); ctx.translate(q.wx, wy); ctx.scale(1 / Z, 1 / Z);
     // V-247 (e) — 외곽선 없던 이름 글이 벽 무늬 위에서 안 읽혔다. 어두운 밑판 + 두꺼운 외곽선으로 어디서나 읽히게.
     const tw = ctx.measureText(q.nm).width;
     ctx.fillStyle = "rgba(8,6,4,0.5)"; ctx.fillRect(-tw / 2 - 4, -q.bold + 1, tw + 8, q.bold + 4);
     ctx.lineWidth = 3; ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineJoin = "round"; ctx.strokeText(q.nm, 0, 0);
     ctx.fillStyle = q.col; ctx.fillText(q.nm, 0, 0);
     ctx.restore();
-    const hw = ctx.measureText(q.nm).width / 2 + 2, sx = (q.wx - cam.x) * Z, sy = (q.wy - cam.y) * Z;
+    const sx = (q.wx - cam.x) * Z, sy = (wy - cam.y) * Z;
     eliteNameRects.push({ x0: sx - hw, y0: sy - q.bold, x1: sx + hw, y1: sy });
   }
 }
@@ -3907,6 +3964,7 @@ function drawFoldedKindLabels() {
   if (!items.length) return;
   const used = new Array(items.length).fill(false);
   const topY = cam.y + 18 / Z;
+  const band = globalThis.__LABELBAND === false ? null : hudBandRect();   // V-255 ② 아래 HUD 띠와 안 겹치게
   const placed = [];   // V-244 ②d — 이번 프레임에 이미 앉힌 부하 이름표 화면사각(다른 이름끼리도 안 뭉치게 아래로 물린다).
   for (let i = 0; i < items.length; i++) {
     if (used[i]) continue;
@@ -3935,6 +3993,8 @@ function drawFoldedKindLabels() {
       const ky = (wy - cam.y) * Z;
       placed.push({ x0: kx - khw, y0: ky - 11, x1: kx + khw, y1: ky });
     }
+    ctx.font = "bold 10px 'Times New Roman',serif";
+    wy = liftLabel(band, sumx / n, wy, ctx.measureText(label).width / 2 + 3);
     drawKindLabel(sumx / n, wy, label, a.col);
   }
 }
