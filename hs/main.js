@@ -81,6 +81,9 @@ if (globalThis.__FEED === undefined) globalThis.__FEED = true;
 //   ㉦ V-233 — 뼈 골렘(G): 시체 5구를 모아 큰 소환수 하나. 기본 켬. 끄면 옛 판과 byte-동일:
 //      globalThis.__GOLEM=false (G 키가 아무것도 안 함).
 if (globalThis.__GOLEM === undefined) globalThis.__GOLEM = true;
+//   ㉦b V-244 — 군세 종류 하나의 «윗손잡이»(PLAN ③). 끄면 구울(K)·골렘(G) 소환이 다 막히고, 서 있던
+//      골렘은 도발/막음/돌빛 색조를 잃어 «센 해골»로 되돌아간다(= V-240 이전). 소환은 genFloor 밖이라 지문 불변.
+if (globalThis.__MINIONKIND === undefined) globalThis.__MINIONKIND = true;
 //   ㉧ V-237 — 잡몹 갈래(사수·돌진꾼·자폭병·시체 도둑)를 이름표·색조로 «눈에» 가르고, 새 갈래 시체 도둑을 켠다.
 //      기본 켬. 끄면 옛 판과 byte-동일: 도둑이 안 스폰되고(map.js && 단락), 이름표·도둑 색조·도둑 처치 보상이 다 꺼진다.
 //      (사수·돌진·자폭 자체는 옛 손잡이 __RANGED_MOB/__CHARGER_MOB/__BOMBER_MOB 로 여전히 돈다.)
@@ -130,7 +133,7 @@ const BOSS_TINT = [                             // 새 에셋 없이 색조로 �
   "brightness(1.12) saturate(2.4) hue-rotate(268deg)",
 ];
 const BOSS_LABEL_COL = ["#e8ecf0", "#8ce06a", "#ff7a5a", "#c89bff"];
-const CAGE_R = 150, CAGE_SEG = 11, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수·유지 시간(초)
+const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
 const POOL_LIFE = 4.5;                                 // 역병 — 독 장판 지속(초)
 const CURSE_DUR = 4.0;                                 // 사제 — 저주(내 피해 반) 지속(초)
 const SKEL_BASE = "minion/skel";
@@ -144,7 +147,7 @@ const SKEL_TIERS = [
   { key: "giant",  scale: 1.55, slot: 3, hpMul: 3.00, dmgMul: 2.15, atkMul: 1.22, spdMul: 0.84, cleave: 60, ring: 4.0, ringCol: "#5fa0e6", shake: 4, label: "거대 해골", filt: "brightness(0.9) saturate(1.4) sepia(0.3) hue-rotate(-10deg)" },
   { key: "titan",  scale: 2.20, slot: 6, hpMul: 6.20, dmgMul: 4.30, atkMul: 1.45, spdMul: 0.74, cleave: 96, ring: 5.5, ringCol: "#8fd0ff", shake: 8, label: "뼈 거인",   filt: "brightness(0.82) saturate(1.8) sepia(0.5) hue-rotate(-18deg)" },
 ];
-const GOLEM = { need: 5, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6, spdMul: 0.6, atkMul: 1.5, cleave: 76, ring: 5.0, ringCol: "#8fd0ff", shake: 7, label: "뼈 골렘", filt: "brightness(0.8) saturate(1.6) sepia(0.5) hue-rotate(-16deg)" };
+const GOLEM = { need: 3, cost: 40, scale: 1.9, slot: 2, hpMul: 4.0, dmgMul: 2.6, spdMul: 0.6, atkMul: 1.5, cleave: 76, ring: 5.0, ringCol: "#8fd0ff", shake: 7, label: "뼈 골렘", filt: "brightness(0.8) saturate(1.6) sepia(0.5) hue-rotate(-16deg)" };
 // ── V-240 군세 갈래 — 「해골 하나」를 셋으로 벌린다. 해골=고르게 · 구울=싸고 빠르고 물러 터지고 피를 빤다 · 골렘=느리고 두껍고 «도발»로 몸빵. ──
 // ★ 값은 재서 정했다(커밋글에 근거): 구울은 «떼로 붙는 소모품». 시체 2구·마나 25(해골 0 보다 조금 비싸고 골렘 40 보다 쌈)·자리 1칸.
 //   hp 0.45배(물러 터짐)·spd 1.5배(빨리 붙음)·dmg 0.55배지만 atkCd 0.30s(0.6×0.5·짧은 연타)라 초당 피해는 해골의 ~1.0배 근처.
@@ -280,7 +283,7 @@ function computeOffline(elapsedMs, deepest) {
   const rawMin = Math.floor((elapsedMs || 0) / 60000);
   const mins = Math.max(0, Math.min(OFF_CAP_MIN, rawMin));   // 음수→0 · 상한 480
   const f = mins * Math.max(1, deepest | 0) * OFF_EFF;
-  return { mins, capped: rawMin > OFF_CAP_MIN, neg: rawMin < 0,
+  return { mins, elapsedMin: Math.max(0, rawMin), capped: rawMin > OFF_CAP_MIN, neg: rawMin < 0,
     gold: Math.floor(f * OFF_GOLD_PM), corpses: Math.floor(f * OFF_CORPSE_PM), xp: Math.floor(f * OFF_XP_PM) };
 }
 function applyOffline(r) {
@@ -291,10 +294,11 @@ function applyOffline(r) {
 }
 function showOfflineModal(r, deepest) {
   const root = el("offline"); if (!root) return;
-  const hm = Math.floor(r.mins / 60), mm = r.mins % 60;
-  const tstr = hm > 0 ? `${hm}시간 ${mm}분` : `${mm}분`;
+  const em = (r.elapsedMin != null ? r.elapsedMin : r.mins);   // V-244 ③ — 실제로 흐른 시간(상한에 안 깎인 값)을 적는다.
+  const eh = Math.floor(em / 60), emm = em % 60;
+  const tstr = eh > 0 ? `${eh}시간 ${emm}분` : `${emm}분`;
   let h = `<div class="asctitle">돌아왔다</div>`;
-  h += `<div class="ascsub">그동안 <b>${tstr}</b> 이 흘렀다${r.capped ? ` <span class="offcap">· 상한 8시간</span>` : ``}.</div>`;
+  h += `<div class="ascsub">그동안 <b>${tstr}</b> 이 흘렀다${r.capped ? ` <span class="offcap">· 상한 8시간까지만 쌓임</span>` : ``}.</div>`;
   h += `<div class="ascsub2">가장 깊었던 <b>B${Math.max(1, deepest | 0)}층</b> 기준 · 효율 ${(OFF_EFF * 100) | 0}%</div>`;
   h += `<div class="offrows">` +
     `<div class="offrow"><span class="offk">금</span><span class="offv">+${r.gold}</span></div>` +
@@ -889,8 +893,8 @@ function handleSkills() {
   if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
-  if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
-  if (keys.has("k") && !p._k) { p._k = true; if (globalThis.__GHOUL !== false) raiseGhoul(); } if (!keys.has("k")) p._k = false;
+  if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false && globalThis.__MINIONKIND !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
+  if (keys.has("k") && !p._k) { p._k = true; if (globalThis.__GHOUL !== false && globalThis.__MINIONKIND !== false) raiseGhoul(); } if (!keys.has("k")) p._k = false;
   if (globalThis.__CORPSEUSE !== false) {   // V-242 ② M 화장(시체→마나) · U 제물(시체→주인 약화)
     if (keys.has("m") && !p._m) { p._m = true; corpseBurn(); } if (!keys.has("m")) p._m = false;
     if (keys.has("u") && !p._u) { p._u = true; corpseHex(); } if (!keys.has("u")) p._u = false;
@@ -1300,7 +1304,7 @@ function golemTaunt(s) {
 function tauntTargetFor(m) {
   let best = null, bd = GOLEM_TAUNT_R * GOLEM_TAUNT_R;
   for (const s of G.minions) {
-    if (!s.golem || !(s.tauntActive > 0) || globalThis.__GOLEMKIND === false) continue;
+    if (!s.golem || !(s.tauntActive > 0) || globalThis.__GOLEMKIND === false || globalThis.__MINIONKIND === false) continue;
     const d = (s.x - m.x) ** 2 + (s.y - m.y) ** 2;
     if (d < bd) { bd = d; best = s; }
   }
@@ -1863,7 +1867,7 @@ function stepMinions(dt) {
     const s = G.minions[i];
     unstick(s, s.r);
     if (s.drainT > 0) s.drainT -= dt;
-    if (s.golem && globalThis.__GOLEMKIND !== false) {
+    if (s.golem && globalThis.__GOLEMKIND !== false && globalThis.__MINIONKIND !== false) {
       s.tauntActive = Math.max(0, (s.tauntActive || 0) - dt);
       s.tauntCd = (s.tauntCd || 0) - dt;
       if (s.tauntCd <= 0) { s.tauntCd = GOLEM_TAUNT_CD; golemTaunt(s); }
@@ -2639,9 +2643,17 @@ function drawCorpse(c) {   // V-243 ②d — 시체를 «알아볼 상아빛 유
     ctx.beginPath(); ctx.ellipse(c.x, c.y + 2, c.h * 0.30, c.h * 0.14, 0, 0, 6.283); ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  const bfilt = usable ? "grayscale(1) brightness(1.15) sepia(0.5) saturate(1.4) contrast(1.04)" : "grayscale(1) brightness(0.5)";
+  const bfilt = usable ? "grayscale(1) brightness(0.82) sepia(0.55) saturate(1.45) contrast(1.02)" : "grayscale(1) brightness(0.42)";
   const cdir = CORPSE_DIR[c.dir] || (c.dir && c.dir.length > 2 ? c.dir : "south");   // V-243 ②d — 시체는 짧은 방향(s)으로 저장돼 옛 코드가 스프라이트를 못 찾아 붉은 얼룩만 남았다. 온전한 이름으로 편다.
-  if (!drawSprite8(ctx, c.base, cdir, "idle", 0, c.x, c.y + 4, c.h * 0.7, bfilt)) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
+  if (globalThis.__CORPSELAY === false) {   // V-244 ②a — 되돌림: 옛 「서 있는」 시체.
+    if (!drawSprite8(ctx, c.base, cdir, "idle", 0, c.x, c.y + 4, c.h * 0.7, bfilt)) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
+    return;
+  }
+  const rot = (Math.floor(c.x) & 1 ? 1 : -1) * 1.26;   // V-244 ②a — 발을 축으로 옆으로 «넘어뜨린다»(±72°·좌우 번갈아). 눕고 납작해 내 소환수 해골과 갈린다.
+  ctx.save(); ctx.translate(c.x, c.y - 3); ctx.rotate(rot); ctx.scale(1, 0.72);
+  const ok = drawSprite8(ctx, c.base, cdir, "idle", 0, 0, 0, c.h * 0.66, bfilt);
+  ctx.restore();
+  if (!ok) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
 }
 function drawCrossBones(x, y, s, usable) {
   ctx.save(); ctx.translate(x, y); ctx.strokeStyle = usable ? "#d8c79a" : "#6b6152"; ctx.lineWidth = Math.max(2, s * 0.16); ctx.lineCap = "round";
@@ -2706,6 +2718,7 @@ function drawMobTele() {   // V-231 — 잡몹 수법 예고(돌진선·자폭 �
   }
 }
 function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈수록 어두워진다(부술 수 있다는 표)
+  drawCageRails();
   for (const b of G.bones) {
     if (!onScreen(b.x, b.y, 60)) continue;
     const hpf = Math.max(0, b.hp / b.maxhp), h = 46;
@@ -2722,6 +2735,19 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
     ctx.beginPath(); ctx.moveTo(-b.r * 0.55, -h); ctx.lineTo(0, -h - 14); ctx.lineTo(b.r * 0.55, -h); ctx.closePath(); ctx.fill();
     ctx.restore();
   }
+}
+function drawCageRails() {   // V-244 ②b — 창살(뼈 토막)을 위·아래 상아 테로 이어 «가두는 우리»로 읽히게 한다(듬성한 기둥 무더기 아님).
+  if (globalThis.__BONECAGE === false) return;
+  let sx = 0, sy = 0, n = 0;
+  for (const b of G.bones) if (!b.foe) { sx += b.x; sy += b.y; n++; }
+  if (n < 3) return;
+  const cx = sx / n, cy = sy / n;
+  if (!onScreen(cx, cy, CAGE_R + 80)) return;
+  let sr = 0; for (const b of G.bones) if (!b.foe) sr += Math.hypot(b.x - cx, b.y - cy);
+  const rx = sr / n, ry = rx * 0.42;
+  ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(198,180,138,0.55)";
+  for (const ry0 of [cy, cy - 40]) { ctx.beginPath(); ctx.ellipse(cx, ry0, rx, ry, 0, 0, 6.283); ctx.stroke(); }
+  ctx.restore();
 }
 function drawBoneChunk(r, h, hpf, cage) {
   const iv = (hi, lo) => (lo + (hi - lo) * hpf) | 0;
@@ -3235,7 +3261,7 @@ function recordSil(who, base, x, y, h) { const r = silScreenRect(base, x, y, h);
 function drawActor(s, base) {
   const fed = (globalThis.__FEED !== false && s.feed) ? s.feed : 0;
   drawShadow(s.x, s.y, s.r, ringsOn() ? (s.ringCol || "#3d78c8") : null, s.ring || 2.5);
-  const golemKind = s.golem && globalThis.__GOLEMKIND !== false;
+  const golemKind = s.golem && globalThis.__GOLEMKIND !== false && globalThis.__MINIONKIND !== false;
   if (golemKind && s.tauntActive > 0) {   // V-240 도발 — 발밑 금빛 고리(맥동). 반경 안 적을 끄는 동안 켜진다.
     const puls = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 130));
     ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * puls; ctx.strokeStyle = "#e8b840"; ctx.lineWidth = 3;
@@ -3295,6 +3321,7 @@ function drawFoldedKindLabels() {
   if (!items.length) return;
   const used = new Array(items.length).fill(false);
   const topY = cam.y + 18 / Z;
+  const placed = [];   // V-244 ②d — 이번 프레임에 이미 앉힌 부하 이름표 화면사각(다른 이름끼리도 안 뭉치게 아래로 물린다).
   for (let i = 0; i < items.length; i++) {
     if (used[i]) continue;
     const a = items[i], asx = (a.wx - cam.x) * Z, asy = (a.wtop - cam.y) * Z;
@@ -3306,16 +3333,23 @@ function drawFoldedKindLabels() {
     }
     used[i] = true;
     let wy = Math.max(top - 16, topY);
-    if (globalThis.__BOSSNAME !== false) {   // V-243 ②a — 주인 이름 위에 겹치면 부하 이름표를 아래로 물린다(주인 이름이 위·읽히게).
-      const kx = (sumx / n - cam.x) * Z, khw = 30;
-      for (let g = 0; g < 12; g++) {
+    const kx = (sumx / n - cam.x) * Z;
+    const label = n > 1 ? `${a.text} ×${n}` : a.text;
+    if (globalThis.__LABELFOLD !== false) {   // V-244 ②d — 부하 이름표끼리(다른 갈래 포함) 겹치면 아래로 쌓는다(drawFloats·barRects 와 같은 결). 주인 이름표(eliteLabels)도 피한다.
+      ctx.font = "bold 10px 'Times New Roman',serif";
+      const khw = ctx.measureText(label).width / 2 + 2;
+      for (let g = 0; g < 24; g++) {
         const ky = (wy - cam.y) * Z;
-        const hit = eliteLabels.find((q) => kx - khw < q.x1 && kx + khw > q.x0 && ky - 12 < q.y1 && ky > q.y0);
+        const hitE = globalThis.__BOSSNAME !== false && eliteLabels.find((q) => kx - khw < q.x1 && kx + khw > q.x0 && ky - 12 < q.y1 && ky > q.y0);
+        const hitK = placed.find((q) => kx - khw < q.x1 && kx + khw > q.x0 && ky - 11 < q.y1 && ky > q.y0);
+        const hit = hitE || hitK;
         if (!hit) break;
-        wy = (hit.y1 + 14) / Z + cam.y;
+        wy = (hit.y1 + (hitE ? 14 : 12)) / Z + cam.y;
       }
+      const ky = (wy - cam.y) * Z;
+      placed.push({ x0: kx - khw, y0: ky - 11, x1: kx + khw, y1: ky });
     }
-    drawKindLabel(sumx / n, wy, n > 1 ? `${a.text} ×${n}` : a.text, a.col);
+    drawKindLabel(sumx / n, wy, label, a.col);
   }
 }
 function drawEnemy(m) {
