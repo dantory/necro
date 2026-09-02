@@ -18177,3 +18177,5 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0** · `hs_v219_foeshot` frame p95 **0.8ms**·에셋 **100%**·오류 **0**·쏜화살 **30**·다 규격 안 ✅. 베이커 콘솔 오류 **0**.
   - 컷 **직접 열어 봄**: `tmp/hs_v248_{room1..6,event_bone,event_blood,event_rift,event_coffin,crowd_off,crowd_spread,banner_fade,cage_ring,props_count,minimap_zone}.png` — 피의회랑 얇은 가로 홀·심연 큰 방·성소 기둥 열·우리 온전한 고리·미니맵 지역색. 만진 곳 `hs/`(main.js·map.js)·새 자 파일 없음(베이커 `tmp/hs_v248_{revert,shots}.mjs`). 새 키 없음.
   브리프: `tmp/v248_prompt.md`
+
+- [ ] **V-249 — 저주 셋(플레이어가 직접 거는 것·`__CURSE`) · V-248 컷 흠 다섯**(벽 상단 띠 반복·배너가 우리뼈 덮음·사건방 패널이 적 가림·미니맵 지역색 안 보임·성소 기둥 시야 안에 서넛뿐). 브리프 `tmp/v249_prompt.md`
