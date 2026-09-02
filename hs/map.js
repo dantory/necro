@@ -96,12 +96,39 @@ function pickExtreme(node, key, wantMax) {
   return best;
 }
 
+// ── V-248 ① 지역이 «꼴»로도 갈린다 — 방 크기·개수·통로 폭 손잡이를 지역 씨앗으로 가른다.
+//   있는 genFloor 에 «매개변수만» 붙인다(새 생성기 아님). 끄면(globalThis.__ZONEROOM=false)
+//   ZR_NEUTRAL 이 옛 산술·옛 RNG 순서를 그대로 재현해 genFloor 지문이 byte-동일하다
+//   (fill 은 옛 «두 Math.random» 그대로, cell/depth/corridor 는 산술만, dead 는 임계값만 바꿔 호출 수 불변).
+const ZR_NEUTRAL = { dDepth: 0, cellW: 1, cellH: 1, fillLoW: 0.32, fillSpanW: 0.63, fillLoH: 0.32, fillSpanH: 0.63, corridor: 1, dead: 0.45, event: null };
+const ZONE_ROOM = [
+  // 0 죽은 자의 묘지 — 중간 방 여럿 + 좁은 통로
+  { dDepth: +2, cellW: 0.74, cellH: 0.74, fillLoW: 0.44, fillSpanW: 0.42, fillLoH: 0.44, fillSpanH: 0.42, corridor: 0.58, dead: 0.5, event: null },
+  // 1 뼈 무덤 — 긴 복도형(작은 방 + 큰 칸 사이 긴 복도)
+  { dDepth: -1, cellW: 1.16, cellH: 1.16, fillLoW: 0.26, fillSpanW: 0.24, fillLoH: 0.26, fillSpanH: 0.24, corridor: 0.9, dead: 0.35, event: "bone" },
+  // 2 썩은 굴 — 불규칙(작은 방 많고 크기 들쭉날쭉·좁은 통로)
+  { dDepth: +1, cellW: 0.86, cellH: 0.86, fillLoW: 0.32, fillSpanW: 0.62, fillLoH: 0.32, fillSpanH: 0.62, corridor: 0.70, dead: 0.55, event: null },
+  // 3 피의 회랑 — 폭 좁고 긴 홀(가로 넓게·세로 얇게)
+  { dDepth: 0, cellW: 1.0, cellH: 1.0, fillLoW: 0.82, fillSpanW: 0.16, fillLoH: 0.28, fillSpanH: 0.22, corridor: 0.64, dead: 0.4, event: "blood" },
+  // 4 심연 — 탁 트인 큰 방 하나 + 빈 공간(방 적고 큼)
+  { dDepth: -3, cellW: 1.55, cellH: 1.55, fillLoW: 0.76, fillSpanW: 0.22, fillLoH: 0.76, fillSpanH: 0.22, corridor: 1.15, dead: 0.28, event: "rift" },
+  // 5 성소 — 규칙적 홀(방이 칸을 꽉 채워 격자로·기둥 열)
+  { dDepth: 0, cellW: 1.06, cellH: 1.06, fillLoW: 0.74, fillSpanW: 0.20, fillLoH: 0.68, fillSpanH: 0.20, corridor: 1.0, dead: 0.3, event: "coffin" },
+];
+function zoneRoomOf(floor) {
+  if (globalThis.__ZONEROOM === false) return ZR_NEUTRAL;
+  const zi = Math.max(0, Math.min(ZONE_ROOM.length - 1, Math.floor(((floor | 0) - 1) / 5)));
+  return ZONE_ROOM[zi];
+}
+
 export function genFloor(floor) {
-  // ★ 넓이는 조금만 키우고 방 수는 «깊이·최소칸»으로 늘린다 — 옛 꼴의 «넓어지기만」을 뒤집는다.
+  const ZR = zoneRoomOf(floor);   // V-248 ① 지역 방-꼴 손잡이(off 면 ZR_NEUTRAL → 옛 값·옛 RNG 순서)
+  // ★ 넓이는 조금만 키우고 방 수는 «깊이·최소칸»으로 늘린다 — 옛 꼴의 «넓어지기만»을 뒤집는다.
   const W = 3000 + floor * 180, H = 2000 + floor * 120;
-  const maxDepth = Math.min(13, 5 + floor);
-  const minW = Math.max(600, 700 - floor * 8);
-  const minH = Math.max(500, 600 - floor * 7);
+  const maxDepth = Math.max(3, Math.min(13, 5 + floor) + ZR.dDepth);
+  const minW = Math.round(Math.max(600, 700 - floor * 8) * ZR.cellW);
+  const minH = Math.round(Math.max(500, 600 - floor * 7) * ZR.cellH);
+  const cw = Math.round(CORRIDOR_W * ZR.corridor), hw = cw / 2;   // V-248 ① 지역별 통로 폭(off=150·75·복도는 지문 밖)
   const root = bspSplit({ x: 80, y: 80, w: W - 160, h: H - 160 }, 0, maxDepth, minW, minH);
 
   // ── V-239 ② 21층+ 곡선 — 20층 이하는 손대지 않는다(그 층에선 deep=false → byte-동일). ──
@@ -122,8 +149,8 @@ export function genFloor(floor) {
   bspLeaves(root, leafList);
   for (const leaf of leafList) {
     const availW = leaf.w - LEAF_PAD * 2, availH = leaf.h - LEAF_PAD * 2;
-    const w = Math.round(availW * (0.32 + Math.random() * 0.63));   // 칸의 32~95% — 큰 홀과 좁은 골방을 벌린다
-    const h = Math.round(availH * (0.32 + Math.random() * 0.63));
+    const w = Math.round(availW * (ZR.fillLoW + Math.random() * ZR.fillSpanW));   // 지역별 채움(off=0.32~0.95) — 두 Math.random 은 옛 그대로
+    const h = Math.round(availH * (ZR.fillLoH + Math.random() * ZR.fillSpanH));
     const x = leaf.x + LEAF_PAD + Math.round(Math.random() * (availW - w));
     const y = leaf.y + LEAF_PAD + Math.round(Math.random() * (availH - h));
     const r = { x, y, w, h, cx: x + w / 2, cy: y + h / 2, dead: false, visited: false, cleared: false };
@@ -137,8 +164,8 @@ export function genFloor(floor) {
 
   // 복도 — 쪼갠 경계 위로만(H-V-H / V-H-V). 형제의 «경계에 가장 가까운» 두 방을 잇는다.
   const corridors = [];
-  const hRect = (x1, x2, y, link) => corridors.push({ x: Math.min(x1, x2), y: y - HW, w: Math.abs(x2 - x1), h: CORRIDOR_W, horiz: true, link });
-  const vRect = (y1, y2, x, link) => corridors.push({ x: x - HW, y: Math.min(y1, y2), w: CORRIDOR_W, h: Math.abs(y2 - y1), horiz: false, link });
+  const hRect = (x1, x2, y, link) => corridors.push({ x: Math.min(x1, x2), y: y - hw, w: Math.abs(x2 - x1), h: cw, horiz: true, link });
+  const vRect = (y1, y2, x, link) => corridors.push({ x: x - hw, y: Math.min(y1, y2), w: cw, h: Math.abs(y2 - y1), horiz: false, link });
   (function connect(node) {
     if (!node.left && !node.right) return;
     connect(node.left); connect(node.right);
@@ -159,7 +186,7 @@ export function genFloor(floor) {
     }
   })(root);
 
-  for (let i = 2; i < rooms.length; i++) rooms[i].dead = Math.random() < 0.45;
+  for (let i = 2; i < rooms.length; i++) rooms[i].dead = Math.random() < ZR.dead;
 
   const start = rooms[0];
   const startX = start.cx, startY = start.cy;
@@ -253,7 +280,53 @@ export function genFloor(floor) {
     }
   }
 
+  // ── V-248 ① 지역 사건방 — 그 지역에서만(확률로) 나오는 방 하나. 새 그림 없이 있는 소품·적·물건을 조합한다.
+  //   __ZONEROOM=false 면 ZR.event=null(ZR_NEUTRAL) 이라 이 블록을 통째로 건너뛴다(RNG 불변·지문 불변).
+  const eventProps = [];
+  if (ZR.event && Math.random() < (globalThis.__ZONEEVENT_P ?? 0.7)) {
+    const cand = [];
+    for (let i = 1; i < rooms.length; i++) {
+      const rm = rooms[i];
+      if (rm === far) continue;
+      if (chests.some((c) => c.x === rm.cx && c.y === rm.cy)) continue;
+      if (altars.some((a) => a.x === rm.cx && a.y === rm.cy)) continue;
+      cand.push(rm);
+    }
+    if (cand.length) {
+      const rm = cand[(Math.random() * cand.length) | 0];
+      rm.zoneEvent = ZR.event;
+      const evScale = deep ? 8.0 + (floor - 20) * 0.22 : 1 + floor * 0.35;
+      const evDmg = (globalThis.__V226B === false ? evScale : 1 + floor * 0.14) * ascMul;
+      const evMob = () => MOB_TYPES[Math.min(MOB_TYPES.length - 1, Math.floor(Math.random() * MOB_TYPES.length * (0.6 + Math.random() * 0.4)))];
+      if (ZR.event === "blood") {   // 피의 회랑 「피의 제단」 — 있는 피의 제단(금으로 최대 생명 산다) 하나
+        altars.push({ x: rm.cx, y: rm.cy, r: 26, used: false, kind: "blood", event: true });
+      } else if (ZR.event === "bone") {   // 뼈 무덤 「뼈 무더기」 — 유골 소품 수북이 + 그 속 전리품 상자
+        chests.push({ x: rm.cx, y: rm.cy, opened: false, r: 26, event: "bone" });
+        for (let i = 0; i < 8; i++) {
+          const a = Math.random() * 6.2832, d = 54 + Math.random() * 150;
+          const img = Math.random() < 0.5 ? "decor/bones2.png" : "decor/bones.png", hr = PROP_H[img];
+          eventProps.push({ x: rm.cx + Math.cos(a) * d, y: rm.cy + Math.sin(a) * d * 0.7, img, h: rint(hr[0], hr[1]), event: true });
+        }
+      } else if (ZR.event === "rift") {   // 심연 「깨진 균열」 — 큰 무리 하나 + 금(상자 둘)
+        const enemies = [];
+        for (let k = 0; k < 18; k++) enemies.push(makeMob(evMob(), rm.cx + rint(-140, 140), rm.cy + rint(-140, 140), evScale * ascMul, eid++, false, evDmg));
+        spreadPack(enemies);
+        packs.push({ x: rm.cx, y: rm.cy, enemies, room: rooms.indexOf(rm), awake: false, event: "rift" });
+        chests.push({ x: rm.cx - 130, y: rm.cy + 90, opened: false, r: 26, event: "rift" });
+        chests.push({ x: rm.cx + 130, y: rm.cy + 90, opened: false, r: 26, event: "rift" });
+      } else if (ZR.event === "coffin") {   // 성소 「봉인된 관」 — 관 소품 + 정예 하나 + 좋은 상자
+        eventProps.push({ x: rm.cx, y: rm.cy, img: "decor/coffin.png", h: rint(PROP_H["decor/coffin.png"][0], PROP_H["decor/coffin.png"][1]), event: true });
+        const enemies = [];
+        for (let k = 0; k < 5; k++) enemies.push(makeMob(evMob(), rm.cx + rint(-110, 110), rm.cy - 70 + rint(-70, 70), evScale * ascMul, eid++, k === 0, evDmg));
+        spreadPack(enemies);
+        packs.push({ x: rm.cx, y: rm.cy - 70, enemies, room: rooms.indexOf(rm), awake: false, event: "coffin" });
+        chests.push({ x: rm.cx, y: rm.cy + 96, opened: false, r: 26, event: "coffin" });
+      }
+    }
+  }
+
   const { decals, props } = scatter(rooms, stairs, chests, altars);
+  for (const ep of eventProps) props.push(ep);   // V-248 ① 사건방 소품은 scatter 뒤에 얹는다(자리 고정·assignZoneLook 이 건너뛴다)
   return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];

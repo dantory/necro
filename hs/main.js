@@ -93,6 +93,9 @@ if (globalThis.__MOBKIND === undefined) globalThis.__MOBKIND = true;
 //      Math.random 을 한 톨도 안 갉는다 → genFloor 지문 불변(V-246 결). 빛/이름/배너는 순수 렌더.
 //      끄면(globalThis.__ZONE=false) 재배치·재조명이 통째로 꺼져 옛 판과 byte-동일.
 if (globalThis.__ZONE === undefined) globalThis.__ZONE = true;
+//   ㉪ V-248 — 지역이 «꼴»로도 갈린다: 방 크기·개수·통로 폭이 지역 씨앗으로 갈리고(map.js genFloor 매개변수),
+//      지역마다 사건방 하나(있는 소품·적·물건 조합). 끄면(__ZONEROOM=false) genFloor 지문이 옛 판과 byte-동일.
+if (globalThis.__ZONEROOM === undefined) globalThis.__ZONEROOM = true;
 //   ㉨ V-237 — 떠 있는 글/판이 서로 덮거나 화면 밖으로 잘리는 것을 고친다(구입글이 제단 판을 덮음·집는 글이 왼쪽 잘림).
 //      기본 켬. 끄면 옛 동작(구입글이 제단 판 위에 겹침·바닥 이름표 왼쪽 잘림).
 if (globalThis.__NOTESTACK === undefined) globalThis.__NOTESTACK = true;
@@ -794,6 +797,28 @@ window.__zoneMix = (fl) => {
   for (const pk of G.packs) { if (pk.boss) continue; for (const m of pk.enemies) { if (m.elite || m.boss) continue; tot++; c[m.mobKind || "plain"]++; } }
   const pct = (n) => tot ? +(100 * n / tot).toFixed(1) : 0;
   return { floor: fl, zone: ZONES[zoneOf(fl)].name, n: tot, shootPct: pct(c.shoot), chargePct: pct(c.charge), bombPct: pct(c.bomb), thiefPct: pct(c.thief), plainPct: pct(c.plain) };
+};
+window.__zoneProps = (fl) => {   // V-248 ①·②d 컷용 — 지역 소품이 실제로 놓이는 개수를 세어 돌려준다(화톳불 뺌·눈으로 갈리는지 수로 확인)
+  __restart(fl);
+  const c = {};
+  for (const pr of G.props) { if (pr.brazier) continue; const k = pr.img.slice(6, -4); c[k] = (c[k] || 0) + 1; }
+  return { floor: fl, zone: ZONES[zoneOf(fl)].name, total: G.props.length, counts: c };
+};
+window.__castCageAt = (px, py) => {   // V-248 ②c 컷용 — 뼈 왕 우리 시전을 그 자리에서 실제 문(fireCast)으로 굴린다(내 __CAGEFIT 로직을 지난다)
+  G.bones = [];
+  const m = { bossKind: 0, x: px + 80, y: py, r: 40, h: 108, atk: 0, skillCd: 0, cast: { k: 0, phase: "warn", cx: px, cy: py, dir: 0 } };
+  fireCast(m, { x: px, y: py }, { enemies: [m] });
+  let out = 0; for (const b of G.bones) if (!b.foe && !walkable(b.x, b.y, 4)) out++;
+  return { bones: G.bones.filter((b) => !b.foe).length, outsideWall: out };
+};
+window.__roomShape = (fl) => {   // V-248 ① 컷용 — 방 개수·평균 크기·통로 폭(꼴이 지역마다 갈리는지 수로)
+  __restart(fl);
+  const rs = G.rooms.slice(1); let aw = 0, ah = 0;
+  for (const r of rs) { aw += r.w; ah += r.h; }
+  const ev = G.rooms.find((r) => r.zoneEvent);
+  return { floor: fl, zone: ZONES[zoneOf(fl)].name, rooms: rs.length, avgW: Math.round(aw / (rs.length || 1)), avgH: Math.round(ah / (rs.length || 1)),
+    corridorW: G.corridors[0] ? Math.round(G.corridors[0].horiz ? G.corridors[0].h : G.corridors[0].w) : 0,
+    event: ev ? { kind: ev.zoneEvent, x: ev.cx, y: ev.cy } : null };
 };
 function propBlockR(pr) {
   if (pr._br != null) return pr._br;
@@ -1589,7 +1614,7 @@ function assignZoneLook(f, floor) {
   let s = ((floor * 40503) ^ 0x1f83d9ab) >>> 0;
   const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
   for (const pr of f.props) {
-    if (pr.brazier) continue;
+    if (pr.brazier || pr.event) continue;   // V-248 ① 사건방 소품(뼈 무더기·관)은 지역 재굴림에서 뺀다(자리·그림 고정)
     const img = bag[(rnd() * bag.length) | 0], hr = ZONE_PROP_H[img];
     pr.img = img; pr.h = (hr[0] + (rnd() * (hr[1] - hr[0])) | 0);
   }
@@ -1872,12 +1897,26 @@ function fireCast(m, p, pk) {
   const k = m.bossKind, c = m.cast;
   cam.shake = Math.max(cam.shake, 12);
   if (k === 0) {                                         // 뼈 왕 — 뼈 우리로 가두고 해골을 부른다
+    // ── V-248 ②c 우리 고리가 벽으로 뚫려 「우리」로 안 읽히던 것 — 온전한 고리가 들어가는 자리로 중심을 민다.
+    //    사람은 원래 자리 곁(반경 CAGE_R−40 안)에 그대로 두어 가둔 뜻이 산다. 못 찾으면 옛 자리(끊긴 고리)로 둔다.
+    let cgx = c.cx, cgy = c.cy;
+    if (globalThis.__CAGEFIT !== false) {
+      const fits = (x, y) => { for (let i = 0; i < CAGE_SEG; i++) { const a = i / CAGE_SEG * 6.2832; if (!walkable(x + Math.cos(a) * CAGE_R, y + Math.sin(a) * CAGE_R, 4)) return false; } return true; };
+      if (!fits(cgx, cgy)) {
+        const lim = (CAGE_R - 24) ** 2;   // 사람(반경 22)이 여전히 우리 안에 들도록 중심 이동을 제한
+        outer: for (let rr = 24; rr <= 216; rr += 24)
+          for (let s = 0; s < 12; s++) {
+            const a = s / 12 * 6.2832, nx = c.cx + Math.cos(a) * rr, ny = c.cy + Math.sin(a) * rr;
+            if ((nx - c.cx) ** 2 + (ny - c.cy) ** 2 < lim && fits(nx, ny)) { cgx = nx; cgy = ny; break outer; }
+          }
+      }
+    }
     for (let i = 0; i < CAGE_SEG; i++) {
       const a = i / CAGE_SEG * 6.2832, hp = 120 + G.floor * 20;
-      G.bones.push({ x: c.cx + Math.cos(a) * CAGE_R, y: c.cy + Math.sin(a) * CAGE_R, r: 20, hp, maxhp: hp, life: CAGE_LIFE });
+      G.bones.push({ x: cgx + Math.cos(a) * CAGE_R, y: cgy + Math.sin(a) * CAGE_R, r: 20, hp, maxhp: hp, life: CAGE_LIFE });
     }
     for (let i = 0; i < 3; i++) { const a = Math.random() * 6.2832; spawnAdd(pk, m.x + Math.cos(a) * 60, m.y + Math.sin(a) * 60); }
-    for (let i = 0; i < 24; i++) burst(c.cx, c.cy, "#e8ecf0", 180);
+    for (let i = 0; i < 24; i++) burst(cgx, cgy, "#e8ecf0", 180);
     endCast(m);
   } else if (k === 1) {                                  // 역병 주술사 — 독 장판을 깐다
     G.hazards.push({ x: c.cx, y: c.cy, r: 120, warn: 0, life: POOL_LIFE, dmg: (10 + G.floor * 2) * hexF(m) });
@@ -1963,21 +2002,31 @@ function stepFoeShots(dt) {
 // ★ V-183 — 적끼리 밀어낸다. 소환수엔 이미 있었지만(separateMinions) 적엔 없어, 밀도를
 //   올리면 스무 마리가 한 자리에 포개져 「수십 마리」가 아니라 한 마리로 보인다. 깨어 있는
 //   산 적을 한 번 모아 반지름 합보다 가까운 쌍만 반씩 밀어낸다(minion 판과 같은 싼 셈).
+function anyAwakeEnemyNear(rad) {   // V-248 ②b 교전 시작 판정 — 깨어 있는 적이 반경 안에 하나라도 있나
+  const p = G.player, r2 = rad * rad;
+  for (const pk of G.packs) { if (!pk.awake || pk.done) continue; for (const m of pk.enemies) if (m.alive && (m.x - p.x) ** 2 + (m.y - p.y) ** 2 < r2) return true; }
+  return false;
+}
 function separateEnemies() {
   const arr = [];
   for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) if (m.alive) arr.push(m);
   const n = arr.length;
-  for (let i = 0; i < n; i++) {
-    const s = arr[i];
-    for (let j = i + 1; j < n; j++) {
-      const t = arr[j], min = s.r + t.r;
-      const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
-      if (d2 === 0) { t.x += 0.5; continue; }
-      if (d2 >= min * min) continue;
-      const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
-      s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
+  // ── V-248 ②a 무리 겹침 — 한 자리에 열댓이 포개져 실루엣·이름표가 안 갈리던 것. 최소 간격(GAP)을 두고
+  //    여러 번 풀어 «몸끼리 자리»를 벌린다(몸-사람 판정은 안 건드려 근접 공격 사거리는 그대로). 끄면 옛 한 패스.
+  const spread = globalThis.__CROWDSPREAD !== false;
+  const passes = spread ? 3 : 1, gap = spread ? 14 : 0;
+  for (let pass = 0; pass < passes; pass++)
+    for (let i = 0; i < n; i++) {
+      const s = arr[i];
+      for (let j = i + 1; j < n; j++) {
+        const t = arr[j], min = s.r + t.r + gap;
+        const dx = t.x - s.x, dy = t.y - s.y, d2 = dx * dx + dy * dy;
+        if (d2 === 0) { t.x += 0.5; continue; }
+        if (d2 >= min * min) continue;
+        const d = Math.sqrt(d2), push = (min - d) * 0.5 / d;
+        s.x -= dx * push; s.y -= dy * push; t.x += dx * push; t.y += dy * push;
+      }
     }
-  }
 }
 
 function markRoomCleared(ri) {
@@ -3111,6 +3160,10 @@ const ZONES = [
     props: { pillar: 0, statue: 0, bones2: 1, column2: 5, coffin: 1, urn: 1, bones: 2, rubble: 6 }, mix: { ranged: 0.08, charge: 0.12, bomb: 0.06, thief: 0.04 } },
   { name: "성소",          flavor: "성소", wash: "rgba(120,98,38,0.15)",  dark: 0.15, warm: 0.18, wallTint: "rgba(126,102,44,0.20)",
     props: { pillar: 4, statue: 4, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
+];
+const ZONE_MINI = [   // V-248 ②e 미니맵 지역 색조 — HUD 이름만 바뀌고 결은 같던 것. 세계 wash 와 같은 계열로 「다른 곳」이 되게.
+  "rgba(120,110,80,0.20)", "rgba(150,138,100,0.26)", "rgba(70,104,55,0.28)",
+  "rgba(150,42,38,0.28)", "rgba(42,52,100,0.34)", "rgba(150,120,50,0.26)",
 ];
 function zoneOf(f) { return Math.max(0, Math.min(ZONES.length - 1, Math.floor(((f | 0) - 1) / 5))); }
 function curZone() { return (globalThis.__ZONE === false || G.town) ? ZONES[0] : ZONES[zoneOf(G.floor)]; }
@@ -5010,6 +5063,13 @@ function drawMini() {
     mctx.fillRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
     mctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
   }
+  if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조를 미니맵 전체에 얹어 「다른 곳」으로 읽히게(표식은 이 뒤에 또렷이)
+    const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { mctx.fillStyle = zt; mctx.fillRect(0, 0, w, h); }
+  }
+  for (const r of G.rooms) if (r.zoneEvent && r.visited) {   // V-248 ① 사건방은 미니맵에 금빛 마름모로 도드라지게
+    mctx.save(); mctx.translate((r.x + r.w / 2) * sx, (r.y + r.h / 2) * sy); mctx.rotate(Math.PI / 4);
+    mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-3, -3, 6, 6); mctx.restore();
+  }
   for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
   for (const ch of G.chests) if (!ch.opened) {
     const pr = 0.5 + 0.5 * Math.sin(nowMs() / 320), d = 2.2 + pr;
@@ -5049,7 +5109,12 @@ function loop(now) {
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
-    if (G.zoneBanner) { G.zoneBanner.t += dt; if (G.zoneBanner.t > 2.8) G.zoneBanner = null; }
+    if (G.zoneBanner) {   // V-248 ②b 지역 배너가 교전 중 화면 한가운데 남아 경고 부채꼴을 가리던 것 — 적이 붙으면 즉시 흐려진다
+      const eng = globalThis.__BANNERFADE !== false && anyAwakeEnemyNear(240);
+      G.zoneBanner.t += dt * (eng ? 6 : 1);
+      if (eng && G.zoneBanner.t < 2.0) G.zoneBanner.t = 2.0;
+      if (G.zoneBanner.t > 2.8) G.zoneBanner = null;
+    }
     for (const e of G.pickLog) e.t -= dt;
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
