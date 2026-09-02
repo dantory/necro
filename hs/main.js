@@ -149,9 +149,11 @@ const MOB_TINT = {
   charge: "sepia(1) saturate(2.7) hue-rotate(-6deg) brightness(1.06) contrast(1.12)",  // 달려드는 놈 — 뜨거운 주황
   bomb:   "sepia(1) saturate(2.7) hue-rotate(46deg) brightness(1.16) contrast(1.06)",  // 터지는 놈 — 병색 노랑(제 몸=zombie)
   thief:  "sepia(1) saturate(2.3) hue-rotate(262deg) brightness(1.04) contrast(1.06)", // 훔치는 놈 — 보라
-  // V-253 — 「평범」 갈래에도 제 색. 넷(찬 파랑·뜨거운 주황·병색 노랑·보라)과 안 겹치게 «무채에 가까운 흙빛 회록».
-  //   채도 낮고 어둡게(brightness 0.8) 두어 vivid 한 넷과 한눈에 갈린다. 몸도 mob/fallen 으로 갈라 실루엣까지 다르다.
-  plain:  "sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82) contrast(1.06)",
+  // V-253 — 「평범」 갈래에도 제 색. 넷(찬 파랑·뜨거운 주황·병색 노랑·보라)과 안 겹치게 «무채에 가까운 흙빛».
+  //   채도는 낮게 두어(vivid 한 넷과 갈린다) — 몸도 mob/fallen 으로 갈라 실루엣까지 다르다.
+  // V-254 ② — 밝기를 0.82→1.34 로 올린다. 옛 0.82 는 어두운 바닥에서 몸이 배경에 녹아 발밑 붉은 고리만 보였다(감시가 컷으로 봄).
+  //   낮은 채도(0.9)를 지켜 넷과 안 겹치되, 밝은 흙빛 크림으로 어두운 바닥 위에서도 몸이 읽힌다.
+  plain:  "sepia(1) saturate(0.9) hue-rotate(8deg) brightness(1.34) contrast(1.14)",
 };
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
 // ── V-246 ① 정예 수식어(접두) — 팩마다 다른 놈(D2 정예 접두처럼 «한 판 한 판이 갈리는 이유»). ──
@@ -621,7 +623,7 @@ window.__kindsPose = () => {
   const charger = poseMob("charge", cx - 180, cy, { charger: true, base: "mob/brute", h: 82, r: 20, chargeCd: 999 });
   const bomber = poseMob("bomb", cx, cy, { bomber: true, base: bombBody, h: 76, r: 18, fuse: 0 });
   const thief = poseMob("thief", cx + 180, cy, { thief: true, base: "mob/shaman", h: 72, eatCd: 999 });
-  const plain = poseMob(null, cx + 360, cy, { base: globalThis.__MOBTINT === false ? "mob/skelarch" : "mob/fallen", h: 66, tb: 0 });
+  const plain = poseMob("plain", cx + 360, cy, { base: globalThis.__MOBTINT === false ? "mob/skelarch" : "mob/fallen", h: 66, tb: 0 });
   G.packs = [{ x: cx, y: cy, awake: true, room: 0, enemies: [shooter, charger, bomber, thief, plain] }];
   p.x = cx; p.y = cy + 230; unstick(p, p.r);   // 사람은 갈래 줄 아래로 물러 세운다(겹치지 않게·돌진 예고선 안 생기게)
   cam.x = cx - VW / (2 * Z); cam.y = cy - VH / (2 * Z) + 80;
@@ -745,6 +747,8 @@ function start(floor, carry, town) {
     for (let i = 0; i < ngo; i++) raiseGolem();
     return armyCounts();
   };
+  window.__setStance = (n, hx, hy) => { armyStance = ((n % 3) + 3) % 3; if (armyStance === 2) { holdX = hx != null ? hx : G.player.x; holdY = hy != null ? hy : G.player.y; } return { stance: armyStance, holdX, holdY }; };
+  window.__aimAt = (wx, wy) => { mouse.x = (wx - cam.x) * Z; mouse.y = (wy - cam.y) * Z; return { wx, wy }; };
   window.__foePack = (n, cx, cy, extra) => {
     const en = [];
     for (let i = 0; i < n; i++) en.push(poseMob((extra && extra.mobKind) || "", cx - 90 + (i % 5) * 46, cy - 40 + Math.floor(i / 5) * 46, Object.assign({ hp: 99999, maxhp: 99999, spd: 150 }, extra || {})));
@@ -1055,6 +1059,7 @@ function handleSkills() {
   if (keys.has("n") && !p._n) { p._n = true; if (townOn()) tryTownReturn(); } if (!keys.has("n")) p._n = false;
   if (keys.has("t") && !p._t) { p._t = true; if (merchOn()) toggleShopNear(); } if (!keys.has("t")) p._t = false;
   if (keys.has("y") && !p._y) { p._y = true; if (ascendOn()) tryAscend(); } if (!keys.has("y")) p._y = false;
+  if (keys.has("o") && !p._o) { p._o = true; if (globalThis.__ORDERS !== false) cycleStance(); } if (!keys.has("o")) p._o = false;
   if (keys.has("i") && !p._i) { p._i = true; toggleInv(); } if (!keys.has("i")) p._i = false;
   if (keys.has("c") && !p._c) { p._c = true; toggleChar(); } if (!keys.has("c")) p._c = false;
   if (keys.has("l") && !p._l) { p._l = true; if (journalOn()) toggleJournal(); } if (!keys.has("l")) p._l = false;
@@ -1724,7 +1729,7 @@ function assignZoneMix(f, floor) {
       // V-253 — 「평범」은 제 몸(mob/fallen)으로. 넷이 skelarch/brute/zombie/shaman 을 다 쓰니, 그 넷과 안 겹치는
       //   유일한 몸(fallen)으로 갈라 준다. 새로 굽지 않고 이미 있는 8방향 몸을 되쓴다(V-252 zombie 되쓴 그 길).
       //   __MOBTINT=false 면 옛대로 mob0 복원 → genFloor 밖·byte-동일.
-      else if (globalThis.__MOBTINT !== false) { m.base = "mob/fallen"; }
+      else if (globalThis.__MOBTINT !== false) { m.base = "mob/fallen"; m.mobKind = "plain"; }
     }
   }
 }
@@ -2178,6 +2183,28 @@ function markRoomCleared(ri) {
 // 반경이 커져 무리가 퍼진다. 세로는 눌러(0.64) 위에서 내려다본 결을 맞춘다. 마지막에
 // 서로 밀어내(separation) 완전히 포개지지 않게 한다.
 let formAng = Math.PI / 2;
+// V-254 ① 군세 태세(__ORDERS). 0 따라와(사람 곁 수비)·1 쳐라(겨눈 자리로 공격)·2 지켜(그 자리 사수). O 로 순환.
+let armyStance = 0, holdX = 0, holdY = 0;
+const STANCE_NAME = ["따라와", "쳐라", "지켜"];
+const STANCE_COL = ["#7fd0ff", "#ff8a6a", "#7fe0a0"];
+const ORDER_FOLLOW_R = 240, ORDER_HOLD_R = 240, ORDER_ATTACK_R = 600;
+function cycleStance() {
+  armyStance = (armyStance + 1) % 3;
+  if (armyStance === 2) { holdX = G.player.x; holdY = G.player.y; }
+  floatNote("태세 ▸ " + STANCE_NAME[armyStance], STANCE_COL[armyStance], 1.1);
+}
+function drawHoldMarker() {
+  if (globalThis.__ORDERS === false || armyStance !== 2 || !onScreen(holdX, holdY, 60)) return;
+  const puls = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 220));
+  ctx.save();
+  ctx.strokeStyle = "rgba(120,208,150,0.8)"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(holdX, holdY, 52 * (0.94 + 0.06 * puls), 26 * (0.94 + 0.06 * puls), 0, 0, 6.283); ctx.stroke();
+  ctx.strokeStyle = "rgba(150,230,180,0.9)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(holdX, holdY); ctx.lineTo(holdX, holdY - 30); ctx.stroke();
+  ctx.fillStyle = "rgba(120,208,150,0.85)";
+  ctx.beginPath(); ctx.moveTo(holdX, holdY - 30); ctx.lineTo(holdX + 15, holdY - 24); ctx.lineTo(holdX, holdY - 18); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
 function angTo(target, cur) { let d = (target - cur) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; }
 function minionRingRadius(r) { return 34 + r * 40; }
 function minionRingCap(r) { return Math.max(3, Math.floor(2 * Math.PI * minionRingRadius(r) / 40)); }
@@ -2208,6 +2235,15 @@ function stepMinions(dt) {
   if (p.state === "walk" && (p.dx || p.dy)) formAng += angTo(Math.atan2(p.dy, p.dx), formAng) * Math.min(1, dt * 6);
   const backAng = formAng + Math.PI;
   const N = G.minions.length;
+  // V-254 ① 태세로 «묶이는 자리»(ax,ay)와 «싸우러 나갈 반경»(engR)·«설 자리 중심»(formPt)이 갈린다.
+  //   st=-1 은 __ORDERS 꺼짐 = 옛 행동 그대로(제 둘레 520 안 아무 적, 사람 둘레로 집결).
+  const orders = globalThis.__ORDERS !== false;
+  const st = orders ? armyStance : -1;
+  let ax = p.x, ay = p.y, engR = 0, formPt = p;
+  if (st === 0) { ax = p.x; ay = p.y; engR = ORDER_FOLLOW_R; formPt = p; }
+  else if (st === 1) { ax = cam.x + mouse.x / Z; ay = cam.y + mouse.y / Z; engR = ORDER_ATTACK_R; formPt = { x: ax, y: ay }; }
+  else if (st === 2) { ax = holdX; ay = holdY; engR = ORDER_HOLD_R; formPt = { x: holdX, y: holdY }; }
+  const eng2 = engR * engR;
   for (let i = 0; i < N; i++) {
     const s = G.minions[i];
     unstick(s, s.r);
@@ -2219,7 +2255,11 @@ function stepMinions(dt) {
       golemBlock(s);
     }
     let target = null, bd = 520 * 520;
-    forEachEnemy((m) => { const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
+    if (st === -1) {
+      forEachEnemy((m) => { const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
+    } else {
+      forEachEnemy((m) => { if ((m.x - ax) ** 2 + (m.y - ay) ** 2 > eng2) return; const d = (m.x - s.x) ** 2 + (m.y - s.y) ** 2; if (d < bd) { bd = d; target = m; } });
+    }
     s.atk = Math.max(0, s.atk - dt);
     if (target) {
       const d = Math.sqrt(bd) || 1;
@@ -2235,7 +2275,7 @@ function stepMinions(dt) {
         }
       }
     } else {
-      const spot = formSpot(p, i, backAng);
+      const spot = formSpot(formPt, i, backAng);
       const dx = spot.x - s.x, dy = spot.y - s.y, dd = Math.hypot(dx, dy);
       if (dd > 12) { s.dx = dx / dd; s.dy = dy / dd; const step = Math.min(dd, s.spd * dt); stepTo(s, s.x + s.dx * step, s.y + s.dy * step, s.r); s.state = "walk"; s.anim += dt * 10; }
       else { s.state = "idle"; s.anim += dt * 5; }
@@ -2886,6 +2926,7 @@ function drawWorld() {
   for (const a of G.altars) drawAltar(a);
   drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
   drawBolts();   // V-246 — 십자 번개(경고 점선·발사 흰 선)는 바닥 층에
+  drawHoldMarker();   // V-254 ① — 「여기 지켜」 자리 표식(바닥 층에 · 유닛이 위에 선다)
 
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
@@ -2916,6 +2957,10 @@ function drawWorld() {
   for (const a of G.altars) drawAltarBeacon(a);
   if (G.town) for (const mc of G.merchants) drawMerchantBeacon(mc);   // V-238
   if (G.town && G.ascendSpot && ascendOn()) drawAscendBeacon();       // V-239
+  if (globalThis.__DARKEN > 0) {   // V-254 컷용 — 바닥·배우에 저광 워시를 얹어 「어두운 자리」를 만든다(이름표는 이 뒤라 밝게 남는다). 기본 꺼짐.
+    ctx.save(); ctx.globalAlpha = Math.min(0.95, globalThis.__DARKEN); ctx.fillStyle = "#000";
+    ctx.fillRect(cam.x, cam.y, VW / Z, VH / Z); ctx.restore();
+  }
   drawFoldedKindLabels();   // V-240 — 접은 갈래 이름표를 배우 위에 한 장씩(월드 변환 안·restore 앞)
   drawEliteNames();         // V-246 ③d — 정예/주인 이름표는 맨 위(유닛 전부보다 위)
   drawStairsLabel();        // V-246 ③d — 계단 안내는 이름표를 피해 그린다
@@ -3835,6 +3880,7 @@ const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 
   charge: { label: "돌진꾼",    col: "#ff8a6a" },
   bomb:   { label: "자폭병",    col: "#ffb060" },
   thief:  { label: "시체 도둑", col: "#c89bff" },
+  plain:  { label: "망령",      col: "#e6d3ab" },
 };
 // ── V-240 이름표 접기(__LABELFOLD) — 잡몹·소환수 갈래 이름표가 떼로 겹쳐 도배되던 것을 «같은 이름끼리 묶어 ×N» 한 장으로. ──
 //   __LABELFOLD===false 면 옛 동작(이름표를 그 자리에서 그대로 그린다·안 접고·안 물린다).
@@ -4714,12 +4760,49 @@ function renderJournal() {
   el("journal").innerHTML = h;
 }
 
-// 되돌림: __HINTFOLD === false 면 옛 긴 한 줄 그대로(짧은 줄·H 판 안 켠다). 아니면 짧은 줄 + H 로 전체.
+// 조작 목록의 유일 근원(V-254 ④). buildControls() 가 긴 #hint 줄과 H 판(#help) 격자를 둘 다 이 배열로 그린다 — 손목록이 두 곳에 없어 갈라질 수 없다.
+const CONTROLS = [
+  { k: "WASD / 화살표", h: "이동",     d: "이동" },
+  { k: "좌클릭",         h: "뼈창",     d: "뼈창" },
+  { k: "Q",             h: "해골",     d: "해골 소환" },
+  { k: "K",             h: "구울",     d: "구울 소환(시체 2·마나 25 — 싸고 빠르고 피를 빤다)" },
+  { k: "G",             h: "골렘",     d: "뼈 골렘(시체 3·마나 40 — 느리고 두껍다·도발로 적을 끌고 몸으로 막는다)" },
+  { k: "O",             h: "태세",     d: "군세 태세 순환 — 따라와(사람 곁 수비) · 쳐라(겨눈 자리로 공격) · 지켜(그 자리 사수)" },
+  { k: "X",             h: "등급",     d: "소환 등급 순환(해골·거대·거인)" },
+  { k: "1·2·3·4",       h: "물약",     d: "물약 벨트 — 그 칸을 마신다" },
+  { k: "5",             h: "약화",     d: "약화 저주 — 겨눈 자리 반경 안 적이 6초간 주는 피해 ×0.5(버티기)" },
+  { k: "6",             h: "역병",     d: "역병 저주 — 6초간 부패, 죽으면 곁으로 번지고 시체가 두 배(무리 정리)" },
+  { k: "7",             h: "공포",     d: "공포 저주 — 3.5초간 걸린 적이 사람에게서 달아난다(에워쌈 풀기)" },
+  { k: "E",             h: "시체폭발", d: "시체 폭발" },
+  { k: "V",             h: "뼈벽",     d: "뼈벽" },
+  { k: "R",             h: "제물",     d: "제물(소환수를 키운다)" },
+  { k: "M",             h: "화장",     d: "화장 — 곁의 시체를 태워 마나 회복(구당 +34)" },
+  { k: "U",             h: "주인약화", d: "제물 — 곁 주인에 시체 3구를 바쳐 6초간 약화(피해 −40%·받는 피해 +35%)" },
+  { k: "P",             h: "물약구입", d: "물약 구입(제단 근처·금)" },
+  { k: "J",             h: "보석구입", d: "보석 구입(제단 근처·금)" },
+  { k: "B",             h: "제단",     d: "제단(반경 안에서 금으로 산다)" },
+  { k: "Z",             h: "자리+",    d: "소환 자리 +" },
+  { k: "C",             h: "성장창",   d: "성장창" },
+  { k: "I",             h: "가방",     d: "가방" },
+  { k: "L",             h: "일지",     d: "일지 — 도전 과제와 진행·영구 보상" },
+  { k: "N",             h: "마을귀환", d: "마을 귀환(적 없을 때·짧은 시전)" },
+  { k: "T",             h: "상인",     d: "상인과 거래(마을·곁에서)" },
+  { k: "Y",             h: "승천",     d: "승천(마을 제단·B20층부터 — 처음부터 다시·영구 배수)" },
+  { k: "F",             h: "아래로/던전", d: "아래 층으로 / 마을 문은 던전 복귀" },
+  { k: "H",             h: "조작 전체", d: "이 조작 판 열기/닫기" },
+];
+function buildControls() {
+  const hint = el("hint");
+  if (hint) hint.textContent = CONTROLS.map((c) => `${c.k} ${c.h}`).join(" · ");
+  const grid = el("helpgrid");
+  if (grid) grid.innerHTML = CONTROLS.map((c) => `<div><b>${c.k}</b><span>${c.d}</span></div>`).join("");
+}
+// 되돌림: __HINTFOLD === false 면 긴 줄 그대로(buildControls 가 채운 것·짧은 줄·H 판 안 켠다). 아니면 짧은 줄 + H 로 전체.
 function applyHintFold() {
   if (globalThis.__HINTFOLD === false) return;
   const h = el("hint");
   h.classList.add("short");
-  h.textContent = "WASD 이동 · 좌클릭 뼈창 · Q 소환 · F 아래로 · H 조작 전체";
+  h.textContent = "WASD 이동 · 좌클릭 뼈창 · Q 소환 · O 태세 · F 아래로 · H 조작 전체";
 }
 function toggleInv() {
   invOpen = !invOpen;
@@ -5227,7 +5310,8 @@ function updateHUD() {
   if (ac.skel) parts.push(`해골 ${ac.skel}`);
   if (ac.ghoul) parts.push(`구울 ${ac.ghoul}`);
   if (ac.golem) parts.push(`골렘 ${ac.golem}`);
-  slotsEl.textContent = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "");
+  slotsEl.textContent = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "")
+    + (globalThis.__ORDERS !== false ? ` · 태세 ${STANCE_NAME[armyStance]}` : "");
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
@@ -5369,6 +5453,7 @@ function loop(now) {
   tex("fx/spear.png"); tex("fx/spearhit.png"); tex("fx/boom.png"); tex("fx/gold.png"); tex("fx/foeshot.png");
   for (const im of DECOR_PRELOAD) tex(im);
   buildBelt();
+  buildControls();
   applyHintFold();
   bindChar();
   bindAscend();

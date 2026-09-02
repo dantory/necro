@@ -18217,6 +18217,17 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
   브리프: `tmp/hs_v251_prompt.md`
 
+## V-254 — 군세에 「명령」 · 평범이 어둠에 먹힌다 (닫음 2026-09-02)
+  V-253 컷에서 셋이 남았고 새 컨텐츠 하나를 더했다. 만진 곳 `hs/main.js`·`hs/index.html`·새 자 파일 없음(베이커 `tmp/hs_v254_cut.mjs`·되돌림은 있는 `tmp/hs_v253_revert.mjs` 되씀).
+  ① **군세 태세 셋(`__ORDERS`)** — 소환수에 명령이 한 줄도 없던 것(`grep 명령|stance` 0)에 `O` 키로 도는 태세 셋을 얹었다. `stepMinions` 가 태세마다 «묶이는 자리(anchor)»와 «싸우러 나갈 반경»·«설 자리»를 가른다: **따라와**(사람 곁 반경 240·수비) · **쳐라**(겨눈 자리로 몰려가 반경 600 안 문다·사람에게서 멀어짐) · **여기 지켜**(명령한 그 자리 반경 240만·끌려가지 않음, 바닥에 초록 깃발 표식 `drawHoldMarker`). HUD 「자리 N/M」 줄 끝에 **태세 낱말**, `O` 는 힌트·H 판에도 들어감. `__ORDERS=false` 면 옛 행동 그대로(anchor 없이 제 둘레 520).
+  ② **평범이 어둠에 먹힘** — `MOB_TINT.plain` 밝기 **0.82→1.34**(채도 0.9 지켜 vivid 넷과 안 겹침). 옛 0.82 는 어두운 바닥에서 몸이 배경에 녹아 붉은 발밑 고리만 보였다. 판정 컷 `tmp/hs_v254_kinds_dark.png`(저광 `__DARKEN` 워시)에서 다섯째 몸이 어두운 바닥 위에서 읽힘.
+  ③ **다섯째 이름표** — 평범만 `mobKind` 이 `null` 이라 이름표가 없던 것을 `assignMobKinds` 평범 갈래에 `mobKind="plain"` 을 주고 `MOBKIND_META.plain={label:"망령"}` 을 더해 **같은 `drawKindLabel` 한 길**로 뜬다(갈래 안 나눔). 어두운 데 선 망령이 이름으로도 읽힘.
+  ④ **힌트 한 근원** — `main.js:4722`(짧은 줄)과 `index.html:51`(긴 줄)·H 판(#help)이 손목록 셋으로 갈라지던 것을 `CONTROLS` 배열 하나로 모았다. `buildControls()` 가 긴 #hint 줄과 #help 격자를 둘 다 이 배열로 그린다 — 새 키(O)를 넣으면 세 곳에 한 번에 들어간다(index.html 이 손목록을 안 든다).
+  ⑤ **계단 우물 — 안 집음**(V-251·252·253 세 판 실패·로컬 base64 막다른 길).
+  - 되돌림 실측: `__ORDERS=false __MOBTINT=false` → genFloor 지문 **F4=349422190·F30=245310424** = V-253(git stash HEAD) **byte-동일**(같은 플래그로 두 트리 재서 일치). 태세는 순수 소환수 AI·색조/이름표/저광은 그리기 전용 → 세계 생성 무변경.
+  - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820) · `hs_v219_foeshot` 에셋 **100%**·오류 **0**·frame p95 **0.5ms**·쏜화살 64 → 다 규격 안 ✅.
+  - 컷 **직접 열어 봄**(게임 크기): `tmp/hs_v254_order_{follow,attack,hold}.png`(같은 자리·태세만 바꿔 — 소환수가 사람 곁/겨눈 자리/깃발로 실제 다르게 섬) · `_kinds_dark.png`+`_plain_crop.png`(어두운 바닥에서 망령 몸+이름표 읽힘). 구현 커밋은 이 줄 아래 git log.
+
 ## V-253 — 「어느 놈인지」가 한눈에 · 이름표가 어디서나 (닫음 2026-09-02)
   V-252 컷에서 셋이 남았다: 평범이 사수와 같은 몸·무채색이라 안 갈림 · 이름표가 밝은 것 위에서 사라짐 · 계단 우물. 만진 곳 `hs/main.js` **하나**·새 자 파일 없음.
   ① **「평범」에 제 낯** — `assignZoneMix` 에서 평범을 넷(shoot=skelarch·charge=brute·bomb=zombie·thief=shaman)이 **안 쓰는 유일한 몸 `mob/fallen`** 으로 갈랐다(8방향+walk/attack 다 있음·새로 안 구움). 색조 `MOB_TINT.plain`(흙빛 회록·저채도 `sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82)`)를 `drawEnemy` 에서 얹어 넷과 안 겹치게. 다섯이 색+실루엣으로 갈림.
