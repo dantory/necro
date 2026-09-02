@@ -189,6 +189,15 @@ const GOLEM_DRAW_BULK = 1.16;   // V-245 ②d — 골렘은 데이터 크기(1.9
 // 시체는 자원인데 쓸 곳이 소환·폭발·뼈벽·먹이·골렘·구울 여섯뿐이었다. 둘을 더해 시체를 두고 다투게 한다(모자라야 고르는 맛).
 const BURN_N = 2, BURN_MANA = 34;                    // 화장: 곁의 시체 최대 2구를 태워 구당 마나 +34(소환·폭발이 먹을 시체를 마나로 돌린다)
 const HEX_N = 3, HEX_DUR = 6.0, HEX_DMG = 0.6, HEX_VULN = 1.35, HEX_RANGE = 520;   // 제물: 곁 주인 있을 때 시체 3구로 6초간 주인 피해 −40%·받는 피해 +35%
+// ── V-249 저주 셋(네크로의 셋째 기둥·`__CURSE`) — 소환·시체에 이은 「규칙을 거는」 손. 겨눈 자리 반경 안 적 머리에 표식이 뜬다. ──
+// 셋이 서로 안 겹친다: 약화=버티기(적 피해 반) · 역병=무리 정리(죽으면 곁으로 번지고 시체가 두 배) · 공포=흩기(적이 사람에게서 달아난다).
+// 저주는 genFloor «밖»(플레이 중 키 입력)에서만 굴러 전역 Math.random 을 안 갉는다 → __CURSE=false 면 genFloor 지문 불변.
+const CURSE_R = 178;             // 겨눈 자리에서 저주가 닿는 반경(세 저주 공통)
+const WEAK_MANA = 28, WEAK_DUR = 6.0, WEAK_DMG = 0.5;   // 약화(키 5): 6초간 걸린 적이 주는 피해 ×0.5(버티기용·규칙)
+const FEAR_MANA = 24, FEAR_DUR = 3.5, FEAR_SPD = 1.15;  // 공포(키 7): 3.5초간 걸린 적이 사람에게서 FEAR_SPD 배 속도로 달아난다(안 때린다)
+const PLAGUE_MANA = 46, PLAGUE_DUR = 6.0, PLAGUE_DPS = 14, PLAGUE_SPREAD = 156;   // 역병(키 6): 6초간 초당 부패 피해 · 죽으면 곁 PLAGUE_SPREAD 안으로 터져 번진다
+const PLAGUE_BURST = () => 44 + (G ? G.floor : 1) * 8;   // 역병 걸린 적이 죽을 때 터지는 광역 피해(층에 조금 비례) — 무리를 잇달아 무너뜨린다
+const CURSE_FX_LIFE = 0.5;       // 저주 시전·역병 파문 고리가 퍼져 사그라드는 시간(초)
 // ── V-235 물약(소모품) · 벨트 1~4 ──────────────────────────────────────────
 // 두 종: 생명(붉은)·마나(푸른). 회복량은 최대치의 «비율»이라 층·레벨이 오르면 등급이 저절로 오른다
 //   (생명 maxhp×0.35 · 마나 maxmana×0.40, 즉효). 벨트 네 칸, 칸마다 한 종이 쌓인다(칸당 상한 9).
@@ -648,7 +657,7 @@ function fresh(floor, carry, town) {
     lastZone: town ? prevZi : zi, zoneBanner: zBanner,
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
-    spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [],
+    spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [], curseFx: [],
     hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
@@ -804,6 +813,48 @@ window.__zoneProps = (fl) => {   // V-248 ①·②d 컷용 — 지역 소품이 
   for (const pr of G.props) { if (pr.brazier) continue; const k = pr.img.slice(6, -4); c[k] = (c[k] || 0) + 1; }
   return { floor: fl, zone: ZONES[zoneOf(fl)].name, total: G.props.length, counts: c };
 };
+// V-249 저주 컷·측정용 — 겨눈 자리(px,py) 반경 안에 잡몹 한 무리를 깨워 세운다(결정적·자가 아니라 실제 makeMob 결). 걸 대상을 만든다.
+window.__seedFoes = (n = 10, px, py, scale = 8) => {
+  const p = G.player, cx = px ?? (p.x + 150), cy = py ?? p.y;
+  const T = { base: "mob/skelarch", hp: 48, dmg: 8, spd: 166, h: 59, r: 16, gold: [5, 10] };
+  const enemies = [];
+  for (let i = 0; i < n; i++) {
+    const ang = (i / n) * 6.283, rad = 40 + (i % 3) * 34;
+    enemies.push({ id: 5000 + i, base: T.base, mob0: T.base, x: cx + Math.cos(ang) * rad, y: cy + Math.sin(ang) * rad,
+      hp: T.hp * scale, maxhp: T.hp * scale, dmg: T.dmg * scale, spd: T.spd, h: T.h, r: T.r, gold: T.gold,
+      dx: 0, dy: 1, elite: false, hit: 0, kb: { x: 0, y: 0 }, atk: 0, anim: (i * 2.3) % 6, alive: true, tb: i & 3, name: null, state: "idle" });
+  }
+  G.packs.push({ x: cx, y: cy, enemies, room: -1, awake: true });
+  return { foes: enemies.length, at: [Math.round(cx), Math.round(cy)] };
+};
+// V-249 저주를 겨눈 자리(px,py)에 실제 문(castCurse)으로 건다. 걸린 수·마나 전후를 돌려준다.
+window.__curse = (which, px, py) => {
+  const p = G.player; const m0 = Math.round(p.mana); p.mana = p.maxmana;
+  const wx = px ?? (p.x + 150), wy = py ?? p.y;
+  mouse.x = (wx - cam.x) * Z; mouse.y = (wy - cam.y) * Z;
+  const before = p.maxmana;
+  let n = 0;
+  if (which === "weak") n = castCurse("weak", WEAK_DUR, WEAK_MANA, "#c774ff", "약화");
+  else if (which === "plague") n = castCurse("plague", PLAGUE_DUR, PLAGUE_MANA, "#79c04a", "역병");
+  else if (which === "fear") n = castCurse("fear", FEAR_DUR, FEAR_MANA, "#e8cf52", "공포");
+  return { which, hit: n, manaSpent: before - Math.round(p.mana), manaWas: m0 };
+};
+// V-249 저주 표식이 몇 마리 머리 위에 떠 있는지(눈으로 갈리는지 수로) — 걸린 종류별로 센다.
+window.__curseCount = () => {
+  let weak = 0, plague = 0, fear = 0;
+  forEachEnemy((m) => { if (m.weak > 0) weak++; if (m.plague > 0) plague++; if (m.fear > 0) fear++; });
+  return { weak, plague, fear };
+};
+// V-249 측정용 — 겨눈 자리 가장 가까운 적을 실제 killEnemy 로 죽인다(역병 죽음 번짐·시체 두 배를 잰다). 죽인 뒤 시체 증가·역병 여부.
+window.__killNearest = (px, py) => {
+  let best = null, bd = Infinity;
+  forEachEnemy((m) => { const d = (m.x - px) ** 2 + (m.y - py) ** 2; if (d < bd) { bd = d; best = m; } });
+  if (!best) return null;
+  const c0 = G.corpses.length, wasPlague = best.plague > 0;
+  killEnemy(best);
+  return { corpses: G.corpses.length - c0, wasPlague };
+};
+window.__step = (n = 1) => { for (let i = 0; i < n; i++) stepEnemies(1 / 60); return 1; };   // V-249 측정용 — 적 AI 를 n 프레임 굴린다(공포 달아남·역병 tick 을 잰다)
 window.__castCageAt = (px, py) => {   // V-248 ②c 컷용 — 뼈 왕 우리 시전을 그 자리에서 실제 문(fireCast)으로 굴린다(내 __CAGEFIT 로직을 지난다)
   G.bones = [];
   const m = { bossKind: 0, x: px + 80, y: py, r: 40, h: 108, atk: 0, skillCd: 0, cast: { k: 0, phase: "warn", cx: px, cy: py, dir: 0 } };
@@ -972,6 +1023,11 @@ function handleSkills() {
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false && globalThis.__MINIONKIND !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
   if (keys.has("k") && !p._k) { p._k = true; if (globalThis.__GHOUL !== false && globalThis.__MINIONKIND !== false) raiseGhoul(); } if (!keys.has("k")) p._k = false;
+  if (globalThis.__CURSE !== false) {   // V-249 저주 셋 — 겨눈 자리에 건다(5 약화 · 6 역병 · 7 공포)
+    if (keys.has("5") && !p._c5) { p._c5 = true; curseWeaken(); } if (!keys.has("5")) p._c5 = false;
+    if (keys.has("6") && !p._c6) { p._c6 = true; cursePlague(); } if (!keys.has("6")) p._c6 = false;
+    if (keys.has("7") && !p._c7) { p._c7 = true; curseFear(); } if (!keys.has("7")) p._c7 = false;
+  }
   if (globalThis.__CORPSEUSE !== false) {   // V-242 ② M 화장(시체→마나) · U 제물(시체→주인 약화)
     if (keys.has("m") && !p._m) { p._m = true; corpseBurn(); } if (!keys.has("m")) p._m = false;
     if (keys.has("u") && !p._u) { p._u = true; corpseHex(); } if (!keys.has("u")) p._u = false;
@@ -1466,6 +1522,55 @@ function corpseHex() {   // V-242 ② U — 시체 제물로 곁의 주인을 �
   floatNote("제물 — 주인이 약해진다 (피해 −40% · 받는 피해 +35%)", "#c774ff", 1.4, { sz: 13 });
 }
 function hexF(m) { return m.hex > 0 ? HEX_DMG : 1; }
+function weakF(m) { return globalThis.__CURSE !== false && m.weak > 0 ? WEAK_DMG : 1; }   // V-249 약화 — 걸린 적이 주는 피해를 반으로
+
+// V-249 저주 — 겨눈 자리(마우스) 반경 CURSE_R 안 적에게 field 를 dur 만큼 건다. 걸린 수를 돌려준다(0 이면 마나 안 치른다).
+function castCurse(field, dur, mana, col, name) {
+  const p = G.player;
+  const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
+  const hit = [];
+  forEachEnemy((m) => { if ((m.x - tx) ** 2 + (m.y - ty) ** 2 < CURSE_R * CURSE_R) hit.push(m); });
+  if (!hit.length) { floatNote("겨눈 자리에 적이 없다", "#c8a04a", 1.0); return 0; }
+  if (!canPay(mana)) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return 0; }
+  payMana(mana);
+  for (const m of hit) { m[field] = dur; if (field === "plague") m.plagueDot = 0; }
+  for (let i = 0; i < 30; i++) { const a = Math.random() * 6.283, s = 40 + Math.random() * CURSE_R; burst(tx + Math.cos(a) * s * 0.4, ty + Math.sin(a) * s * 0.4, col, 150); }
+  G.curseFx.push({ x: tx, y: ty, t: 0, col });
+  cam.shake = Math.max(cam.shake, 6);
+  floatNote(`${name} — 적 ${hit.length}`, col, 1.2, { sz: 13 });
+  return hit.length;
+}
+function curseWeaken() { castCurse("weak", WEAK_DUR, WEAK_MANA, "#c774ff", "약화"); }     // 키 5
+function cursePlague() { castCurse("plague", PLAGUE_DUR, PLAGUE_MANA, "#79c04a", "역병"); } // 키 6
+function curseFear() { castCurse("fear", FEAR_DUR, FEAR_MANA, "#e8cf52", "공포"); }         // 키 7
+
+// V-249 저주 매 프레임 — 시간을 깎고, 역병이면 부패 피해를 0.5초마다 tick 한다(죽으면 killEnemy 가 번짐을 처리).
+function curseTick(m, dt) {
+  if (m.weak > 0) m.weak -= dt;
+  if (m.fear > 0) m.fear -= dt;
+  if (m.plague > 0) {
+    m.plague -= dt;
+    m.plagueDot = (m.plagueDot || 0) + dt;
+    while (m.plagueDot >= 0.5 && m.alive) { m.plagueDot -= 0.5; hurtEnemy(m, PLAGUE_DPS * 0.5, 0, 0, "plague"); }
+  }
+}
+
+// V-249 역병 — 걸린 적이 죽을 때 곁으로 터진다: PLAGUE_SPREAD 안 적에게 광역 피해 + 역병을 옮기고, 시체를 하나 더 남긴다(값 두 배).
+// explode 처럼 setTimeout 으로 미뤄 재귀 없이 「잇달아 무너지는」 파문이 눈에 보이게 한다.
+function plagueBurst(x, y) {
+  setTimeout(() => {
+    if (!G) return;
+    for (let i = 0; i < 20; i++) { const a = Math.random() * 6.283, s = 40 + Math.random() * 160; G.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.5, col: "#79c04a", r: 2 + Math.random() * 3 }); }
+    G.curseFx.push({ x, y, t: 0, col: "#79c04a", r: PLAGUE_SPREAD });
+    forEachEnemy((m) => {
+      if ((m.x - x) ** 2 + (m.y - y) ** 2 < PLAGUE_SPREAD * PLAGUE_SPREAD) {
+        if (!(m.plague > 0)) m.plagueDot = 0;
+        m.plague = PLAGUE_DUR;
+        hurtEnemy(m, PLAGUE_BURST(), (m.x - x), (m.y - y), "plague");
+      }
+    });
+  }, 0);
+}
 
 // ── V-234 뼈 제단 — 금을 쓰는 첫 길(피/뼈/재 셋 중 층마다 하나). B 로 산다(반경 70·한 층 한 번). ──
 const ALTAR_META = {
@@ -1667,9 +1772,18 @@ function stepEnemies(dt) {
       if (!m.alive) continue;
       live++;
       unstick(m, m.r);   // 밀림(separation)·순간이동으로 벽 밖에 나가면 매 프레임 도로 끌어들인다
+      if (globalThis.__CURSE !== false && (m.weak > 0 || m.fear > 0 || m.plague > 0)) curseTick(m, dt);   // V-249 저주 시간·부패 tick(스턴 중에도)
+      if (!m.alive) continue;   // V-249 부패 tick 이 이 프레임에 죽였으면 건너뛴다
       if (m.affix) affixMobTick(m, p, dt);   // V-246 — 화상 aura·잔상은 스턴 중에도(수동 효과)
       if (m.stun > 0) { m.stun -= dt; m.hit = Math.max(0, m.hit - dt); continue; }
       if (m.boss) { stepBoss(m, p, dt, pk); continue; }
+      if (globalThis.__CURSE !== false && m.fear > 0) {   // V-249 공포 — 사람에게서 달아난다(안 때린다). 주인은 위에서 걸러 안 겁먹는다.
+        const fdx = m.x - p.x, fdy = m.y - p.y, fl = Math.hypot(fdx, fdy) || 1;
+        m.dx = fdx / fl; m.dy = fdy / fl;
+        stepTo(m, m.x + m.dx * m.spd * FEAR_SPD * dt, m.y + m.dy * m.spd * FEAR_SPD * dt, m.r);
+        m.state = "walk"; m.anim += dt * 11;
+        continue;
+      }
       if (m.ranged && globalThis.__RANGED_MOB) { stepRanged(m, p, dt); continue; }
       if (m.charger && globalThis.__CHARGER_MOB) { stepCharger(m, p, dt); continue; }
       if (m.bomber && globalThis.__BOMBER_MOB) { stepBomber(m, p, dt, pk); continue; }
@@ -1693,7 +1807,7 @@ function stepEnemies(dt) {
         m.state = "attack"; m.anim += dt * 9;
         if (m.atk <= 0) {
           m.atk = 0.9 * (m.swift ? 0.7 : 1);   // V-246 날랜 — 공격 간격 0.7배
-          if (tx === p.x && ty === p.y) hurtPlayer(dmg);
+          if (tx === p.x && ty === p.y) hurtPlayer(dmg * weakF(m));
           else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= dmg; if (s.hp <= 0) killMinion(s); } }
         }
       }
@@ -1722,7 +1836,7 @@ function stepRanged(m, p, dt) {
   if (dist <= RANGED_RANGE && m.shootCd <= 0) {
     m.shootCd = RANGED_CD;
     const a = Math.atan2(dy, dx);
-    G.foeShots.push({ x: m.x, y: m.y - m.h * 0.4, vx: Math.cos(a) * RANGED_SPD, vy: Math.sin(a) * RANGED_SPD, life: 2.4, dmg: m.dmg });
+    G.foeShots.push({ x: m.x, y: m.y - m.h * 0.4, vx: Math.cos(a) * RANGED_SPD, vy: Math.sin(a) * RANGED_SPD, life: 2.4, dmg: m.dmg * weakF(m) });
     METRIC.foeShot = (METRIC.foeShot || 0) + 1;
     m.state = "attack";
   }
@@ -1745,7 +1859,7 @@ function stepCharger(m, p, dt) {
     m.charging -= dt;
     stepTo(m, m.x + m.cdx * m.spd * CHARGE_SPD_MUL * dt, m.y + m.cdy * m.spd * CHARGE_SPD_MUL * dt, m.r);
     m.state = "walk"; m.anim += dt * 14;
-    if (dist < p.r + m.r + 8) { hurtPlayer(m.dmg * CHARGE_BITE); m.charging = 0; m.chargeCd = CHARGE_CD; }
+    if (dist < p.r + m.r + 8) { hurtPlayer(m.dmg * CHARGE_BITE * weakF(m)); m.charging = 0; m.chargeCd = CHARGE_CD; }
     else if (m.charging <= 0) m.chargeCd = CHARGE_CD;
   } else if (m.chargeCd <= 0 && dist < CHARGE_RANGE) {
     m.tele = CHARGE_TELE; m.state = "attack";
@@ -1783,7 +1897,7 @@ function bombExplode(m) {
     if ((s.x - m.x) ** 2 + (s.y - m.y) ** 2 <= r2) { s.hp -= m.dmg * BOMB_MINION; if (s.hp <= 0) killMinion(s); }
   }
   const p = G.player;
-  if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= r2) hurtPlayer(m.dmg * BOMB_PLAYER);
+  if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 <= r2) hurtPlayer(m.dmg * BOMB_PLAYER * weakF(m));
   for (let i = 0; i < 16; i++) burst(m.x, m.y - m.h * 0.4, "#ff9030", 220);
   cam.shake = Math.max(cam.shake, 12); flash = Math.max(flash, 0.18); flashColor = "255,150,60";
   killEnemy(m);
@@ -1817,7 +1931,7 @@ function stepThief(m, p, dt) {
     if (dist > m.r + 30) { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; m.anim += dt * 9; }
     else {
       m.state = "attack"; m.anim += dt * 9;
-      if (m.atk <= 0) { m.atk = 0.9; if (tx === p.x && ty === p.y) hurtPlayer(m.dmg); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } } }
+      if (m.atk <= 0) { m.atk = 0.9; if (tx === p.x && ty === p.y) hurtPlayer(m.dmg * weakF(m)); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } } }
     }
   }
   if (m.kb.x || m.kb.y) { stepTo(m, m.x + m.kb.x * dt, m.y + m.kb.y * dt, m.r); m.kb.x *= 0.86; m.kb.y *= 0.86; if (Math.abs(m.kb.x) < 4) m.kb.x = 0; if (Math.abs(m.kb.y) < 4) m.kb.y = 0; }
@@ -1856,7 +1970,7 @@ function stepBoss(m, p, dt, pk) {
   if (dist > reach) { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; m.anim += dt * 9; }
   else {
     m.state = "attack"; m.anim += dt * 9;
-    if (m.atk <= 0) { m.atk = 0.9; if (onP) hurtPlayer(m.dmg * hexF(m)); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg * hexF(m); if (s.hp <= 0) killMinion(s); } } }
+    if (m.atk <= 0) { m.atk = 0.9; if (onP) hurtPlayer(m.dmg * hexF(m) * weakF(m)); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg * hexF(m); if (s.hp <= 0) killMinion(s); } } }
   }
   if (m.skillCd <= 0) startCast(m, p);
   bossKb(m, dt);
@@ -1880,14 +1994,14 @@ function advanceCast(m, p, dt, pk) {
   if (c.phase === "dash") {                              // 도살자 — 겨눈 방향으로 들이받는다
     stepTo(m, m.x + Math.cos(c.dir) * m.spd * 3.4 * dt, m.y + Math.sin(c.dir) * m.spd * 3.4 * dt, m.r);
     m.state = "walk";
-    if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 < (p.r + m.r + 12) ** 2) hurtPlayer(m.dmg * 1.4 * hexF(m));
+    if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 < (p.r + m.r + 12) ** 2) hurtPlayer(m.dmg * 1.4 * hexF(m) * weakF(m));
     if (c.t <= 0) { c.phase = "sweepWarn"; c.t = 0.42; c.cx = m.x; c.cy = m.y; c.r = m.r + 150; }
     return;
   }
   if (c.phase === "sweepWarn") {                         // 도살자 — 멈춘 자리에서 광역 후려치기
     if (c.t <= 0) {
       cam.shake = Math.max(cam.shake, 16);
-      if ((p.x - c.cx) ** 2 + (p.y - c.cy) ** 2 < c.r * c.r) hurtPlayer(m.dmg * 1.2 * hexF(m));
+      if ((p.x - c.cx) ** 2 + (p.y - c.cy) ** 2 < c.r * c.r) hurtPlayer(m.dmg * 1.2 * hexF(m) * weakF(m));
       for (let i = 0; i < 20; i++) burst(c.cx, c.cy, "#c0303a", 200);
       endCast(m);
     }
@@ -2186,6 +2300,11 @@ function xpForLevel(n) { return 250 * n * (n - 1); }
 
 function killEnemy(m) {
   m.alive = false;
+  if (globalThis.__CURSE !== false && m.plague > 0) {   // V-249 역병 — 죽으면 곁으로 터져 번지고, 시체를 하나 더 남긴다(저주 걸린 시체 값 두 배)
+    plagueBurst(m.x, m.y);
+    G.corpses.push({ x: m.x + 22, y: m.y + 8, base: m.base, dir: dirName(m.dx, m.dy), h: m.h, used: false, t: 0 });
+    if (G.corpses.length > 200) G.corpses.shift();
+  }
   G.kills++; METRIC.kills++;
   if (m.afxBolt) spawnAffixBolts(m.x, m.y, m.dmg * 2);   // V-246 번개 튀는 — 죽을 때 십자 번개 넷(경고 0.4s)
   if (m.elite) journalStat("elite");
@@ -2544,6 +2663,8 @@ function stepFx(dt) {
   G.booms = G.booms.filter((b) => b.t < b.life);
   for (const h of G.hits) h.t += dt;
   G.hits = G.hits.filter((h) => h.t < h.life);
+  for (const f of G.curseFx) f.t += dt;   // V-249 저주 시전/역병 파문 고리
+  G.curseFx = G.curseFx.filter((f) => f.t < CURSE_FX_LIFE);
 }
 // ★ V-185 — 떠오르는 글이 화면 한복판을 덮던 것을 판다. 고치기 전엔 피해 숫자 상한이
 //   60 이고, 같은 적을 때릴 때마다 새 숫자가 사람 위에 통째로 쌓였다(컷에서 「6603」이
@@ -2836,6 +2957,14 @@ function drawWorld() {
   }
   window.__boomRects = boomRects;
 
+  // V-249 저주 파문 — 시전(반경 CURSE_R)·역병 번짐(반경 PLAGUE_SPREAD)이 퍼지는 고리. 색은 저주가 준다.
+  for (const f of G.curseFx) {
+    const k = f.t / CURSE_FX_LIFE, rr = f.r || CURSE_R;
+    ctx.globalAlpha = Math.max(0, (1 - k) * 0.7); ctx.strokeStyle = f.col; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(f.x, f.y, rr * (0.45 + 0.6 * k), 0, 6.283); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
   // ㉡ 뼈창 명중 임팩트 — 짧게 띄운다. 미로드면 hurtEnemy 의 붉은 파티클이 폴백이다.
   const hitRects = [];
   const hitIm = tex("fx/spearhit.png");
@@ -3089,7 +3218,14 @@ function drawZoneTitle() {   // V-247 — 구간 첫 진입 배너(D2 결): 이�
   const a = zb.t < 0.4 ? zb.t / 0.4 : zb.t > 2.0 ? Math.max(0, (2.8 - zb.t) / 0.8) : 1;
   const cy = VH * 0.34;
   ctx.save(); ctx.globalAlpha = a; ctx.textAlign = "center";
+  // V-248 (b) — 배너가 우리뼈·소품 위에 맨글자로 겹쳐 읽히던 것 → 가로로 사그라드는 어두운 밑띠를 깔아 «UI 한 겹»으로 분리한다.
   ctx.font = "42px 'Times New Roman',serif";
+  if (globalThis.__BANNERBG !== false) {
+    const bandW = Math.max(ctx.measureText(zb.name).width, 260) + 160, bandH = 74;
+    const bg = ctx.createLinearGradient(VW / 2 - bandW / 2, 0, VW / 2 + bandW / 2, 0);
+    bg.addColorStop(0, "rgba(6,4,3,0)"); bg.addColorStop(0.5, "rgba(6,4,3,0.72)"); bg.addColorStop(1, "rgba(6,4,3,0)");
+    ctx.fillStyle = bg; ctx.fillRect(VW / 2 - bandW / 2, cy - 44, bandW, bandH);
+  }
   ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.strokeText(zb.name, VW / 2, cy);
   ctx.fillStyle = "#e6d6a8"; ctx.fillText(zb.name, VW / 2, cy);
   ctx.font = "15px 'Times New Roman',serif";
@@ -3159,11 +3295,11 @@ const ZONES = [
   { name: "심연",          flavor: "심연", wash: "rgba(26,32,64,0.22)",   dark: 0.40, warm: 0.06, wallTint: "rgba(24,30,58,0.30)",
     props: { pillar: 0, statue: 0, bones2: 1, column2: 5, coffin: 1, urn: 1, bones: 2, rubble: 6 }, mix: { ranged: 0.08, charge: 0.12, bomb: 0.06, thief: 0.04 } },
   { name: "성소",          flavor: "성소", wash: "rgba(120,98,38,0.15)",  dark: 0.15, warm: 0.18, wallTint: "rgba(126,102,44,0.20)",
-    props: { pillar: 4, statue: 4, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
+    props: { pillar: 9, statue: 5, bones2: 1, column2: 1, coffin: 1, urn: 1, bones: 1, rubble: 1 }, mix: { ranged: 0.30, charge: 0.34, bomb: 0.10, thief: 0.06 } },
 ];
 const ZONE_MINI = [   // V-248 ②e 미니맵 지역 색조 — HUD 이름만 바뀌고 결은 같던 것. 세계 wash 와 같은 계열로 「다른 곳」이 되게.
-  "rgba(120,110,80,0.20)", "rgba(150,138,100,0.26)", "rgba(70,104,55,0.28)",
-  "rgba(150,42,38,0.28)", "rgba(42,52,100,0.34)", "rgba(150,120,50,0.26)",
+  "rgba(122,112,80,0.42)", "rgba(158,144,96,0.44)", "rgba(66,124,54,0.50)",
+  "rgba(164,44,38,0.50)", "rgba(46,58,124,0.54)", "rgba(174,134,50,0.48)",
 ];
 function zoneOf(f) { return Math.max(0, Math.min(ZONES.length - 1, Math.floor(((f | 0) - 1) / 5))); }
 function curZone() { return (globalThis.__ZONE === false || G.town) ? ZONES[0] : ZONES[zoneOf(G.floor)]; }
@@ -3192,7 +3328,23 @@ function shadeV(g, w, h, top, bot) {
 function buildWallPats() {
   const im = tex("decor/wall.png");
   if (!im || !im.width) return false;
-  wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
+  // V-248 (a) — 북벽 상단 띠가 같은 64px 조각의 노골적 반복이라 멀리서 「글자열」로 읽혔다(V-215 가 암반에 한 것과 같은 병).
+  //   에셋을 새로 굽지 않고, 여섯 칸을 결정적으로 좌우뒤집기+밝기 흔들어 반복 주기를 64→384px 로 늘리고 옆칸끼리 안 같게 한다.
+  if (globalThis.__WALLVARY === false) {   // 되돌림 — 옛 64px 한 조각 반복(반복이 「글자열」로 읽히던 V-248 (a) 전 상태)
+    wallPatN = ctx.createPattern(bakeCanvas(64, 30, g => { g.drawImage(im, 0, 0, 64, 30); shadeV(g, 64, 30, 0.0, 0.58); }), "repeat");
+  } else {
+    const WNC = 6; let ws = 0x2545f491; const wrnd = () => { ws = (ws * 1664525 + 1013904223) >>> 0; return ws / 4294967296; };
+    wallPatN = ctx.createPattern(bakeCanvas(64 * WNC, 30, g => {
+      for (let i = 0; i < WNC; i++) {
+        g.save();
+        if (wrnd() < 0.5) { g.translate((i + 1) * 64, 0); g.scale(-1, 1); } else g.translate(i * 64, 0);
+        g.drawImage(im, 0, 0, 64, 30);
+        g.fillStyle = `rgba(0,0,0,${(0.05 + wrnd() * 0.18).toFixed(3)})`; g.fillRect(0, 0, 64, 30);
+        g.restore();
+      }
+      shadeV(g, 64 * WNC, 30, 0.0, 0.58);
+    }), "repeat");
+  }
   wallPatS = ctx.createPattern(bakeCanvas(64, 15, g => { g.drawImage(im, 0, 0, 64, 15); shadeV(g, 64, 15, 0.5, 0.5); }), "repeat");
   wallPatL = ctx.createPattern(bakeCanvas(15, 64, g => { g.translate(15, 0); g.rotate(Math.PI / 2); g.drawImage(im, 0, 0, 64, 15); g.setTransform(1, 0, 0, 1, 0, 0); shadeV(g, 15, 64, 0.12, 0.34); }), "repeat");
   // ★ V-215 — 옛 암반은 벽 그림을 48×32 로 2×3 격자에 «그대로» 찍어(돌림·뒤집기 없음, 주기 96px)
@@ -3398,7 +3550,9 @@ function drawProps() {
   for (const pr of vis) {
     const im = tex(pr.img);
     if (!im || !im.width) continue;
-    const dh = pr.img === "decor/bones2.png" ? pr.h * BONES2_DRAW : pr.h;   // V-241 — 서 있는 해골 소품은 그리기만 줄인다(발자국·RNG 는 map.js PROP_H 그대로)
+    // V-248 (e) — 성소는 기둥이 157개라는데 시야 안엔 서넛뿐이라 심연과 안 갈렸다. 성소에서만 기둥을 크게 그려 몇 안 되어도 «기둥 전당»으로 읽히게(그림만·발자국·RNG 불변).
+    const grand = pr.img === "decor/pillar.png" && !G.town && globalThis.__ZONE !== false && zoneOf(G.floor) === 5;
+    const dh = pr.img === "decor/bones2.png" ? pr.h * BONES2_DRAW : (grand ? pr.h * 1.3 : pr.h);   // V-241 — 서 있는 해골 소품은 그리기만 줄인다(발자국·RNG 는 map.js PROP_H 그대로)
     const w = dh * (im.width / im.height);
     const fo = spriteFoot(im, pr.img);
     // ★★ V-162 — **방법을 뒤집었다.** V-158·V-160 은 그림을 파일 그대로 놓고 «그림자를
@@ -3832,6 +3986,38 @@ function drawEnemy(m) {
     const meta = MOBKIND_META[m.mobKind];
     pushKindLabel(m.x, headTop - BAR_GAP, meta.label, meta.col);
   }
+  if (globalThis.__CURSE !== false && (m.weak > 0 || m.plague > 0 || m.fear > 0)) drawCurseMark(m, headTop);
+}
+// V-249 저주 표식 — 걸린 적의 발밑에 저주 색 고리, 머리 위에 저주마다 다른 도형(약화 ∨·역병 방울 셋·공포 !)을 쌓는다.
+const CURSE_COL = { weak: "#c774ff", plague: "#79c04a", fear: "#e8cf52" };
+function drawCurseMark(m, headTop) {
+  const t = nowMs() / 1000;
+  const marks = [];
+  if (m.weak > 0) marks.push("weak");
+  if (m.plague > 0) marks.push("plague");
+  if (m.fear > 0) marks.push("fear");
+  ctx.save();
+  let ri = 0;
+  for (const k of marks) {
+    const pulse = 1 + 0.08 * Math.sin(t * 6 + ri);
+    ctx.strokeStyle = CURSE_COL[k]; ctx.globalAlpha = 0.7; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(m.x, m.y, (m.r + 6 + ri * 5) * pulse, (m.r * 0.5 + 4 + ri * 3) * pulse, 0, 0, 6.283); ctx.stroke();
+    ri++;
+  }
+  ctx.textAlign = "center";
+  let iy = headTop - 12;
+  const bob = Math.sin(t * 5) * 2;
+  for (const k of marks) {
+    const col = CURSE_COL[k];
+    ctx.globalAlpha = 0.85; ctx.fillStyle = "#000a";
+    ctx.beginPath(); ctx.arc(m.x, iy - 2 + bob, 8, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (k === "weak") { ctx.strokeStyle = col; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(m.x - 6, iy - 5 + bob); ctx.lineTo(m.x, iy + 1 + bob); ctx.lineTo(m.x + 6, iy - 5 + bob); ctx.stroke(); }
+    else if (k === "plague") { ctx.fillStyle = col; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(m.x + (i - 1) * 5.5, iy - 2 + bob + (i === 1 ? -3 : 0), 2.6, 0, 6.283); ctx.fill(); } }
+    else { ctx.fillStyle = col; ctx.font = "bold 16px 'Times New Roman',serif"; ctx.fillText("!", m.x, iy + 4 + bob); }
+    iy -= 15;
+  }
+  ctx.restore();
 }
 function fallbackBlob(x, y, h, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y - h * 0.35, h * 0.18, h * 0.35, 0, 0, 6.283); ctx.fill(); }
 // 정예 이름표 화면사각이 «살아있는 시체폭발»의 화면사각과 겹치나(폭발 반경은 drawWorld 와 같은 식).
@@ -4073,7 +4259,7 @@ function drawAltarBeacon(a) {
       if (potionOn) lines.push([`물약 ${fmtNum(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
       if (gemOn) lines.push([`보석 ${fmtNum(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
       ctx.textAlign = "center";
-      const ly = a.y - ALTAR_STATUE_H - 2;
+      const ly = a.y - ALTAR_STATUE_H - (globalThis.__EVPANEL === false ? 2 : 44);   // V-248 (c) — 사건방 제단 판이 적 무리를 가리던 것 → 적 머리 위로 더 물린다(__EVPANEL=false 로 옛 자리)
       ctx.font = "bold 15px 'Times New Roman',serif";
       const w1 = ctx.measureText(meta.name).width;
       ctx.font = "13px 'Times New Roman',serif";
@@ -5066,9 +5252,11 @@ function drawMini() {
   if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조를 미니맵 전체에 얹어 「다른 곳」으로 읽히게(표식은 이 뒤에 또렷이)
     const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { mctx.fillStyle = zt; mctx.fillRect(0, 0, w, h); }
   }
-  for (const r of G.rooms) if (r.zoneEvent && r.visited) {   // V-248 ① 사건방은 미니맵에 금빛 마름모로 도드라지게
+  for (const r of G.rooms) if (r.zoneEvent && r.visited) {   // V-248 ①·(d) 사건방은 미니맵에 어두운 테 두른 금빛 마름모로 — 덩어리 아니라 마름모로 읽히게 키우고 외곽선을 준다
     mctx.save(); mctx.translate((r.x + r.w / 2) * sx, (r.y + r.h / 2) * sy); mctx.rotate(Math.PI / 4);
-    mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-3, -3, 6, 6); mctx.restore();
+    if (globalThis.__EVDIAMOND === false) { mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-3, -3, 6, 6); }
+    else { mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-5, -5, 10, 10); mctx.strokeStyle = "#2a1a08"; mctx.lineWidth = 1.6; mctx.strokeRect(-5, -5, 10, 10); }
+    mctx.restore();
   }
   for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
   for (const ch of G.chests) if (!ch.opened) {
