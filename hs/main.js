@@ -149,6 +149,9 @@ const MOB_TINT = {
   charge: "sepia(1) saturate(2.7) hue-rotate(-6deg) brightness(1.06) contrast(1.12)",  // 달려드는 놈 — 뜨거운 주황
   bomb:   "sepia(1) saturate(2.7) hue-rotate(46deg) brightness(1.16) contrast(1.06)",  // 터지는 놈 — 병색 노랑(제 몸=zombie)
   thief:  "sepia(1) saturate(2.3) hue-rotate(262deg) brightness(1.04) contrast(1.06)", // 훔치는 놈 — 보라
+  // V-253 — 「평범」 갈래에도 제 색. 넷(찬 파랑·뜨거운 주황·병색 노랑·보라)과 안 겹치게 «무채에 가까운 흙빛 회록».
+  //   채도 낮고 어둡게(brightness 0.8) 두어 vivid 한 넷과 한눈에 갈린다. 몸도 mob/fallen 으로 갈라 실루엣까지 다르다.
+  plain:  "sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82) contrast(1.06)",
 };
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
 // ── V-246 ① 정예 수식어(접두) — 팩마다 다른 놈(D2 정예 접두처럼 «한 판 한 판이 갈리는 이유»). ──
@@ -618,7 +621,7 @@ window.__kindsPose = () => {
   const charger = poseMob("charge", cx - 180, cy, { charger: true, base: "mob/brute", h: 82, r: 20, chargeCd: 999 });
   const bomber = poseMob("bomb", cx, cy, { bomber: true, base: bombBody, h: 76, r: 18, fuse: 0 });
   const thief = poseMob("thief", cx + 180, cy, { thief: true, base: "mob/shaman", h: 72, eatCd: 999 });
-  const plain = poseMob(null, cx + 360, cy, { base: "mob/skelarch", h: 66, tb: 0 });
+  const plain = poseMob(null, cx + 360, cy, { base: globalThis.__MOBTINT === false ? "mob/skelarch" : "mob/fallen", h: 66, tb: 0 });
   G.packs = [{ x: cx, y: cy, awake: true, room: 0, enemies: [shooter, charger, bomber, thief, plain] }];
   p.x = cx; p.y = cy + 230; unstick(p, p.r);   // 사람은 갈래 줄 아래로 물러 세운다(겹치지 않게·돌진 예고선 안 생기게)
   cam.x = cx - VW / (2 * Z); cam.y = cy - VH / (2 * Z) + 80;
@@ -1718,6 +1721,10 @@ function assignZoneMix(f, floor) {
       else if (r < cC) { m.charger = true; m.mobKind = "charge"; m.base = "mob/brute"; }
       else if (r < cB) { m.bomber = true; m.mobKind = "bomb"; if (globalThis.__MOBTINT === false) { m.base = "mob/brute"; } else { m.base = "mob/zombie"; m.h = Math.round(m.h * 1.06); } }
       else if (r < cT) { m.thief = true; m.mobKind = "thief"; m.base = "mob/shaman"; }
+      // V-253 — 「평범」은 제 몸(mob/fallen)으로. 넷이 skelarch/brute/zombie/shaman 을 다 쓰니, 그 넷과 안 겹치는
+      //   유일한 몸(fallen)으로 갈라 준다. 새로 굽지 않고 이미 있는 8방향 몸을 되쓴다(V-252 zombie 되쓴 그 길).
+      //   __MOBTINT=false 면 옛대로 mob0 복원 → genFloor 밖·byte-동일.
+      else if (globalThis.__MOBTINT !== false) { m.base = "mob/fallen"; }
     }
   }
 }
@@ -3839,7 +3846,11 @@ function pushKindLabel(wx, wtop, text, col) {
 function drawKindLabel(wx, wy, text, col) {
   ctx.font = "bold 10px 'Times New Roman',serif"; ctx.textAlign = "center";
   ctx.save(); ctx.translate(wx, wy); ctx.scale(1 / Z, 1 / Z);
-  ctx.fillStyle = "#000"; ctx.fillText(text, 0.8, 0.8);
+  // V-253 ② — 정예 이름표(drawEliteNames)와 «한 길»로: 어두운 밑판 + 두꺼운 외곽선.
+  //   옛 검은 그림자 한 겹만으론 밝은 소품(기둥 머리·석관·항아리) 위에서 사라졌다.
+  const tw = ctx.measureText(text).width;
+  ctx.fillStyle = "rgba(8,6,4,0.5)"; ctx.fillRect(-tw / 2 - 3, -9, tw + 6, 13);
+  ctx.lineWidth = 2.5; ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineJoin = "round"; ctx.strokeText(text, 0, 0);
   ctx.fillStyle = col; ctx.fillText(text, 0, 0);
   ctx.restore();
 }
@@ -3948,6 +3959,7 @@ function drawEnemy(m) {
     else if (m.charger) rest = MOB_TINT.charge;
     else if (m.bomber) rest = MOB_TINT.bomb;
     else if (m.thief) rest = MOB_TINT.thief;
+    else if (!m.elite) rest = MOB_TINT.plain;   // V-253 — 「평범」에도 제 색(흙빛). 정예/보스는 제 색조를 지킨다.
   }
   if (m.boss) rest = BOSS_TINT[m.bossKind];
   m.__tb = m.elite ? "E" : tb;
