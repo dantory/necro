@@ -1,6 +1,16 @@
 # NOW — hs/ 감시가 «제일 먼저» 읽는 파일
 (크론 본문의 항목번호보다 이게 우선이다. 축을 띄울 때마다 여기를 갱신한다.)
 
+## ✔ 끝난 판: V-253 — 「어느 놈인지」가 한눈에 · 이름표가 어디서나 (닫음 2026-09-02)
+감시가 V-252 컷(`tmp/hs_v252_kinds_after.png`)을 직접 열어 셋을 골랐다. 만진 곳 `hs/main.js` **하나**·새 자 파일 없음(베이커 `tmp/hs_v253_cut.mjs`·되돌림 `tmp/hs_v253_revert.mjs`).
+① **「평범」에 제 낯**(`assignZoneMix`+`MOB_TINT.plain`+`drawEnemy`) — 평범이 사수와 같은 `skelarch` 몸·무채색이라 「쏘는 놈이 둘」로 읽혔다. 넷(shoot/charge/bomb/thief)이 skelarch·brute·zombie·shaman 을 다 쓰니 **그 넷이 안 쓰는 유일한 몸 `mob/fallen`**(8방향+walk/attack 다 있음)으로 평범을 갈랐고, 색조도 `MOB_TINT.plain`(흙빛 회록·저채도 `sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82)`)로 넷과 안 겹치게 얹었다. **새로 굽지 않고 있는 몸을 되씀**(V-252 zombie 되쓴 길). 다섯이 **색+실루엣**으로 갈림.
+② **이름표를 어디서나**(`drawKindLabel`) — 정예 이름표(`drawEliteNames`)와 «한 길»로 합쳤다: 어두운 밑판(`rgba(8,6,4,0.5)`)+두꺼운 외곽선(lineWidth 2.5). 옛 검은 그림자 한 겹만으론 밝은 기둥 머리 위에서 사라졌다. 갈래를 안 나누고 한 함수만 고침.
+③ **계단 — 접었다(이 길도 안 됐다).** V-172d 의 `background_image`+`inpainting` 을 실제로 시도 — `inpaint_image` 에 현 `stairs.png`(내부 검은 우물만 마스크·돌테 동결)로 「내려가는 계단」을 넣으려 했으나 **MCP 가 base64 를 잘라/깨뜨려**(truncate·byte 변조) 두 번 다 디코드 실패했다. pixellab 은 클라우드라 `:8774`(localhost) URL 도 못 준다 → `_url` 변주도 막힘. **옛 asset 한 장도 안 바꿈.** 다음 길: 이미지를 **공개 URL 로 호스팅**해 `image_url` 로 넘기는 것뿐(로컬 base64 경로는 이 환경에선 막다른 길).
+④ **V-224(발사체 벽밖) — 손 안 댐**(①②③ 으로 예산 씀). ROADMAP 그대로 열려 있다.
+- 되돌림 실측: `__MOBTINT=false` → genFloor 지문 **F4=349422190·F30=245310424** = V-252(git stash HEAD) **byte-동일**(같은 플래그로 두 트리 재서 일치). 켜면 평범 base 만 `fallen`(F4 130·F30 561) — rooms/packs(25·63, 67·237) 는 둘 다 같다 → 세계 생성 무변경.
+- 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820) · `hs_v219_foeshot` 에셋 **100%**·오류 **0**·frame p95 **0.5ms**·밝기 통과(쏜화살 표본<30 은 죽음형·단일씨앗 환경 — 코드 회귀 아님, 렌더/에셋 코드 안 건드림).
+- 컷 **직접 열어 봄**(게임 크기): `tmp/hs_v253_kinds.png`(다섯 색+실루엣 갈림)·`_kinds_off.png`(__MOBTINT=false 되돌림)·`_labels.png`+`_labels_crop.png`(돌진꾼 이름표가 밝은 기둥 머리 위에서도 읽힘). 구현 커밋 **ca6bbbe**.
+
 ## ✔ 끝난 판: V-252 — 적이 «수법대로» 달라 보이게 (닫음 2026-09-02)
 병수님 15:15 「에셋 전체적으로 잘 만들어봐」. 감시가 살아 있는 여덟의 south.png(`tmp/hs_v252_chars.png`)를 직접 보고 골랐다 — 낱장 품질이 아니라 **판에서 안 갈리는 것**이 문제. 만진 곳 `hs/main.js` **하나**(map.js 안 건드림)·새 자 파일 없음.
 ① **폭탄병에게 제 몸**(`main.js:1707`) — `mob/brute`→**`mob/zombie`**(부푼 몸 h×1.06). 돌격병과 픽셀 하나 안 다르던 것이 부푼 zombie 몸+병색 노랑으로 「저건 터진다」가 60px 에서도 읽힌다. ★ **굽지 않고 있는(zombie) 몸을 되썼다** — 8방향 `create_character` 는 아는 실패벽이라(브리프도 허용) 더 미더운 길을 택했다. zombie 는 8방향+walk/attack 다 있어 안전.

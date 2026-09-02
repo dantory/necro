@@ -18217,6 +18217,15 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
   브리프: `tmp/hs_v251_prompt.md`
 
+## V-253 — 「어느 놈인지」가 한눈에 · 이름표가 어디서나 (닫음 2026-09-02)
+  V-252 컷에서 셋이 남았다: 평범이 사수와 같은 몸·무채색이라 안 갈림 · 이름표가 밝은 것 위에서 사라짐 · 계단 우물. 만진 곳 `hs/main.js` **하나**·새 자 파일 없음.
+  ① **「평범」에 제 낯** — `assignZoneMix` 에서 평범을 넷(shoot=skelarch·charge=brute·bomb=zombie·thief=shaman)이 **안 쓰는 유일한 몸 `mob/fallen`** 으로 갈랐다(8방향+walk/attack 다 있음·새로 안 구움). 색조 `MOB_TINT.plain`(흙빛 회록·저채도 `sepia(1) saturate(0.85) hue-rotate(6deg) brightness(0.82)`)를 `drawEnemy` 에서 얹어 넷과 안 겹치게. 다섯이 색+실루엣으로 갈림.
+  ② **이름표를 어디서나** — `drawKindLabel` 을 `drawEliteNames` 와 «한 길»로: 어두운 밑판+두꺼운 외곽선(lineWidth 2.5). 밝은 기둥 머리 위에서도 읽힘(컷 `tmp/hs_v253_labels_crop.png` 돌진꾼 이름표가 밝은 돌 위에서 또렷). 갈래 안 나누고 한 함수만 고침.
+  ③ **계단 — 접었다(이 길도 안 됐다).** V-172d 의 `background_image`+`inpainting` 을 실제로 시도 — `inpaint_image` 에 현 `stairs.png`(내부 우물만 마스크·돌테 동결)로 「내려가는 계단」을 넣으려 했으나 **MCP 가 base64 를 잘라/깨뜨려**(13375자 truncate → quantize 4769B 도 byte 변조로 decode 실패) 두 번 다 실패. pixellab 은 클라우드라 `:8774`(localhost) URL 도 못 줌 → `_url` 변주도 막힘. **옛 asset 한 장도 안 바꿈.** 남은 길: 이미지를 **공개 URL 로 호스팅**해 `image_url` 로 넘기는 것뿐(로컬 base64 는 이 환경에선 막다른 길이니 다음 세션은 이 경로를 되풀이하지 마라).
+  ④ **V-224(발사체 벽밖) — 손 안 댐**(①②③ 으로 예산 씀·아래 `- [ ]` 그대로 열림).
+  - 되돌림 실측: `__MOBTINT=false` → genFloor 지문 **F4=349422190·F30=245310424** = V-252(git stash HEAD) **byte-동일**(같은 플래그로 두 트리 재서 일치). 켜면 평범 base 만 `fallen`(rooms/packs 25·63, 67·237 은 둘 다 같음 → 세계 생성 무변경).
+  - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0** · `hs_v219_foeshot` 에셋 **100%**·오류 **0**·frame p95 **0.5ms**·밝기 통과(쏜화살 표본<30 은 죽음형·단일씨앗 환경·코드 회귀 아님). 컷 `tmp/hs_v253_{kinds,kinds_off,labels,labels_crop}.png` 직접 열어 봄. 구현 커밋 `ca6bbbe`.
+
 ## V-252 — 적이 «수법대로» 달라 보이게 (닫음 2026-09-02)
   병수님 15:15 「에셋 전체적으로 잘 만들어봐」. V-251 이 바닥 타일만 고쳤는데, 화면에 제일 오래 보이는 것은 **캐릭터**다.
   감시가 살아 있는 여덟의 south.png 를 한 판에 놓고 보니 낱장이 아니라 **판에서 안 갈리는 것**이 문제였다 — 폭탄병과 돌격병이 같은 `mob/brute` 몸이고, brute·shaman·boss 가 다 붉었다.
