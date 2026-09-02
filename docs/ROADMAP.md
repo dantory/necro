@@ -18119,3 +18119,5 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - **되돌림 실측(결정적 재씨앗·한 evaluate)**: `__MINIONKIND/__CORPSELAY=false` → genFloor 지문 F4 **377768629**·F30 **2420594269** = HEAD(git stash) **byte-동일**(소환·CAGE_SEG·시체 그리기·이름표·정산은 다 genFloor 밖). = V-243 기록값과 동일.
   - 회귀(있는 자로만): `hs_v207_walk` 벽밖 **0%**·오류 **0**(WAKE 3000·820) · `hs_v219_foeshot` frame p95 **1.7ms**·오류 **0**·다 규격 안 ✅. 콘솔 오류 0.
   - 컷 **직접 열어 봄**: `tmp/hs_v244_{minion_three,ghoul_leech,golem_hold,mix_ratio,corpse_dead,bonecage2,tell_clip2,minion_labels,offline_12h}.png`. 새 키 없음(K 구울·G 골렘은 V-240 이 이미 붙임·`#hint`·H 판에 있음).
+
+- [ ] **V-245 — 숫자가 커져도 안 무너지게(PLAN ⑧ · `__BIGNUM`)** · V-244 컷 흠 다섯(시체 고리 어긋남 · 우리뼈 유닛에 가림 · 뼈 왕 이름 바에 가림 · 골렘이 해골과 안 갈림 · 이름표 앵커가 너무 높음). 브리프 `tmp/v245_prompt.md`.
