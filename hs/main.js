@@ -7,6 +7,11 @@ const cv = document.getElementById("board");
 const ctx = cv.getContext("2d");
 const mini = document.getElementById("mini");
 const mctx = mini.getContext("2d");
+const bigmap = document.getElementById("bigmap");
+const bctx = bigmap.getContext("2d");
+let bigOpen = false, bigDirty = true, bigCacheFloor = -1, bigCacheW = 0, bigCacheH = 0;
+const bigCache = document.createElement("canvas");
+const bcctx = bigCache.getContext("2d");
 
 // ★ V-183 — 깨우는 반경 540 → 900. 화면(가로 1008 월드)보다 좁던 반경을 넓혀,
 //   한 방에 든 팩(V-183 map.js 에서 2~3개)이 함께 깨어나 한 자리로 몰려들게 한다.
@@ -163,6 +168,18 @@ const MOB_TINT = {
   thief:  "sepia(1) saturate(0.72) hue-rotate(232deg) brightness(1.06) contrast(1.06)", // 훔치는 놈 — 잿빛 도는 흐린 보라(순보라 아님)
   // 「평범」 갈래 — 무채에 가까운 흙빛(V-253/254 로 이미 크립트 결·밝기 유지). 그대로 둔다.
   plain:  "sepia(1) saturate(0.9) hue-rotate(8deg) brightness(1.34) contrast(1.14)",
+};
+// V-264 ③ __MOBTINT2 — V-262 컷에 남은 색 튐 둘을 마저 좁힌다(되돌림 __MOBTINT2=false → V-262 MOB_TINT).
+//   ⓐ 초록 갈래(썩는 놈=bomb, 제 몸 zombie 라 제일 초록)가 라임에 가까웠다 → hue 38→20 으로 내려
+//      «썩은 올리브»로(레몬-라임 아니라 늪 황록), 채도 1.15→0.92. 밝기는 ≥1.06(V-254 ② 어둠 바닥)로 지킨다.
+//   ⓑ 자주 로브(훔치는 놈=shaman)가 아직 채도 높게 읽혔다 → 채도 0.72→0.6·명암 대비 올려 잿빛 도는 흐린 보라로.
+//   나머지(재빛 shoot·핏빛 charge·흙빛 plain)는 V-262 에서 이미 잡혔다 → 그대로 물려받는다.
+const MOB_TINT2 = {
+  shoot:  MOB_TINT.shoot,
+  charge: MOB_TINT.charge,
+  bomb:   "sepia(1) saturate(0.92) hue-rotate(20deg) brightness(1.12) contrast(1.08)",
+  thief:  "sepia(1) saturate(0.6) hue-rotate(238deg) brightness(1.08) contrast(1.12)",
+  plain:  MOB_TINT.plain,
 };
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
 // ── V-246 ① 정예 수식어(접두) — 팩마다 다른 놈(D2 정예 접두처럼 «한 판 한 판이 갈리는 이유»). ──
@@ -427,7 +444,7 @@ const keys = new Set();
 const mouse = { x: VW / 2, y: VH / 2, down: false };
 addEventListener("keydown", (e) => {
   keys.add(e.key.toLowerCase());
-  if (["q", "e", "r", "f", " "].includes(e.key.toLowerCase())) e.preventDefault();
+  if (["q", "e", "r", "f", " ", "tab"].includes(e.key.toLowerCase())) e.preventDefault();
 });
 addEventListener("keyup", (e) => keys.delete(e.key.toLowerCase()));
 cv.addEventListener("mousemove", (e) => { const b = cv.getBoundingClientRect(); mouse.x = e.clientX - b.left; mouse.y = e.clientY - b.top; });
@@ -1063,6 +1080,8 @@ function handleSkills() {
   }
   if (keys.has("b") && !p._b) { p._b = true; buyAltar(); } if (!keys.has("b")) p._b = false;
   if (keys.has("h") && !p._h) { p._h = true; if (globalThis.__HINTFOLD !== false) toggleHelp(); } if (!keys.has("h")) p._h = false;
+  if (keys.has("tab") && !p._tab) { p._tab = true; if (globalThis.__BIGMAP !== false) toggleBigMap(); } if (!keys.has("tab")) p._tab = false;
+  if (keys.has("escape") && !p._esc) { p._esc = true; if (bigOpen) toggleBigMap(); } if (!keys.has("escape")) p._esc = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
   if (keys.has("x") && !p._x) { p._x = true; if (potionOn) cycleGrade(); else spendPoint("grade"); } if (!keys.has("x")) p._x = false;
   if (keys.has("f") && !p._f) { p._f = true; tryStairs(); } if (!keys.has("f")) p._f = false;
@@ -4314,11 +4333,12 @@ function drawEnemy(m) {
     else if (m.bomber) rest = "brightness(1.2) saturate(2.4) hue-rotate(30deg)";
     else if (m.thief) rest = "brightness(1.05) saturate(2.2) hue-rotate(250deg)";
   } else {
-    if (m.ranged) rest = MOB_TINT.shoot;
-    else if (m.charger) rest = MOB_TINT.charge;
-    else if (m.bomber) rest = MOB_TINT.bomb;
-    else if (m.thief) rest = MOB_TINT.thief;
-    else if (!m.elite) rest = MOB_TINT.plain;   // V-253 — 「평범」에도 제 색(흙빛). 정예/보스는 제 색조를 지킨다.
+    const T = globalThis.__MOBTINT2 !== false ? MOB_TINT2 : MOB_TINT;   // V-264 ③ — 되돌림 __MOBTINT2=false → V-262 값
+    if (m.ranged) rest = T.shoot;
+    else if (m.charger) rest = T.charge;
+    else if (m.bomber) rest = T.bomb;
+    else if (m.thief) rest = T.thief;
+    else if (!m.elite) rest = T.plain;   // V-253 — 「평범」에도 제 색(흙빛). 정예/보스는 제 색조를 지킨다.
   }
   if (m.boss) rest = (globalThis.__MOBTINT === false ? BOSS_TINT_OLD : BOSS_TINT)[m.bossKind];
   m.__tb = m.elite ? "E" : tb;
@@ -5114,6 +5134,7 @@ const CONTROLS = [
   { k: "Y",             h: "승천",     d: "승천(마을 제단·B20층부터 — 처음부터 다시·영구 배수)" },
   { k: "F",             h: "아래로/던전", d: "아래 층으로 / 마을 문은 던전 복귀" },
   { k: "H",             h: "조작 전체", d: "이 조작 판 열기/닫기" },
+  { k: "Tab",           h: "전체지도",  d: "전체 지도 열기/닫기(층 전체·표식 범례 · 다시 눌러 닫음·ESC 도)" },
 ];
 function buildControls() {
   const hint = el("hint");
@@ -5686,41 +5707,137 @@ function renderGear() {
     g.appendChild(span);
   }
 }
+// ── V-264 ② __MAPICONS — 표식을 «꼴+색»으로 가른다(미니맵·전체지도 «한 근원»). ──
+//   60px 미니맵에서 색만으로는 뭉갠다 → 계단 ▼흰 · 보물방 ◆금 · 소굴 ▲붉 · 저주제단 ✚보라 ·
+//   뼈제단 ✚상아 · 상인 ■청록 · 보통 상자는 작은 점(사건방보다 덜 띄게). __MAPICONS=false → 옛 마름모/원.
+function plusPath(rctx, cx, cy, s) {
+  const t = s * 0.4;
+  const p = [[cx - t, cy - s], [cx + t, cy - s], [cx + t, cy - t], [cx + s, cy - t], [cx + s, cy + t], [cx + t, cy + t], [cx + t, cy + s], [cx - t, cy + s], [cx - t, cy + t], [cx - s, cy + t], [cx - s, cy - t], [cx - t, cy - t]];
+  rctx.beginPath(); rctx.moveTo(p[0][0], p[0][1]); for (let i = 1; i < p.length; i++) rctx.lineTo(p[i][0], p[i][1]); rctx.closePath();
+}
+function mapIcon(rctx, kind, cx, cy, s) {
+  rctx.lineJoin = "round";
+  const poly = (pts) => { rctx.beginPath(); rctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) rctx.lineTo(pts[i][0], pts[i][1]); rctx.closePath(); };
+  const done = (fill, edge) => { rctx.fillStyle = fill; rctx.fill(); rctx.strokeStyle = edge; rctx.lineWidth = Math.max(1, s * 0.26); rctx.stroke(); };
+  switch (kind) {
+    case "stairs":                       // ▼ 내려가는 계단 — 또렷한 흰빛
+      poly([[cx - s, cy - s * 0.82], [cx + s, cy - s * 0.82], [cx, cy + s]]); done("#eef2f0", "#141c18"); break;
+    case "treasure":                     // ◆ 보물방 — 속 채운 금빛 마름모
+      poly([[cx, cy - s], [cx + s, cy], [cx, cy + s], [cx - s, cy]]); done("#ffcf5a", "#3a2400"); break;
+    case "lair":                         // ▲ 소굴 — 붉은빛
+      poly([[cx - s, cy + s * 0.82], [cx + s, cy + s * 0.82], [cx, cy - s]]); done("#e0663c", "#280c05"); break;
+    case "curse": case "curseAltar":     // ✚ 저주 방/제단 — 보랏빛
+      plusPath(rctx, cx, cy, s); done("#c77dff", "#28103e"); break;
+    case "boneAltar":                    // ✚ 뼈 제단 — 상아빛
+      plusPath(rctx, cx, cy, s); done("#e6e0cc", "#282216"); break;
+    case "altar":                        // ✚ 그 밖 제단(피·재) — 흐린 금
+      plusPath(rctx, cx, cy, s); done("#e0b850", "#281c07"); break;
+    case "merchant":                     // ■ 상인·마을 — 청록
+      rctx.beginPath(); rctx.rect(cx - s * 0.8, cy - s * 0.8, s * 1.6, s * 1.6); done("#48c8b4", "#062a24"); break;
+    case "chest":                        // 작은 점 — 사건방보다 낮게
+      rctx.fillStyle = "#e8b840"; rctx.beginPath(); rctx.arc(cx, cy, Math.max(1.3, s * 0.46), 0, 6.283); rctx.fill(); break;
+  }
+}
+// 방·표식(정적) — 미니맵·전체지도 공통. 배율(sx,sy)·자리(ox,oy)만 다르다.
+function renderMapStatic(rctx, sx, sy, ox, oy, big) {
+  const icons = globalThis.__MAPICONS !== false;
+  const X = (v) => ox + v * sx, Y = (v) => oy + v * sy;
+  rctx.strokeStyle = "#3a2a1a"; rctx.lineWidth = 1;
+  for (const r of G.rooms) {
+    rctx.fillStyle = r.visited ? (r.cleared ? "rgba(90,150,110,0.5)" : "rgba(150,120,70,0.45)") : "rgba(60,50,40,0.25)";
+    rctx.fillRect(X(r.x), Y(r.y), r.w * sx, r.h * sy);
+    rctx.strokeRect(X(r.x), Y(r.y), r.w * sx, r.h * sy);
+  }
+  if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조 wash
+    const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { rctx.fillStyle = zt; rctx.fillRect(ox, oy, G.W * sx, G.H * sy); }
+  }
+  const isz = big ? 9 : 4.4;   // 표식 글리프 크기(전체지도 큼 · 미니맵 작음)
+  for (const r of G.rooms) if ((r.zoneEvent || r.eventKind) && r.visited) {   // 사건방 — 종류별 꼴
+    const cx = X(r.x + r.w / 2), cy = Y(r.y + r.h / 2);
+    if (icons) { mapIcon(rctx, r.eventKind === "lair" ? "lair" : r.eventKind === "curse" ? "curse" : "treasure", cx, cy, isz); }
+    else {
+      const col = r.eventKind === "lair" ? "#e0663c" : r.eventKind === "curse" ? "#c77dff" : "#ffcf5a", d = big ? 9 : 5;
+      rctx.save(); rctx.translate(cx, cy); rctx.rotate(Math.PI / 4);
+      rctx.fillStyle = col; rctx.fillRect(-d, -d, d * 2, d * 2); rctx.strokeStyle = "#2a1a08"; rctx.lineWidth = 1.6; rctx.strokeRect(-d, -d, d * 2, d * 2);
+      rctx.restore();
+    }
+  }
+  for (const ch of G.chests) if (!ch.opened && !ch.hidden) {   // 상자 — 낮은 점
+    if (icons) mapIcon(rctx, "chest", X(ch.x), Y(ch.y), isz);
+    else { const d = big ? 4.4 : 2.6; rctx.save(); rctx.translate(X(ch.x), Y(ch.y)); rctx.rotate(Math.PI / 4); rctx.fillStyle = "#ffd24a"; rctx.fillRect(-d, -d, d * 2, d * 2); rctx.restore(); }
+  }
+  for (const a of G.altars) if (!a.used) {   // 제단 — 꼴로 가름
+    if (icons) mapIcon(rctx, a.kind === "curse" ? "curseAltar" : a.kind === "bone" ? "boneAltar" : "altar", X(a.x), Y(a.y), isz);
+    else { rctx.fillStyle = "#f0d060"; rctx.beginPath(); rctx.arc(X(a.x), Y(a.y), big ? 4.6 : 2.6, 0, 6.283); rctx.fill(); }
+  }
+  if (G.town && G.merchants) for (const mc of G.merchants) {   // 상인 — 마을에서만
+    if (icons) mapIcon(rctx, "merchant", X(mc.x), Y(mc.y), isz);
+    else { rctx.fillStyle = "#48c8b4"; rctx.fillRect(X(mc.x) - 3, Y(mc.y) - 3, 6, 6); }
+  }
+  if (G.stairs) {   // 계단(마을 문 포함)
+    if (icons) mapIcon(rctx, "stairs", X(G.stairs.x), Y(G.stairs.y), isz);
+    else { rctx.fillStyle = "#7fe6a0"; rctx.beginPath(); rctx.arc(X(G.stairs.x), Y(G.stairs.y), big ? 5 : 3, 0, 6.283); rctx.fill(); }
+  }
+}
+// 사람·적(매 프레임 갱신) — 정적 위에 얹는다(전체지도는 캐시 위에).
+function drawMapLive(rctx, sx, sy, ox, oy, big) {
+  const X = (v) => ox + v * sx, Y = (v) => oy + v * sy;
+  for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(X(pk.x), Y(pk.y), big ? 3.4 : 2, 0, 6.283); rctx.fill(); }
+  rctx.fillStyle = "#fff"; rctx.beginPath(); rctx.arc(X(G.player.x), Y(G.player.y), big ? 5.5 : 2.5, 0, 6.283); rctx.fill();
+  if (big) { rctx.strokeStyle = "#101010"; rctx.lineWidth = 1.6; rctx.stroke(); }
+}
 function drawMini() {
   const w = mini.width, h = mini.height;
   mctx.clearRect(0, 0, w, h);
-  const sx = w / G.W, sy = h / G.H;
-  mctx.strokeStyle = "#3a2a1a"; mctx.lineWidth = 1;
-  for (const r of G.rooms) {
-    mctx.fillStyle = r.visited ? (r.cleared ? "rgba(90,150,110,0.5)" : "rgba(150,120,70,0.45)") : "rgba(60,50,40,0.25)";
-    mctx.fillRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
-    mctx.strokeRect(r.x * sx, r.y * sy, r.w * sx, r.h * sy);
+  renderMapStatic(mctx, w / G.W, h / G.H, 0, 0, false);
+  drawMapLive(mctx, w / G.W, h / G.H, 0, 0, false);
+}
+// ── V-264 ① __BIGMAP — Tab 으로 여는 전체 지도(반투명 겹판·게임은 그대로 돈다·ESC/Tab 닫음). ──
+//   정적층(방·표식·범례)은 «캐시»에 굽고, 층이 바뀌거나 새 방을 밟을 때만 다시 굽는다(V-261 바닥 캐시 결).
+//   매 프레임은 캐시를 얹고 그 위에 사람·적만 그린다 → 열려 있어도 프레임을 안 먹는다.
+function bigMapGeom() {
+  const W = bigmap.width, H = bigmap.height, pad = 52;
+  const s = Math.min((W - 2 * pad) / G.W, (H - 2 * pad) / G.H);
+  return { W, H, s, ox: (W - G.W * s) / 2, oy: (H - G.H * s) / 2 };
+}
+function drawBigLegend(rctx, W, H) {
+  const items = [["stairs", "계단"], ["treasure", "보물방"], ["lair", "소굴"], ["curseAltar", "저주 제단"], ["boneAltar", "뼈 제단"], ["merchant", "상인"], ["chest", "상자"]];
+  const y = H - 26, s = 7; let x = 44;
+  rctx.font = "14px 'Times New Roman',serif"; rctx.textAlign = "left"; rctx.textBaseline = "middle";
+  for (const [kind, label] of items) {
+    mapIcon(rctx, kind, x + s, y, s);
+    rctx.fillStyle = "#d8ccb0"; rctx.fillText(label, x + s * 2 + 7, y);
+    x += s * 2 + 13 + rctx.measureText(label).width + 24;
   }
-  if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조를 미니맵 전체에 얹어 「다른 곳」으로 읽히게(표식은 이 뒤에 또렷이)
-    const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { mctx.fillStyle = zt; mctx.fillRect(0, 0, w, h); }
-  }
-  for (const r of G.rooms) if ((r.zoneEvent || r.eventKind) && r.visited) {   // V-248 ①·(d)·V-257 ① 사건방/사건 방은 미니맵에 테 두른 마름모로 — 사건 방은 종류별 색(소굴 붉음·보물 금빛·저주 보라)
-    const col = r.eventKind === "lair" ? "#e0663c" : r.eventKind === "curse" ? "#c77dff" : "#ffcf5a";
-    mctx.save(); mctx.translate((r.x + r.w / 2) * sx, (r.y + r.h / 2) * sy); mctx.rotate(Math.PI / 4);
-    if (globalThis.__EVDIAMOND === false) { mctx.fillStyle = col; mctx.fillRect(-3, -3, 6, 6); }
-    else { mctx.fillStyle = col; mctx.fillRect(-5, -5, 10, 10); mctx.strokeStyle = "#2a1a08"; mctx.lineWidth = 1.6; mctx.strokeRect(-5, -5, 10, 10); }
-    mctx.restore();
-  }
-  for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
-  for (const ch of G.chests) if (!ch.opened && !ch.hidden) {
-    const pr = 0.5 + 0.5 * Math.sin(nowMs() / 320), d = 2.2 + pr;
-    mctx.save(); mctx.translate(ch.x * sx, ch.y * sy); mctx.rotate(Math.PI / 4);
-    mctx.fillStyle = "#ffd24a"; mctx.fillRect(-d, -d, d * 2, d * 2);
-    mctx.restore();
-  }
-  for (const a of G.altars) if (!a.used) { mctx.fillStyle = "#f0d060"; mctx.beginPath(); mctx.arc(a.x * sx, a.y * sy, 2.6, 0, 6.283); mctx.fill(); }   // V-234 제단(상자 마름모와 달리 금빛 원)
-  mctx.fillStyle = "#7fe6a0"; mctx.beginPath(); mctx.arc(G.stairs.x * sx, G.stairs.y * sy, 3, 0, 6.283); mctx.fill();
-  mctx.fillStyle = "#fff"; mctx.beginPath(); mctx.arc(G.player.x * sx, G.player.y * sy, 2.5, 0, 6.283); mctx.fill();
+}
+function drawBigCache(g) {
+  bigCache.width = g.W; bigCache.height = g.H;
+  bcctx.clearRect(0, 0, g.W, g.H);
+  bcctx.fillStyle = "rgba(6,4,4,0.82)"; bcctx.fillRect(0, 0, g.W, g.H);
+  renderMapStatic(bcctx, g.s, g.s, g.ox, g.oy, true);
+  const title = G.town ? "전체 지도 — 마을" : `전체 지도 — 지하 ${G.floor}층`;
+  bcctx.font = "20px 'Times New Roman',serif"; bcctx.textAlign = "left"; bcctx.textBaseline = "top";
+  bcctx.fillStyle = "#e8dcc0"; bcctx.fillText(title, 44, 24);
+  drawBigLegend(bcctx, g.W, g.H);
+  bigCacheFloor = G.floor; bigCacheW = g.W; bigCacheH = g.H; bigDirty = false;
+}
+function drawBigMap() {
+  const g = bigMapGeom();
+  if (bigDirty || bigCacheFloor !== G.floor || bigCacheW !== g.W || bigCacheH !== g.H) drawBigCache(g);
+  bctx.clearRect(0, 0, g.W, g.H);
+  bctx.drawImage(bigCache, 0, 0);
+  drawMapLive(bctx, g.s, g.s, g.ox, g.oy, true);
+}
+function toggleBigMap() {
+  if (!bigOpen) { bigmap.width = innerWidth; bigmap.height = innerHeight; bigDirty = true; }
+  bigOpen = !bigOpen;
+  bigmap.classList.toggle("on", bigOpen);
+  if (bigOpen) drawBigMap();
 }
 
 function markVisited() {
   const p = G.player;
-  for (const r of G.rooms) if (p.x > r.x - 80 && p.x < r.x + r.w + 80 && p.y > r.y - 80 && p.y < r.y + r.h + 80) r.visited = true;
+  for (const r of G.rooms) if (p.x > r.x - 80 && p.x < r.x + r.w + 80 && p.y > r.y - 80 && p.y < r.y + r.h + 80) { if (!r.visited) bigDirty = true; r.visited = true; }
   const er = eventRoomAt(p.x, p.y);
   if (er && !er.eventSeen) enterEventRoom(er);
 }
@@ -5766,6 +5883,7 @@ function loop(now) {
   updateHUD();
   updateTooltip();
   updateInvTip();
+  if (bigOpen) drawBigMap();
   const _t3 = performance.now();
   PROF.push("sim", _t1 - _t0); PROF.push("draw", _t2 - _t1); PROF.push("hud", _t3 - _t2); PROF.push("total", _t3 - _t0);
   requestAnimationFrame(loop);
