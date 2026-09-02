@@ -141,6 +141,15 @@ const BOSS_TINT = [                             // 새 에셋 없이 색조로 �
   "brightness(1.12) saturate(2.4) hue-rotate(268deg)",
 ];
 const BOSS_LABEL_COL = ["#e8ecf0", "#8ce06a", "#ff7a5a", "#c89bff"];
+// V-252 — 갈래마다 «색이 갈리게». 원본 png 를 덧칠하지 않고 그리는 자리에서 얹는다(되돌림 __MOBTINT).
+//   ★ sepia(1) 로 원본 색(붉은 brute·창백한 skelarch)을 한 번 지운 뒤 hue-rotate 로 다시 얹기에
+//   60~82px 에서도 수법이 «색»으로 읽힌다(옛 hue-rotate 만 얹던 것은 붉은 몸 위에서 안 갈렸다).
+const MOB_TINT = {
+  shoot:  "sepia(1) saturate(2.2) hue-rotate(158deg) brightness(1.05) contrast(1.06)", // 쏘는 놈 — 찬 파랑
+  charge: "sepia(1) saturate(2.7) hue-rotate(-6deg) brightness(1.06) contrast(1.12)",  // 달려드는 놈 — 뜨거운 주황
+  bomb:   "sepia(1) saturate(2.7) hue-rotate(46deg) brightness(1.16) contrast(1.06)",  // 터지는 놈 — 병색 노랑(제 몸=zombie)
+  thief:  "sepia(1) saturate(2.3) hue-rotate(262deg) brightness(1.04) contrast(1.06)", // 훔치는 놈 — 보라
+};
 const CAGE_R = 150, CAGE_SEG = 18, CAGE_LIFE = 6.0;   // 뼈 왕 — 우리 반경·뼈 토막 수(V-244 ②b 11→18 촘촘히)·유지 시간(초)
 // ── V-246 ① 정예 수식어(접두) — 팩마다 다른 놈(D2 정예 접두처럼 «한 판 한 판이 갈리는 이유»). ──
 //   전부 «규칙»(%증가 아님)이라 만날 때마다 노는 법이 갈린다. genFloor 밖(fresh)에서 「층 씨앗」
@@ -604,13 +613,16 @@ function poseMob(kind, x, y, extra) {
 window.__kindsPose = () => {
   const p = G.player;
   const cx = p.x, cy = p.y - 30;
-  const shooter = poseMob("shoot", cx - 210, cy, { ranged: true, base: "mob/skelarch", h: 66, shootCd: 999 });
-  const charger = poseMob("charge", cx, cy, { charger: true, base: "mob/brute", h: 82, r: 20, chargeCd: 999 });
-  const thief = poseMob("thief", cx + 210, cy, { thief: true, base: "mob/shaman", h: 72, eatCd: 999 });
-  G.packs = [{ x: cx, y: cy, awake: true, room: 0, enemies: [shooter, charger, thief] }];
-  p.x = cx; p.y = cy + 210; unstick(p, p.r);   // 사람은 갈래 줄 아래로 물러 세운다(겹치지 않게·돌진 예고선 안 생기게)
+  const bombBody = globalThis.__MOBTINT === false ? "mob/brute" : "mob/zombie";
+  const shooter = poseMob("shoot", cx - 360, cy, { ranged: true, base: "mob/skelarch", h: 66, shootCd: 999 });
+  const charger = poseMob("charge", cx - 180, cy, { charger: true, base: "mob/brute", h: 82, r: 20, chargeCd: 999 });
+  const bomber = poseMob("bomb", cx, cy, { bomber: true, base: bombBody, h: 76, r: 18, fuse: 0 });
+  const thief = poseMob("thief", cx + 180, cy, { thief: true, base: "mob/shaman", h: 72, eatCd: 999 });
+  const plain = poseMob(null, cx + 360, cy, { base: "mob/skelarch", h: 66, tb: 0 });
+  G.packs = [{ x: cx, y: cy, awake: true, room: 0, enemies: [shooter, charger, bomber, thief, plain] }];
+  p.x = cx; p.y = cy + 230; unstick(p, p.r);   // 사람은 갈래 줄 아래로 물러 세운다(겹치지 않게·돌진 예고선 안 생기게)
   cam.x = cx - VW / (2 * Z); cam.y = cy - VH / (2 * Z) + 80;
-  return { kinds: ["shoot", "charge", "thief"] };
+  return { kinds: ["shoot", "charge", "bomb", "thief", "plain"], bombBody };
 };
 window.__chargeTellPose = () => {
   const p = G.player;
@@ -1704,7 +1716,7 @@ function assignZoneMix(f, floor) {
       const r = rnd();
       if (r < cR) { m.ranged = true; m.mobKind = "shoot"; m.base = "mob/skelarch"; }
       else if (r < cC) { m.charger = true; m.mobKind = "charge"; m.base = "mob/brute"; }
-      else if (r < cB) { m.bomber = true; m.mobKind = "bomb"; m.base = "mob/brute"; }
+      else if (r < cB) { m.bomber = true; m.mobKind = "bomb"; if (globalThis.__MOBTINT === false) { m.base = "mob/brute"; } else { m.base = "mob/zombie"; m.h = Math.round(m.h * 1.06); } }
       else if (r < cT) { m.thief = true; m.mobKind = "thief"; m.base = "mob/shaman"; }
     }
   }
@@ -3926,11 +3938,18 @@ function drawEnemy(m) {
   const tb = m.tb & 3;
   let rest = teamTintOn() ? (m.elite ? ELITE_TINT : FOE_TINTS[tb])
     : (m.elite ? "brightness(1.15) saturate(1.4) hue-rotate(-15deg)" : null);
-  if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
-  else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
-  else if (m.bomber) rest = "brightness(1.2) saturate(2.4) hue-rotate(30deg)";   // V-231 — 돌진(-40)·원거리(150)와 안 겹치는 색조
-  else if (m.thief) rest = "brightness(1.05) saturate(2.2) hue-rotate(250deg)";   // V-237 — 도둑 보라(자폭 30·원거리 150·돌진 -40 과 안 겹침)
-  if (m.boss) rest = BOSS_TINT[m.bossKind];   // V-230 — 주인 넷을 색조로 가른다(뼈·초록·핏·보라)
+  if (globalThis.__MOBTINT === false) {
+    if (m.ranged) rest = "brightness(1.1) saturate(1.8) hue-rotate(150deg)";
+    else if (m.charger) rest = "brightness(1.15) saturate(2) hue-rotate(-40deg)";
+    else if (m.bomber) rest = "brightness(1.2) saturate(2.4) hue-rotate(30deg)";
+    else if (m.thief) rest = "brightness(1.05) saturate(2.2) hue-rotate(250deg)";
+  } else {
+    if (m.ranged) rest = MOB_TINT.shoot;
+    else if (m.charger) rest = MOB_TINT.charge;
+    else if (m.bomber) rest = MOB_TINT.bomb;
+    else if (m.thief) rest = MOB_TINT.thief;
+  }
+  if (m.boss) rest = BOSS_TINT[m.bossKind];
   m.__tb = m.elite ? "E" : tb;
   const filt = m.hit > 0 ? "brightness(3)" : rest;
   const drawH = (m.bomber && m.fuse > 0) ? m.h * (1 + 0.35 * (1 - m.fuse / BOMB_FUSE)) : m.h;   // V-231 — 점화 중 몸이 부푼다
