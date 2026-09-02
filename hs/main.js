@@ -2176,13 +2176,36 @@ function stepToP(e, nx, ny, r) {
   if (ny !== e.y && walkableP(e.x, ny, r)) e.y = ny;
 }
 
+// ── V-265 ③ __SHOTWALL — 발사체 벽밖을 «몸과 같은 근원»으로 0% 로. ──
+//   V-222 가 잰 벽밖 5~8.6% 은 지형 벽이 아니라(inFree 는 이미 0%) 발사체가 소품/상자/제단
+//   «위»를 지나던 것 — 발사체가 inFree 만 보고 blockedByProp 를 안 봐, 몸이 못 서는 자리를
+//   화살이 뚫고 다녔다. 그래서 몸과 같은 walkable(inFree && !blockedByProp)로 바꾼다(뼈벽은
+//   walkable 이 안 봐 화살이 여전히 넘는다 — 소환수 벽 넘김 불변). 겸해 RANGED_SPD 520·dt≤0.05
+//   한 프레임 26px 이 얇은 벽/소품을 뛰어넘던 터널링도 PROJ_STEP(<두께) 조각으로 쪼개 막는다.
+//   __SHOTWALL=false → 옛 한 번 이동·inFree 끝점만(소품 통과).
+const PROJ_STEP = 10;
+function moveProjHitWall(sh, dt) {
+  const wallOn = globalThis.__PROJ_WALL !== false;
+  if (globalThis.__SHOTWALL === false) {
+    sh.x += sh.vx * dt; sh.y += sh.vy * dt;
+    return wallOn && !inFree(sh.x, sh.y, PROJ_R);
+  }
+  const dist = Math.hypot(sh.vx, sh.vy) * dt;
+  const n = Math.max(1, Math.ceil(dist / PROJ_STEP));
+  const sx = sh.vx * dt / n, sy = sh.vy * dt / n;
+  for (let i = 0; i < n; i++) {
+    sh.x += sx; sh.y += sy;
+    if (wallOn && !walkable(sh.x, sh.y, PROJ_R)) return true;
+  }
+  return false;
+}
 function stepFoeShots(dt) {
   if (!G.foeShots.length) return;
   const p = G.player;
   for (const sh of G.foeShots) {
-    sh.x += sh.vx * dt; sh.y += sh.vy * dt; sh.life -= dt;
+    sh.life -= dt;
     if (sh.life <= 0) { sh.dead = true; continue; }
-    if (globalThis.__PROJ_WALL !== false && !inFree(sh.x, sh.y, PROJ_R)) { sh.dead = true; projSpark(sh.x, sh.y, "#ff9a4a"); continue; }
+    if (moveProjHitWall(sh, dt)) { sh.dead = true; projSpark(sh.x, sh.y, "#ff9a4a"); continue; }
     if ((sh.x - p.x) ** 2 + (sh.y - p.y) ** 2 < (p.r + 16) ** 2) { hurtPlayer(sh.dmg); sh.dead = true; METRIC.foeHit = (METRIC.foeHit || 0) + 1; }
   }
   G.foeShots = G.foeShots.filter((s) => !s.dead);
@@ -2484,9 +2507,9 @@ function projSpark(x, y, col) { for (let i = 0; i < 4; i++) burst(x, y, col, 70)
 
 function stepSpears(dt) {
   for (const sp of G.spears) {
-    sp.x += sp.vx * dt; sp.y += sp.vy * dt; sp.life -= dt;
+    sp.life -= dt;
     if (sp.life <= 0) { sp.dead = true; continue; }
-    if (globalThis.__PROJ_WALL !== false && !inFree(sp.x, sp.y, PROJ_R)) { sp.dead = true; projSpark(sp.x, sp.y, "#cfe0ef"); continue; }
+    if (moveProjHitWall(sp, dt)) { sp.dead = true; projSpark(sp.x, sp.y, "#cfe0ef"); continue; }
     forEachEnemy((m) => {
       if (sp.dead) return;
       if ((m.x - sp.x) ** 2 + (m.y - (sp.y)) ** 2 < (m.r + 10) ** 2) {
@@ -5741,15 +5764,26 @@ function mapIcon(rctx, kind, cx, cy, s) {
 // 방·표식(정적) — 미니맵·전체지도 공통. 배율(sx,sy)·자리(ox,oy)만 다르다.
 function renderMapStatic(rctx, sx, sy, ox, oy, big) {
   const icons = globalThis.__MAPICONS !== false;
+  const dim = big && globalThis.__BIGMAPDIM !== false;   // V-265 ② 전체지도만 대비를 올린다(미니맵은 그대로)
   const X = (v) => ox + v * sx, Y = (v) => oy + v * sy;
-  rctx.strokeStyle = "#3a2a1a"; rctx.lineWidth = 1;
+  // V-265 ① __MAPPATH — 방보다 한 켜 아래에 «길»(G.corridors·V-263 짧은 목 포함)을 먼저 깐다.
+  //   가 본 복도만 밝게(c.visited, 방과 같은 결). 미니맵에서도 읽히게 폭은 최소 1px.
+  if (globalThis.__MAPPATH !== false && G.corridors) {
+    for (const c of G.corridors) {
+      rctx.fillStyle = c.visited ? (dim ? "rgba(150,128,84,0.5)" : "rgba(120,100,64,0.4)")
+                                 : (dim ? "rgba(70,60,46,0.4)" : "rgba(52,44,34,0.22)");
+      rctx.fillRect(X(c.x), Y(c.y), Math.max(1, c.w * sx), Math.max(1, c.h * sy));
+    }
+  }
+  rctx.strokeStyle = dim ? "#6a563a" : "#3a2a1a"; rctx.lineWidth = dim ? 1.4 : 1;
   for (const r of G.rooms) {
-    rctx.fillStyle = r.visited ? (r.cleared ? "rgba(90,150,110,0.5)" : "rgba(150,120,70,0.45)") : "rgba(60,50,40,0.25)";
+    rctx.fillStyle = r.visited ? (r.cleared ? (dim ? "rgba(96,164,120,0.66)" : "rgba(90,150,110,0.5)") : (dim ? "rgba(170,136,80,0.62)" : "rgba(150,120,70,0.45)"))
+                               : (dim ? "rgba(80,68,54,0.5)" : "rgba(60,50,40,0.25)");
     rctx.fillRect(X(r.x), Y(r.y), r.w * sx, r.h * sy);
     rctx.strokeRect(X(r.x), Y(r.y), r.w * sx, r.h * sy);
   }
-  if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조 wash
-    const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { rctx.fillStyle = zt; rctx.fillRect(ox, oy, G.W * sx, G.H * sy); }
+  if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조 wash — V-265 ② 전체지도에선 옅게(대비 확보)
+    const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { if (dim) rctx.globalAlpha = 0.45; rctx.fillStyle = zt; rctx.fillRect(ox, oy, G.W * sx, G.H * sy); if (dim) rctx.globalAlpha = 1; }
   }
   const isz = big ? 9 : 4.4;   // 표식 글리프 크기(전체지도 큼 · 미니맵 작음)
   for (const r of G.rooms) if ((r.zoneEvent || r.eventKind) && r.visited) {   // 사건방 — 종류별 꼴
@@ -5813,7 +5847,7 @@ function drawBigLegend(rctx, W, H) {
 function drawBigCache(g) {
   bigCache.width = g.W; bigCache.height = g.H;
   bcctx.clearRect(0, 0, g.W, g.H);
-  bcctx.fillStyle = "rgba(6,4,4,0.82)"; bcctx.fillRect(0, 0, g.W, g.H);
+  bcctx.fillStyle = globalThis.__BIGMAPDIM !== false ? "rgba(3,2,2,0.95)" : "rgba(6,4,4,0.82)"; bcctx.fillRect(0, 0, g.W, g.H);
   renderMapStatic(bcctx, g.s, g.s, g.ox, g.oy, true);
   const title = G.town ? "전체 지도 — 마을" : `전체 지도 — 지하 ${G.floor}층`;
   bcctx.font = "20px 'Times New Roman',serif"; bcctx.textAlign = "left"; bcctx.textBaseline = "top";
@@ -5838,6 +5872,7 @@ function toggleBigMap() {
 function markVisited() {
   const p = G.player;
   for (const r of G.rooms) if (p.x > r.x - 80 && p.x < r.x + r.w + 80 && p.y > r.y - 80 && p.y < r.y + r.h + 80) { if (!r.visited) bigDirty = true; r.visited = true; }
+  if (G.corridors) for (const c of G.corridors) if (p.x > c.x - 40 && p.x < c.x + c.w + 40 && p.y > c.y - 40 && p.y < c.y + c.h + 40) { if (!c.visited) bigDirty = true; c.visited = true; }
   const er = eventRoomAt(p.x, p.y);
   if (er && !er.eventSeen) enterEventRoom(er);
 }
