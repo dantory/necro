@@ -65,8 +65,8 @@ const CORRIDOR_W = 150, HW = CORRIDOR_W / 2, LEAF_PAD = 36;
 //   최소 126px 를 못박아 «바닥선 아래로는 안 내려가게» 한다(걸을 폭 ≥82px). __CORRWIDE=false → 옛 폭(계수 그대로).
 const CORR_MIN = 126;
 
-function bspSplit(cell, depth, maxDepth, minW, minH) {
-  const node = { ...cell, axis: null, mid: 0, left: null, right: null, room: null };
+function bspSplit(cell, depth, maxDepth, minW, minH, pull) {
+  const node = { ...cell, axis: null, mid: 0, left: null, right: null, room: null, pull: pull || null };   // V-263 pull=형제 경계 쪽
   const canV = cell.w >= minW * 2;
   const canH = cell.h >= minH * 2;
   if (depth >= maxDepth || (!canV && !canH)) return node;
@@ -75,13 +75,13 @@ function bspSplit(cell, depth, maxDepth, minW, minH) {
   if (cutV) {
     const mid = Math.min(Math.max(Math.round(cell.x + cell.w * ratio), cell.x + minW), cell.x + cell.w - minW);
     node.axis = "v"; node.mid = mid;
-    node.left = bspSplit({ x: cell.x, y: cell.y, w: mid - cell.x, h: cell.h }, depth + 1, maxDepth, minW, minH);
-    node.right = bspSplit({ x: mid, y: cell.y, w: cell.x + cell.w - mid, h: cell.h }, depth + 1, maxDepth, minW, minH);
+    node.left = bspSplit({ x: cell.x, y: cell.y, w: mid - cell.x, h: cell.h }, depth + 1, maxDepth, minW, minH, { x: 1, y: 0 });
+    node.right = bspSplit({ x: mid, y: cell.y, w: cell.x + cell.w - mid, h: cell.h }, depth + 1, maxDepth, minW, minH, { x: -1, y: 0 });
   } else {
     const mid = Math.min(Math.max(Math.round(cell.y + cell.h * ratio), cell.y + minH), cell.y + cell.h - minH);
     node.axis = "h"; node.mid = mid;
-    node.left = bspSplit({ x: cell.x, y: cell.y, w: cell.w, h: mid - cell.y }, depth + 1, maxDepth, minW, minH);
-    node.right = bspSplit({ x: cell.x, y: mid, w: cell.w, h: cell.y + cell.h - mid }, depth + 1, maxDepth, minW, minH);
+    node.left = bspSplit({ x: cell.x, y: cell.y, w: cell.w, h: mid - cell.y }, depth + 1, maxDepth, minW, minH, { x: 0, y: 1 });
+    node.right = bspSplit({ x: cell.x, y: mid, w: cell.w, h: cell.y + cell.h - mid }, depth + 1, maxDepth, minW, minH, { x: 0, y: -1 });
   }
   return node;
 }
@@ -152,12 +152,20 @@ export function genFloor(floor) {
   const rooms = [];
   const leafList = [];
   bspLeaves(root, leafList);
+  const tight = globalThis.__ROOMSTIGHT !== false;   // ★★ V-263 방을 형제 쪽 벽에 붙여 사이 복도를 짧은 목으로
   for (const leaf of leafList) {
     const availW = leaf.w - LEAF_PAD * 2, availH = leaf.h - LEAF_PAD * 2;
     const w = Math.round(availW * (ZR.fillLoW + Math.random() * ZR.fillSpanW));   // 지역별 채움(off=0.32~0.95) — 두 Math.random 은 옛 그대로
     const h = Math.round(availH * (ZR.fillLoH + Math.random() * ZR.fillSpanH));
-    const x = leaf.x + LEAF_PAD + Math.round(Math.random() * (availW - w));
-    const y = leaf.y + LEAF_PAD + Math.round(Math.random() * (availH - h));
+    const ox = Math.round(Math.random() * (availW - w));   // 옛 자리 오프셋 — 두 Math.random 은 tight 여부와 무관하게 늘 소비(OFF byte-동일)
+    const oy = Math.round(Math.random() * (availH - h));
+    let x = leaf.x + LEAF_PAD + ox, y = leaf.y + LEAF_PAD + oy;
+    if (tight && leaf.pull) {   // 분할축 쪽 벽에 붙임: pull.x>0 오른벽 / <0 왼벽 / pull.y>0 아래벽 / <0 위벽
+      if (leaf.pull.x > 0) x = leaf.x + leaf.w - LEAF_PAD - w;
+      else if (leaf.pull.x < 0) x = leaf.x + LEAF_PAD;
+      if (leaf.pull.y > 0) y = leaf.y + leaf.h - LEAF_PAD - h;
+      else if (leaf.pull.y < 0) y = leaf.y + LEAF_PAD;
+    }
     const r = { x, y, w, h, cx: x + w / 2, cy: y + h / 2, dead: false, visited: false, cleared: false };
     leaf.room = r;
     rooms.push(r);
@@ -188,6 +196,29 @@ export function genFloor(floor) {
   //   물러난다. 순수 L 은 남의 방을 가로지를 수 있어(V-202 를 깬다) 자로 재 걸러낸다. 두 꼴 다 꺾임엔 정사각 여유칸.
   //   connect 는 Math.random 을 한 톨도 안 쓰므로 __CORRSIMPLE 을 껐다 켜도 rooms/packs 지문은 불변 — 복도 «꼴»만 바뀐다.
   const simple = globalThis.__CORRSIMPLE !== false;
+  // ★★ V-263 __ROOMSTIGHT — 마주 보고 가까운 두 방은 복도 대신 «짧은 목(문)»으로 바로 잇는다(ㄱ자 곁방).
+  //   겹치는 구간 가운데에 폭 cw 짜리 목 하나만 뚫고 방을 뭉개지 않는다. 제3의 방에 닿으면 안 뚫고 옛 복도로 물러난다.
+  //   Math.random 무소비 → 지문 불변. tight=false 면 늘 false 를 돌려 옛 복도만 탄다.
+  const DOOR_MAXGAP = LEAF_PAD * 2 + 40, DOOR_OVER = 16, DOOR_MINOV = cw + 8;
+  const hitsOther = (c, link) => rooms.some((r, ri) => !link.includes(ri) && c.x < r.x + r.w && c.x + c.w > r.x && c.y < r.y + r.h && c.y + c.h > r.y);
+  const tryDoor = (A, B, link) => {
+    if (!tight) return false;
+    const ovY = Math.min(A.y + A.h, B.y + B.h) - Math.max(A.y, B.y);
+    if (ovY >= DOOR_MINOV) {
+      const yc = (Math.max(A.y, B.y) + Math.min(A.y + A.h, B.y + B.h)) / 2;
+      const gL = B.x - (A.x + A.w), gR = A.x - (B.x + B.w);
+      if (gL > 0 && gL <= DOOR_MAXGAP && !hitsOther(rH(A.x + A.w - DOOR_OVER, B.x + DOOR_OVER, yc), link)) { hRect(A.x + A.w - DOOR_OVER, B.x + DOOR_OVER, yc, link); return true; }
+      if (gR > 0 && gR <= DOOR_MAXGAP && !hitsOther(rH(B.x + B.w - DOOR_OVER, A.x + DOOR_OVER, yc), link)) { hRect(B.x + B.w - DOOR_OVER, A.x + DOOR_OVER, yc, link); return true; }
+    }
+    const ovX = Math.min(A.x + A.w, B.x + B.w) - Math.max(A.x, B.x);
+    if (ovX >= DOOR_MINOV) {
+      const xc = (Math.max(A.x, B.x) + Math.min(A.x + A.w, B.x + B.w)) / 2;
+      const gU = B.y - (A.y + A.h), gD = A.y - (B.y + B.h);
+      if (gU > 0 && gU <= DOOR_MAXGAP && !hitsOther(rV(A.y + A.h - DOOR_OVER, B.y + DOOR_OVER, xc), link)) { vRect(A.y + A.h - DOOR_OVER, B.y + DOOR_OVER, xc, link); return true; }
+      if (gD > 0 && gD <= DOOR_MAXGAP && !hitsOther(rV(B.y + B.h - DOOR_OVER, A.y + DOOR_OVER, xc), link)) { vRect(B.y + B.h - DOOR_OVER, A.y + DOOR_OVER, xc, link); return true; }
+    }
+    return false;
+  };
   (function connect(node) {
     if (!node.left && !node.right) return;
     connect(node.left); connect(node.right);
@@ -195,6 +226,7 @@ export function genFloor(floor) {
       const A = pickExtreme(node.left, "cx", true), B = pickExtreme(node.right, "cx", false);
       if (!A || !B) return;
       const link = [rooms.indexOf(A), rooms.indexOf(B)];
+      if (tryDoor(A, B, link)) return;
       if (!simple) {
         hRect(A.cx, node.mid, A.cy, link);
         if (A.cy !== B.cy) vRect(A.cy, B.cy, node.mid, link);   // 세로 기둥을 «경계 위»에 둬 어떤 방도 관통하지 않는다
@@ -213,6 +245,7 @@ export function genFloor(floor) {
       const A = pickExtreme(node.left, "cy", true), B = pickExtreme(node.right, "cy", false);
       if (!A || !B) return;
       const link = [rooms.indexOf(A), rooms.indexOf(B)];
+      if (tryDoor(A, B, link)) return;
       if (!simple) {
         vRect(A.cy, node.mid, A.cx, link);
         if (A.cx !== B.cx) hRect(A.cx, B.cx, node.mid, link);
