@@ -1,6 +1,6 @@
 import { dirName, drawSprite8, footMetrics, frameCount, LOAD, loadManifest, preload, tex } from "./sprite.js";
 import { genFloor, genTown } from "./map.js";
-import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore, rollMythic, MYTHIC, MYTHIC_RARITY } from "./loot.js";
+import { rollItem, resetUniques, rollBuildAffix, sumAffixes, SLOT_LABEL, bossUnique, rollAffixes, itemScore, rollMythic, MYTHIC, MYTHIC_RARITY, seedBossRun } from "./loot.js";
 import { GRID_COLS, GRID_ROWS, layoutBag, bagFits, equipOp, unequipOp } from "./bag.js";
 
 const cv = document.getElementById("board");
@@ -158,6 +158,10 @@ const GOLEM_BLOCK_PAD = 4;      // 몸으로 막는 여유 — 적을 (골렘r+�
 // 갈래별 물들임 — teamTintOn() 이 켜 있으면 소환수는 본디 ALLY_TINT(푸름) 하나로 물든다. 구울/골렘은 그 위로 덮어써 «눈에 갈리게».
 const GHOUL_TINT = "sepia(1) saturate(2.4) hue-rotate(52deg) brightness(1.06) contrast(1.05)";   // 병색 초록(작고 빠른 것)
 const GOLEM_TINT = "grayscale(0.55) sepia(0.35) hue-rotate(172deg) saturate(0.9) brightness(0.8) contrast(1.22)"; // 어두운 돌빛(크고 두꺼운 것)
+// ── V-242 ② 시체 쓰는 길 둘 더 — 화장(M·시체→마나) · 제물(U·시체→주인 약화). __CORPSEUSE=false 로 둘 다 끈다. ──
+// 시체는 자원인데 쓸 곳이 소환·폭발·뼈벽·먹이·골렘·구울 여섯뿐이었다. 둘을 더해 시체를 두고 다투게 한다(모자라야 고르는 맛).
+const BURN_N = 2, BURN_MANA = 34;                    // 화장: 곁의 시체 최대 2구를 태워 구당 마나 +34(소환·폭발이 먹을 시체를 마나로 돌린다)
+const HEX_N = 3, HEX_DUR = 6.0, HEX_DMG = 0.6, HEX_VULN = 1.35, HEX_RANGE = 520;   // 제물: 곁 주인 있을 때 시체 3구로 6초간 주인 피해 −40%·받는 피해 +35%
 // ── V-235 물약(소모품) · 벨트 1~4 ──────────────────────────────────────────
 // 두 종: 생명(붉은)·마나(푸른). 회복량은 최대치의 «비율»이라 층·레벨이 오르면 등급이 저절로 오른다
 //   (생명 maxhp×0.35 · 마나 maxmana×0.40, 즉효). 벨트 네 칸, 칸마다 한 종이 쌓인다(칸당 상한 9).
@@ -413,6 +417,12 @@ window.__bossPose = () => {
   cam.x = (boss.x + p.x) / 2 - VW / (2 * Z); cam.y = boss.y - VH / (2 * Z) + 30;
   return { x: boss.x, y: boss.y, kind: boss.bossKind, name: boss.name };
 };
+// V-242 ① 컷용 — 이 층 주인을 지정한 kind 로 바꿔 세운다(넷을 한 판에서 하나씩 찍으려는 것·측정 자가 아니다).
+window.__setBossKind = (k) => {
+  const NM = ["뼈 왕", "역병 주술사", "무덤 도살자", "저주받은 사제"], SZ = [1.12, 0.98, 1.20, 1.06];
+  for (const pk of G.packs) for (const m of pk.enemies) if (m.boss) { m.bossKind = k; m.name = NM[k]; m.cast = null; m.skillCd = 0; }
+  return window.__bossPose();
+};
 // ── V-231 컷용 — 잡몹 수법의 «예고 뜬 순간»으로 세운다("charge"|"bomb"). 없으면 null(그 층에 그 잡몹이 없음). ──
 window.__mobPose = (what) => {
   const p = G.player;
@@ -565,6 +575,7 @@ function fresh(floor, carry, town) {
 
 function start(floor, carry, town) {
   globalThis.__asc = (carry && carry.ascension) || 0;   // V-239 — genFloor 가 회차 배수를 읽기 전에 심는다
+  if (globalThis.__BOSSKIND !== false && floor === 1) seedBossRun(Date.now());   // V-242 ① 새 판(1층 진입)마다 주인 순서를 새로 굴린다. Date.now 는 공유 RNG 를 안 건드림 → 지문 불변.
   G = fresh(floor, carry, town);
   G.blockProps = G.props.filter((pr) => BLOCK_IMGS.has(pr.img));
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
@@ -629,6 +640,11 @@ function start(floor, carry, town) {
   window.__dropMythic = (dx = 40) => { const it = rollMythic(G.floor); dropItemAt(G.player.x + dx, G.player.y, it); return it ? it.name : null; };
   window.__seedCorpses = (n = 8) => { const p = G.player; G.corpses = []; for (let i = 0; i < n; i++) G.corpses.push({ x: p.x - 120 + (i % 6) * 44, y: p.y - 40 + Math.floor(i / 6) * 40, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 }); return G.corpses.length; };
   window.__raiseOnce = () => { const b = G.minions.length; raiseSkeleton(); return G.minions.length - b; };
+  window.__corpseBurn = () => { const p = G.player, c0 = G.corpses.filter((c) => !c.used).length, m0 = Math.round(p.mana); corpseBurn(); return { corpseBefore: c0, corpseAfter: G.corpses.filter((c) => !c.used).length, manaGain: Math.round(p.mana) - m0 }; };
+  window.__corpseHex = () => { let boss = null; for (const pk of G.packs) for (const m of pk.enemies) if (m.boss && m.alive) boss = m; const c0 = G.corpses.filter((c) => !c.used).length; corpseHex(); return { corpseBefore: c0, corpseAfter: G.corpses.filter((c) => !c.used).length, hex: boss ? +(boss.hex || 0).toFixed(1) : null }; };
+  window.__bossHere = () => { for (const pk of G.packs) { for (const m of pk.enemies) if (m.boss) { pk.awake = true; return { kind: m.bossKind, name: m.name, x: Math.round(m.x), y: Math.round(m.y) }; } } return null; };
+  window.__hurtBoss = (m, dmg) => hurtEnemy(m, dmg, 1, 0, null);
+  window.__seedBossRun = (s) => seedBossRun(s);
   window.__journalReset = () => { JOURNAL = { done: {}, stats: {}, slots: 0, minionPct: 0 }; saveJournal(); recalc(); };
   window.__journalState = () => ({ done: Object.keys(JOURNAL.done), slots: JOURNAL.slots, minionPct: JOURNAL.minionPct, stats: JOURNAL.stats });
   window.__journalOpen = () => { if (!journalPanelOpen) toggleJournal(); else renderJournal(); };
@@ -814,6 +830,10 @@ function handleSkills() {
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
   if (keys.has("k") && !p._k) { p._k = true; if (globalThis.__GHOUL !== false) raiseGhoul(); } if (!keys.has("k")) p._k = false;
+  if (globalThis.__CORPSEUSE !== false) {   // V-242 ② M 화장(시체→마나) · U 제물(시체→주인 약화)
+    if (keys.has("m") && !p._m) { p._m = true; corpseBurn(); } if (!keys.has("m")) p._m = false;
+    if (keys.has("u") && !p._u) { p._u = true; corpseHex(); } if (!keys.has("u")) p._u = false;
+  }
   if (keys.has("b") && !p._b) { p._b = true; buyAltar(); } if (!keys.has("b")) p._b = false;
   if (keys.has("h") && !p._h) { p._h = true; if (globalThis.__HINTFOLD !== false) toggleHelp(); } if (!keys.has("h")) p._h = false;
   if (keys.has("z") && !p._z) { p._z = true; spendPoint("slot"); } if (!keys.has("z")) p._z = false;
@@ -1264,6 +1284,47 @@ function corpseFeed() {
   floatNote("제물 — 소환수가 커진다", "#e0663c", 1.0);
 }
 
+function corpseBurn() {   // V-242 ② M — 시체 화장: 곁의 시체를 태워 마나로 돌린다(소환·폭발이 먹을 시체를 놓고 다툰다)
+  const p = G.player;
+  if (p.mana >= p.maxmana) { floatNote("마나가 가득하다", "#c8a04a", 1.0); return; }
+  let n = 0;
+  for (let k = 0; k < BURN_N; k++) {
+    const ci = nearestCorpse(p.x, p.y, 300);
+    if (ci < 0) break;
+    const c = G.corpses[ci]; c.used = true;
+    for (let i = 0; i < 12; i++) burst(c.x, c.y - 20, "#5fb0ff", 160);
+    n++;
+  }
+  if (!n) { floatNote("가까운 시체가 없다", "#c8a04a", 1.0); return; }
+  const gain = Math.min(p.maxmana - p.mana, n * BURN_MANA);
+  p.mana += gain;
+  cam.shake = Math.max(cam.shake, 4);
+  floatNote(`화장 — 마나 +${Math.round(gain)}`, "#5fb0ff", 1.0);
+}
+
+function corpseHex() {   // V-242 ② U — 시체 제물로 곁의 주인을 약화(관문에서 시체를 걸고 소환과 다투게). 시체 부족하면 안 쓴다.
+  const p = G.player;
+  let boss = null, bd = HEX_RANGE * HEX_RANGE;
+  for (const pk of G.packs) if (pk.awake) for (const m of pk.enemies) {
+    if (!m.boss || !m.alive) continue;
+    const d = (m.x - p.x) ** 2 + (m.y - p.y) ** 2;
+    if (d < bd) { bd = d; boss = m; }
+  }
+  if (!boss) { floatNote("곁에 주인이 없다", "#c8a04a", 1.0); return; }
+  const eaten = [];
+  for (let k = 0; k < HEX_N; k++) { const ci = nearestCorpse(p.x, p.y, 320); if (ci < 0) break; G.corpses[ci].used = true; eaten.push(ci); }
+  if (eaten.length < HEX_N) {
+    for (const ci of eaten) G.corpses[ci].used = false;
+    floatNote(`시체가 모자라다 (${HEX_N}구 필요·${eaten.length}구)`, "#c8a04a", 1.2);
+    return;
+  }
+  boss.hex = HEX_DUR;
+  for (let i = 0; i < 26; i++) burst(boss.x, boss.y - boss.h * 0.4, "#c774ff", 200);
+  cam.shake = Math.max(cam.shake, 6);
+  floatNote("제물 — 주인이 약해진다 (피해 −40% · 받는 피해 +35%)", "#c774ff", 1.4, { sz: 13 });
+}
+function hexF(m) { return m.hex > 0 ? HEX_DMG : 1; }
+
 // ── V-234 뼈 제단 — 금을 쓰는 첫 길(피/뼈/재 셋 중 층마다 하나). B 로 산다(반경 70·한 층 한 번). ──
 const ALTAR_META = {
   blood: { name: "피의 제단", col: "#e0663c", note: "최대 생명 +8%" },
@@ -1533,6 +1594,7 @@ function thiefEat(m, ci) {
 let addId = -1000;   // 소환된 해골(add)의 id — 본디 팩 id(양수)와 안 겹치게 음수로
 function stepBoss(m, p, dt, pk) {
   m.hit = Math.max(0, m.hit - dt);
+  if (m.hex > 0) m.hex -= dt;   // V-242 ② 제물 저주 시간 경과(hexF 가 이 값으로 주인 피해를 깎는다)
   if (m.skillCd == null) m.skillCd = BOSS_CD[m.bossKind] * 0.6;
   if (m.cast) { advanceCast(m, p, dt, pk); bossKb(m, dt); return; }
   m.skillCd -= dt;
@@ -1545,7 +1607,7 @@ function stepBoss(m, p, dt, pk) {
   if (dist > reach) { stepTo(m, m.x + m.dx * m.spd * dt, m.y + m.dy * m.spd * dt, m.r); m.state = "walk"; m.anim += dt * 9; }
   else {
     m.state = "attack"; m.anim += dt * 9;
-    if (m.atk <= 0) { m.atk = 0.9; if (onP) hurtPlayer(m.dmg); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg; if (s.hp <= 0) killMinion(s); } } }
+    if (m.atk <= 0) { m.atk = 0.9; if (onP) hurtPlayer(m.dmg * hexF(m)); else { const s = G.minions.find((s) => s.x === tx && s.y === ty); if (s) { s.hp -= m.dmg * hexF(m); if (s.hp <= 0) killMinion(s); } } }
   }
   if (m.skillCd <= 0) startCast(m, p);
   bossKb(m, dt);
@@ -1569,14 +1631,14 @@ function advanceCast(m, p, dt, pk) {
   if (c.phase === "dash") {                              // 도살자 — 겨눈 방향으로 들이받는다
     stepTo(m, m.x + Math.cos(c.dir) * m.spd * 3.4 * dt, m.y + Math.sin(c.dir) * m.spd * 3.4 * dt, m.r);
     m.state = "walk";
-    if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 < (p.r + m.r + 12) ** 2) hurtPlayer(m.dmg * 1.4);
+    if ((p.x - m.x) ** 2 + (p.y - m.y) ** 2 < (p.r + m.r + 12) ** 2) hurtPlayer(m.dmg * 1.4 * hexF(m));
     if (c.t <= 0) { c.phase = "sweepWarn"; c.t = 0.42; c.cx = m.x; c.cy = m.y; c.r = m.r + 150; }
     return;
   }
   if (c.phase === "sweepWarn") {                         // 도살자 — 멈춘 자리에서 광역 후려치기
     if (c.t <= 0) {
       cam.shake = Math.max(cam.shake, 16);
-      if ((p.x - c.cx) ** 2 + (p.y - c.cy) ** 2 < c.r * c.r) hurtPlayer(m.dmg * 1.2);
+      if ((p.x - c.cx) ** 2 + (p.y - c.cy) ** 2 < c.r * c.r) hurtPlayer(m.dmg * 1.2 * hexF(m));
       for (let i = 0; i < 20; i++) burst(c.cx, c.cy, "#c0303a", 200);
       endCast(m);
     }
@@ -1594,7 +1656,7 @@ function fireCast(m, p, pk) {
     for (let i = 0; i < 24; i++) burst(c.cx, c.cy, "#e8ecf0", 180);
     endCast(m);
   } else if (k === 1) {                                  // 역병 주술사 — 독 장판을 깐다
-    G.hazards.push({ x: c.cx, y: c.cy, r: 120, warn: 0, life: POOL_LIFE, dmg: 10 + G.floor * 2 });
+    G.hazards.push({ x: c.cx, y: c.cy, r: 120, warn: 0, life: POOL_LIFE, dmg: (10 + G.floor * 2) * hexF(m) });
     for (let i = 0; i < 16; i++) burst(c.cx, c.cy, "#7ad04a", 120);
     endCast(m);
   } else if (k === 2) {                                  // 무덤 도살자 — 돌진에 들어간다
@@ -1811,6 +1873,7 @@ function stepSpears(dt) {
 }
 
 function hurtEnemy(m, dmg, dx, dy, src) {
+  if (m.hex > 0) dmg *= HEX_VULN;   // V-242 ② 제물 저주가 걸린 주인은 받는 피해가 늘어난다(비-주인은 m.hex undefined → 불변)
   const eff = Math.min(dmg, Math.max(0, m.hp));
   if (src) METRIC[src] += eff;
   m.hp -= dmg; m.hit = 0.18; m.stun = 0.05;
@@ -1885,7 +1948,7 @@ function dropLoot(m) {
     const it = bossUnique(m.bossKind, G.floor);
     const a = Math.random() * 6.283, s = 40 + Math.random() * 60;
     G.items.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
-    if (uniqueOn() && Math.random() < MYTHIC_BOSS_CHANCE) dropItemAt(m.x, m.y, rollMythic(G.floor));   // V-241 — 주인은 규칙형 유니크도 낮은 확률로
+    if (uniqueOn() && Math.random() < MYTHIC_BOSS_CHANCE) dropItemAt(m.x + 54, m.y + 22, rollMythic(G.floor));   // V-241 — 주인은 규칙형 유니크도 · V-242 ③ 두 물건을 떼어 놓아 바닥 이름표가 안 겹치게
   }
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
@@ -3723,11 +3786,14 @@ function drawFloats() {
     //   뭉갰다(가로 회피가 없었다). 천장에선 겹친 사각의 좌·우 중 캔버스에 남는 쪽으로 옮긴다.
     // V-237 — 세계-공간 판(제단 안내판)도 피한다. 옛 것은 뜬 글끼리만 어긋냈다 → 초록 구입글이 제단 판을 통째로 덮었다.
     const avoid = globalThis.__NOTESTACK !== false ? reservedFloatRects : EMPTY_RECTS;
+    // V-242 ③ 유니크 이름(26px)+규칙 글이 한 자리에 뜨면 2px 로만 벌어져 서로 닿아 안 읽혔다.
+    //   INF: «근접»도 겹침으로 쳐서(natural gap 이 좁은 서로 다른 물건의 이름/규칙 짝을 잡는다) FGAP 만큼 벌려 쌓는다.
+    const FGAP = globalThis.__FLOATSTACK !== false ? 9 : 2, INF = globalThis.__FLOATSTACK !== false ? 9 : 0;
     for (let g = 0; g < 40; g++) {
-      const q0 = (q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 && sy > q.y0;
+      const q0 = (q) => sx - hw < q.x1 && sx + hw > q.x0 && sy - fs < q.y1 + INF && sy + INF > q.y0;
       const hit = rects.find(q0) || avoid.find(q0);
       if (!hit) break;
-      const up = hit.y0 - 2;
+      const up = hit.y0 - FGAP;
       if (up - fs >= M) { sy = up; continue; }
       if (!V211()) break;
       const right = hit.x1 + hw + 1, left = hit.x0 - hw - 1;
@@ -4304,7 +4370,7 @@ function positionInvTips() {
 }
 
 function buildBelt() {
-  const rows = [["Q", "raise"], ["E", "nova"], ["R", "decrep"], ["V", ""], null,
+  const rows = [["Q", "raise"], ["E", "nova"], ["R", "decrep"], ["V", ""], ["M", ""], null,
     ["1", ""], ["2", ""], ["3", ""], ["4", ""], ["U", ""], ["T", ""], ["C", ""]];
   const belt = el("belt");
   belt.innerHTML = "";

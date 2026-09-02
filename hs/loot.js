@@ -133,7 +133,19 @@ export function resetUniques() { uniquePool = [...UNIQUES]; }
 // map.js(스폰)·main.js(수법·유니크)가 층→주인을 각자 셈하면 어긋난다. 규칙은 여기 하나.
 //   5·6~9 → 0 뼈 왕 · 10~14 → 1 역병 주술사 · 15~19 → 2 무덤 도살자 · 20~24 → 3 저주받은 사제 · 25~ 되풀이.
 //   (2~4층의 이른 주인은 뼈 왕으로 — 5층 관문과 같은 첫 얼굴을 준다.)
-export function bossKindFor(floor) { return Math.max(0, Math.ceil(floor / 5) - 1) % UNIQUES.length; }
+// ── V-242 ① 관문 주인 순서를 «판마다» 굴린다(연속 두 층 같은 놈 금지). ──────────────
+//   ★ 지문 안전: 공유 RNG(Math.random)를 안 쓴다 — seedBossRun 이 심은 값만 읽어 floor 산술로 낸다.
+//   step ∈ {1,3} 은 4 와 서로소 → 이웃 층 kind 가 반드시 다르다. __BOSSKIND=false → 옛 고정 순환(byte-동일).
+let bossBase = 0, bossStep = 1;
+export function seedBossRun(seed) {
+  const s = ((seed >>> 0) || 1) >>> 0;
+  bossBase = s % UNIQUES.length;
+  bossStep = ((s >>> 4) & 1) ? 3 : 1;
+}
+export function bossKindFor(floor) {
+  if (globalThis.__BOSSKIND === false) return Math.max(0, Math.ceil(floor / 5) - 1) % UNIQUES.length;
+  return (((bossBase + floor * bossStep) % UNIQUES.length) + UNIQUES.length) % UNIQUES.length;
+}
 
 // 주인을 죽이면 «그 주인의» 유니크가 확정으로 하나 떨어진다(확률 아님 · 「넘은 표」가 나게).
 // 옵션은 rollItem 의 유니크 규칙과 같게 굴린다. 소진 판정(uniquePool)은 무시한다 — 주인 표는 늘 준다.
