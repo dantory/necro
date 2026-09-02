@@ -233,6 +233,19 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 .ascline{text-align:center;color:#c9b98c;font-size:12px;letter-spacing:.03em;margin:2px 0 8px}
 .ascline b{color:#e8cf52}
 
+/* V-243 ① 오프라인 정산 창 — ascendwin 결(검붉은 어둠·금빛). 세 줄(금·시체·경험). */
+.offlinewin{min-width:340px;max-width:380px}
+.offcap{color:#e0663c}
+.offrows{display:flex;flex-direction:column;gap:6px;margin:12px 0 4px;padding:0 18px}
+.offrow{display:flex;justify-content:space-between;align-items:baseline;
+  padding:7px 12px;background:linear-gradient(#231311,#150b09);border:1px solid var(--gold-d);border-radius:2px}
+.offk{color:#c9bda0;font-size:14px;letter-spacing:.08em}
+.offv{color:#e8cf52;font-size:17px;text-shadow:0 1px 0 #000}
+.offbtnwrap{text-align:center;margin-top:14px}
+.offbtn{font-family:inherit;padding:8px 34px;font-size:14px;letter-spacing:.1em;
+  color:#f0e2c0;background:linear-gradient(#3a1c10,#210f08);border:1px solid var(--gold-d);border-radius:2px;cursor:pointer}
+.offbtn:hover{filter:brightness(1.3)}
+
 /* V-186 스킬·스탯 창 (C) — HS_STYLE ⑤ 규격(검붉은 어둠·금빛 제목·오각별·잠금 격자).
    hud.css 팔레트를 그대로 쓴다 — 새 색을 짓지 않는다. */
 .charwin{position:fixed;display:none;z-index:18;left:50%;top:50%;transform:translate(-50%,-50%);

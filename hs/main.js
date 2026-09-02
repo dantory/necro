@@ -263,6 +263,63 @@ function journalCheck() {
   }
 }
 
+// ── V-243 ① 오프라인 진행 — 껐다 켜면 나갔던 시간만큼 정산해 준다(상한 8h·효율 50%·깊이 비례). ──
+//   저장은 «마지막 시각·가장 깊었던 층·금»뿐 — genFloor RNG 는 안 건드린다. __OFFLINE=false 로 끈다.
+//   값(재서 못박음): 분당 = 깊이 × 효율(0.5) × {금 0.5 · 시체 0.02 · 경험 0.8}. 상한 480분(8h). 음수(시계 되돌림)→0.
+const OKEY = "necro_offline_v1";
+const OFF_CAP_MIN = 480, OFF_EFF = 0.5;
+const OFF_GOLD_PM = 0.5, OFF_CORPSE_PM = 0.02, OFF_XP_PM = 0.8;
+const offlineOn = () => globalThis.__OFFLINE !== false;
+function loadOffline() { try { return JSON.parse(localStorage.getItem(OKEY)); } catch (e) { return null; } }
+function saveOffline() {
+  if (!offlineOn() || !window.G) return;
+  try { localStorage.setItem(OKEY, JSON.stringify({ t: Date.now(), deepest: deepestSoFar(), gold: G.gold | 0 })); } catch (e) {}
+}
+// 정산 셈 — 지난 시각(ms)·깊이로부터 {분·상한여부·되돌림여부·금·시체·경험}. 순수 함수(컷·자가 곧장 잰다).
+function computeOffline(elapsedMs, deepest) {
+  const rawMin = Math.floor((elapsedMs || 0) / 60000);
+  const mins = Math.max(0, Math.min(OFF_CAP_MIN, rawMin));   // 음수→0 · 상한 480
+  const f = mins * Math.max(1, deepest | 0) * OFF_EFF;
+  return { mins, capped: rawMin > OFF_CAP_MIN, neg: rawMin < 0,
+    gold: Math.floor(f * OFF_GOLD_PM), corpses: Math.floor(f * OFF_CORPSE_PM), xp: Math.floor(f * OFF_XP_PM) };
+}
+function applyOffline(r) {
+  G.gold += r.gold; G.xp += r.xp;
+  const p = G.player;   // 시체는 사람 곁에 실제로 깔아 준다(곧장 자원으로 쓰게) — genFloor 뒤라 지문 불변
+  for (let i = 0; i < r.corpses; i++)
+    G.corpses.push({ x: p.x - 130 + (i % 10) * 28, y: p.y + 46 + Math.floor(i / 10) * 24, base: "mob/skelarch", dir: "s", h: 78, used: false, t: 0 });
+}
+function showOfflineModal(r, deepest) {
+  const root = el("offline"); if (!root) return;
+  const hm = Math.floor(r.mins / 60), mm = r.mins % 60;
+  const tstr = hm > 0 ? `${hm}시간 ${mm}분` : `${mm}분`;
+  let h = `<div class="asctitle">돌아왔다</div>`;
+  h += `<div class="ascsub">그동안 <b>${tstr}</b> 이 흘렀다${r.capped ? ` <span class="offcap">· 상한 8시간</span>` : ``}.</div>`;
+  h += `<div class="ascsub2">가장 깊었던 <b>B${Math.max(1, deepest | 0)}층</b> 기준 · 효율 ${(OFF_EFF * 100) | 0}%</div>`;
+  h += `<div class="offrows">` +
+    `<div class="offrow"><span class="offk">금</span><span class="offv">+${r.gold}</span></div>` +
+    `<div class="offrow"><span class="offk">시체</span><span class="offv">+${r.corpses}</span></div>` +
+    `<div class="offrow"><span class="offk">경험</span><span class="offv">+${r.xp}</span></div>` +
+    `</div>`;
+  h += `<div class="offbtnwrap"><button class="offbtn" onclick="window.__offClose()">받 기</button></div>`;
+  root.innerHTML = h; root.classList.add("on"); offOpen = true;
+}
+let offOpen = false;
+function settleOffline() {
+  if (!offlineOn()) return;
+  try { settleOfflineInner(); } catch (e) {}
+}
+function settleOfflineInner() {
+  const s = loadOffline();
+  if (!s || typeof s.t !== "number") { saveOffline(); return; }   // 첫 실행 — 정산 없이 시각만 남긴다
+  const deepest = s.deepest || 0;
+  const r = computeOffline(Date.now() - s.t, deepest);
+  saveOffline();   // 새 시각으로 갱신(정산은 한 번만)
+  if (r.mins <= 0 || (r.gold <= 0 && r.corpses <= 0 && r.xp <= 0)) return;   // 줄 게 없으면 창 안 띄움
+  applyOffline(r); recalc();
+  showOfflineModal(r, deepest);
+}
+
 // 마나 값 치르기 — bloodCast 유니크면 모자란 만큼 피로 낸다(값은 늘 치러진다). 없으면 옛대로 마나만.
 function canPay(cost) {
   const p = G.player;
@@ -614,6 +671,10 @@ function start(floor, carry, town) {
   window.__tryAscend = tryAscend; window.__ascend = doAscend;
   window.__openAscend = () => { if (G.ascendSpot) { ascOpen = true; el("ascend").classList.add("on"); renderAscend(); } };
   window.__setDeepest = (n) => { G.deepest = n; };
+  window.__offlineCalc = (ms, deepest) => computeOffline(ms, deepest);
+  window.__offlineShow = (hoursAgo, deepest) => { const r = computeOffline(hoursAgo * 3600000, deepest); showOfflineModal(r, deepest); return r; };
+  window.__offClose = () => { const root = el("offline"); if (root) { root.classList.remove("on"); root.innerHTML = ""; } offOpen = false; };
+  window.__teleReach = (x, y, dx, dy, maxLen, r) => teleReach(x, y, dx, dy, maxLen, r);
   window.__toShrine = () => { if (G.ascendSpot) { G.player.x = G.ascendSpot.x; G.player.y = G.ascendSpot.y + 60; } };
   // V-240 컷·측정용 — 군세(해골·구울·골렘)를 세운다. 시체를 깔고 마나를 채워 실제 raise 함수를 부른다(자가 아니라 게임 함수 그대로).
   window.__armyPose = (opt) => {
@@ -2396,10 +2457,14 @@ function drawWorld() {
   PROF.seg("props");
   for (const c of G.corpses) {
     if (!onScreen(c.x, c.y, 120)) continue;
-    ctx.globalAlpha = 0.5; ctx.fillStyle = "#3a0d0d";
-    ctx.beginPath(); ctx.ellipse(c.x, c.y, c.h * 0.28, c.h * 0.14, 0, 0, 6.283); ctx.fill();
-    ctx.globalAlpha = 1;
-    drawSprite8(ctx, c.base, c.dir, "idle", 0, c.x, c.y + 4, c.h * 0.7, "grayscale(0.6) brightness(0.5)");
+    if (globalThis.__CORPSEART === false) {
+      ctx.globalAlpha = 0.5; ctx.fillStyle = "#3a0d0d";
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, c.h * 0.28, c.h * 0.14, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 1;
+      drawSprite8(ctx, c.base, c.dir, "idle", 0, c.x, c.y + 4, c.h * 0.7, "grayscale(0.6) brightness(0.5)");
+      continue;
+    }
+    drawCorpse(c);
   }
   PROF.seg("corpses");
 
@@ -2562,6 +2627,38 @@ function drawHazards() {   // 역병 독 장판 (바닥에 깔려 배우 밑)
     ctx.globalAlpha = 1;
   }
 }
+const CORPSE_DIR = { n: "north", s: "south", e: "east", w: "west", ne: "north-east", nw: "north-west", se: "south-east", sw: "south-west" };
+function drawCorpse(c) {   // V-243 ②d — 시체를 «알아볼 상아빛 유해»로. 발밑 뼈 고리가 화장(M)·제물(U)·소환(Q)의 대상임을 눈에 준다.
+  const usable = !c.used;
+  ctx.globalAlpha = 0.42; ctx.fillStyle = "#4a1212";
+  ctx.beginPath(); ctx.ellipse(c.x, c.y, c.h * 0.24, c.h * 0.11, 0, 0, 6.283); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (usable) {
+    const pl = 0.5 + 0.5 * Math.abs(Math.sin(nowMs() / 440 + c.x * 0.05));
+    ctx.globalAlpha = 0.34 + 0.22 * pl; ctx.strokeStyle = "#cdbb8c"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.ellipse(c.x, c.y + 2, c.h * 0.30, c.h * 0.14, 0, 0, 6.283); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  const bfilt = usable ? "grayscale(1) brightness(1.15) sepia(0.5) saturate(1.4) contrast(1.04)" : "grayscale(1) brightness(0.5)";
+  const cdir = CORPSE_DIR[c.dir] || (c.dir && c.dir.length > 2 ? c.dir : "south");   // V-243 ②d — 시체는 짧은 방향(s)으로 저장돼 옛 코드가 스프라이트를 못 찾아 붉은 얼룩만 남았다. 온전한 이름으로 편다.
+  if (!drawSprite8(ctx, c.base, cdir, "idle", 0, c.x, c.y + 4, c.h * 0.7, bfilt)) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
+}
+function drawCrossBones(x, y, s, usable) {
+  ctx.save(); ctx.translate(x, y); ctx.strokeStyle = usable ? "#d8c79a" : "#6b6152"; ctx.lineWidth = Math.max(2, s * 0.16); ctx.lineCap = "round";
+  for (const a of [0.7, -0.7]) {
+    ctx.save(); ctx.rotate(a);
+    ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.stroke();
+    for (const ex of [-s, s]) for (const ey of [-s * 0.18, s * 0.18]) { ctx.beginPath(); ctx.arc(ex, ey, s * 0.2, 0, 6.283); ctx.stroke(); }
+    ctx.restore();
+  }
+  ctx.restore();
+}
+function teleReach(x, y, dx, dy, maxLen, r) {   // V-243 ②c — 벽에 닿을 때까지 나아가는 길이. 경고선을 실제 돌진이 닿는 데까지만 긋는다.
+  if (globalThis.__TELLCLIP === false) return maxLen;
+  const step = 12;
+  for (let d = step; d <= maxLen; d += step) if (!walkable(x + dx * d, y + dy * d, r)) return Math.max(0, d - step);
+  return maxLen;
+}
 function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임(피할 시간을 준다)
   for (const pk of G.packs) {
     if (!pk.awake || !pk.boss) continue;
@@ -2575,8 +2672,9 @@ function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임
         if (k === 0) { ctx.beginPath(); ctx.arc(c.cx, c.cy, CAGE_R, 0, 6.283); ctx.stroke(); }
         else if (k === 1) { ctx.beginPath(); ctx.arc(c.cx, c.cy, 120, 0, 6.283); ctx.stroke(); }
         else if (k === 2) {
+          const reach = teleReach(m.x, m.y, Math.cos(c.dir), Math.sin(c.dir), 640, m.r || 18);   // V-243 ②c — 경고선을 벽에서 끊는다(돌진이 닿는 데까지만).
           ctx.lineWidth = 26; ctx.strokeStyle = `rgba(255,50,40,${0.22 + 0.4 * prog})`;
-          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * 640, m.y + Math.sin(c.dir) * 640); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * reach, m.y + Math.sin(c.dir) * reach); ctx.stroke();
         } else { ctx.beginPath(); ctx.arc(m.x, m.y - m.h * 0.35, 60 + 130 * prog, 0, 6.283); ctx.stroke(); }
         ctx.globalAlpha = 1;
       } else if (c.phase === "sweepWarn") {
@@ -2594,7 +2692,7 @@ function drawMobTele() {   // V-231 — 잡몹 수법 예고(돌진선·자폭 �
     for (const m of pk.enemies) {
       if (!m.alive) continue;
       if (m.tele > 0) {   // 돌진 예고 — 겨눈 방향(m.dx/dy)으로 붉은 띠, 남을수록 옅고 찰수록 진하게
-        const prog = 1 - m.tele / CHARGE_TELE, len = CHARGE_RANGE * 0.8;
+        const prog = 1 - m.tele / CHARGE_TELE, len = teleReach(m.x, m.y, m.dx, m.dy, CHARGE_RANGE * 0.8, m.r || 18);
         ctx.lineWidth = 20; ctx.strokeStyle = `rgba(255,50,40,${0.16 + 0.42 * prog})`;
         ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.dx * len, m.y + m.dy * len); ctx.stroke();
       } else if (m.fuse > 0) {   // 자폭 예고 — 발밑 붉은 고리, fuse 줄수록 진하고 두껍게
@@ -2614,7 +2712,9 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
     ctx.save(); ctx.translate(b.x, b.y);
     ctx.globalAlpha = 0.4; ctx.fillStyle = "#000"; ctx.beginPath(); ctx.ellipse(0, 4, b.r * 0.9, b.r * 0.4, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
-    if (b.foe) { drawBoneChunk(b.r, h, hpf); ctx.restore(); continue; }
+    if (b.foe || globalThis.__BONECAGE !== false) {   // V-243 ②b — 우리뼈(!foe)도 상아 뼈 기둥으로(옛 흰 무지 오각형 아님). __BONECAGE=false 로 옛 그림.
+      drawBoneChunk(b.r, h, hpf, !b.foe); ctx.restore(); continue;
+    }
     ctx.fillStyle = `rgb(${(150 + 90 * hpf) | 0},${(145 + 90 * hpf) | 0},${(125 + 80 * hpf) | 0})`;
     ctx.fillRect(-b.r * 0.55, -h, b.r * 1.1, h);
     ctx.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 1; i < 4; i++) ctx.fillRect(-b.r * 0.55, -h * i / 4, b.r * 1.1, 2);
@@ -2623,12 +2723,18 @@ function drawBones() {   // 뼈 왕의 우리 — 창백한 뼈 기둥, 금 갈�
     ctx.restore();
   }
 }
-function drawBoneChunk(r, h, hpf) {
+function drawBoneChunk(r, h, hpf, cage) {
   const iv = (hi, lo) => (lo + (hi - lo) * hpf) | 0;
-  const boneA = `rgb(${iv(228, 150)},${iv(220, 142)},${iv(196, 120)})`;
-  const boneB = `rgb(${iv(198, 120)},${iv(188, 112)},${iv(160, 92)})`;
-  const boneHi = `rgb(${iv(244, 182)},${iv(238, 174)},${iv(214, 152)})`;
+  const wr = cage ? -12 : 0, wg = cage ? -4 : 0, wb = cage ? -32 : 0;   // V-243 ②b — 우리뼈는 파랑을 더 빼 «누런 상아»로(흰색으로 안 뜨게)
+  const cc = (rh, rl, gh, gl, bh, bl) => `rgb(${Math.max(0, iv(rh, rl) + wr)},${Math.max(0, iv(gh, gl) + wg)},${Math.max(0, iv(bh, bl) + wb)})`;
+  const boneA = cc(228, 150, 220, 142, 196, 120);
+  const boneB = cc(198, 120, 188, 112, 160, 92);
+  const boneHi = cc(244, 182, 238, 174, 214, 152);
   const w = r * 0.6, knob = r * 0.5;
+  if (cage) {   // V-243 ②b — 우리뼈는 어두운 테두리로 도형의 윤곽을 준다(미완성 흰 상자로 안 보이게).
+    ctx.strokeStyle = "rgba(46,34,20,0.7)"; ctx.lineWidth = 2;
+    ctx.strokeRect(-w / 2 - 1, -h + knob, w + 2, h - knob * 2);
+  }
   ctx.fillStyle = boneB; ctx.fillRect(-w / 2 - 1, -h + knob, w + 2, h - knob * 2);
   ctx.fillStyle = boneA; ctx.fillRect(-w / 2, -h + knob, w, h - knob * 2);
   for (const ky of [-h + knob * 0.7, -knob * 0.7]) {
@@ -2643,6 +2749,7 @@ function drawBoneChunk(r, h, hpf) {
 }
 function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가운데 크게
   const bn = G.bossBanner; if (!bn) return;
+  if (globalThis.__BOSSNAME !== false) return;   // V-243 ②a — 큰 가운데 글 폐지. 주인 이름은 머리 위 한 자리(drawEnemy)에만.
   const a = bn.t < 0.3 ? bn.t / 0.3 : bn.t > 2.2 ? Math.max(0, (3.0 - bn.t) / 0.8) : 1;
   ctx.globalAlpha = a; ctx.textAlign = "center";
   const col = BOSS_LABEL_COL[bn.kind] || "#fff", cy = VH * 0.26;
@@ -3198,7 +3305,17 @@ function drawFoldedKindLabels() {
       if (Math.abs(bsx - asx) < 54 && Math.abs(bsy - asy) < 40) { used[j] = true; sumx += items[j].wx; top = Math.min(top, items[j].wtop); n++; }
     }
     used[i] = true;
-    drawKindLabel(sumx / n, Math.max(top - 16, topY), n > 1 ? `${a.text} ×${n}` : a.text, a.col);
+    let wy = Math.max(top - 16, topY);
+    if (globalThis.__BOSSNAME !== false) {   // V-243 ②a — 주인 이름 위에 겹치면 부하 이름표를 아래로 물린다(주인 이름이 위·읽히게).
+      const kx = (sumx / n - cam.x) * Z, khw = 30;
+      for (let g = 0; g < 12; g++) {
+        const ky = (wy - cam.y) * Z;
+        const hit = eliteLabels.find((q) => kx - khw < q.x1 && kx + khw > q.x0 && ky - 12 < q.y1 && ky > q.y0);
+        if (!hit) break;
+        wy = (hit.y1 + 14) / Z + cam.y;
+      }
+    }
+    drawKindLabel(sumx / n, wy, n > 1 ? `${a.text} ×${n}` : a.text, a.col);
   }
 }
 function drawEnemy(m) {
@@ -3242,9 +3359,21 @@ function drawEnemy(m) {
     const bossN = !!m.boss;   // V-230 — 주인 이름은 늘 머리 위에 크게(잡정예보다 큼·주인색)
     ctx.font = (bossN ? "bold 16px" : "bold 11px") + " 'Times New Roman',serif"; ctx.textAlign = "center";
     // V-240 — 주인 이름표가 화면 상단 밖으로 잘리던 것을 안으로 물린다(글자 높이만큼 여유). __LABELFOLD 로 되돌린다.
-    const labelY = (globalThis.__LABELFOLD !== false) ? Math.max(by - 6, cam.y + (bossN ? 24 : 16) / Z) : by - 6;
-    const lsx = (m.x - cam.x) * Z, lsy = (labelY - cam.y) * Z;
+    let labelY = (globalThis.__LABELFOLD !== false) ? Math.max(by - 6, cam.y + (bossN ? 24 : 16) / Z) : by - 6;
+    const lsx = (m.x - cam.x) * Z;
     const lhw = ctx.measureText(nm).width / 2 + 2;
+    let lsy = (labelY - cam.y) * Z;
+    if (bossN && globalThis.__BOSSNAME !== false) {   // V-243 ②a — 주인 이름을 부하 이름표·체력바 위로 «물린다»(drawFloats 쌓기와 같은 결).
+      const lfs = 15;
+      for (let g = 0; g < 24; g++) {
+        const hitB = barRects.find((q) => q !== undefined && (m.x - lhw / Z) < q.x1 && (m.x + lhw / Z) > q.x0 && lsy - lfs < (q.y1 - cam.y) * Z && lsy > (q.y0 - cam.y) * Z);
+        const hitL = eliteLabels.find((q) => lsx - lhw < q.x1 && lsx + lhw > q.x0 && lsy - lfs < q.y1 && lsy > q.y0);
+        const topScr = hitB ? (hitB.y0 - cam.y) * Z : hitL ? hitL.y0 : null;
+        if (topScr === null) break;
+        lsy = topScr - 3;
+      }
+      labelY = lsy / Z + cam.y;
+    }
     const onBoom = V211() && labelOverBoom(lsx, lsy, lhw);
     if (!onBoom) {
       ctx.save(); ctx.translate(m.x, labelY); ctx.scale(1 / Z, 1 / Z);
@@ -4503,6 +4632,7 @@ function markVisited() {
 
 let last = performance.now();
 let loadingDone = false;
+let lastOffSave = 0;
 function loop(now) {
   const fd = globalThis.__FIXED_DT;
   const dt = fd > 0 ? fd : Math.min(0.05, (now - last) / 1000); last = now;
@@ -4526,6 +4656,7 @@ function loop(now) {
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
   flash = Math.max(0, flash - dt * 1.4);
+  if (gameTime - lastOffSave > 5) { lastOffSave = gameTime; saveOffline(); }
   floorLogTick();
   const _t1 = performance.now();
   drawWorld();
@@ -4552,5 +4683,7 @@ function loop(now) {
   bindChar();
   bindAscend();
   start(1, null);
+  settleOffline();
+  window.addEventListener("beforeunload", saveOffline);
   requestAnimationFrame(loop);
 })();
