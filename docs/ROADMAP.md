@@ -18224,6 +18224,16 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 시트 **직접 열어 봄**: `tmp/hs_v251_sheet_{before,after}.png`·`_floorpick2`·`_floorconfirm`·`_props`·`_stairs`. 코드 안 건드림(순수 에셋 세 장 교체)·새 자 파일 없음(베이커 `tmp/v251_bake.py`·`v251_floor2.py`·`v251_stairs.py`).
   브리프: `tmp/hs_v251_prompt.md`
 
+## V-273 — 08:00 감시 흠 다섯 · V-272 화면 판정 · 함정 변주(바닥 꺼짐) (닫음 2026-09-03)
+  ① **`__MAPLEGEND3`** — 전체지도 범례를 「지도에 그려지는 모든 표식」과 맞춤: 흰 점(**나**·drawMapLive)·복도 선(**길**·__MAPPATH)을 더하고, 항목이 한 줄을 넘치면 두 줄로 접는다(1512px 엔 14항목이 한 줄에 듦). 컷 `map_legend3` 에서 지도 표식(나·계단·시체·저주제단·보물방·상자·적·방·길)이 다 범례에 있음을 눈으로 확인.
+  ② **`__TRAPHUE`** — 함정 결이 「위험」으로 읽히게 노랑을 뺀다: 알람 룬 노랑(#c8b048/#a98f3a)→보랏빛(#a066d6/#8a54c0)·가시 검정→차가운 쇳빛(#464e58/#5a636e). 독=탁한 초록·불길=주황 유지. 넷 다 노랑 아님(제일 밝은 건 화로). 낱개 알람 룬 90px: 노란(gold) 화소 **310→30**(HUE off→on·≈−90%)·룬은 보라로 뜸(눈판정). __TRAPHUE=false → 옛 노랑.
+  ③ **`__ITEMLABEL`** — 바닥 이름표를 아이콘 «위»로 띄우고(스프라이트 안 덮음)·실측 폭으로 겹침을 밀어내고(같은 x·옆칸 둘 다)·이름표→아이콘 실선 한 줄. 컷 `item_label`(신화 다섯 뭉침) 이름표 2·겹침 **0**·둘 다 아이콘 위·실선 연결. __ITEMLABEL=false → 옛(아이콘 자리에서 시작).
+  ④ **`__CAMROOM`** — 화면 절반이 방 밖 벽이던 것을, 이미 있는 `localBounds`(사람 든 walkable 덩어리 bbox) clamp 로 방을 화면에 끌어온다. 「이미 보이는 walkable 은 안 자른다」 불변식이라 사람-중심보다 void 가 **늘지 않는다**(guaranteed)·방이 화면보다 작으면 가운데·lerp(dt×8)로 부드럽게. 컷 walkable **39.8%→41.1%**(never regress). __CAMROOM=false → 옛(사람 중심).
+  ⑤ **V-272 화면 판정 — 통과.** 새 rot/bone pro 타일이 화면에서 결을 더하고 **방 대비를 안 벌린다**: rot 밝기 sd **86.9→77.9**(오히려 좁힘·mean 273→302)·bone sd 82.3→84.2(±2·mean 241→254). 밝기 맞출 필요 없음 → ROADMAP V-272 칸 닫음.
+  ⑥ **`__TRAPFALL`**(변주) — 다섯째 갈래 `fall`: 밟으면 바닥이 꺼져 다음 층으로(피해 maxhp×0.06·층+1·계단 건너뜀·착지는 그 층 임의의 걸을 수 있는 자리)·「바닥이 꺼졌다!」·뼈창으로 미리 터뜨리면 구멍만. KINDS/TKINDS 에 push(uint 은 길이 무관 ur 한 번 → 지문 무관). 기능 컷 floor **8→9**·hp 하강. __TRAPFALL=false → 뺀다.
+  - 되돌림 지문: 다섯 손잡이 중 genFloor 를 만지는 것은 `__TRAPFALL` 뿐(traps 는 fp 밖·push 는 RNG 무소비) → ON=OFF=BASE **byte-동일** F1/F3/F5/F10/F30(`tmp/_v273_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359). 나머지 넷은 그리기/UI·genFloor 무접촉.
+  - 회귀 `hs_v207_walk` 벽밖 **0%**·오류 **0** / `hs_v219_foeshot` frame p95 **1.5ms**·오류 **0**·에셋 **100%**·쏜화살 298. 컷 `tmp/hs_v273_{map_legend3,trap_hue,item_label,cam_room_before,cam_room_after,trap_fall,floor_v272_{bone,rot}_{before,after}}.png` 직접 열어 봄·콘솔 **0**. 만진 곳 `hs/`(main.js·map.js)·새 자 파일 없음(베이커 `tmp/hs_v273_cut.mjs`·지문 `tmp/_v273_fp.mjs`).
+
 ## V-271 — 함정 방 · 불길 함정 · 07:00 감시 흠 넷 (닫음 2026-09-03)
   ① **함정 방 `__TRAPROOM`** — `genFloor` 맨 끝(`__TRAP` 뒤)·산술 PRNG 만. 층3부터 확률로 방 하나를 함정 밭(6~10)+가운데 층+6 후한 상자(chest 는 런타임에 얹어 지문 밖). 문턱에서 보이게 결 반경 ×1.7·지도 표식(붉은 마름모+금 속)+범례.
   ② **불길 `__FLAME`** — 넷째 갈래. 밟으면 0.5s 예고→발동, 6초 주기로 되솟음(dotPlayer flat 10+층×2·r56). 소환수/적 안 밟음·뼈창 선제 해제.

@@ -744,6 +744,7 @@ function start(floor, carry, town) {
   for (const m of G.minions) unstick(m, m.r || 15);
   if (G.traproom && G.traproom.chest && !G.chests.includes(G.traproom.chest)) G.chests.push(G.traproom.chest);   // V-271 ① 함정 방 상자는 지문 밖(genFloor 가 chests 에 안 넣음)이라 런타임에 얹는다
   snapCorpse();   // V-266 ② 옛 층 좌표는 새 배치에서 벽일 수 있다 — 걸을 수 있는 자리로 물린다
+  if (globalThis.__fallLand) { globalThis.__fallLand = false; landRandom(p); }   // V-273 ⑥ 바닥 꺼짐으로 온 층 — 시작 자리 대신 임의의 걸을 수 있는 자리에 떨어진다
   cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z);
   recalc();
   document.getElementById("dead").style.display = "none";
@@ -760,6 +761,7 @@ function start(floor, carry, town) {
   window.__trapInfo = () => (G.traps || []).map((t) => ({ x: Math.round(t.x), y: Math.round(t.y), kind: t.kind, sprung: !!t.sprung, inSecret: !!t.inSecret }));
   window.__toTrap = (kind) => { const t = (G.traps || []).find((q) => (!kind || q.kind === kind) && !q.sprung && !q.inSecret); if (t) { G.player.x = t.x; G.player.y = t.y - 44; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return t || null; };
   window.__springTrap = (kind) => { const t = (G.traps || []).find((q) => (!kind || q.kind === kind) && !q.sprung); if (t) springTrap(t, false); return t || null; };
+  window.__addTrap = (kind, dy = 70) => { const t = { x: G.player.x, y: G.player.y - dy, kind, sprung: false, r: 26 }; (G.traps || (G.traps = [])).push(t); cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return { x: Math.round(t.x), y: Math.round(t.y), kind }; };
   window.__traproomInfo = () => G.traproom ? { x: Math.round(G.traproom.x), y: Math.round(G.traproom.y), traps: (G.traps || []).filter((t) => t.room).length, chest: !!(G.traproom.chest && !G.traproom.chest.opened) } : null;
   window.__toTrapRoom = (edge) => { const tr = G.traproom; if (!tr) return null; const rm = tr.room; G.player.x = edge ? rm.x + 40 : tr.x; G.player.y = edge ? rm.cy : tr.y + 120; rm.visited = true; bigDirty = true; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return window.__traproomInfo(); };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
@@ -995,7 +997,7 @@ function unstick(e, r) {
 // 사람이 늘 화면 한가운데다. 그래서 두 clamp 를 기본 «끔»으로 돌려 카메라가 사람을 그대로
 // 따라가게 한다(가로·세로 50%). 두 손잡이는 before 재현·되돌리기용으로 남긴다:
 //   __CAM_CLAMP===true → localBounds 지역 clamp 켬 · __CAM_MAPCLAMP===true → 맵-전체 clamp 켬.
-const CAM_MARGIN = 48;   // (지역 clamp 를 켰을 때) 걸을 수 있는 덩어리 밖으로 더 보여 주는 여유.
+const CAM_MARGIN = 48;   // (지역 clamp·__CAMROOM 을 켰을 때) 걸을 수 있는 덩어리 밖으로 더 보여 주는 여유.
 // 사람 중심 화면과 겹치는 방·복도의 bbox. 카메라를 이 안으로만 물리는 게 핵심 불변식이다 —
 // 화면에 이미 보이는 walkable 은 절대 안 잘리므로(공허가 늘 수 없다) «항상 같거나 덜 공허»하고,
 // 벽 붙음처럼 덩어리 «너머»가 암반일 때만 그 암반을 덜 비춘다. 겹치는 게 없으면 null(사람 중심 그대로).
@@ -1046,7 +1048,9 @@ function stepPlayer(dt) {
 
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
-  const reg = (globalThis.__CAM_CLAMP === true && G.rooms) ? localBounds(tcx, tcy, vw, vh) : null;
+  // V-273 ④ __CAMROOM — 화면 절반이 방 밖 벽이던 것을, 사람 든 walkable 덩어리(방+복도) bbox 안으로 카메라를 물려 방을 끌어온다.
+  //   localBounds 는 이미 보이는 walkable 을 안 자르므로(«항상 같거나 덜 공허») 사람-중심보다 void 가 늘지 않는다. 방이 화면보다 작으면 가운데. lerp(dt*8) 가 부드럽게. __CAMROOM=false → 옛(사람 중심).
+  const reg = ((globalThis.__CAM_CLAMP === true || (globalThis.__CAMROOM !== false && !G.town)) && G.rooms) ? localBounds(tcx, tcy, vw, vh) : null;
   if (reg) {
     const x0 = reg.x0 - CAM_MARGIN, y0 = reg.y0 - CAM_MARGIN, x1 = reg.x1 + CAM_MARGIN, y1 = reg.y1 + CAM_MARGIN;
     tcx = (x1 - x0 <= vw) ? (x0 + x1) / 2 - vw / 2 : Math.max(x0, Math.min(x1 - vw, tcx));
@@ -2236,8 +2240,20 @@ function stepTraps(dt) {
       continue;
     }
     if (t.sprung) continue;
-    if ((p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) springTrap(t, false);
+    if ((p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) { springTrap(t, false); if (G.fallPending) break; }
   }
+  if (G.fallPending) { G.fallPending = false; fallThrough(); }
+}
+function fallThrough() {   // V-273 ⑥ 바닥 꺼짐 발동 — 다음 층으로. 착지는 그 층 임의의 걸을 수 있는 자리(start 가 __fallLand 를 본다).
+  globalThis.__fallLand = true;
+  start(G.floor + 1, carryState());
+}
+function landRandom(p) {
+  for (let i = 0; i < 240; i++) {
+    const x = 60 + Math.random() * (G.W - 120), y = 60 + Math.random() * (G.H - 120);
+    if (walkable(x, y, p.r) && (!G.stairs || Math.hypot(x - G.stairs.x, y - G.stairs.y) > 140)) { p.x = x; p.y = y; return; }
+  }
+  if (G.rooms && G.rooms.length) { const rm = G.rooms[(Math.random() * G.rooms.length) | 0]; p.x = rm.cx; p.y = rm.cy; }
 }
 function emitFlame(t, f) {
   G.hazards.push({ x: t.x, y: t.y, r: globalThis.__TRAPART === false ? 116 : 56, warn: FLAME_WARN, life: FLAME_LIFE, dmg: 10 + f * 2, trap: true, flame: true });
@@ -2251,6 +2267,16 @@ function springTrap(t, remote) {
     t.disarmed = true;
     for (let i = 0; i < 14; i++) burst(t.x, t.y, "#6a5344", 120);
     floatNote("함정을 부쉈다", "#c9b89a", 1.0);
+    return;
+  }
+  if (t.kind === "fall") {   // V-273 ⑥ 바닥 꺼짐 — 밟으면 다음 층으로 떨어진다(계단을 건너뛰는 지름길이자 함정). 뼈창으로 미리 터뜨리면 구멍만 남고 안 빠진다.
+    for (let i = 0; i < 16; i++) burst(t.x, t.y, "#3a2c1e", 150);
+    if (remote) { floatNote("함정을 부쉈다", "#c9b89a", 1.0); return; }
+    const eff = p.maxhp * 0.06 * (1 - p.dr);
+    METRIC.taken += eff; p.hp -= eff;
+    if (p.hp <= 0 && !G.dead) { die(); return; }
+    floatNote("바닥이 꺼졌다!", "#b89a6a", 1.4);
+    G.fallPending = true;   // 층 교체는 순회 밖에서(순회 중 G 를 갈면 다음 함정 판정이 새 층을 본다)
     return;
   }
   if (t.kind === "spike") {
@@ -5234,12 +5260,13 @@ function drawTrapMark(t, vis) {
 function drawTrapMarkPixel(t, vis) {
   const P = 3, seed = (Math.round(t.x) * 131 + Math.round(t.y) * 57) >>> 0;
   const rr = (i) => (((seed ^ (i * 2654435761)) >>> 8) & 1023) / 1023;
+  const hue = globalThis.__TRAPHUE !== false;   // V-273 ② 함정 결을 «위험색»으로 — 노랑(주우면 좋은 것·화로)과 안 겹치게. __TRAPHUE=false → 옛 노랑/검정.
   ctx.save(); ctx.translate(Math.round(t.x), Math.round(t.y));
   if (t.kind === "spike") {
-    ctx.globalAlpha = vis * 0.65; ctx.fillStyle = "#0c0805";
+    ctx.globalAlpha = vis * 0.65; ctx.fillStyle = hue ? "#464e58" : "#0c0805";   // V-273 ② 가시 = 차가운 쇳빛/흰 회색
     for (let gx = -18; gx <= 18; gx += P) { ctx.fillRect(gx, -12, P, P); ctx.fillRect(gx, 9, P, P); }
     for (let gy = -12; gy <= 9; gy += P) { ctx.fillRect(-18, gy, P, P); ctx.fillRect(18, gy, P, P); }
-    ctx.globalAlpha = vis * 0.85; ctx.fillStyle = "#080604";
+    ctx.globalAlpha = vis * 0.85; ctx.fillStyle = hue ? "#5a636e" : "#080604";
     for (const [dx, dy] of [[-11, -5], [11, -5], [-11, 5], [11, 5]]) ctx.fillRect(dx - 2, dy - 2, 4, 4);
     if (t.sprung) for (const [dx, dy] of [[-11, -5], [11, -5], [-11, 5], [11, 5], [0, 0]])
       for (let k = 0; k < 4; k++) { const w = (4 - k) * 2; ctx.globalAlpha = 1; ctx.fillStyle = k < 2 ? "#c6ccd4" : "#8a9098"; ctx.fillRect(dx - w / 2, dy - 1 - k * 3, w, 3); }
@@ -5260,11 +5287,22 @@ function drawTrapMarkPixel(t, vis) {
     ctx.globalAlpha = vis * 0.5; ctx.fillStyle = "#5a4634";
     for (let i = 0; i < 5; i++) ctx.fillRect(Math.round((rr(i) - 0.5) * 24), Math.round((rr(i + 3) - 0.5) * 15), P, P);
     if (t.armed && !t.disarmed) { ctx.globalAlpha = vis * (0.3 + 0.3 * Math.abs(Math.sin(nowMs() / 300))); ctx.fillStyle = "#c8461e"; ctx.fillRect(-P, -P, P * 2, P * 2); }
+  } else if (t.kind === "fall") {
+    ctx.globalAlpha = vis * 0.72;
+    for (let gy = -16; gy <= 16; gy += P) for (let gx = -16; gx <= 16; gx += P) {
+      const d = Math.sqrt(gx * gx + gy * gy); if (d > 16) continue;
+      if (t.sprung) { ctx.fillStyle = "#000000"; ctx.fillRect(gx, gy, P, P); continue; }
+      if (d > 8 && rr(gx * 5 + gy * 11) < 0.5) continue;
+      ctx.fillStyle = d < 7 ? "#080605" : "#1a1410"; ctx.fillRect(gx, gy, P, P);
+    }
+    if (!t.sprung) { ctx.globalAlpha = vis * 0.5; ctx.fillStyle = "#2a2018";
+      for (let a = 0; a < 6.283; a += 0.9) ctx.fillRect(Math.round(Math.cos(a) * 15 / P) * P, Math.round(Math.sin(a) * 15 / P) * P, P, P); }
   } else {
-    ctx.globalAlpha = vis * 0.72; ctx.fillStyle = t.sprung ? "#6a5a3a" : "#c8b048";
+    const abar = hue ? "#a066d6" : "#c8b048", arune = hue ? "#8a54c0" : "#a98f3a", asprung = hue ? "#5a4a6a" : "#6a5a3a";
+    ctx.globalAlpha = vis * 0.72; ctx.fillStyle = t.sprung ? asprung : abar;
     if (t.sprung) { for (let gx = -22; gx <= -4; gx += P) ctx.fillRect(gx, 0, P, P); for (let gx = 6; gx <= 22; gx += P) ctx.fillRect(gx, -3, P, P); }
     else for (let gx = -24; gx <= 24; gx += P) ctx.fillRect(gx, Math.round(gx * 0.08), P, P);
-    ctx.globalAlpha = vis * 0.55; ctx.fillStyle = "#a98f3a";
+    ctx.globalAlpha = vis * 0.55; ctx.fillStyle = arune;
     for (let a = 0; a < 6.283; a += 0.42) ctx.fillRect(Math.round(Math.cos(a) * 16 / P) * P, Math.round(Math.sin(a) * 16 / P) * P, P, P);
   }
   ctx.restore(); ctx.globalAlpha = 1;
@@ -5499,12 +5537,17 @@ function drawItems() {
   }
   const placed = [];
   let drawn = 0;
+  const lift = globalThis.__ITEMLABEL !== false;   // V-273 ③ 이름표를 아이콘 위로 띄우고 실측 폭으로 겹침을 밀어낸다(스프라이트를 안 덮음). __ITEMLABEL=false → 옛(아이콘 자리에서 시작).
+  ctx.font = "13px 'Times New Roman',serif";
   for (let pi = 0; pi < picks.length; pi++) {
     const o = picks[pi];
-    let ly = o.sy, moved = true, guard = 0;
-    while (moved && guard++ < 12) { moved = false;
-      for (const q of placed) if (Math.abs(q.x - o.sx) < 104 && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; } }
-    if (ly < o.sy - 18 * LABEL_STACK) continue;
+    const label = o.count > 1 ? o.it.item.name + "  ×" + o.count : o.it.item.name;
+    const hw = (ctx.measureText(label).width + 16) / 2;
+    const rise = lift ? (globalThis.__FLOORICONBIG !== false ? 24 : 16) : 0;
+    let ly = o.sy - rise, moved = true, guard = 0;
+    while (moved && guard++ < 16) { moved = false;
+      for (const q of placed) { const near = lift ? (hw + q.hw) : 104; if (Math.abs(q.x - o.sx) < near && Math.abs(q.ly - ly) < 18) { ly = q.ly - 18; moved = true; } } }
+    if (ly < o.sy - rise - 18 * LABEL_STACK) continue;
     ly = liftLabelAboveLiving(o.it, o.sx, ly);
     const bb = bannerBandY();   // V-270 ㉠ 큰 층 제목 띠 안·가운데의 바닥 이름표는 감춘다(둘 다 못 읽히던 겹침 제거)
     if (bb && ly + 6 > bb[0] && ly - 10 < bb[1] && Math.abs(o.sx - VW / 2) < 320) continue;
@@ -5512,7 +5555,7 @@ function drawItems() {
     //   늘 하나(마지막 남은 하나)는 접지 않는다 — V-184/V-192 의 「늘 하나는 보인다」.
     const lastOne = drawn === 0 && pi === picks.length - 1;
     if (!lastOne && labelHitsMob(o.it, o.sx, ly)) continue;
-    placed.push({ x: o.sx, ly });
+    placed.push({ x: o.sx, ly, hw });
     drawItemLabel(o.it, o.sx, o.sy, ly, o.count);
     drawn++;
   }
@@ -5552,8 +5595,10 @@ function drawItemLabel(it, sx, sy, ly, count) {
   //   여긴 화면좌표(sx)라 clampLabelX(월드) 가 아니라 화면 폭으로 직접 clamp 한다. 잇는 줄은 물건→이름표로 그린다.
   const lx = globalThis.__NOTESTACK !== false ? Math.max(FLOAT_MARGIN + w / 2, Math.min(VW - FLOAT_MARGIN - w / 2, sx)) : sx;
   if (ly < sy - 2 || lx !== sx) {
-    ctx.strokeStyle = r.color + "44"; ctx.lineWidth = 1;
+    const solid = globalThis.__ITEMLABEL !== false;   // V-273 ③ 이름표→아이콘 실선 한 줄(어느 물건 것인지)
+    ctx.strokeStyle = r.color + (solid ? "cc" : "44"); ctx.lineWidth = solid ? 1.3 : 1;
     ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(lx, ly + 6); ctx.stroke();
+    if (solid) { ctx.fillStyle = r.color; ctx.beginPath(); ctx.arc(lx, ly + 6, 1.6, 0, 6.283); ctx.fill(); }
   }
   ctx.fillStyle = "rgba(6,4,4,0.86)"; ctx.fillRect(lx - w / 2, ly - 10, w, 16);
   ctx.strokeStyle = r.color + "88"; ctx.lineWidth = 1; ctx.strokeRect(lx - w / 2, ly - 10, w, 16);
@@ -6475,30 +6520,34 @@ function bigMapGeom() {
   const s = Math.min((W - 2 * pad) / G.W, (H - 2 * pad) / G.H);
   return { W, H, s, ox: (W - G.W * s) / 2, oy: (H - G.H * s) / 2 };
 }
+// V-273 ① __MAPLEGEND3 — 범례가 «지도에 그려지는 모든 표식»과 같아지도록 나·길을 더하고, 한 줄을 넘치면 두 줄로 접는다.
+//   08:00 감시가 컷에서 본 범례 밖 표식: 흰 점(=나·drawMapLive)·복도 선(=길·__MAPPATH). __MAPLEGEND3=false → 옛(V-270) 한 줄.
 function drawBigLegend(rctx, W, H) {
-  const items = [["stairs", "계단"], ["treasure", "보물방"], ["lair", "소굴"], ["curseAltar", "저주 제단"], ["boneAltar", "뼈 제단"], ["merchant", "상인"], ["chest", "상자"]];
-  if (globalThis.__TRAPROOM !== false && G.traproom) items.push(["traproom", "함정 방"]);   // V-271 ① 이 층에 함정 방이 있을 때만
-  if (globalThis.__CORPSERUN !== false && G.corpse) items.push(["mycorpse", "내 시체"]);   // V-266 ② 시체가 있을 때만 범례에
-  const y = H - 26, s = 7; let x = 44;
-  rctx.font = "14px 'Times New Roman',serif"; rctx.textAlign = "left"; rctx.textBaseline = "middle";
-  for (const [kind, label] of items) {
-    mapIcon(rctx, kind, x + s, y, s);
-    rctx.fillStyle = "#d8ccb0"; rctx.fillText(label, x + s * 2 + 7, y);
-    x += s * 2 + 13 + rctx.measureText(label).width + 24;
+  const s = 7, three = globalThis.__MAPLEGEND2 !== false, nl3 = globalThis.__MAPLEGEND3 !== false;
+  const items = [];
+  const icon = (kind, label) => items.push({ label, g: (cx, cy) => mapIcon(rctx, kind, cx, cy, s) });
+  const swatch = (fill, label) => items.push({ label, g: (cx, cy) => { rctx.fillStyle = fill; rctx.fillRect(cx - 6, cy - 6, 12, 12); rctx.strokeStyle = "#2a1a08"; rctx.lineWidth = 1; rctx.strokeRect(cx - 6, cy - 6, 12, 12); } });
+  icon("stairs", "계단"); icon("treasure", "보물방"); icon("lair", "소굴");
+  icon("curseAltar", "저주 제단"); icon("boneAltar", "뼈 제단"); icon("merchant", "상인"); icon("chest", "상자");
+  if (globalThis.__TRAPROOM !== false && G.traproom) icon("traproom", "함정 방");
+  if (globalThis.__CORPSERUN !== false && G.corpse) icon("mycorpse", "내 시체");
+  if (three) { swatch("rgba(170,136,80,0.8)", "안 치운 방"); swatch("rgba(96,164,120,0.85)", "치운 방");
+    items.push({ label: "적", g: (cx, cy) => { rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(cx, cy, 4, 0, 6.283); rctx.fill(); } }); }
+  if (nl3) {
+    if (globalThis.__MAPPATH !== false) items.push({ label: "길", g: (cx, cy) => { rctx.fillStyle = "rgba(70,56,36,0.95)"; rctx.fillRect(cx - 7, cy - 2, 14, 4); } });
+    items.push({ label: "나", g: (cx, cy) => { rctx.fillStyle = "#fff"; rctx.beginPath(); rctx.arc(cx, cy, 4.5, 0, 6.283); rctx.fill(); rctx.strokeStyle = "#101010"; rctx.lineWidth = 1.4; rctx.stroke(); } });
   }
-  // V-270 ㉣ — 지도에 있는 색칠·점도 범례에 넣어 「범례 = 지도에 있는 전부」로 맞춘다(전엔 밝은 올리브 방·빨간 점이 범례 밖이었다).
-  if (globalThis.__MAPLEGEND2 !== false) {
-    const swatch = (fill, label) => {
-      rctx.fillStyle = fill; rctx.fillRect(x + s - 6, y - 6, 12, 12);
-      rctx.strokeStyle = "#2a1a08"; rctx.lineWidth = 1; rctx.strokeRect(x + s - 6, y - 6, 12, 12);
-      rctx.fillStyle = "#d8ccb0"; rctx.fillText(label, x + s * 2 + 7, y);
-      x += s * 2 + 13 + rctx.measureText(label).width + 24;
-    };
-    swatch("rgba(170,136,80,0.8)", "안 치운 방");
-    swatch("rgba(96,164,120,0.85)", "치운 방");
-    rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(x + s, y, 4, 0, 6.283); rctx.fill();
-    rctx.fillStyle = "#d8ccb0"; rctx.fillText("적", x + s * 2 + 7, y);
-    x += s * 2 + 13 + rctx.measureText("적").width + 24;
+  rctx.font = "14px 'Times New Roman',serif"; rctx.textAlign = "left"; rctx.textBaseline = "middle";
+  const gap = 22, x0 = 44, xmax = W - 40, wof = (it) => 18 + rctx.measureText(it.label).width;
+  let total = 0; for (const it of items) total += wof(it) + gap;
+  const twoLine = nl3 && x0 + total > xmax;
+  let x = x0, y = twoLine ? H - 42 : H - 26;
+  for (const it of items) {
+    const w = wof(it);
+    if (twoLine && x + w > xmax) { x = x0; y = H - 20; }
+    it.g(x + s, y);
+    rctx.fillStyle = "#d8ccb0"; rctx.fillText(it.label, x + s + 12, y);
+    x += w + gap;
   }
 }
 function drawBigCache(g) {

@@ -597,6 +597,7 @@ export function genFloor(floor) {
     // V-271 ② 불길(flame) — 네 번째 갈래. __FLAME=false 면 KINDS 에서 빠진다(런타임 stepTraps 가 flame 을 안 만나 옛 판).
     //   KINDS.length 가 바뀌어도 uint 은 ur() 을 «한 번» 부르므로 굴림 수 불변 · traps 는 지문 밖이라 genFloor 지문 무관.
     const KINDS = globalThis.__FLAME === false ? ["spike", "gas", "alarm"] : ["spike", "gas", "alarm", "flame"];
+    if (globalThis.__TRAPFALL !== false) KINDS.push("fall");   // V-273 ⑥ 다섯째 갈래 바닥 꺼짐 — uint 은 길이와 무관하게 ur() 을 한 번만 부르니 굴림 수 불변(지문 무관·traps 는 fp 밖)
     // 금지 반경 — 계단 앞·시작 자리·제단(상인)에 들어서자마자 밟는 사고를 막는다.
     const forbid = [{ x: stairs.x, y: stairs.y, r: 210 }, { x: startX, y: startY, r: 220 }];
     for (const a of altars) forbid.push({ x: a.x, y: a.y, r: 150 });
@@ -634,6 +635,7 @@ export function genFloor(floor) {
       t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     const tint = (a, b) => a + Math.floor(tr() * (b - a + 1));
     const TKINDS = globalThis.__FLAME === false ? ["spike", "gas", "alarm"] : ["spike", "gas", "alarm", "flame"];
+    if (globalThis.__TRAPFALL !== false) TKINDS.push("fall");
     const pRoll = Math.min(0.70, 0.35 + floor * 0.02);
     if (floor >= 3 && tr() < pRoll) {
       const cand = [];
