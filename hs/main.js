@@ -160,7 +160,8 @@ const GOLEM_TAUNT_R = 240;      // 도발 반경
 const GOLEM_BLOCK_PAD = 4;      // 몸으로 막는 여유 — 적을 (골렘r+적r+이만큼) 밖으로 민다(딱 닿는 자리라 도발에 걸린 적은 골렘을 때릴 수 있다)
 // 갈래별 물들임 — teamTintOn() 이 켜 있으면 소환수는 본디 ALLY_TINT(푸름) 하나로 물든다. 구울/골렘은 그 위로 덮어써 «눈에 갈리게».
 const GHOUL_TINT = "sepia(1) saturate(2.4) hue-rotate(52deg) brightness(1.06) contrast(1.05)";   // 병색 초록(작고 빠른 것)
-const GOLEM_TINT = "grayscale(0.55) sepia(0.35) hue-rotate(172deg) saturate(0.9) brightness(0.8) contrast(1.22)"; // 어두운 돌빛(크고 두꺼운 것)
+const GOLEM_TINT = "grayscale(0.7) sepia(0.62) hue-rotate(-14deg) saturate(1.5) brightness(0.66) contrast(1.34)"; // V-245 ②d 어두운 흙·돌빛(따뜻한 갈색조 — 해골의 푸른 상아와 색조가 갈린다)
+const GOLEM_DRAW_BULK = 1.16;   // V-245 ②d — 골렘은 데이터 크기(1.9×)에 더해 그리기만 이만큼 더 부풀려 «느리고 두꺼운 것»으로 읽히게(해골과 실루엣 갈림). 발밑·충돌은 안 건드림.
 // ── V-242 ② 시체 쓰는 길 둘 더 — 화장(M·시체→마나) · 제물(U·시체→주인 약화). __CORPSEUSE=false 로 둘 다 끈다. ──
 // 시체는 자원인데 쓸 곳이 소환·폭발·뼈벽·먹이·골렘·구울 여섯뿐이었다. 둘을 더해 시체를 두고 다투게 한다(모자라야 고르는 맛).
 const BURN_N = 2, BURN_MANA = 34;                    // 화장: 곁의 시체 최대 2구를 태워 구당 마나 +34(소환·폭발이 먹을 시체를 마나로 돌린다)
@@ -301,9 +302,9 @@ function showOfflineModal(r, deepest) {
   h += `<div class="ascsub">그동안 <b>${tstr}</b> 이 흘렀다${r.capped ? ` <span class="offcap">· 상한 8시간까지만 쌓임</span>` : ``}.</div>`;
   h += `<div class="ascsub2">가장 깊었던 <b>B${Math.max(1, deepest | 0)}층</b> 기준 · 효율 ${(OFF_EFF * 100) | 0}%</div>`;
   h += `<div class="offrows">` +
-    `<div class="offrow"><span class="offk">금</span><span class="offv">+${r.gold}</span></div>` +
-    `<div class="offrow"><span class="offk">시체</span><span class="offv">+${r.corpses}</span></div>` +
-    `<div class="offrow"><span class="offk">경험</span><span class="offv">+${r.xp}</span></div>` +
+    `<div class="offrow"><span class="offk">금</span><span class="offv">+${fmtNum(r.gold)}</span></div>` +
+    `<div class="offrow"><span class="offk">시체</span><span class="offv">+${fmtNum(r.corpses)}</span></div>` +
+    `<div class="offrow"><span class="offk">경험</span><span class="offv">+${fmtNum(r.xp)}</span></div>` +
     `</div>`;
   h += `<div class="offbtnwrap"><button class="offbtn" onclick="window.__offClose()">받 기</button></div>`;
   root.innerHTML = h; root.classList.add("on"); offOpen = true;
@@ -705,6 +706,9 @@ function start(floor, carry, town) {
   window.__dropMythic = (dx = 40) => { const it = rollMythic(G.floor); dropItemAt(G.player.x + dx, G.player.y, it); return it ? it.name : null; };
   window.__seedCorpses = (n = 8) => { const p = G.player; G.corpses = []; for (let i = 0; i < n; i++) G.corpses.push({ x: p.x - 120 + (i % 6) * 44, y: p.y - 40 + Math.floor(i / 6) * 40, base: "mob/skelarch", dir: "s", h: 80, used: false, t: 0 }); return G.corpses.length; };
   window.__raiseOnce = () => { const b = G.minions.length; raiseSkeleton(); return G.minions.length - b; };
+  window.__floatDmg = (m, n, c) => floatDmg(m, n, c);
+  window.__floats = () => G.floats.map((f) => ({ txt: f.txt, dmg: !!f.dmg, hits: f.hits || 0, acc: Math.round(f.acc || 0) }));
+  window.__bigHUD = (hp, mp, gold, xp, asc) => { const p = G.player; p.maxhp = hp; p.hp = hp; p.maxmana = mp; p.mana = mp; G.gold = gold; G.xp = xp; G.ascension = asc || 0; updateHUD(); return { hp: el("hptxt").textContent, mp: el("mptxt").textContent, gold: el("gold").textContent }; };
   window.__corpseBurn = () => { const p = G.player, c0 = G.corpses.filter((c) => !c.used).length, m0 = Math.round(p.mana); corpseBurn(); return { corpseBefore: c0, corpseAfter: G.corpses.filter((c) => !c.used).length, manaGain: Math.round(p.mana) - m0 }; };
   window.__corpseHex = () => { let boss = null; for (const pk of G.packs) for (const m of pk.enemies) if (m.boss && m.alive) boss = m; const c0 = G.corpses.filter((c) => !c.used).length; corpseHex(); return { corpseBefore: c0, corpseAfter: G.corpses.filter((c) => !c.used).length, hex: boss ? +(boss.hex || 0).toFixed(1) : null }; };
   window.__bossHere = () => { for (const pk of G.packs) { for (const m of pk.enemies) if (m.boss) { pk.awake = true; return { kind: m.bossKind, name: m.name, x: Math.round(m.x), y: Math.round(m.y) }; } } return null; };
@@ -980,7 +984,7 @@ function buyPotion() {
   const kind = (p.hp / p.maxhp) <= (p.mana / p.maxmana) ? "hp" : "mp";
   if (!beltPush(kind)) { floatNote("벨트가 가득하다", "#c8a04a", 1.1); return; }
   G.gold -= price;
-  floatNote(`${POTION[kind].name} 구입 (${comma(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
+  floatNote(`${POTION[kind].name} 구입 (${fmtNum(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
   for (let i = 0; i < 12; i++) burst(p.x, p.y - 20, POTION[kind].glow, 120);
 }
 function stepPotions(dt) {
@@ -1035,7 +1039,7 @@ function buyGem() {
   const grade = buyGemGrade(), type = GEM_KEYS[(Math.random() * GEM_KEYS.length) | 0];
   G.gold -= price;
   p.gems.push(makeGem(type, grade));
-  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${comma(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
+  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${fmtNum(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
   for (let i = 0; i < 12; i++) burst(p.x, p.y - 20, GEM_TYPES[type].col, 120);
   if (invOpen) renderInv();
 }
@@ -2334,6 +2338,7 @@ function stepFx(dt) {
 //   ③ 숫자를 적 위에서 띄우되 사람 바깥쪽으로 밀어 흩는다(지금껏 ±10px 만 흔들어 한복판에 겹쳤다).
 //   글자 크기는 그대로 16px(굵게 키우면 되레 더 덮는다). 큰 한 방은 «수명»을 늘려 읽게 한다.
 const DMG_CAP = 14;
+const DMG_MERGE_WIN = 0.25;   // V-245 ① — 같은 대상에 이 시간(초) 안에 여러 번 들어가면 한 덩이로 합친다(합계 + 타수 ×N).
 /* 같은 알림이 잇달아 뜨면 «줄을 늘리지 않고» 이미 뜬 것의 시간만 되살린다.
  * 왜: 자로 세니 40초에 뜬 알림 72개 중 56개가 «가방이 가득 찼다»(24)·«자리가 부족하다»(32)
  * 뿐이었다 — 실패는 사람이 같은 짓을 반복하는 동안 매번 뜨므로, 최신 3줄(stepFloats ④)이
@@ -2355,23 +2360,29 @@ function floatNote(txt, col, t, extra) {
   G.floats.push(f);
   return f;
 }
-/* 큰 피해는 «줄여» 쓴다 — 253318 처럼 여섯 자리가 되면 글자 사각이 두 배로 넓어져
- * 열넷이 뜨는 몰살판에서 사람·적을 덮는다(자로 재니 p95 덮음률의 대부분이 이 숫자였다).
- * 자릿수가 아니라 «규모»를 읽는 게 핵앤슬래시의 쓸모라 K/M 이 정보를 잃지 않는다. */
-function dmgTxt(n) {
-  if (n < 10000) return "" + n;
-  if (n < 1e6) return (n / 1000).toFixed(n < 1e5 ? 1 : 0) + "K";
-  return (n / 1e6).toFixed(n < 1e7 ? 1 : 0) + "M";
+/* V-245 ① 큰 수 표기(PLAN ⑧ · __BIGNUM) — HUD 체력/마나·금·피해 숫자·상점 값·정산창이 전부 이
+ * 한 함수를 지난다. 넉 자리부터 접어(1234→1.2천·1234567→1.2백만) 글자 사각이 두 배로 넓어져 칸을
+ * 밀어내던 것을 막는다(성장창·툴팁의 원수 정확값은 그대로 둔다). __BIGNUM=false 면 옛 묶음 표기로
+ * 되돌린다. 순수 표기라 genFloor 지문 밖. */
+function fmtNum(n) {
+  n = Math.round(Number(n) || 0);
+  if (globalThis.__BIGNUM === false) return comma(n);
+  const neg = n < 0 ? "-" : ""; n = Math.abs(n);
+  if (n < 1000) return neg + n;
+  if (n < 1e6) { const k = n / 1000; return neg + (k < 100 ? k.toFixed(1) : Math.round(k)) + "천"; }
+  if (n < 1e8) { const m = n / 1e6; return neg + (m < 100 ? m.toFixed(1) : Math.round(m)) + "백만"; }
+  const b = n / 1e8; return neg + (b < 100 ? b.toFixed(1) : Math.round(b)) + "억";
 }
-// 피해 배수처럼 커지는 스탯은 «날것 소수»(×2403409.25)를 그대로 찍지 않는다 — 1000 이상이면
-// 피해 숫자와 «같은» 축약(dmgTxt: 정수·K·M)을 지나 소수점을 없앤다. 작은 배수만 ×2.40 로 남긴다.
-function mulTxt(x) { return "×" + (x >= 1000 ? dmgTxt(Math.round(x)) : x.toFixed(2)); }
+window.__fmtNum = fmtNum;
+function dmgTxt(n) { return fmtNum(n); }
+function mulTxt(x) { return "×" + (x >= 1000 ? fmtNum(Math.round(x)) : x.toFixed(2)); }
 function floatDmg(m, n, col) {
   n = Math.round(n);
   // ② 이 적의 숫자가 아직 살아있으면(t>0) 새로 만들지 말고 누적한다.
   const f0 = m._dmgFloat;
-  if (f0 && f0.t > 0) {
-    f0.acc += n; f0.txt = dmgTxt(Math.round(f0.acc)); f0.col = col;
+  if (f0 && f0.t > 0 && f0.mw > 0) {   // V-245 ① 0.25초 창 안이면 한 덩이로 — 합계 + 타수 ×N
+    f0.acc += n; f0.hits++; f0.col = col;
+    f0.txt = dmgTxt(Math.round(f0.acc)) + (f0.hits > 1 ? "  ×" + f0.hits : "");
     f0.t = Math.min(1.2, Math.max(f0.t, 0.6 + Math.log10(Math.max(1, f0.acc)) * 0.12));
     return;
   }
@@ -2385,7 +2396,7 @@ function floatDmg(m, n, col) {
   }
   // ③ 적 위 · 사람 바깥쪽으로 흩는다.
   const p = G.player, ox = m.x - p.x, oy = m.y - p.y, ol = Math.hypot(ox, oy) || 1;
-  const f = { dmg: true, acc: n, col, txt: dmgTxt(n),
+  const f = { dmg: true, acc: n, hits: 1, mw: DMG_MERGE_WIN, col, txt: dmgTxt(n),
     x: m.x + (ox / ol) * 20 + (Math.random() * 2 - 1) * 14,
     y: m.y - m.h * 0.7 + (oy / ol) * 8 - Math.random() * 6,
     t: Math.min(1.1, 0.6 + Math.log10(Math.max(1, n)) * 0.12) };  // 큰 한 방일수록 오래 남는다
@@ -2393,7 +2404,7 @@ function floatDmg(m, n, col) {
   G.floats.push(f);
 }
 function stepFloats(dt) {
-  for (const f of G.floats) { f.t -= dt; f.y -= (f.big ? 14 : 34) * dt; if (f.ring !== undefined) f.ring += 300 * dt; }
+  for (const f of G.floats) { f.t -= dt; f.y -= (f.big ? 14 : 34) * dt; if (f.ring !== undefined) f.ring += 300 * dt; if (f.mw > 0) f.mw -= dt; }
   // ④ 알림 글(피해 숫자·링·유니크 이름 아님)은 최신 3줄만 — 뒤에서부터 세 오래된 것을 버린다.
   //   유니크 이름표(big)는 늘 읽히게 남긴다(줍기가 반드시 보여야 하는 실패 조건).
   let notes = 0;
@@ -2511,6 +2522,7 @@ function drawWorld() {
     d.fn();
     ctx.globalAlpha = 1;
   }
+  drawCageOverlay();   // V-245 ②b — 우리뼈를 유닛 위에 반투명으로 덧그린다(유닛이 위에 그려져 왼쪽 절반이 끊겨 보이던 것 → 「가두는 우리」로 읽힘)
   window.__barRects = barRects;
   drawPlayer();                            // 주인공은 언제나 맨 위 — 무리 속에서도 읽힌다
   drawTownChannel();                       // V-238 — 귀환 시전 고리(사람 발밑)
@@ -2643,15 +2655,16 @@ function drawCorpse(c) {   // V-243 ②d — 시체를 «알아볼 상아빛 유
     ctx.beginPath(); ctx.ellipse(c.x, c.y + 2, c.h * 0.30, c.h * 0.14, 0, 0, 6.283); ctx.stroke();
     ctx.globalAlpha = 1;
   }
-  const bfilt = usable ? "grayscale(1) brightness(0.82) sepia(0.55) saturate(1.45) contrast(1.02)" : "grayscale(1) brightness(0.42)";
+  const bfilt = usable ? "grayscale(1) brightness(1.08) sepia(0.4) saturate(1.15) contrast(0.96)" : "grayscale(1) brightness(0.5)";
   const cdir = CORPSE_DIR[c.dir] || (c.dir && c.dir.length > 2 ? c.dir : "south");   // V-243 ②d — 시체는 짧은 방향(s)으로 저장돼 옛 코드가 스프라이트를 못 찾아 붉은 얼룩만 남았다. 온전한 이름으로 편다.
   if (globalThis.__CORPSELAY === false) {   // V-244 ②a — 되돌림: 옛 「서 있는」 시체.
     if (!drawSprite8(ctx, c.base, cdir, "idle", 0, c.x, c.y + 4, c.h * 0.7, bfilt)) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
     return;
   }
-  const rot = (Math.floor(c.x) & 1 ? 1 : -1) * 1.26;   // V-244 ②a — 발을 축으로 옆으로 «넘어뜨린다»(±72°·좌우 번갈아). 눕고 납작해 내 소환수 해골과 갈린다.
-  ctx.save(); ctx.translate(c.x, c.y - 3); ctx.rotate(rot); ctx.scale(1, 0.72);
-  const ok = drawSprite8(ctx, c.base, cdir, "idle", 0, 0, 0, c.h * 0.66, bfilt);
+  const rot = (Math.floor(c.x) & 1 ? 1 : -1) * 1.16;   // V-244 ②a — 발을 축으로 옆으로 «넘어뜨린다»(좌우 번갈아). 눕고 납작해 내 소환수 해골과 갈린다.
+  const H = c.h * 0.66;
+  ctx.save(); ctx.translate(c.x, c.y + 1); ctx.rotate(rot); ctx.scale(1, 0.72);
+  const ok = drawSprite8(ctx, c.base, cdir, "idle", 0, 0, H * 0.5, H, bfilt);   // V-245 ②a — 발밑이 아니라 몸 한가운데를 고리 중심에 둔다(넘어뜨려도 고리 밖으로 안 삐져나가게)
   ctx.restore();
   if (!ok) drawCrossBones(c.x, c.y, c.h * 0.32, usable);
 }
@@ -2747,6 +2760,20 @@ function drawCageRails() {   // V-244 ②b — 창살(뼈 토막)을 위·아래
   const rx = sr / n, ry = rx * 0.42;
   ctx.save(); ctx.lineWidth = 3; ctx.strokeStyle = "rgba(198,180,138,0.55)";
   for (const ry0 of [cy, cy - 40]) { ctx.beginPath(); ctx.ellipse(cx, ry0, rx, ry, 0, 0, 6.283); ctx.stroke(); }
+  ctx.restore();
+}
+function drawCageOverlay() {   // V-245 ②b — 유닛을 다 그린 뒤 우리뼈를 반투명으로 다시 얹어 «가두는 것»으로 읽히게 한다.
+  if (globalThis.__BONECAGE === false) return;
+  const cage = G.bones.filter((b) => !b.foe);
+  if (cage.length < 3) return;
+  let cx = 0, cy = 0; for (const b of cage) { cx += b.x; cy += b.y; } cx /= cage.length; cy /= cage.length;
+  if (!onScreen(cx, cy, CAGE_R + 80)) return;
+  ctx.save(); ctx.globalAlpha = 0.5;
+  drawCageRails();
+  for (const b of cage) {
+    if (!onScreen(b.x, b.y, 60)) continue;
+    ctx.save(); ctx.translate(b.x, b.y); drawBoneChunk(b.r, 46, Math.max(0, b.hp / b.maxhp), true); ctx.restore();
+  }
   ctx.restore();
 }
 function drawBoneChunk(r, h, hpf, cage) {
@@ -3272,7 +3299,7 @@ function drawActor(s, base) {
   else if (s.ghoul) filt = GHOUL_TINT;
   else if (golemKind) filt = GOLEM_TINT;
   else filt = teamTintOn() ? ALLY_TINT : (s.filt || null);
-  const dh = fed ? s.h * (1 + 0.06 * fed) : s.h;
+  const dh = (fed ? s.h * (1 + 0.06 * fed) : s.h) * (golemKind ? GOLEM_DRAW_BULK : 1);
   if (fed) {
     const cy = s.y - dh * 0.42, a = 0.12 + 0.05 * fed;
     const g = ctx.createRadialGradient(s.x, cy, dh * 0.08, s.x, cy, dh * 0.62);
@@ -3304,7 +3331,7 @@ const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 
 //   __LABELFOLD===false 면 옛 동작(이름표를 그 자리에서 그대로 그린다·안 접고·안 물린다).
 let pendingKindLabels = [];
 function pushKindLabel(wx, wtop, text, col) {
-  if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 16, text, col); return; }
+  if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 3, text, col); return; }
   pendingKindLabels.push({ wx, wtop, text, col });
 }
 function drawKindLabel(wx, wy, text, col) {
@@ -3332,7 +3359,7 @@ function drawFoldedKindLabels() {
       if (Math.abs(bsx - asx) < 54 && Math.abs(bsy - asy) < 40) { used[j] = true; sumx += items[j].wx; top = Math.min(top, items[j].wtop); n++; }
     }
     used[i] = true;
-    let wy = Math.max(top - 16, topY);
+    let wy = Math.max(top - 3, topY);   // V-245 ②e — 앵커를 머리 바로 위로(옛 -16 은 벽 위까지 떠 어느 유닛 것인지 모호했다). 쌓을 때만 아래 루프가 위로 민다.
     const kx = (sumx / n - cam.x) * Z;
     const label = n > 1 ? `${a.text} ×${n}` : a.text;
     if (globalThis.__LABELFOLD !== false) {   // V-244 ②d — 부하 이름표끼리(다른 갈래 포함) 겹치면 아래로 쌓는다(drawFloats·barRects 와 같은 결). 주인 이름표(eliteLabels)도 피한다.
@@ -3393,7 +3420,8 @@ function drawEnemy(m) {
     const bossN = !!m.boss;   // V-230 — 주인 이름은 늘 머리 위에 크게(잡정예보다 큼·주인색)
     ctx.font = (bossN ? "bold 16px" : "bold 11px") + " 'Times New Roman',serif"; ctx.textAlign = "center";
     // V-240 — 주인 이름표가 화면 상단 밖으로 잘리던 것을 안으로 물린다(글자 높이만큼 여유). __LABELFOLD 로 되돌린다.
-    let labelY = (globalThis.__LABELFOLD !== false) ? Math.max(by - 6, cam.y + (bossN ? 24 : 16) / Z) : by - 6;
+    const nameLift = bossN ? totalH + 8 : 6;   // V-245 ②c — 주인 이름은 제 바(높이 totalH) 위로 온전히 물린다(짧은 이름이 바에 반쯤 가리던 것을 막음).
+    let labelY = (globalThis.__LABELFOLD !== false) ? Math.max(by - nameLift, cam.y + (bossN ? 24 : 16) / Z) : by - nameLift;
     const lsx = (m.x - cam.x) * Z;
     const lhw = ctx.measureText(nm).width / 2 + 2;
     let lsy = (labelY - cam.y) * Z;
@@ -3653,10 +3681,10 @@ function drawAltarBeacon(a) {
     if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70) {
       const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
       const gemOn = globalThis.__GEM !== false;
-      const sub = [`${comma(price)}◈  ·  B`, G.gold >= price, "#f2e7cf"];
+      const sub = [`${fmtNum(price)}◈  ·  B`, G.gold >= price, "#f2e7cf"];
       const lines = [sub];
-      if (potionOn) lines.push([`물약 ${comma(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
-      if (gemOn) lines.push([`보석 ${comma(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
+      if (potionOn) lines.push([`물약 ${fmtNum(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
+      if (gemOn) lines.push([`보석 ${fmtNum(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
       ctx.textAlign = "center";
       const ly = a.y - ALTAR_STATUE_H - 2;
       ctx.font = "bold 15px 'Times New Roman',serif";
@@ -3683,8 +3711,8 @@ function drawAltarBeacon(a) {
     const ly = a.y - ALTAR_STATUE_H + 10;
     ctx.font = "13px 'Times New Roman',serif";
     const l1 = "제단 (다 씀)", lines = [];
-    if (potionOn) lines.push([`물약 ${comma(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
-    if (gemOn) lines.push([`보석 ${comma(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
+    if (potionOn) lines.push([`물약 ${fmtNum(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
+    if (gemOn) lines.push([`보석 ${fmtNum(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
     const hw = Math.max(ctx.measureText(l1).width, ...lines.map((l) => ctx.measureText(l[0]).width)) / 2 + 10;
     const boxH = 20 + 18 * lines.length;
     const lx = clampLabelX(a.x, hw);
@@ -4220,11 +4248,11 @@ function closeShop() {
 function buyStockItem(mc, idx) {
   const it = mc.stock[idx]; if (!it) return;
   const price = buyPrice(it);
-  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  if (G.gold < price) { floatNote(`금이 모자라다 (${fmtNum(price)}◈)`, "#c8a04a", 1.1); return; }
   if (!bagFits(G.player.bag, it)) { floatNote("가방이 가득 찼다", "#e0663c", 1.2); return; }
   G.gold -= price; G.player.bag.push(it); mc.stock.splice(idx, 1);
   hoverItem = null; hoverRect = null;
-  floatNote(`${it.name} 구입 (${comma(price)}◈)`, it.rarity.color, 1.3, buyNoteExtra());
+  floatNote(`${it.name} 구입 (${fmtNum(price)}◈)`, it.rarity.color, 1.3, buyNoteExtra());
   if (invOpen) renderInv();
   renderShop();
 }
@@ -4233,7 +4261,7 @@ function sellBagItem(idx) {
   const gain = sellPrice(it);
   G.player.bag.splice(idx, 1); G.gold += gain;
   hoverItem = null; hoverRect = null;
-  floatNote(`${it.name} 판매 (+${comma(gain)}◈)`, "#e8cf52", 1.2);
+  floatNote(`${it.name} 판매 (+${fmtNum(gain)}◈)`, "#e8cf52", 1.2);
   if (invOpen) renderInv();
   renderShop();
 }
@@ -4244,25 +4272,25 @@ function sellJunk() {
   let gain = 0; for (const it of junk) gain += sellPrice(it);
   p.bag = keep; G.gold += gain;
   hoverItem = null; hoverRect = null;
-  floatNote(`쓰레기 ${junk.length}개 판매 (+${comma(gain)}◈)`, "#e8cf52", 1.6, buyNoteExtra());
+  floatNote(`쓰레기 ${junk.length}개 판매 (+${fmtNum(gain)}◈)`, "#e8cf52", 1.6, buyNoteExtra());
   if (invOpen) renderInv();
   renderShop();
 }
 function buyPotionTown(kind) {
   const price = potionPrice();
-  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  if (G.gold < price) { floatNote(`금이 모자라다 (${fmtNum(price)}◈)`, "#c8a04a", 1.1); return; }
   if (!beltPush(kind)) { floatNote("벨트가 가득하다", "#c8a04a", 1.1); return; }
   G.gold -= price;
-  floatNote(`${POTION[kind].name} 구입 (${comma(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
+  floatNote(`${POTION[kind].name} 구입 (${fmtNum(price)}◈)`, POTION[kind].glow, 1.2, buyNoteExtra());
   renderShop();
 }
 function buyGemTown() {
   if (globalThis.__GEM === false) return;
   const price = gemPrice();
-  if (G.gold < price) { floatNote(`금이 모자라다 (${comma(price)}◈)`, "#c8a04a", 1.1); return; }
+  if (G.gold < price) { floatNote(`금이 모자라다 (${fmtNum(price)}◈)`, "#c8a04a", 1.1); return; }
   const grade = buyGemGrade(), type = GEM_KEYS[(Math.random() * GEM_KEYS.length) | 0];
   G.gold -= price; G.player.gems.push(makeGem(type, grade));
-  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${comma(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
+  floatNote(`${GEM_GRADES[grade]} ${GEM_TYPES[type].name} 구입 (${fmtNum(price)}◈)`, GEM_TYPES[type].col, 1.3, buyNoteExtra());
   if (invOpen) renderInv();
   renderShop();
 }
@@ -4303,13 +4331,13 @@ function renderShop() {
   const title = document.createElement("div"); title.className = "shoptitle"; title.style.color = mc.col;
   title.textContent = mc.name; root.appendChild(title);
   const gr = document.createElement("div"); gr.className = "shopgold";
-  gr.innerHTML = `보유 <span class="coin">◈</span> ${comma(G.gold)}`; root.appendChild(gr);
+  gr.innerHTML = `보유 <span class="coin">◈</span> ${fmtNum(G.gold)}`; root.appendChild(gr);
   if (mc.kind === "fence") {
     root.appendChild(shopSection(`재고 — 사기 (B${G.deepest}층 기준)`));
     const stock = document.createElement("div"); stock.className = "shoplist";
     if (mc.stock.length) for (let i = 0; i < mc.stock.length; i++) {
       const it = mc.stock[i], price = buyPrice(it);
-      stock.appendChild(shopItemRow(it, `${comma(price)}◈`, G.gold >= price ? "#e8cf52" : "#c05a4a", () => buyStockItem(mc, i)));
+      stock.appendChild(shopItemRow(it, `${fmtNum(price)}◈`, G.gold >= price ? "#e8cf52" : "#c05a4a", () => buyStockItem(mc, i)));
     } else { const e = document.createElement("div"); e.className = "shopempty"; e.textContent = "재고 없음"; stock.appendChild(e); }
     root.appendChild(stock);
     const junkN = G.player.bag.filter((it) => it.rarity && (it.rarity.key === "white" || it.rarity.key === "blue")).length;
@@ -4321,7 +4349,7 @@ function renderShop() {
     const sell = document.createElement("div"); sell.className = "shoplist";
     if (G.player.bag.length) for (let i = 0; i < G.player.bag.length; i++) {
       const it = G.player.bag[i];
-      sell.appendChild(shopItemRow(it, `+${comma(sellPrice(it))}◈`, "#c9a24a", () => sellBagItem(i)));
+      sell.appendChild(shopItemRow(it, `+${fmtNum(sellPrice(it))}◈`, "#c9a24a", () => sellBagItem(i)));
     } else { const e = document.createElement("div"); e.className = "shopempty"; e.textContent = "가방이 비었다"; sell.appendChild(e); }
     root.appendChild(sell);
   } else {
@@ -4343,7 +4371,7 @@ function renderShop() {
 function shopBuyRow(label, price, col, onClick) {
   const d = document.createElement("div"); d.className = "shoprow buy";
   const nm = document.createElement("span"); nm.className = "srname"; nm.style.color = col; nm.textContent = label;
-  const pr = document.createElement("span"); pr.className = "srprice"; pr.style.color = G.gold >= price ? "#e8cf52" : "#c05a4a"; pr.textContent = `${comma(price)}◈`;
+  const pr = document.createElement("span"); pr.className = "srprice"; pr.style.color = G.gold >= price ? "#e8cf52" : "#c05a4a"; pr.textContent = `${fmtNum(price)}◈`;
   d.appendChild(nm); d.appendChild(pr);
   d.addEventListener("click", (e) => { e.stopPropagation(); onClick(); });
   return d;
@@ -4553,15 +4581,15 @@ function updateHUD() {
   const p = G.player;
   if (journalOn()) journalCheck();
   el("hpbar").style.width = barPct(100 * p.hp / p.maxhp) + "%";
-  el("hptxt").textContent = `${Math.round(p.hp)} / ${p.maxhp}`;
+  el("hptxt").textContent = `${fmtNum(p.hp)} / ${fmtNum(p.maxhp)}`;
   el("mpbar").style.width = barPct(100 * p.mana / p.maxmana) + "%";
-  el("mptxt").textContent = `${Math.round(p.mana)} / ${p.maxmana}`;
+  el("mptxt").textContent = `${fmtNum(p.mana)} / ${fmtNum(p.maxmana)}`;
   el("lvl").textContent = p.level;
-  el("gold").textContent = comma(G.gold);
+  el("gold").textContent = fmtNum(G.gold);
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
-  el("xp").textContent = `${comma(G.xp - lvBase)} / ${comma(lvSpan)}`;
+  el("xp").textContent = `${fmtNum(G.xp - lvBase)} / ${fmtNum(lvSpan)}`;
   el("xpbar").style.width = barPct(100 * (G.xp - lvBase) / lvSpan) + "%";
-  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${comma(p.maxhp)}</b>`
+  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${fmtNum(p.maxhp)}</b>`
     + (G.ascension ? ` · <b style="color:#d8b45a">승천 ${G.ascension}회</b>` : "");
   // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데
   //   여기만 영어라 한 화면에 두 말이 섞여 있었다.
