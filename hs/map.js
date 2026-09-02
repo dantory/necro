@@ -514,7 +514,77 @@ export function genFloor(floor) {
       }
     }
   }
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props };
+
+  // ── V-269 ① 감춘 방(__SECRET) — genFloor «맨 끝». __SECRET===false 면 이 블록을 통째로 건너뛴다
+  //   → Math.random 을 한 톨도 안 갉고 반환의 rooms/corridors/packs/chests/altars/stairs 도 그대로라
+  //   지문 byte-동일(V-268 기준선). 켜면 갈라진 벽 뒤에 «지도에 안 그려지는» 방 하나를 둔다 —
+  //   벽을 때려 부수면(런타임) 그제야 rooms/corridors 에 얹혀 열리고 상자·금(+층10↑ 정예)이 드러난다.
+  //   ★ 여기선 hidden 방·벽·상자·정예를 만들어 secret 에 담기만 한다(rooms/chests/packs 엔 안 넣는다).
+  let secret = null;
+  if (globalThis.__SECRET !== false) {
+    const pRoll = globalThis.__SECRET_ALWAYS ? 1 : Math.min(0.80, 0.45 + floor * 0.02);   // 층 비례(45%+층×2%p·80% 상한)
+    if (Math.random() < pRoll) {
+      const SW = 340, SH = 300, GAP = 74, NW = 150;
+      const hits = (x, y, w, h, excl) => {   // 방/복도(+여백)와 겹치거나 판 밖이면 true
+        if (x < 60 || y < 60 || x + w > W - 60 || y + h > H - 60) return true;
+        for (let i = 0; i < rooms.length; i++) { if (i === excl) continue; const r = rooms[i];
+          if (x < r.x + r.w + 24 && x + w > r.x - 24 && y < r.y + r.h + 24 && y + h > r.y - 24) return true; }
+        for (const c of corridors) if (x < c.x + c.w + 16 && x + w > c.x - 16 && y < c.y + c.h + 16 && y + h > c.y - 16) return true;
+        return false;
+      };
+      const order = [];
+      for (let i = 1; i < rooms.length; i++) if (rooms[i] !== far) order.push(i);
+      for (let i = order.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = order[i]; order[i] = order[j]; order[j] = t; }
+      outer:
+      for (const ri of order) {
+        const rm = rooms[ri];
+        const sides = [0, 1, 2, 3];
+        for (let i = sides.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = sides[i]; sides[i] = sides[j]; sides[j] = t; }
+        for (const side of sides) {
+          let room, neck, wall, approach;
+          if (side === 3) {         // 오른벽 밖
+            room = { x: rm.x + rm.w + GAP, y: rm.cy - SH / 2, w: SW, h: SH };
+            neck = { x: rm.x + rm.w - 12, y: rm.cy - NW / 2, w: GAP + 24, h: NW };
+            wall = { x: rm.x + rm.w - 14, y: rm.cy - NW / 2 - 10, w: 28, h: NW + 20 };
+            approach = { x: rm.x + rm.w - 130, y: rm.cy };
+          } else if (side === 2) {  // 왼벽 밖
+            room = { x: rm.x - GAP - SW, y: rm.cy - SH / 2, w: SW, h: SH };
+            neck = { x: rm.x - GAP - 12, y: rm.cy - NW / 2, w: GAP + 24, h: NW };
+            wall = { x: rm.x - 14, y: rm.cy - NW / 2 - 10, w: 28, h: NW + 20 };
+            approach = { x: rm.x + 130, y: rm.cy };
+          } else if (side === 1) {  // 아래벽 밖
+            room = { x: rm.cx - SW / 2, y: rm.y + rm.h + GAP, w: SW, h: SH };
+            neck = { x: rm.cx - NW / 2, y: rm.y + rm.h - 12, w: NW, h: GAP + 24 };
+            wall = { x: rm.cx - NW / 2 - 10, y: rm.y + rm.h - 14, w: NW + 20, h: 28 };
+            approach = { x: rm.cx, y: rm.y + rm.h - 130 };
+          } else {                  // 위벽 밖
+            room = { x: rm.cx - SW / 2, y: rm.y - GAP - SH, w: SW, h: SH };
+            neck = { x: rm.cx - NW / 2, y: rm.y - GAP - 12, w: NW, h: GAP + 24 };
+            wall = { x: rm.cx - NW / 2 - 10, y: rm.y - 14, w: NW + 20, h: 28 };
+            approach = { x: rm.cx, y: rm.y + 130 };
+          }
+          if (hits(room.x, room.y, room.w, room.h, -1)) continue;
+          if (hits(neck.x, neck.y, neck.w, neck.h, ri)) continue;   // neck 은 host 방과만 겹쳐야(host 제외)
+          room.cx = room.x + room.w / 2; room.cy = room.y + room.h / 2;
+          room.dead = false; room.visited = false; room.cleared = false; room.secret = true;
+          neck.visited = false; neck.secret = true;
+          const chest = { x: room.cx, y: room.cy + 44, opened: false, r: 26, secret: true };
+          let pack = null;
+          if (floor >= 10) {   // 층 10↑ — 정예 하나가 잔다(깨우면 싸움). 「공짜」가 아니게.
+            const evScale = deep ? 8.0 + (floor - 20) * 0.22 : 1 + floor * 0.35;
+            const evDmg = (globalThis.__V226B === false ? evScale : 1 + floor * 0.14) * ascMul;
+            const t = MOB_TYPES[Math.min(MOB_TYPES.length - 1, Math.floor(Math.random() * MOB_TYPES.length))];
+            const em = makeMob(t, room.cx, room.cy - 66, evScale * ascMul, eid++, true, evDmg);
+            pack = { x: room.cx, y: room.cy - 66, enemies: [em], room: -1, awake: false, secret: true };
+          }
+          secret = { wall, neck, room, chest, pack, approach, hp: 4, maxhp: 4, broken: false };
+          break outer;
+        }
+      }
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)

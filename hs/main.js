@@ -372,7 +372,7 @@ function showOfflineModal(r, deepest) {
   const tstr = eh > 0 ? `${eh}시간 ${emm}분` : `${emm}분`;
   let h = `<div class="asctitle">돌아왔다</div>`;
   h += `<div class="ascsub">그동안 <b>${tstr}</b> 이 흘렀다${r.capped ? ` <span class="offcap">· 상한 8시간까지만 쌓임</span>` : ``}.</div>`;
-  h += `<div class="ascsub2">가장 깊었던 <b>B${Math.max(1, deepest | 0)}층</b> 기준 · 효율 ${(OFF_EFF * 100) | 0}%</div>`;
+  h += `<div class="ascsub2">가장 깊었던 <b>${floorLabel(Math.max(1, deepest | 0))}</b> 기준 · 효율 ${(OFF_EFF * 100) | 0}%</div>`;
   h += `<div class="offrows">` +
     `<div class="offrow"><span class="offk">금</span><span class="offv">+${fmtNum(r.gold)}</span></div>` +
     `<div class="offrow"><span class="offk">시체</span><span class="offv">+${fmtNum(r.corpses)}</span></div>` +
@@ -753,6 +753,9 @@ function start(floor, carry, town) {
   window.__sellJunk = sellJunk;
   window.__giveBagLoot = (n = 8) => { for (let i = 0; i < n; i++) G.player.bag.push(rollItem(G.deepest || G.floor, false)); if (invOpen) renderInv(); if (shopOpen) renderShop(); return G.player.bag.length; };
   window.__openInv = () => { if (!invOpen) toggleInv(); else renderInv(); };
+  window.__secretInfo = () => G.secret;   // V-269 ① 컷·자용 실제 문(자 아님 — 있는 window.__ 패턴)
+  window.__breakSecret = () => { if (G.secret) breakSecret(); return G.secret; };
+  window.__toSecret = () => { if (G.secret && G.secret.approach) { G.player.x = G.secret.approach.x; G.player.y = G.secret.approach.y; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return G.secret; };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
   window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
   window.__doStairs = tryStairs; window.__returnFromTown = returnFromTown;
@@ -2563,7 +2566,8 @@ function stepSpears(dt) {
   for (const sp of G.spears) {
     sp.life -= dt;
     if (sp.life <= 0) { sp.dead = true; continue; }
-    if (moveProjHitWall(sp, dt)) { sp.dead = true; projSpark(sp.x, sp.y, "#cfe0ef"); continue; }
+    if (hitSecretWall(sp.x, sp.y, sp.dmg)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-269 ① 갈라진 벽을 뼈창으로 때린다
+    if (moveProjHitWall(sp, dt)) { sp.dead = true; if (!hitSecretWall(sp.x, sp.y, sp.dmg)) projSpark(sp.x, sp.y, "#cfe0ef"); continue; }   // V-269 ① 지형 벽에서 죽는 자리가 갈라진 벽이면 그것도 때린 것(뼈창은 12px/프레임이라 프레임머리 검사만으론 샌다)
     forEachEnemy((m) => {
       if (sp.dead) return;
       if ((m.x - sp.x) ** 2 + (m.y - (sp.y)) ** 2 < (m.r + 10) ** 2) {
@@ -2893,7 +2897,7 @@ function die() {
   G.dead = true;
   const d = document.getElementById("dead");
   if (globalThis.__DEATHCOST === false) {   // V-266 되돌림 — 옛 판(다 버리고 R 한 번에 1층부터)
-    d.querySelector(".dstat").textContent = `B${G.floor}층까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
+    d.querySelector(".dstat").textContent = `${floorLabel(G.floor)}까지 · 처치 ${G.kills} · 주운 것 ${G.picks}`;
     d.querySelector(".dhint").textContent = "R — 다시";
     d.style.display = "flex";
     return;
@@ -2904,15 +2908,15 @@ function die() {
   const lostGold = Math.floor((G.gold || 0) * 0.25);
   let lostCorpseMsg = "";
   if (globalThis.__CORPSERUN !== false) {   // V-266 ② 시체는 하나뿐 — 앞 시체와 그 안의 것은 사라진다
-    if (G.corpse) lostCorpseMsg = `B${G.corpse.floor}층의 시체를 잃었다`;
+    if (G.corpse) lostCorpseMsg = `${floorLabel(G.corpse.floor)}의 시체를 잃었다`;
     G.corpse = { floor: G.floor, x: p.x, y: p.y, gear: lostGear, gold: lostGold };
   }
   p.equipped = {};
   G.gold = Math.max(0, (G.gold || 0) - lostGold);
   recalc();
   const kept = (globalThis.__CORPSERUN !== false) ? "에 두고 왔다" : "을 잃었다";
-  d.querySelector(".dstat").innerHTML = `B${G.floor}층까지 · 처치 ${G.kills}`
-    + `<br><span class="dlost">장비 ${lostGear.length}점 · 금 ${josa(fmtNum(lostGold), "을", "를")} B${G.floor}층${kept}</span>`
+  d.querySelector(".dstat").innerHTML = `${floorLabel(G.floor)}까지 · 처치 ${G.kills}`
+    + `<br><span class="dlost">장비 ${lostGear.length}점 · 금 ${josa(fmtNum(lostGold), "을", "를")} ${floorLabel(G.floor)}${kept}</span>`
     + (lostCorpseMsg ? `<br><span class="dlost2">${lostCorpseMsg}</span>` : "");
   d.querySelector(".dhint").innerHTML = `<b>Space / R</b> — 부활한다 (마을)&nbsp;&nbsp;·&nbsp;&nbsp;<b>Shift + R</b> — 처음부터 (1층)`;
   d.style.display = "flex";
@@ -2979,7 +2983,7 @@ function tryAscend() {
   if (!nearShrine()) { floatNote("승천 제단 곁으로 가서 Y", "#c8a04a", 1.0); return; }
   if (!ascendReady()) {
     const rem = ASCEND_FLOOR - (G.deepest || 0);
-    floatNote(`승천은 B${ASCEND_FLOOR}층부터 — ${rem}층 더 내려가야`, "#c8a04a", 1.8);
+    floatNote(`승천은 ${floorLabel(ASCEND_FLOOR)}부터 — ${rem}층 더 내려가야`, "#c8a04a", 1.8);
     return;
   }
   ascOpen = true; el("ascend").classList.add("on");
@@ -3003,7 +3007,7 @@ function renderAscend() {
   const root = el("ascend");
   const b = G.ascBuffs || { dmg: 0, minion: 0, gold: 0 };
   let h = `<div class="asctitle">승  천</div>`;
-  h += `<div class="ascsub">B${G.deepest}층까지 내려섰다 — 처음부터 다시 시작하고 <b>영구 배수</b> 하나를 얻는다.</div>`;
+  h += `<div class="ascsub">${floorLabel(G.deepest)}까지 내려섰다 — 처음부터 다시 시작하고 <b>영구 배수</b> 하나를 얻는다.</div>`;
   h += `<div class="ascsub2">지금 승천 <b>${G.ascension || 0}</b>회 · 회차마다 적도 세진다(적 ×${(1 + 0.12 * (G.ascension || 0)).toFixed(2)})</div>`;
   h += `<div class="ascpicks">`;
   for (const k of ["dmg", "minion", "gold"]) {
@@ -3108,6 +3112,8 @@ function hasBatchim(str) {
   return false;
 }
 function josa(str, withB, noB) { return String(str) + (hasBatchim(str) ? withB : noB); }
+// V-269 ㉡ — 층 표기 «한 근원». 죽음 화면·HUD·상점이 「B7층」/「지하 8층」으로 갈리던 것을 하나로.
+function floorLabel(n) { return globalThis.__FLOORLABEL === false ? `B${n}층` : `지하 ${n}층`; }
 // V-245 흠(a) — 분자·분모를 «같은 자»로 접는다(옛건 분자만 접혀 「5.2백만 / 500」처럼 단위가 어긋났다).
 function fmtPair(a, b) {
   a = Math.round(Number(a) || 0); b = Math.round(Number(b) || 0);
@@ -3217,6 +3223,7 @@ function drawWorld() {
   PROF.seg("terrain");
 
   drawProps();
+  drawSecretWall();   // V-269 ① 감춘 방의 «갈라진 벽» — 안 부순 동안만(가까이 가면 결이 뜬다)
   PROF.seg("props");
   for (const c of G.corpses) {
     if (!onScreen(c.x, c.y, 120)) continue;
@@ -4233,12 +4240,23 @@ function drawSetAura(p) {
   const puls = 0.5 + 0.5 * Math.sin(nowMs() / 1000 * Math.PI / 0.9);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 0.10 + 0.10 * puls;
-  ctx.strokeStyle = SET_LOOK_COL; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(p.x, p.y, 26 * (0.92 + 0.08 * puls), 11 * (0.92 + 0.08 * puls), 0, 0, 6.283); ctx.stroke();
-  ctx.globalAlpha = 0.22 + 0.14 * puls; ctx.fillStyle = SET_LOOK_COL;
+  // V-269 ㉣ — 발밑 오라를 «테(선)»에서 «채운 빛무리»로 바꾼다. 옛 선 오라(반경 26)는 노란 선택 고리(반경 36)
+  //   «안»에 겹쳐 「고리 두 개」로 읽혔다. 노란 고리보다 «바깥까지» 부드럽게 번지는 방사 빛으로 두어 결이 안 겹치게.
+  const rx = 48 * (0.94 + 0.06 * puls), ryr = 20 * (0.94 + 0.06 * puls);
+  const grd = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, rx);
+  grd.addColorStop(0, SET_LOOK_COL + "00");
+  grd.addColorStop(0.62, SET_LOOK_COL + (globalThis.__SETLOOK === "dim" ? "18" : "2a"));
+  grd.addColorStop(1, SET_LOOK_COL + "00");
+  ctx.globalAlpha = 0.5 + 0.28 * puls;
+  ctx.save(); ctx.translate(p.x, p.y); ctx.scale(1, ryr / rx);
+  ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(0, 0, rx, 0, 6.283); ctx.fill(); ctx.restore();
+  // 어깨 룬 셋 — 옛 «작은 점 둘»(r1.8)이라 셋으로 안 읽혔다. 마름모로 키워 꼴을 준다(가운데는 조금 높게·크게).
+  ctx.globalAlpha = 0.5 + 0.3 * puls; ctx.fillStyle = SET_LOOK_COL;
   const ry = p.y - PLAYER_H * 0.62;
-  for (const dx of [-14, 0, 14]) { ctx.beginPath(); ctx.arc(p.x + dx, ry - (dx === 0 ? 4 : 0), 1.8, 0, 6.283); ctx.fill(); }
+  for (const [dx, up, s] of [[-15, 0, 3], [0, 5, 4], [15, 0, 3]]) {
+    ctx.save(); ctx.translate(p.x + dx, ry - up); ctx.rotate(Math.PI / 4);
+    ctx.fillRect(-s, -s, s * 2, s * 2); ctx.restore();
+  }
   ctx.restore();
 }
 function drawPlayer() {
@@ -4636,7 +4654,7 @@ function drawStairsLabel() {
   const near = Math.hypot(G.player.x - s.x, G.player.y - s.y) < 70;
   ctx.fillStyle = near ? "#bfe8c8" : "#6a9a7a"; ctx.font = "13px 'Times New Roman',serif"; ctx.textAlign = "center";
   const stLabel = G.town
-    ? (near ? `▲ F — 던전으로 (B${G.deepest}층)` : "▲ 던전으로")
+    ? (near ? `▲ F — 던전으로 (${floorLabel(G.deepest)})` : "▲ 던전으로")
     : (near ? "▼ F — 다음 층" : "▼ 아래로");
   const sx = (s.x - cam.x) * Z, hw = ctx.measureText(stLabel).width / 2 + 2;
   let sy = (s.y - STAIR_H / 2 - 10 - cam.y) * Z;
@@ -4925,7 +4943,7 @@ function drawAscendBeacon() {
   ctx.font = "bold 15px 'Times New Roman',serif";
   const title = "승천 제단";
   const rem = ASCEND_FLOOR - (G.deepest || 0);
-  const sub = ready ? (near ? "Y — 승천" : "준비됨") : `B${ASCEND_FLOOR}층 필요 · ${rem}층 더`;
+  const sub = ready ? (near ? "Y — 승천" : "준비됨") : `${floorLabel(ASCEND_FLOOR)} 필요 · ${rem}층 더`;
   ctx.font = "12px 'Times New Roman',serif";
   const hw = Math.max(ctx.measureText(title).width, ctx.measureText(sub).width) / 2 + 10;
   const lx = clampLabelX(s.x, hw);
@@ -4964,12 +4982,80 @@ function openChest(ch) {
     cam.shake = Math.max(cam.shake, 8); flash = Math.max(flash, 0.16); flashColor = "220,80,60";
     return;
   }
+  if (ch.secret) {   // V-269 ① 감춘 방 상자 — 레어도 굴림을 층+8 로 후하게(찾아낸 값을 준다)
+    const ef = (G.floor | 0) + 8, n = 4 + ((Math.random() * 3) | 0);
+    for (let i = 0; i < n; i++) dropItemAt(ch.x, ch.y - 6, rollItem(ef, true));
+    for (let i = 0; i < 16; i++) G.golds.push({ x: ch.x, y: ch.y, vx: (Math.random() * 2 - 1) * 100, vy: (Math.random() * 2 - 1) * 100, val: 12, t: 0 });
+    if (uniqueOn() && Math.random() < 0.5) dropItemAt(ch.x, ch.y - 6, rollMythic(ef));
+    flash = Math.max(flash, 0.14); flashColor = "216,180,90";
+    return;
+  }
   const mult = ch.rich ? 2 : 1;   // V-257 ① 보물방 상자는 금·물건이 짙다
   const n = (3 + ((Math.random() * 4) | 0)) * mult;
   for (let i = 0; i < n; i++) spawnItem(ch.x, ch.y - 6, Math.random() < 0.3);
   for (let i = 0; i < 8 * mult; i++) G.golds.push({ x: ch.x, y: ch.y, vx: (Math.random() * 2 - 1) * 90, vy: (Math.random() * 2 - 1) * 90, val: 8, t: 0 });
   if (uniqueOn() && G.floor >= MYTHIC_CHEST_FLOOR && Math.random() < MYTHIC_CHEST_CHANCE) dropItemAt(ch.x, ch.y - 6, rollMythic(G.floor));   // V-241 — 깊은 층 상자에서 규칙형 유니크
   flash = Math.max(flash, 0.12); flashColor = "216,180,90";
+}
+
+// ── V-269 ① 감춘 방 — 갈라진 벽을 그리고(가까이서만 결이 뜬다) · 때려 부수면 방을 연다 ──────────────
+const SECRET_REVEAL_R = 340;   // 이 반경 안에 들어야 벽의 «금 간 결»이 보인다(멀리선 그냥 벽)
+function drawSecretWall() {
+  const s = G.secret; if (!s || s.broken) return;
+  const w = s.wall, cx = w.x + w.w / 2, cy = w.y + w.h / 2, vert = w.h >= w.w;
+  const near = Math.hypot(G.player.x - cx, G.player.y - cy) < SECRET_REVEAL_R;
+  const seed = (Math.round(w.x) * 131 + Math.round(w.y) * 57) >>> 0;
+  const rnd = (i) => (((seed ^ (i * 2654435761)) >>> 8) & 1023) / 1023;
+  ctx.save();
+  ctx.fillStyle = near ? "#3b3025" : "#251d16";   // 둘레 벽보다 조금 밝은 «갈라진 돌»(가까이선 뚜렷)
+  ctx.fillRect(w.x, w.y, w.w, w.h);
+  ctx.strokeStyle = "#160f0a"; ctx.lineWidth = 1; ctx.strokeRect(w.x + 0.5, w.y + 0.5, w.w - 1, w.h - 1);
+  for (let b = 1; b <= 3; b++) { const t = b / 4; ctx.beginPath();   // 벽돌 줄눈 — 「쌓인 돌」로 읽히게
+    if (vert) { ctx.moveTo(w.x, w.y + w.h * t); ctx.lineTo(w.x + w.w, w.y + w.h * t); } else { ctx.moveTo(w.x + w.w * t, w.y); ctx.lineTo(w.x + w.w * t, w.y + w.h); } ctx.stroke(); }
+  if (near) {
+    const frac = 1 - s.hp / s.maxhp;   // 0 온전 → 1 거의 부서짐: 금이 깊고 많아진다
+    ctx.lineCap = "round";
+    const crack = (col, off, lw) => { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath();
+      if (vert) { ctx.moveTo(cx + off, w.y + 4); for (let k = 1; k <= 6; k++) ctx.lineTo(cx + off + (rnd(k) - 0.5) * w.w * 0.55, w.y + 4 + (w.h - 8) * k / 6); }
+      else { ctx.moveTo(w.x + 4, cy + off); for (let k = 1; k <= 6; k++) ctx.lineTo(w.x + 4 + (w.w - 8) * k / 6, cy + off + (rnd(k) - 0.5) * w.h * 0.55); }
+      ctx.stroke(); };
+    crack("#0c0805", 0, 3);       // 큰 균열 — 어두운 속
+    crack("#7d6c54", -1.6, 1.8);  //          + 밝은 테
+    ctx.strokeStyle = "#5f5344"; ctx.lineWidth = 1.4;   // 곁 균열(hp 낮을수록 여럿)
+    const branches = 3 + Math.round(frac * 4);
+    for (let i = 0; i < branches; i++) { const a = rnd(i + 9) * 6.283, len = (w.w + w.h) * 0.13 * (0.6 + rnd(i + 20));
+      let px = cx, py = cy; ctx.beginPath(); ctx.moveTo(px, py);
+      for (let k = 0; k < 3; k++) { const aa = a + (rnd(i * 3 + k) - 0.5); px += Math.cos(aa) * len / 3; py += Math.sin(aa) * len / 3; ctx.lineTo(px, py); }
+      ctx.stroke(); }
+    const dust = (nowMs() / 300) % 1;   // 먼지 흘러내림 — 「살아 있는」 신호
+    ctx.fillStyle = "#9a8a6e";
+    for (let i = 0; i < 4; i++) { const dx = w.x + 6 + rnd(i + 7) * (w.w - 12); ctx.globalAlpha = 0.6 * (1 - dust); ctx.fillRect(dx, w.y + 4 + dust * (w.h - 8), 1.7, 3.6); }
+    ctx.globalAlpha = 0.12 + 0.08 * Math.sin(nowMs() / 340);   // 결이 「다르다」는 옅은 맥박
+    ctx.fillStyle = "#c2b493"; ctx.fillRect(w.x, w.y, w.w, w.h);
+  }
+  ctx.restore();
+}
+function hitSecretWall(x, y, _dmg) {
+  const s = G.secret; if (!s || s.broken) return false;
+  const w = s.wall;
+  if (x < w.x || x > w.x + w.w || y < w.y || y > w.y + w.h) return false;
+  s.hp -= 1;   // 평타 한 대 = 금 한 겹(dmg 무관·「몇 대」로 규격화). hp 4 → 네 대.
+  cam.shake = Math.max(cam.shake, 3.5);
+  for (let i = 0; i < 7; i++) burst(x, y, "#8a7c66", 110);
+  if (s.hp <= 0) breakSecret();
+  return true;
+}
+function breakSecret() {
+  const s = G.secret; if (!s || s.broken) return;
+  s.broken = true;
+  G.rooms.push(s.room);          // 이제야 지도·바닥·통행에 얹힌다(inFree/renderMapStatic 이 G.rooms 를 본다)
+  G.corridors.push(s.neck);
+  G.chests.push(s.chest);
+  if (s.pack) { s.pack.room = G.rooms.indexOf(s.room); G.packs.push(s.pack); }
+  for (let i = 0; i < 14; i++) G.golds.push({ x: s.room.cx + (Math.random() * 2 - 1) * 80, y: s.room.cy + (Math.random() * 2 - 1) * 54, vx: (Math.random() * 2 - 1) * 120, vy: (Math.random() * 2 - 1) * 120, val: 10 + (G.floor | 0), t: 0 });
+  cam.shake = Math.max(cam.shake, 11); flash = Math.max(flash, 0.22); flashColor = "150,132,96";
+  floatNote("감춰진 방이 드러났다", "#c9b89a", 2.0);
+  bigDirty = true; markVisited();
 }
 
 // ── V-184 바닥 이름표 — D2 결: 평소엔 «점»만, ALT 로 다 보이고, 늘 하나는 보인다 ──────
@@ -5063,8 +5149,10 @@ const ICON_PART = {
     _disc(g, 16, 21, 6, IC.gold[1]); _disc(g, 16, 21, 4.4, IC.gem[1]); _disc(g, 15, 20, 2, IC.gem[0]); // 펜던트
   },
 };
-function iconBase(it) {
-  const k = iconKey(it);
+// V-269 ㉢ — 아이콘 자체의 레어도 테는 «칸이 제 테를 가진 곳»(가방·장비줄·상점·툴팁)에선 「액자 속 액자」라 뺀다(border=false).
+//   바닥(캔버스)엔 칸이 없어 테로 레어도를 읽으니 남긴다(border=true). __BAGONEFRAME=false → 옛 두 겹으로 되돌림.
+function iconBase(it, border) {
+  const k = iconKey(it) + (border ? "|b" : "");
   let c = ICON_BASE.get(k);
   if (c) return c;
   c = document.createElement("canvas"); c.width = 32; c.height = 32;
@@ -5072,7 +5160,7 @@ function iconBase(it) {
   const part = ICON_PART[it.slot === "weapon" ? weaponShape(it) : it.slot] || ICON_PART.armor;
   part(g);
   const rc = (it.rarity && it.rarity.color) || "#e6e0d0";
-  g.globalAlpha = 0.6; g.strokeStyle = rc; g.lineWidth = 2; g.strokeRect(2, 2, 28, 28);   // 레어도 테
+  if (border) { g.globalAlpha = 0.6; g.strokeStyle = rc; g.lineWidth = 2; g.strokeRect(2, 2, 28, 28); }
   g.globalAlpha = 0.22; g.strokeStyle = "#ffffff"; g.lineWidth = 2;                        // 광택
   g.beginPath(); g.moveTo(4, 11); g.lineTo(12, 3); g.stroke();
   g.globalAlpha = 1;
@@ -5083,17 +5171,18 @@ function iconBase(it) {
 function drawItemIcon(dst, it, x, y, size) {
   if (globalThis.__ITEMICON === false || !it || !it.slot) return false;
   const sm = dst.imageSmoothingEnabled; dst.imageSmoothingEnabled = false;
-  dst.drawImage(iconBase(it), 0, 0, 32, 32, x, y, size, size);
+  dst.drawImage(iconBase(it, true), 0, 0, 32, 32, x, y, size, size);   // 바닥 — 테 있음(레어도)
   dst.imageSmoothingEnabled = sm;
   return true;
 }
 function iconDataURL(it, size) {
-  const k = iconKey(it) + "@" + size;
+  const border = globalThis.__BAGONEFRAME === false;   // 기본: DOM 칸은 테 없음(칸이 테를 가짐)
+  const k = iconKey(it) + (border ? "|b" : "") + "@" + size;
   let u = ICON_URL.get(k);
   if (u) return u;
   const c = document.createElement("canvas"); c.width = size; c.height = size;
   const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
-  g.drawImage(iconBase(it), 0, 0, 32, 32, 0, 0, size, size);
+  g.drawImage(iconBase(it, border), 0, 0, 32, 32, 0, 0, size, size);
   u = c.toDataURL(); ICON_URL.set(k, u);
   return u;
 }
@@ -5109,7 +5198,10 @@ function drawItems() {
     const sx = (it.x - cam.x) * Z, sy = (it.y - cam.y) * Z;
     if (sx < -40 || sx > VW + 40 || sy < -20 || sy > VH + 20) continue;
     const rank = itemRank(it), col = it.item.rarity.color;
-    if (!drawItemIcon(ctx, it.item, sx - 10, sy - 2, 20)) {
+    // V-269 ㉠ — 바닥 아이콘을 이름표 글자(13px)의 ~2배로 키우고(글 안 읽어도 부위가 읽히게) 밑에 옅은 바닥 그림자 한 겹(놓인 것으로 읽힘).
+    const fib = globalThis.__FLOORICONBIG !== false, isz = fib ? 28 : 20, icy = sy + 6;
+    if (fib) { ctx.save(); ctx.globalAlpha = 0.34; ctx.fillStyle = "#0a0705"; ctx.beginPath(); ctx.ellipse(sx, icy + isz * 0.42, isz * 0.42, isz * 0.19, 0, 0, 6.283); ctx.fill(); ctx.restore(); }
+    if (!drawItemIcon(ctx, it.item, sx - isz / 2, icy - isz / 2, isz)) {
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 2 ? 4 : 3, 0, 6.283); ctx.fill();
       if (rank >= 2) { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(sx, sy + 8, rank >= 3 ? 7 : 5.5, 0, 6.283); ctx.stroke(); }
     }
@@ -5421,7 +5513,7 @@ const CONTROLS = [
   { k: "L",             h: "일지",     d: "일지 — 도전 과제와 진행·영구 보상" },
   { k: "N",             h: "마을귀환", d: "마을 귀환(적 없을 때·짧은 시전)" },
   { k: "T",             h: "상인",     d: "상인과 거래(마을·곁에서)" },
-  { k: "Y",             h: "승천",     d: "승천(마을 제단·B20층부터 — 처음부터 다시·영구 배수)" },
+  { k: "Y",             h: "승천",     d: "승천(마을 제단·지하 20층부터 — 처음부터 다시·영구 배수)" },
   { k: "F",             h: "아래로/던전", d: "아래 층으로 / 마을 문은 던전 복귀" },
   { k: "H",             h: "조작 전체", d: "이 조작 판 열기/닫기" },
   { k: "Tab",           h: "전체지도",  d: "전체 지도 열기/닫기(층 전체·표식 범례 · 다시 눌러 닫음·ESC 도)" },
@@ -5666,7 +5758,7 @@ function renderShop() {
   const gr = document.createElement("div"); gr.className = "shopgold";
   gr.innerHTML = `보유 <span class="coin">◈</span> ${fmtNum(G.gold)}`; root.appendChild(gr);
   if (mc.kind === "fence") {
-    root.appendChild(shopSection(`재고 — 사기 (B${G.deepest}층 기준)`));
+    root.appendChild(shopSection(`재고 — 사기 (${floorLabel(G.deepest)} 기준)`));
     const stock = document.createElement("div"); stock.className = "shoplist";
     if (mc.stock.length) for (let i = 0; i < mc.stock.length; i++) {
       const it = mc.stock[i], price = buyPrice(it);
@@ -5930,7 +6022,7 @@ function updateHUD() {
     el("region1").textContent = "죽은 자의 묘지 — 마을";
     el("region2").textContent = "안전 지대";
     el("region3").textContent = "쉼터";
-    el("region4").textContent = `던전 B${G.deepest}층`;
+    el("region4").textContent = `던전 · ${floorLabel(G.deepest)}`;
     el("cleared").textContent = "상인 둘 · F 던전으로";
   } else {
     el("region1").textContent = curZone().name;
@@ -5940,7 +6032,7 @@ function updateHUD() {
     el("cleared").textContent = `방 ${G.cleared} / ${G.rooms.length - 1} · 처치 ${G.kills}`;
   }
   const ch = el("corpsehud");   // V-266 ② 시체가 어느 층에 있는지 늘 보이게
-  if (ch) { if (globalThis.__CORPSERUN !== false && G.corpse) { ch.textContent = `✖ 시체: B${G.corpse.floor}층`; ch.style.display = "block"; } else ch.style.display = "none"; }
+  if (ch) { if (globalThis.__CORPSERUN !== false && G.corpse) { ch.textContent = `✖ 시체: ${floorLabel(G.corpse.floor)}`; ch.style.display = "block"; } else ch.style.display = "none"; }
   const used = slotsUsed();
   const cap = slotCap();
   const slotsEl = el("slots");

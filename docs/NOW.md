@@ -10,10 +10,14 @@
 > (「… 착수 · 검증 전」 커밋은 근거가 아니다 — 그건 네가 이어서 끝내야 할 표시다).
 > 「지켜보겠다 · 중복을 피하겠다 · 다음에 검증하겠다」로 끝나는 턴 = 실패한 판.
 
-## ▶ 지금 도는 판: V-268 — 물건에 «그림»을 준다(`__ITEMICON`) · 세트 겉모습(`__SETLOOK`) · 「YOU DIED」 한국어
-04:00 감시가 V-267 컷 일곱을 직접 열어 닫고(통과) 그 자리에서 띄움. 브리프 `tmp/v268_brief.md` · 로그 `~/.openclaw/workspace/tmp/necro_hs_v268.log(.done)` · PID 6588(04:02·상한 2700초).
-근거: `grep -rn "itemIcon|drawItemIcon|ICON_" hs/*.js` = **0건** — 가방·장비줄·상점은 「무기」·「투구」 **글자만**, 바닥은 마름모 하나. D2 를 닮으려는 판에서 물건을 알아보는 데 글을 읽어야 한다. 또 V-267 세트는 **색만 갈릴 뿐 몸에 안 드러난다**.
-다음 후보: ① **세트 전용 겉모습** — 지금 세트 물건은 색만 갈릴 뿐 몸에 안 드러난다(장비줄·바닥 아이콘은 다른 물건과 같은 그림). 세트 3점을 다 끼면 사람 실루엣에 초록 오라/표식 하나(그리기 전용·genFloor 무접촉). ② ROADMAP 맨 끝 열린 `- [ ]` 후보(대개 옛 바닥 텍스처 손질 — 「게임 안에 새로 생기는 것」을 우선). ③ 정예 수식어 새 갈래 / 새 저주.
+## ✔ 끝난 판: V-269 — 감춘 방(`__SECRET`) · 04:30 감시 흠 넷 (닫음 2026-09-03)
+04:30 감시가 컷을 열어 보니 층에 **「내가 찾아낼 것」이 없었다**(`grep -rn "비밀\|secret" hs/*.js`=0). 방은 다 지도에 그려져 걷다 발견하는 게 없었다. 만진 곳 `hs/`(map.js·main.js·hud 무접촉)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v269_cut.mjs`·지문 `tmp/_v269_fp.mjs`).
+- **① 감춘 방 `__SECRET`**(기본 켬) — `genFloor` **맨 끝** 블록: 층 비례 확률(기본 45%+층×2%p·80% 상한)로 「갈라진 벽」 하나 뒤에 **지도에 안 그려지는 방**을 둔다. host 방 벽 밖 void 에 방(340×300)+목(neck)+벽(straddle)을 놓고 **rooms/corridors/chests/packs 엔 안 넣는다**(secret 에 담기만). **찾는 손**: 갈라진 벽은 반경 340 안에서만 결이 뜬다(둘레보다 밝은 돌+큰 균열+곁 균열+먼지·`drawSecretWall`). **여는 손**: 뼈창으로 때리면(hp 4·`hitSecretWall`) 무너지고 `breakSecret` 이 방·목을 G.rooms/G.corridors 에 얹어(그제야 inFree/지도) 상자(레어도 층+8 후하게)+금(+층10↑ **정예 하나 잠**)이 드러난다. ★ 뼈창은 12px/프레임이라 프레임머리 검사만으론 새서 **지형 벽 죽는 자리도 hitSecretWall 로 재검**(functional 검증 hp추이 [4,4,0]→broken). 되돌림 `__SECRET=false` → 블록 short-circuit(RNG 무소비).
+- **② 04:30 컷 흠 넷**: **㉠**(`drawItems`) 바닥 아이콘 20→**28px**(이름표 글자 ~2배)+바닥 그림자 한 겹(`__FLOORICONBIG`). **㉡**(`floorLabel` 한 근원) 죽음/HUD/상점의 「B7층」/「지하 8층」 표기를 **「지하 N층」**으로 통일(`__FLOORLABEL`). **㉢**(`iconBase(it,border)`) 가방·장비줄·상점·툴팁 아이콘의 제 레어도 테를 뺀다(칸이 테를 가짐 → 「액자 속 액자」 없앰·작은 칸도 같은 결·`__BAGONEFRAME`)·바닥 캔버스만 테 남김. **㉣**(`drawSetAura`) 세트 발밑 오라를 «선(반경26)»에서 **«채운 빛무리»(반경48 방사)**로 — 노란 선택 고리(반경36)와 안 겹침·어깨 룬 셋을 점→**마름모**로 키움(`__SETLOOK`).
+- **되돌림 실측(genFloor 지문)**: `__SECRET=false` → **F1/F3/F5/F10/F30 byte-동일**(`tmp/_v269_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359 = V-268 기준선). ON 도 secret 은 fp 필드 밖·굴림이 맨 끝이라 ON=OFF. ㉠~㉣ 는 그리기/UI 라 지문 무관.
+- **회귀(있는 자로만)**: `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000·820) · `hs_v219_foeshot` **frame p95 1.3ms(≤16.7)·오류 0·에셋 100%·쏜화살 372**.
+- **컷 직접 열어 봄**(1512×863·씨앗1337): `tmp/hs_v269_{secret_hint,secret_open,secret_map,floor_icon,died_floor,bag_frame,setlook_fix}.png`. secret_hint=사람 곁 갈라진 벽(밝은 돌+균열) · secret_open=무너진 뒤 방+닫힌 상자+금+정예(「사나운 뼈술사 약탈자」) · secret_map=전체지도에 그 방(상자 노랑·정예 붉음) 뜸 · floor_icon=커진 부위 아이콘 · died_floor=「지하 7층」 · bag_frame=테 한 겹 통일 · setlook_fix=노란 고리+초록 빛무리(안 겹침)+마름모 룬 셋. 콘솔 오류 0. 컷 베이커 실제 문 `window.__secretInfo·__breakSecret·__toSecret`(자 아님).
+다음 후보: ① ROADMAP 맨 끝 열린 `- [ ]`(「게임 안에 새로 생기는 것」 우선). ② 정예 수식어 새 갈래 / 새 저주 / 새 물건. ③ 감춘 방 변주(함정 방·수수께끼).
 
 ## ✔ 끝난 판: V-267 — 세트 장비(짝을 맞추면 판이 달라진다) · 03:00 감시 흠 셋 (닫음 2026-09-03)
 `grep -c "세트|SET_|setBonus" hs/loot.js hs/main.js` = **0·0** 이라 통째로 없던 축. D2 의 「또 돌 이유」 절반(유니크=한 방 뽑기 / 세트=여러 판에 걸쳐 짝 모으기). 만진 곳 `hs/`(loot.js·main.js·hud.css)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v267_cut.mjs`·`tmp/hs_v267_corpse2.mjs`·지문 `tmp/_v267_fp.mjs`). map.js 무접촉.
