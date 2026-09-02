@@ -1,7 +1,20 @@
 # NOW — hs/ 감시가 «제일 먼저» 읽는 파일
 (크론 본문의 항목번호보다 이게 우선이다. 축을 띄울 때마다 여기를 갱신한다.)
 
-## ◐ 진행 중: V-256 — ①② 닫음·③ 남음 (2026-09-02)
+## ✔ 끝난 판: V-257 — 층마다 «사건 방» · 시체 두개골 축소 (닫음 2026-09-02)
+V-256 ③(사건 방)이 본체. 만진 곳 `hs/`(main.js·map.js·index.html·hud.css)·새 자 파일 없음(베이커/되돌림 `tmp/hs_v257_*.mjs`·있는 `tmp/hs_v256_fp.mjs` 되씀).
+① **층마다 «사건 방»(`__EVENTROOM`)** — `genFloor` 맨 끝(scatter 뒤) `if(__EVENTROOM!==false)` 블록: 방 하나를 골라 `rm.eventKind`∈{lair·treasure·curse}, 그 방의 보통 팩은 걷어낸다(splice). off 면 블록 통째 건너뜀 → **RNG 무소비·byte-동일**(실측 F4=3270493314·F30=1688181880). 런타임(main.js):
+   · **소굴(lair)** — 들어서면 `G.lair.locked`(붉은 장막 테 `drawLairSeal`·방 밖으로 못 나감 `clampToLair`), 세 물결(sealed 팩을 `stepLair` 이 앞물결 전멸마다 하나씩 풀어줌) → 다 잡으면 열리고 숨겼던 보상 상자(`hidden`) 드러남.
+   · **보물방(treasure)** — 적 0·상자 셋(`rich` 금·물건 ×2), 하나는 `trap`(열면 잠자던 무리 `G.packs.push`). 
+   · **저주 제단(curse)** — B 로 「받겠는가」 3택 모달(`#pact`·renderPact): 탐욕(적 ×1.5↔드랍 ×2)·피(내 생명 ½↔피해 ×2)·금(소환 못함↔금 ×3). `G.pact` 에 담아 recalc·dropLoot·summonBlocked 이 읽고, 층 바뀌면 `fresh()` 가 G 새로 지어 사라짐(이 층 한정).
+   · 입장 배너 `G.zoneBanner`(sub 줄)·미니맵 마름모(종류별 색: 소굴 붉음·보물 금빛·저주 보라)·`ALTAR_META.curse` 되씀.
+② **군세 진형 튜닝 — 못 함(V-256 값으로 되돌림).** 자(소환수 14·프리즈 적 1)에선 근접이 사거리 안에서 그 자리 때려 minionSlot 반경을 키워도 안 갈렸다(최소 몸간격 off 12.7·on 16.1 — 차이 미미). 실측으로 on>off 를 못 보여 **안 실었다**(검증 안 된 코드 안 커밋). 다음 축: 슬롯에서 때리게 stepMinions 교전 가지 손질.
+③ **시체 두개골 축소(`drawCorpseBody`)** — `s=c.h*0.21→0.12`(≈0.57배)·눕힌 몸 실루엣(어두운 덩이) 밑에 깖. 컷에서 사람 머리보다 작게(해적기 아님).
+- 되돌림 실측: `__EVENTROOM=false` → genFloor 지문 **F4=3270493314·F30=1688181880** = V-256 착수와 동일(byte-동일). ③ 은 그리기 전용·genFloor 무접촉.
+- 컷 직접 열어 봄(1512×863): `tmp/hs_v257_{treasure,curse,curse_modal,lair_banner,lair_locked,minimap,corpse_crop}.png` — 세 방 배너·소굴 붉은 장막+세 물결·보물방 상자 셋 적0·저주 3택 모달·시체 사람보다 작음. 콘솔 오류 0.
+- 회귀: 남은 시간에 못 돌림(있는 자 hs_v219_foeshot·hs_v207_walk). ★ 다음 감시가 돌려 규격 확인할 것.
+
+## ✔ 끝난 판: V-256 — ①② 닫음·③(사건 방) 은 V-257 로 넘김 (2026-09-02)
 감시가 V-255 컷(`hs_v255_form_on.png`·`_corpse_on.png`)을 직접 열어 골랐다. 만진 곳 `hs/main.js` **하나**·새 자 파일 없음(베이커 `tmp/hs_v256_cut12.mjs`·지문 `tmp/hs_v256_fp.mjs`). 구현 커밋 **4db79d8**.
 ① **군세도 진형(`__MINIONFORM`)** — `stepMinions` 의 교전 가지에서 근접 소환수가 표적 한 점에 다 포개지던 것을, `foeSlot` 과 같은 결의 **`minionSlot`**(안쪽 고리=근접 사거리 바로 안 reach-6·넘치면 42px 몸간격으로 바깥 고리·세로 0.68)으로 **에워싼다**. 표적당 카운터(`besiege` Map)로 앞줄부터 채운다. **바라보는 방향·근접 명중은 진짜 표적 그대로**(사거리 불변). off 면 이동 목표가 옛대로 표적 중심 → **byte-동일**. 컷 `tmp/hs_v256_minform_{off,on}.png`(소환수 14가 프리즈 적 1 에 off=한 덩이·on=여러 겹 고리로 낱낱이 갈림).
 ② **누운 시체를 «뼈»로(`__CORPSEBODY`)** — 세 판째(V-243·245·255) 「흰 타원 고리」였다(스프라이트 눕히기가 `mob/*` 시체 base 로 안 읽힘). 이번엔 **직접 그렸다** — `drawCorpseBody` 가 **두개골(눈구멍+코)+엇갈린 긴뼈**를 친다. 쓸 수 있는 것=상아빛 온전한 해골 / 이미 쓴 것=잿빛 부서진 조각(두개골 없음)이라 **빛만이 아니라 꼴로도** 갈린다. 몸을 그리니 옛 «타원 고리»(펄스 링)는 __CORPSEBODY 판에서 뺐고, `__CORPSEGLOW` 후광은 몸을 안 덮게 옅게(r26·α0.14). 컷 `tmp/hs_v256_corpse_{off,on}.png`+`_crop.png`(시체 여덟·상아 넷/잿빛 넷·한눈에 유해로 읽힘).

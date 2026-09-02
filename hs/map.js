@@ -327,9 +327,59 @@ export function genFloor(floor) {
 
   const { decals, props } = scatter(rooms, stairs, chests, altars);
   for (const ep of eventProps) props.push(ep);   // V-248 ① 사건방 소품은 scatter 뒤에 얹는다(자리 고정·assignZoneLook 이 건너뛴다)
+
+  // ── V-257 ① 층마다 «사건 방»(__EVENTROOM) — 소굴·보물방·저주 제단 중 하나(층당 1개). genFloor 맨 끝(scatter 뒤)에
+  //   두어, __EVENTROOM===false 면 이 블록을 통째로 건너뛴다 → RNG 를 한 톨도 안 갉고 반환 데이터도 그대로 →
+  //   지문 byte-동일(기준선 F4=3270493314·F30=1688181880). 문 잠금·세 물결·함정·서약 UI 는 런타임(main.js).
+  if (globalThis.__EVENTROOM !== false) {
+    const ecand = [];
+    for (let i = 1; i < rooms.length; i++) {
+      const rm = rooms[i];
+      if (rm === far) continue;
+      if (rm.zoneEvent) continue;
+      if (chests.some((c) => c.x === rm.cx && c.y === rm.cy)) continue;
+      if (altars.some((a) => a.x === rm.cx && a.y === rm.cy)) continue;
+      ecand.push(rm);
+    }
+    if (ecand.length) {
+      const rm = ecand[(Math.random() * ecand.length) | 0];
+      let kind = EVENT_ROOMS[(Math.random() * EVENT_ROOMS.length) | 0];
+      if (globalThis.__EVENTKIND) kind = globalThis.__EVENTKIND;   // 컷 전용 강제(RNG 는 위에서 그대로 굴리고 값만 덮어 지문 무관)
+      rm.eventKind = kind;
+      const eri = rooms.indexOf(rm);   // 사건 방은 «제 규칙»으로 채운다 — 그 방에 놓였던 보통 팩은 걷어낸다(splice·RNG 무소비)
+      for (let pi = packs.length - 1; pi >= 0; pi--) if (packs[pi].room === eri) packs.splice(pi, 1);
+      const evScale = deep ? 8.0 + (floor - 20) * 0.22 : 1 + floor * 0.35;
+      const evDmg = (globalThis.__V226B === false ? evScale : 1 + floor * 0.14) * ascMul;
+      const evMob = () => MOB_TYPES[Math.min(MOB_TYPES.length - 1, Math.floor(Math.random() * MOB_TYPES.length * (0.6 + Math.random() * 0.4)))];
+      if (kind === "treasure") {   // 적 0 · 상자 셋(하나는 함정: 열면 무리 소환) · 금 짙게(rich)
+        const spots = [[-150, -46], [150, -46], [0, 118]];
+        const trapIdx = (Math.random() * 3) | 0;
+        for (let i = 0; i < 3; i++) {
+          const ch = { x: rm.cx + spots[i][0], y: rm.cy + spots[i][1], opened: false, r: 26, event: "treasure", rich: true };
+          if (i === trapIdx) {
+            ch.trap = [];
+            for (let k = 0; k < 12; k++) ch.trap.push(makeMob(evMob(), rm.cx + rint(-120, 120), rm.cy + rint(-120, 120), evScale * ascMul, eid++, false, evDmg));
+            spreadPack(ch.trap);
+          }
+          chests.push(ch);
+        }
+      } else if (kind === "curse") {   // 「받겠는가」 3택 서약 제단(이 층 한정) — 런타임이 UI·효과를 건다
+        altars.push({ x: rm.cx, y: rm.cy, r: 26, used: false, kind: "curse", event: true });
+      } else {   // lair 소굴 — 들어서면 잠기고 세 물결이 쏟아진다 → 다 잡으면 열리고 보상 상자
+        for (let w = 0; w < 3; w++) {
+          const enemies = [], cnt = 6 + w * 3;   // 6·9·12
+          for (let k = 0; k < cnt; k++) enemies.push(makeMob(evMob(), rm.cx + rint(-160, 160), rm.cy + rint(-160, 160), evScale * ascMul, eid++, w === 2 && k === 0, evDmg));
+          spreadPack(enemies);
+          packs.push({ x: rm.cx, y: rm.cy, enemies, room: rooms.indexOf(rm), awake: false, sealed: true, event: "lair", wave: w });
+        }
+        chests.push({ x: rm.cx, y: rm.cy, opened: false, r: 26, event: "lairReward", hidden: true });
+      }
+    }
+  }
   return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
+const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)
 
 // ── V-238 마을 — 안전 지대(적 0 · 위험 장판 0). 고정된 한 방 + 문(계단)으로 가장 깊었던 층 복귀. ──
 // genFloor 를 «건드리지 않으려고» 따로 둔다 — genFloor 씨앗 지문은 이 함수가 있든 없든 그대로다

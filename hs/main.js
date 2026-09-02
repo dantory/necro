@@ -1209,6 +1209,7 @@ function socketGem(it) {
 }
 
 function raiseSkeleton() {
+  if (summonBlocked()) return;
   const p = G.player;
   const tier = Math.min(p.grade, p.maxGrade, SKEL_TIERS.length - 1);
   const T = SKEL_TIERS[tier];
@@ -1381,6 +1382,7 @@ function corpseWall() {
 }
 
 function raiseGolem() {
+  if (summonBlocked()) return;
   const p = G.player;
   if (slotsUsed() + GOLEM.slot > slotCap()) { floatNote(`자리가 부족하다 (뼈 골렘 ${GOLEM.slot}칸)`, "#e0663c", 1.2); return; }
   if (!canPay(GOLEM.cost)) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
@@ -1410,6 +1412,7 @@ function raiseGolem() {
 }
 
 function raiseGhoul() {
+  if (summonBlocked()) return;
   const p = G.player;
   if (slotsUsed() + GHOUL.slot > slotCap()) { floatNote(`자리가 부족하다 (구울 ${GHOUL.slot}칸)`, "#e0663c", 1.2); return; }
   if (!canPay(GHOUL.cost)) { floatNote("마나가 모자라다", "#c8a04a", 1.0); return; }
@@ -1597,6 +1600,7 @@ const ALTAR_META = {
   blood: { name: "피의 제단", col: "#e0663c", note: "최대 생명 +8%" },
   bone:  { name: "뼈의 제단", col: "#8fd0ff", note: "소환 자리 +1" },
   ash:   { name: "재의 제단", col: "#c8a04a", note: "가장 값싼 물건의 옵션을 다시 굴린다" },
+  curse: { name: "저주 제단", col: "#c77dff", note: "받겠는가 — 이 층 한정 서약" },
 };
 // 값은 층에 비례 · 종류마다 ± 조금(재가 가장 쌈).
 function altarPrice(kind) {
@@ -1624,10 +1628,12 @@ function nearestAltarAny(x, y, rad) {
   return best;
 }
 function buyAltar() {
+  if (pactOpen) { closePact(); return; }
   const p = G.player;
   const ai = nearestAltar(p.x, p.y, 70);
   if (ai < 0) return;
   const a = G.altars[ai];
+  if (a.kind === "curse") { openPact(a); return; }
   const eq = Object.values(p.equipped).filter(Boolean);
   if (a.kind === "ash" && !eq.length) { floatNote("걸친 것이 없다", "#c8a04a", 1.2); return; }
   const price = altarPrice(a.kind);
@@ -1670,6 +1676,7 @@ function wakePacks() {
   const R = typeof globalThis.__WAKE === "number" ? globalThis.__WAKE : WAKE;
   for (const pk of G.packs) {
     if (pk.awake) continue;
+    if (pk.sealed) continue;
     if ((pk.x - p.x) ** 2 + (pk.y - p.y) ** 2 < R * R) {
       pk.awake = true;
       if (pk.boss) { const b = pk.enemies.find((m) => m.boss); if (b) G.bossBanner = { name: b.name, kind: b.bossKind, t: 0 }; }
@@ -2208,13 +2215,96 @@ function minionSlot(cx, cy, i, reach) {
   while (i >= base + c) { base += c; t++; c = cap(t); }
   const k = i - base, R = rad(t);
   const ang = (k + (t % 2) * 0.5) / c * Math.PI * 2;
-  return { x: cx + Math.cos(ang) * R, y: cy + Math.sin(ang) * R * 0.68 };
+  return { x: cx + Math.cos(ang) * R, y: cy + Math.sin(ang) * R * 0.74 };
 }
 
 function markRoomCleared(ri) {
   const any = G.packs.some((pk) => pk.room === ri && !pk.done);
   if (!any && G.rooms[ri]) G.rooms[ri].cleared = true;
 }
+
+// ── V-257 ① 사건 방(__EVENTROOM) 런타임 — genFloor 는 표식(rm.eventKind)·개체만 놓고, «일어나는 일»은 여기서 건다.
+//   off 면 genFloor 가 eventKind 를 안 달아(블록 통째 건너뜀) 아래 코드는 한 줄도 돌지 않는다 → 세계 생성·지문 불변.
+const EVENT_META = {
+  lair:     { name: "소굴", sub: "문이 잠겼다 — 세 물결을 넘어라", col: "#e0663c" },
+  treasure: { name: "보물방", sub: "상자 셋 — 하나는 함정이다", col: "#f2d060" },
+  curse:    { name: "저주 제단", sub: "받겠는가 — 제단 곁에서 B", col: "#c77dff" },
+};
+function eventRoomAt(x, y) {
+  for (const r of G.rooms) if (r.eventKind && x > r.x && x < r.x + r.w && y > r.y && y < r.y + r.h) return r;
+  return null;
+}
+function enterEventRoom(r) {
+  r.eventSeen = true;
+  const meta = EVENT_META[r.eventKind];
+  G.zoneBanner = { name: meta.name, sub: meta.sub, t: 0 };
+  if (r.eventKind === "lair") { G.lair = { room: r, ri: G.rooms.indexOf(r), wave: -1, locked: true, done: false }; releaseLairWave(); }
+}
+function lairPack() { const L = G.lair; return G.packs.find((p) => p.event === "lair" && p.wave === L.wave && p.room === L.ri); }
+function releaseLairWave() { const L = G.lair; L.wave++; const pk = lairPack(); if (pk) { pk.sealed = false; pk.awake = true; } }
+function stepLair() {
+  const L = G.lair; if (!L || L.done) return;
+  const pk = lairPack();
+  if (pk && pk.enemies.some((e) => e.alive)) return;   // 이 물결이 아직 살아 있다
+  if (L.wave >= 2) {   // 세 물결(0·1·2) 다 넘음 → 잠금 풀리고 보상 상자가 드러난다
+    L.locked = false; L.done = true;
+    for (const ch of G.chests) if (ch.event === "lairReward") ch.hidden = false;
+    G.zoneBanner = { name: "열렸다", sub: "보상을 가져가라", t: 0 };
+  } else releaseLairWave();
+}
+function clampToLair() {
+  const L = G.lair; if (!L || !L.locked) return;
+  const r = L.room, p = G.player, m = 34;
+  p.x = Math.max(r.x + m, Math.min(r.x + r.w - m, p.x));
+  p.y = Math.max(r.y + m, Math.min(r.y + r.h - m, p.y));
+}
+function drawLairSeal() {
+  const L = G.lair; if (!L || !L.locked || !onScreen(L.room.cx, L.room.cy, 900)) return;
+  const r = L.room, pulse = 0.5 + 0.5 * Math.sin(nowMs() / 260);
+  ctx.save();
+  ctx.strokeStyle = `rgba(224,64,52,${0.5 + pulse * 0.4})`; ctx.lineWidth = 6; ctx.setLineDash([20, 13]);
+  ctx.strokeRect(r.x + 5, r.y + 5, r.w - 10, r.h - 10); ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(120,20,18,0.5)"; ctx.lineWidth = 2;
+  ctx.strokeRect(r.x + 13, r.y + 13, r.w - 26, r.h - 26);
+  ctx.restore();
+}
+// 저주 서약 — 「받겠는가」 3택(이 층 한정: G.pact 에 담고, 층이 바뀌면 fresh() 가 G 를 새로 지어 사라진다).
+//   recalc(생명·피해·금)·dropLoot(드랍)·summonBlocked(소환)이 이 하나를 읽는다.
+const PACT_META = [
+  { id: "greed", name: "탐욕의 서약", desc: "적이 ×1.5 강해지는 대신 드랍 ×2", col: "#e0663c" },
+  { id: "blood", name: "피의 서약", desc: "내 최대 생명이 반이 되는 대신 피해 ×2", col: "#c83a3a" },
+  { id: "hoard", name: "금의 서약", desc: "소환수를 못 부르는 대신 금 ×3", col: "#f2d060" },
+];
+let pactOpen = false, pactAltar = null;
+function openPact(a) { if (a.used) return; pactOpen = true; pactAltar = a; el("pact").classList.add("on"); renderPact(); }
+function closePact() { pactOpen = false; el("pact").classList.remove("on"); }
+function renderPact() {
+  let h = `<div class="asctitle" style="color:#c77dff">저주 제단 — 받겠는가</div>`;
+  h += `<div class="ascsub">이 층에서만. 다음 층으로 넘어가면 서약은 사라진다.</div><div class="ascpicks">`;
+  for (const o of PACT_META)
+    h += `<div class="ascpick" data-pact="${o.id}"><div class="apname" style="color:${o.col}">${o.name}</div><div class="apdesc">${o.desc}</div></div>`;
+  h += `</div><div class="ascsub2">받지 않으려면 다시 B</div>`;
+  el("pact").innerHTML = h;
+}
+function choosePact(id) {
+  const o = PACT_META.find((x) => x.id === id); if (!o || !pactAltar) return;
+  pactAltar.used = true;
+  if (id === "greed") { G.pact = { dropMul: 2 }; for (const pk of G.packs) for (const m of pk.enemies) { m.hp *= 1.5; m.maxhp *= 1.5; m.dmg *= 1.5; } }
+  else if (id === "blood") G.pact = { hpMul: 0.5, dmgMul: 2 };
+  else G.pact = { noSummon: true, goldMul: 3 };
+  recalc();
+  for (let i = 0; i < 26; i++) burst(pactAltar.x, pactAltar.y - 20, o.col, 180);
+  cam.shake = Math.max(cam.shake, 6);
+  floatNote(`${o.name} — 이 층 한정`, o.col, 2.4);
+  closePact();
+}
+function summonBlocked() {
+  if (G.pact && G.pact.noSummon) { floatNote("금의 서약이 소환을 막는다", "#c77dff", 1.1); return true; }
+  return false;
+}
+window.__pact = (id) => { const a = G.altars.find((x) => x.kind === "curse"); if (a) { openPact(a); choosePact(id); } return G.pact; };
+window.__openPactShot = () => { const a = G.altars.find((x) => x.kind === "curse"); if (a) { openPact(a); return true; } return false; };
+window.__enterEvent = () => { const r = G.rooms.find((x) => x.eventKind); if (r) { G.player.x = r.cx; G.player.y = r.cy; enterEventRoom(r); return r.eventKind; } return null; };
 
 // ── 소환수 대형 (V-154 A) ───────────────────────────────────────────────────
 // 옛 로직은 적이 없으면 소환수를 «플레이어 90px 안»으로만 몰아, 21마리가 발밑에
@@ -2477,7 +2567,8 @@ function dropLoot(m) {
     G.items.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
     if (uniqueOn() && Math.random() < MYTHIC_BOSS_CHANCE) dropItemAt(m.x + 54, m.y + 22, rollMythic(G.floor));   // V-241 — 주인은 규칙형 유니크도 · V-242 ③ 두 물건을 떼어 놓아 바닥 이름표가 안 겹치게
   }
-  const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul;
+  const dm = (G.pact && G.pact.dropMul) || 1;
+  const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul * dm;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
   const grains = Math.min(3, Math.max(1, Math.round(gn / 30)));
   METRIC.grains += grains;   // V-192 계측 — 처치당 알갱이(㉢). 연출 아닌 순수 계수(V-189 METRIC 결).
@@ -2490,6 +2581,7 @@ function dropLoot(m) {
   const chance = m.elite ? 1 : 0.55;
   const rolls = m.elite ? 3 : 1;
   for (let i = 0; i < rolls; i++) if (Math.random() < chance || (m.elite)) spawnItem(m.x, m.y, m.elite);
+  if (dm > 1) for (let i = 0; i < rolls; i++) if (Math.random() < chance) spawnItem(m.x, m.y, m.elite);
   if (m.elite || Math.random() < 0.16) dropBuild(m.x, m.y);
   if (globalThis.__POTION !== false && Math.random() < (m.elite ? POTION_DROP_ELITE : POTION_DROP))
     dropPotion(m.x, m.y, Math.random() < 0.5 ? "hp" : "mp");
@@ -2571,6 +2663,11 @@ function recalc() {
   if (journalOn()) {   // V-241 — 일지 도전 보상(영구 자리·소환수%)도 이 문 끝에서 얹는다(회차·죽음 넘어 남음)
     p.slots += JOURNAL.slots;
     if (JOURNAL.minionPct) p.minionMul *= 1 + JOURNAL.minionPct / 100;
+  }
+  if (G.pact) {   // V-257 ① 저주 서약(이 층 한정) — 이 문을 지나 생명·피해·금에 얹힌다(층 바뀌면 G 재생성으로 사라짐)
+    if (G.pact.dmgMul) { p.dmgMul *= G.pact.dmgMul; p.minionMul *= G.pact.dmgMul; }
+    if (G.pact.hpMul) p.maxhp = Math.round(p.maxhp * G.pact.hpMul);
+    if (G.pact.goldMul) p.goldMul *= G.pact.goldMul;
   }
   if (p.hp > p.maxhp) p.hp = p.maxhp;
   if (p.mana > p.maxmana) p.mana = p.maxmana;
@@ -2770,6 +2867,11 @@ function bindAscend() {
     const b = e.target.closest("[data-asc]"); if (!b) return;
     e.stopPropagation();
     doAscend(b.dataset.asc);
+  });
+  el("pact").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-pact]"); if (!b) return;
+    e.stopPropagation();
+    choosePact(b.dataset.pact);
   });
 }
 
@@ -2988,6 +3090,7 @@ function drawWorld() {
   drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
   drawBolts();   // V-246 — 십자 번개(경고 점선·발사 흰 선)는 바닥 층에
   drawHoldMarker();   // V-254 ① — 「여기 지켜」 자리 표식(바닥 층에 · 유닛이 위에 선다)
+  drawLairSeal();     // V-257 ① — 소굴 잠금(붉은 장막 테)도 바닥 층에
 
   // ★ V-183 — 화면 밖 배우는 그리지 않는다. 밀도를 올리면 지도 곳곳의 깬 적을 다 그려
   //   프레임이 샌다 — 그림자·체력바까지 화면 밖에서 헛돈다. 그리는 목록에 넣기 전에 자른다.
@@ -3148,9 +3251,11 @@ const CORPSE_DIR = { n: "north", s: "south", e: "east", w: "west", ne: "north-ea
 //   쓸 수 있는 시체 = 온전한 상아빛 해골(두개골·갈비·척추·팔다리뼈) / 이미 쓴 시체 = 흩어진 잿빛 조각(두개골 없음)이라
 //   빛(상아 유무)만이 아니라 «꼴»로도 갈린다. 넘어뜨린 각도는 c.x 홀짝으로 좌우 번갈아(무리져도 안 똑같이).
 function drawCorpseBody(c, usable) {
-  const s = c.h * 0.21, tilt = (Math.floor(c.x) & 1 ? 1 : -1) * 0.35;
+  const s = c.h * 0.12, tilt = (Math.floor(c.x) & 1 ? 1 : -1) * 0.35;   // V-257 ③ 0.21→0.12(≈0.57배) — 두개골이 사람 머리보다 작게(해적기 아님)
   const bone = usable ? "#e7ddc4" : "#6f6656", edge = usable ? "#a89a78" : "#514a3d";
   ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(tilt); ctx.scale(1, 0.82);
+  ctx.fillStyle = "rgba(14,12,9,0.5)";   // V-257 ③ 눕힌 몸 실루엣(어두운 덩이)을 뼈 밑에 옅게 — 「쓰러진 것」이 읽히게
+  ctx.beginPath(); ctx.ellipse(0, s * 0.2, s * 2.0, s * 0.95, 0, 0, 6.283); ctx.fill();
   ctx.lineCap = "round"; ctx.lineJoin = "round";
   ctx.strokeStyle = edge; ctx.lineWidth = s * 0.44;                         // 엇갈린 긴뼈 둘(밑 테)
   for (const a of [0.62, -0.62]) { ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0); ctx.stroke(); ctx.restore(); }
@@ -3388,9 +3493,10 @@ function drawZoneTitle() {   // V-247 — 구간 첫 진입 배너(D2 결): 이�
   ctx.lineWidth = 5; ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.strokeText(zb.name, VW / 2, cy);
   ctx.fillStyle = "#e6d6a8"; ctx.fillText(zb.name, VW / 2, cy);
   ctx.font = "15px 'Times New Roman',serif";
+  const subtxt = zb.sub ? zb.sub : `지하 ${G.floor}층`;
   ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 3;
-  ctx.strokeText("─  " + `지하 ${G.floor}층` + "  ─", VW / 2, cy + 26);
-  ctx.fillStyle = "#b8a888"; ctx.fillText("─  " + `지하 ${G.floor}층` + "  ─", VW / 2, cy + 26);
+  ctx.strokeText("─  " + subtxt + "  ─", VW / 2, cy + 26);
+  ctx.fillStyle = "#b8a888"; ctx.fillText("─  " + subtxt + "  ─", VW / 2, cy + 26);
   ctx.restore();
 }
 
@@ -4276,6 +4382,7 @@ function drawStairsLabel() {
 // 키우고(반너비 28·높이 34), 빛무리를 넓혀 밝힌다. 위치 표식(빛기둥·마름모)은 유닛을
 // 다 그린 뒤 drawChestBeacon 이 얹어, 무엇에 가려도 어디 있는지 보인다.
 function drawChest(ch) {
+  if (ch.hidden) return;
   if (ch.opened) {
     ctx.fillStyle = "#160e07"; ctx.fillRect(ch.x - 26, ch.y - 16, 52, 9);
     ctx.fillStyle = "#2a1c10"; ctx.fillRect(ch.x - 26, ch.y - 8, 52, 16);
@@ -4321,7 +4428,7 @@ function drawChest(ch) {
   ctx.strokeStyle = "#241505"; ctx.lineWidth = 2.5; ctx.strokeRect(ch.x - bw, ch.y - bh, bw * 2, bh);
 }
 function drawChestBeacon(ch) {
-  if (ch.opened || !onScreen(ch.x, ch.y, 180)) return;
+  if (ch.hidden || ch.opened || !onScreen(ch.x, ch.y, 180)) return;
   const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 320);
   ctx.globalCompositeOperation = "lighter";
   const beam = ctx.createLinearGradient(0, ch.y - 170, 0, ch.y - 6);
@@ -4453,10 +4560,11 @@ function drawAltarBeacon(a) {
     if (Math.hypot(G.player.x - a.x, G.player.y - a.y) < 70) {
       const meta = ALTAR_META[a.kind], price = altarPrice(a.kind);
       const gemOn = globalThis.__GEM !== false;
-      const sub = [`${fmtNum(price)}◈  ·  B`, G.gold >= price, "#f2e7cf"];
+      const curse = a.kind === "curse";   // V-257 ① 저주 제단은 금이 아니라 서약 — 값 대신 「받겠는가 · B」만
+      const sub = curse ? ["받겠는가  ·  B", true, "#c77dff"] : [`${fmtNum(price)}◈  ·  B`, G.gold >= price, "#f2e7cf"];
       const lines = [sub];
-      if (potionOn) lines.push([`물약 ${fmtNum(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
-      if (gemOn) lines.push([`보석 ${fmtNum(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
+      if (!curse && potionOn) lines.push([`물약 ${fmtNum(potionPrice())}◈  ·  P`, G.gold >= potionPrice(), "#a8d8ff"]);
+      if (!curse && gemOn) lines.push([`보석 ${fmtNum(gemPrice())}◈  ·  J`, G.gold >= gemPrice(), "#c8a0e0"]);
       ctx.textAlign = "center";
       const ly = a.y - ALTAR_STATUE_H - (globalThis.__EVPANEL === false ? 2 : 44);   // V-248 (c) — 사건방 제단 판이 적 무리를 가리던 것 → 적 머리 위로 더 물린다(__EVPANEL=false 로 옛 자리)
       ctx.font = "bold 15px 'Times New Roman',serif";
@@ -4575,10 +4683,19 @@ function drawTownChannel() {
   ctx.restore();
 }
 function openChest(ch) {
+  if (ch.hidden) return;
   ch.opened = true;
-  const n = 3 + ((Math.random() * 4) | 0);
+  if (ch.trap) {   // V-257 ① 보물방 함정 — 열면 잠자던 무리가 그 자리서 깨어난다
+    const enemies = ch.trap; ch.trap = null;
+    G.packs.push({ x: ch.x, y: ch.y, enemies, room: -1, awake: true });
+    floatNote("함정이다!", "#e0663c", 1.8);
+    cam.shake = Math.max(cam.shake, 8); flash = Math.max(flash, 0.16); flashColor = "220,80,60";
+    return;
+  }
+  const mult = ch.rich ? 2 : 1;   // V-257 ① 보물방 상자는 금·물건이 짙다
+  const n = (3 + ((Math.random() * 4) | 0)) * mult;
   for (let i = 0; i < n; i++) spawnItem(ch.x, ch.y - 6, Math.random() < 0.3);
-  for (let i = 0; i < 8; i++) G.golds.push({ x: ch.x, y: ch.y, vx: (Math.random() * 2 - 1) * 90, vy: (Math.random() * 2 - 1) * 90, val: 8, t: 0 });
+  for (let i = 0; i < 8 * mult; i++) G.golds.push({ x: ch.x, y: ch.y, vx: (Math.random() * 2 - 1) * 90, vy: (Math.random() * 2 - 1) * 90, val: 8, t: 0 });
   if (uniqueOn() && G.floor >= MYTHIC_CHEST_FLOOR && Math.random() < MYTHIC_CHEST_CHANCE) dropItemAt(ch.x, ch.y - 6, rollMythic(G.floor));   // V-241 — 깊은 층 상자에서 규칙형 유니크
   flash = Math.max(flash, 0.12); flashColor = "216,180,90";
 }
@@ -5489,14 +5606,15 @@ function drawMini() {
   if (globalThis.__ZONE !== false && !G.town) {   // V-248 ②e 지역 색조를 미니맵 전체에 얹어 「다른 곳」으로 읽히게(표식은 이 뒤에 또렷이)
     const zt = ZONE_MINI[zoneOf(G.floor)]; if (zt) { mctx.fillStyle = zt; mctx.fillRect(0, 0, w, h); }
   }
-  for (const r of G.rooms) if (r.zoneEvent && r.visited) {   // V-248 ①·(d) 사건방은 미니맵에 어두운 테 두른 금빛 마름모로 — 덩어리 아니라 마름모로 읽히게 키우고 외곽선을 준다
+  for (const r of G.rooms) if ((r.zoneEvent || r.eventKind) && r.visited) {   // V-248 ①·(d)·V-257 ① 사건방/사건 방은 미니맵에 테 두른 마름모로 — 사건 방은 종류별 색(소굴 붉음·보물 금빛·저주 보라)
+    const col = r.eventKind === "lair" ? "#e0663c" : r.eventKind === "curse" ? "#c77dff" : "#ffcf5a";
     mctx.save(); mctx.translate((r.x + r.w / 2) * sx, (r.y + r.h / 2) * sy); mctx.rotate(Math.PI / 4);
-    if (globalThis.__EVDIAMOND === false) { mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-3, -3, 6, 6); }
-    else { mctx.fillStyle = "#ffcf5a"; mctx.fillRect(-5, -5, 10, 10); mctx.strokeStyle = "#2a1a08"; mctx.lineWidth = 1.6; mctx.strokeRect(-5, -5, 10, 10); }
+    if (globalThis.__EVDIAMOND === false) { mctx.fillStyle = col; mctx.fillRect(-3, -3, 6, 6); }
+    else { mctx.fillStyle = col; mctx.fillRect(-5, -5, 10, 10); mctx.strokeStyle = "#2a1a08"; mctx.lineWidth = 1.6; mctx.strokeRect(-5, -5, 10, 10); }
     mctx.restore();
   }
   for (const pk of G.packs) if (!pk.done && pk.enemies.some((e) => e.alive)) { mctx.fillStyle = "#c8443a"; mctx.beginPath(); mctx.arc(pk.x * sx, pk.y * sy, 2, 0, 6.283); mctx.fill(); }
-  for (const ch of G.chests) if (!ch.opened) {
+  for (const ch of G.chests) if (!ch.opened && !ch.hidden) {
     const pr = 0.5 + 0.5 * Math.sin(nowMs() / 320), d = 2.2 + pr;
     mctx.save(); mctx.translate(ch.x * sx, ch.y * sy); mctx.rotate(Math.PI / 4);
     mctx.fillStyle = "#ffd24a"; mctx.fillRect(-d, -d, d * 2, d * 2);
@@ -5510,6 +5628,8 @@ function drawMini() {
 function markVisited() {
   const p = G.player;
   for (const r of G.rooms) if (p.x > r.x - 80 && p.x < r.x + r.w + 80 && p.y > r.y - 80 && p.y < r.y + r.h + 80) r.visited = true;
+  const er = eventRoomAt(p.x, p.y);
+  if (er && !er.eventSeen) enterEventRoom(er);
 }
 
 let last = performance.now();
@@ -5533,6 +5653,7 @@ function loop(now) {
     stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt);
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
+    if (!G.town) { stepLair(); clampToLair(); }
     if (G.bossBanner) { G.bossBanner.t += dt; if (G.bossBanner.t > 3.0) G.bossBanner = null; }
     if (G.zoneBanner) {   // V-248 ②b 지역 배너가 교전 중 화면 한가운데 남아 경고 부채꼴을 가리던 것 — 적이 붙으면 즉시 흐려진다
       const eng = globalThis.__BANNERFADE !== false && anyAwakeEnemyNear(240);
