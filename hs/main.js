@@ -702,12 +702,13 @@ function fresh(floor, carry, town) {
   p.dashT = 0; p.dashCd = 0; p.dashEnd = 0; p.dashDx = 0; p.dashDy = 1; p._space = false;
   const zi = zoneOf(floor), prevZi = carry ? carry.lastZone : -1;   // V-247 — 구간이 갈리면(첫 판 포함) 가운데 지역 이름 배너
   const zBanner = (!town && globalThis.__ZONE !== false && zi !== prevZi) ? { name: ZONES[zi].name, flavor: ZONES[zi].flavor, t: 0 } : null;
+  const zs = town ? { corpses: [], puddles: [], piles: [] } : zoneSigInit(f, floor);   // V-284 ㉯ 지역 고유 장치
   return {
     lastZone: town ? prevZi : zi, zoneBanner: zBanner,
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
-    spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [], curseFx: [],
-    hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [], arrows: [],
+    spears: [], golds: [], items: [], potions: [], corpses: zs.corpses, parts: [], floats: [], booms: [], hits: [], foeShots: [], curseFx: [],
+    hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [], arrows: [], puddles: zs.puddles, piles: zs.piles,
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -1075,7 +1076,11 @@ function stepPlayer(dt) {
     if (mx || my) {
       const l = Math.hypot(mx, my);
       mx /= l; my /= l;
-      stepToP(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
+      let spd = p.spd;
+      if (globalThis.__ZONESIG !== false && G.puddles && G.puddles.length) {   // V-284 ㉯ 썩은굴 독 웅덩이 — 걸을 때만 느림(구르기는 벗어나게 그대로)
+        for (const pd of G.puddles) { const a = (p.x - pd.x) / pd.rx, b = (p.y - pd.y) / pd.ry; if (a * a + b * b < 1) { spd *= MIRE_SLOW; break; } }
+      }
+      stepToP(p, p.x + mx * spd * dt, p.y + my * spd * dt, p.r);
       p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
     } else { p.state = "idle"; p.anim += dt * 6; }
   }
@@ -3699,6 +3704,7 @@ function drawWorld() {
     insetShadow(r);
     doorArches(r, WT);
   }
+  drawZoneSig();   // V-284 ㉯ 지역 고유 바닥(독 웅덩이·뼈 부스러짐) — 바닥 위, 배우 밑
   drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
   drawTraps();     // V-270 ① 바닥 함정의 «결» — 빛 반경 안에서만(밟기 전에도 보인다·drawSecretWall 결)
   drawArrowWalls();   // V-276 ⑤ 화살 벽 구멍(벽면) — 예고 때 빛난다
@@ -4338,6 +4344,80 @@ function floorPatFor(f) {
   FLOOR_PATS.set(name, pat);
   return pat;
 }
+// V-284 ㉯ __ZONESIG — 25층이 색만 갈리고 «이 지역만의 것»이 없었다. 지역마다 몸으로 겪는 장치 하나씩(있는 계통만 되씀).
+//   묘지: 관에서 시체 하나 더(초반 소환 밑천) · 뼈무덤: 뼈무더기를 밟으면 부서지며 근처 잠든 무리를 깨움(뼈더미가 보임=예고)
+//   썩은굴: 독 웅덩이가 잠깐 느리게(웅덩이가 보임=예고). 전부 __ZONESIG 하나로 끈다.
+const MIRE_SLOW = 0.56, PILE_WAKE_R = 560, PILE_CRACK = 0.6;
+function zoneSigInit(f, floor) {
+  const out = { corpses: [], puddles: [], piles: [] };
+  if (globalThis.__ZONESIG === false) return out;
+  const zi = zoneOf(floor);
+  let h = ((floor + 1) * 0x9E3779B1) >>> 0;
+  if (zi === 0) {
+    for (const pr of f.props) if (pr.img === "decor/coffin.png") {
+      h = Math.imul(h ^ 0x85EBCA6B, 0x27D4EB2F) >>> 0;
+      if ((h & 3) < 2) out.corpses.push({ x: pr.x + 54 + (h & 15), y: pr.y + 30, base: "mob/skelarch", dir: "s", h: 78, used: false, t: 0 });
+    }
+  } else if (zi === 1) {
+    for (const pr of f.props) if (pr.img === "decor/bones.png" || pr.img === "decor/bones2.png")
+      out.piles.push({ x: pr.x, y: pr.y, r: 36, done: false, crack: 0 });
+  } else if (zi === 2) {
+    for (const r of f.rooms) {
+      h = Math.imul(h ^ ((r.x | 0) + (r.y | 0) * 7), 0x27D4EB2F) >>> 0;
+      if ((h & 7) < 3 || r.w < 160 || r.h < 160) continue;
+      out.puddles.push({ x: r.x + 60 + (h >>> 4) % (r.w - 120), y: r.y + 60 + (h >>> 14) % (r.h - 120), rx: 46, ry: 31 });
+    }
+  }
+  return out;
+}
+function wakeNearest(x, y, rad) {
+  let best = null, bd = rad * rad;
+  for (const pk of G.packs) {
+    if (pk.awake || pk.done) continue;
+    for (const m of pk.enemies) { if (!m.alive) continue; const d = (m.x - x) ** 2 + (m.y - y) ** 2; if (d < bd) { bd = d; best = pk; } }
+  }
+  if (best) best.awake = true;
+  return !!best;
+}
+function stepZoneSig(dt) {
+  if (globalThis.__ZONESIG === false) return;
+  const p = G.player;
+  if (G.piles) for (const pl of G.piles) {
+    if (pl.crack > 0) pl.crack -= dt;
+    if (pl.done) continue;
+    if ((p.x - pl.x) ** 2 + (p.y - pl.y) ** 2 < (pl.r + p.r) ** 2) {
+      pl.done = true; pl.crack = PILE_CRACK; cam.shake = Math.max(cam.shake, 2);
+      if (wakeNearest(pl.x, pl.y, PILE_WAKE_R)) floatNote("우두둑 — 뼈가 부서진다", "#d8c8a0", 0.9);
+    }
+  }
+}
+function drawZoneSig() {
+  if (globalThis.__ZONESIG === false) return;
+  if (G.puddles) for (const pd of G.puddles) {
+    if (!onScreen(pd.x, pd.y, 90)) continue;
+    ctx.save();
+    const g = ctx.createRadialGradient(pd.x, pd.y, 2, pd.x, pd.y, pd.rx);   // 어두운 진창 — 초록 바닥과 «값»으로 갈린다
+    g.addColorStop(0, "rgba(20,40,18,0.72)"); g.addColorStop(0.72, "rgba(36,60,28,0.52)"); g.addColorStop(1, "rgba(36,60,28,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(pd.x, pd.y, pd.rx, pd.ry, 0, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.62; ctx.strokeStyle = "rgba(154,212,74,0.75)"; ctx.lineWidth = 2.5;   // 독빛 젖은 테
+    ctx.beginPath(); ctx.ellipse(pd.x, pd.y, pd.rx * 0.9, pd.ry * 0.9, 0, 0, 6.2832); ctx.stroke();
+    ctx.globalAlpha = 0.5; ctx.fillStyle = "rgba(184,230,124,0.6)";   // 젖은 반짝
+    ctx.beginPath(); ctx.ellipse(pd.x - pd.rx * 0.26, pd.y - pd.ry * 0.3, pd.rx * 0.2, pd.ry * 0.15, 0, 0, 6.2832); ctx.fill();
+    ctx.restore();
+  }
+  if (G.piles) for (const pl of G.piles) {
+    if (pl.crack <= 0 || !onScreen(pl.x, pl.y, 70)) continue;
+    const a = pl.crack / PILE_CRACK, rr = 34 * (1.7 - a);   // a:1→0, 링이 퍼지며 옅어진다
+    ctx.save();
+    ctx.globalAlpha = 0.5 * a;
+    const g = ctx.createRadialGradient(pl.x, pl.y, rr * 0.4, pl.x, pl.y, rr);
+    g.addColorStop(0, "rgba(228,214,176,0)"); g.addColorStop(0.7, "rgba(214,196,150,0.55)"); g.addColorStop(1, "rgba(214,196,150,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pl.x, pl.y, rr, 0, 6.2832); ctx.fill();
+    ctx.globalAlpha = 0.75 * a; ctx.fillStyle = "rgba(232,220,184,0.95)";
+    for (let k = 0; k < 6; k++) { const ang = k * 1.047 + (pl.x % 6), dr = rr * (0.45 + 0.55 * (1 - a)); ctx.fillRect(pl.x + Math.cos(ang) * dr - 1.5, pl.y + Math.sin(ang) * dr - 1.5, 3, 3); }
+    ctx.restore();
+  }
+}
 // V-204 ㉠ — 벽을 wall.png(128×64, 돌벽돌) 로 편다. 북=정면 그대로, 옆=90° 돌려 세로 벽돌,
 //   남=윗면(어둡게). 오프스크린에 한 번 구워 CanvasPattern 으로 재활용한다(프레임을 안 잡아먹게).
 //   그림 위에 «빛만» 그라디언트로 얹어 위가 밝고 아래로 어두워지는 결을 남긴다(V-157).
@@ -4413,27 +4493,44 @@ function floorBase(x, y, w, h, ri) {
   //   층 하나가 타일 한 종(`floorTileName`)이라 방을 열 개 지나도 같은 회색 판이 이어져 «창고»로 읽혔다.
   //   D2 카타콤은 방마다 결이 갈린다 — 그래서 방 인덱스로 **이웃 타일 하나를 골라 옅게 겹치고**,
   //   그 위에 큰 얼룩 셋을 더 짙게 얹어 한 방 안도 고르지 않게 한다. **순수 그리기**(RNG·세계 데이터 무접촉).
-  if (globalThis.__FLOORMIX === false || ri == null) return;
-  const m = roomMix(ri);
-  if (!m || !m.pat) return;
-  // V-282 ㉯ __FLOORMIXCAP — 섞어 넣는 이웃 타일 얼룩이 어두운 바닥(abyss 등) 위에서 «밝은 격자»로
-  //   튀던 것을, 얼룩이 바닥보다 밝을 때만 알파를 줄여 「무늬」로만 남긴다(어두운 얼룩은 옛대로).
-  //   ★ 진짜 「밝은 얼룩」은 구운 타일 비네트가 아니라 이 floorMix 얼룩이었다(리뷰의 타일 비네트 진단은 근접).
-  //   __FLOORMIXCAP=false → 옛(V-281) 알파.
-  let mf = 1;
-  if (globalThis.__FLOORMIXCAP !== false) {
-    const bm = TILE_MEAN[floorTileName(G.floor)] || 40, am = TILE_MEAN[m.alt] || 40;
-    if (am > bm) mf = Math.max(0.34, 1 - (am - bm) / 60);
+  if (globalThis.__FLOORMIX !== false && ri != null) {
+    const m = roomMix(ri);
+    if (m && m.pat) {
+      // V-282 ㉯ __FLOORMIXCAP — 섞어 넣는 이웃 타일 얼룩이 어두운 바닥(abyss 등) 위에서 «밝은 격자»로
+      //   튀던 것을, 얼룩이 바닥보다 밝을 때만 알파를 줄여 「무늬」로만 남긴다(어두운 얼룩은 옛대로).
+      //   ★ 진짜 「밝은 얼룩」은 구운 타일 비네트가 아니라 이 floorMix 얼룩이었다(리뷰의 타일 비네트 진단은 근접).
+      //   __FLOORMIXCAP=false → 옛(V-281) 알파.
+      let mf = 1;
+      if (globalThis.__FLOORMIXCAP !== false) {
+        const bm = TILE_MEAN[floorTileName(G.floor)] || 40, am = TILE_MEAN[m.alt] || 40;
+        if (am > bm) mf = Math.max(0.34, 1 - (am - bm) / 60);
+      }
+      ctx.fillStyle = m.pat;
+      ctx.globalAlpha = m.a * mf; ctx.fillRect(x, y, w, h);
+      ctx.globalAlpha = (m.a + 0.24) * mf;
+      for (const sp of m.spots) {
+        ctx.beginPath();
+        ctx.ellipse(x + sp[0] * w, y + sp[1] * h, sp[2] * w, sp[2] * h * 0.78, 0, 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
-  ctx.fillStyle = m.pat;
-  ctx.globalAlpha = m.a * mf; ctx.fillRect(x, y, w, h);
-  ctx.globalAlpha = (m.a + 0.24) * mf;
-  for (const sp of m.spots) {
-    ctx.beginPath();
-    ctx.ellipse(x + sp[0] * w, y + sp[1] * h, sp[2] * w, sp[2] * h * 0.78, 0, 0, 6.2832);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
+  zoneFloorTint(x, y, w, h);
+}
+// V-284 ㉮ __ZONEFLOOR — wash 를 약하게 걸어도 바닥이 여전히 warm base·zone-agnostic floorMix 에 눌려 세 층 hue 가 2~3° 였다.
+//   지역마다 다른 «바닥 색»을 휘도 보존("color" 블렌드)으로 밀어 넣는다 — 밝기 mean·텍스처 sd 는 그대로, 색상만 갈린다.
+const ZONE_FLOOR_TINT = ["rgb(70,104,116)", "rgb(172,150,74)", "rgb(90,128,60)", "rgb(174,44,36)", "rgb(78,72,140)", "rgb(170,132,52)"];
+const ZONE_FLOOR_STR = 0.7;
+function zoneFloorTint(x, y, w, h) {
+  if (globalThis.__ZONEFLOOR === false || G.town) return;
+  const t = ZONE_FLOOR_TINT[zoneOf(G.floor)];
+  if (!t) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "color";
+  ctx.globalAlpha = ZONE_FLOOR_STR;
+  ctx.fillStyle = t; ctx.fillRect(x, y, w, h);
+  ctx.restore();
 }
 // V-261 ① — 방마다 「이웃 결」과 얼룩 자리. 층+방 인덱스로 결정하니 프레임마다 같고 씨앗과 무관하다.
 const MIX_TILES = ["crypt_tile", "bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"];
@@ -4692,11 +4789,28 @@ function drawProps() {
   }
 }
 
+const FLOOR_WASH = 0.42;
+function zoneWash(z) {
+  if (!z.wash) return;
+  ctx.fillStyle = z.wash;
+  const vx = cam.x - 40, vy = cam.y - 40, vw = VW / Z + 80, vh = VH / Z + 80;
+  if (globalThis.__ZONEFLOOR === false || G.town) { ctx.fillRect(vx, vy, vw, vh); return; }
+  const onv = (o) => !(o.x - cam.x > VW / Z || o.x + o.w - cam.x < 0 || o.y - cam.y > VH / Z || o.y + o.h - cam.y < 0);
+  const floors = [];
+  for (const r of G.rooms) if (onv(r)) floors.push(r);
+  for (const c of G.corridors) if (onv(c)) floors.push(c);
+  ctx.beginPath(); ctx.rect(vx, vy, vw, vh);
+  for (const f of floors) ctx.rect(f.x, f.y, f.w, f.h);
+  ctx.fill("evenodd");
+  ctx.globalAlpha = FLOOR_WASH; ctx.beginPath();
+  for (const f of floors) ctx.rect(f.x, f.y, f.w, f.h);
+  ctx.fill(); ctx.globalAlpha = 1;
+}
 function drawLight() {
   const p = G.player;
   const z = curZone();   // V-247 — 구간마다 어둠·화톳불 세기·전체 색칠이 갈린다(눈으로 바로 구간이 읽힘)
   const rect = () => ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
-  if (z.wash) { ctx.fillStyle = z.wash; rect(); }   // 지역 색조 — 방·벽·소품 다 이 색이 덮여 「다른 곳」으로 읽힘
+  zoneWash(z);   // 지역 색조 — 방·벽·소품 다 이 색이 덮여 「다른 곳」으로 읽힘 (V-284 ㉮ 바닥엔 약하게)
   const lg = ctx.createRadialGradient(p.x, p.y - 20, 110 / Z, p.x, p.y - 20, 720 / Z);
   lg.addColorStop(0, "rgba(0,0,0,0)");
   lg.addColorStop(0.55, "rgba(4,2,3,0.06)");
@@ -7466,7 +7580,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills();
-    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); stepTraps(dt); stepArrowWalls(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개 · V-270 바닥 함정 · V-276 화살 벽
+    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); stepTraps(dt); stepArrowWalls(dt); stepZoneSig(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개 · V-270 바닥 함정 · V-276 화살 벽
     stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt); stepCorpseRun();
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();
