@@ -10,6 +10,19 @@
 > (「… 착수 · 검증 전」 커밋은 근거가 아니다 — 그건 네가 이어서 끝내야 할 표시다).
 > 「지켜보겠다 · 중복을 피하겠다 · 다음에 검증하겠다」로 끝나는 턴 = 실패한 판.
 
+## ✔ 끝난 판: V-276 — 11:00 감시 흠 넷 + 화살 벽(`__ARROWWALL`) (닫음 2026-09-03)
+11:00 감시가 V-275 컷 다섯을 직접 열어 통과 판정하고 흠 넷을 넘겼다. 만진 곳 `hs/`(main.js·map.js·hud.css)·**새 자 파일 없음**(베이커 `tmp/hs_v276_cut.mjs`·지문 `tmp/_v276_fp.mjs`).
+- **㉮ `__TOASTSTACK`** — 층 제목·축복 띠·대가 띠·**토스트**가 서로 안 겹치게. `reserveTopUI()` 가 drawFloats **전에** 제목·띠 사각을 `reservedFloatRects` 에 올려 토스트(floatNote)가 이 위를 피해 쌓는다(손으로 y 안 적음 — `topBandCursor` 하나가 순서를 정함·`drawTopBand` 에 재는 패스 `topBandMeasure` 추가). 컷 `toaststack_title`(제목·축복·대가·토스트 넷 안 겹침·토스트가 제목 위로 밀림)·`toaststack_two`(토스트 셋도 안 겹침). `__TOASTSTACK=false` → 옛 꼴.
+- **㉯ `__CURSEDLOOK`** — 저주 신전을 붉음→**검보라 자줏빛+기울어 깨진 기둥+가시·사슬**(붉은 축복 신전과 색·꼴로 갈림)·표식도 **자줏빛 마름모**(신전 청록·함정방 붉음·저주제단 자줏빛 ✚ 와 갈림). 컷 `shrine_vs_cursed`(붉음/자줏빛 나란히·60~80px 갈림)·`cursed_marks_map`(표식 넷 갈림). `__CURSEDLOOK=false` → 옛 검붉음.
+- **㉰ `__HUDREAD`** — 좌상단 `.mult`(피해·생명)·좌하단 `.gearline.readable`(태세 띠)를 13→15px·밝힘으로 1배율에서 읽히게. 피해가 ×1.00 이 아니면 **색으로**(축복 붉음 #ff7a52/약화 잿빛·JS). 컷 `hudread`(피해 ×2.21 붉게·태세 띠 읽힘). `__HUDREAD=false` → 옛 작고 어두운 글.
+- **㉱ 컷 위생** — `md5 -q tmp/hs_v276_*.png | sort | uniq -d` **비었음**(9장 다 다름).
+- **⑤ 화살 벽 `__ARROWWALL`(새 컨텐츠)** — 여섯째 함정(「지나갈 때를 고른다」). `genFloor` 맨 끝(cursed 뒤)·산술 PRNG(`aw`)·Math.random 무소비·`arrowWalls` fp 밖·**층4부터·층당 0~2**. 좁은 복도 벽 구멍이 주기(2.4s·예고 0.5s 구멍 빛남→비행 540)로 반대 벽까지 쏜다. **예고 동안 비키면 안 맞음**(불길 규격)·피해 `10+층×2`(dotPlayer — 층8 hp 3315→2899 Δ416)·**사람 좌표만**(소환수·적 안 맞음)·**뼈창으로 구멍 막음**(`hitArrowWall`·뼈 마개). 미니맵/전체지도 호박빛 화살 표식+범례. 컷 `arrow_warn`·`arrow_flight`·`arrow_hit`(Δ416·「화살!」)·`arrow_blocked`(뼈 마개). `__ARROWWALL=false` → 빠짐.
+- 되돌림 지문: genFloor 를 만지는 것은 `__ARROWWALL` 뿐(맨 끝·산술 PRNG·`arrowWalls` fp 밖) → OFF=ON=BASE **byte-동일** F1/F3/F5/F10/F30(`tmp/_v276_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359 = V-275 기준선). 나머지 넷은 그리기/UI. 화살 벽/층 ON: F1=0 F3=0 F5=1 F10=1 F30=2.
+- 회귀(있는 자로만): `hs_v207_walk` **벽밖 0%·오류 0** / `hs_v219_foeshot` **frame p95 1.8ms(≤16.7)·오류 0·에셋 100%·쏜화살 125**. 컷 9장 직접 열어 봄·콘솔 오류 **0**.
+- **못 한 것**: 없음(㉮㉯㉰㉱⑤ 다 함). 미흡: `toaststack_two` 토스트 셋이 천장에서 가로로 1px 간격으로 붙음(겹치진 않음·읽힘·기존 float 천장 회피). 화살 비행 컷은 사람을 옆으로 비켜 찍음(발사선 위면 맞아 사라짐).
+
+다음 후보: ① ROADMAP 맨 끝 열린 `- [ ]`. ② 함정 변주(굴러오는 바위·회전 칼날) / 신전 변주(연쇄 축복) / 정예 수식어 새 갈래 / 새 물건. ③ 감춘 방·수수께끼.
+
 ## ✔ 끝난 판: V-275 — 10:00 감시 흠 넷 + 저주받은 신전(`__CURSEDSHRINE`) (닫음 2026-09-03)
 10:00 감시가 V-274 컷 열둘을 직접 열어 대체로 통과 판정하고 흠 넷을 넘겼다. 만진 곳 `hs/`(main.js·map.js)·**새 자 파일 없음**(베이커 `tmp/hs_v275_cut.mjs`·`tmp/hs_v275_branches.mjs`·지문 `tmp/_v275_fp.mjs`).
 - **㉮ `__TOPSTACK`** — 층 제목·축복 띠·대가 띠를 **한 근원**(`topBandLayout`: `topBandBegin`/`drawTopBand`/`drawTopBands`)이 세로로 쌓는다. 제목이 뜨면 띠가 `zoneTitleY()+40` 아래로, 사라지면 y74 로 올라온다(손으로 y 안 적음 → 다음 띠도 안 겹침). 컷 `topstack_title`/`topstack_notitle` 제목과 안 겹침. `__TOPSTACK=false` → 옛 고정 y74.

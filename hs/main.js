@@ -703,7 +703,7 @@ function fresh(floor, carry, town) {
     floor, ...f, player: p,
     minions: carry ? carry.minions.map((m) => ({ ...m, x: f.startX + (Math.random() * 80 - 40), y: f.startY + (Math.random() * 80 - 40) })) : [],
     spears: [], golds: [], items: [], potions: [], corpses: [], parts: [], floats: [], booms: [], hits: [], foeShots: [], curseFx: [],
-    hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [],
+    hazards: [], bones: [], bossBanner: null, floorGems: [], bolts: [], arrows: [],
     pickLog: carry ? carry.pickLog : [], kills: carry ? carry.kills : 0, picks: carry ? carry.picks : 0,
     gold: carry ? carry.gold : 0, xp: carry ? carry.xp : 0,
     dead: false, cleared: 0, packsTotal: f.packs.length,
@@ -772,6 +772,11 @@ function start(floor, carry, town) {
   window.__cursedInfo = () => (G.cursed || []).map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), type: s.type, used: !!s.used }));   // V-275 ⑤ 컷·자용 실제 문
   window.__toCursed = (type) => { const s = (G.cursed || []).find((q) => (!type || q.type === type) && !q.used); if (s) { G.player.x = s.x; G.player.y = s.y + 46; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return s ? { x: Math.round(s.x), y: Math.round(s.y), type: s.type } : null; };
   window.__useCursed = () => useCursedNear();
+  window.__arrowInfo = () => (G.arrowWalls || []).map((w) => ({ x: Math.round(w.x), y: Math.round(w.y), dx: w.dx, dy: w.dy, len: Math.round(w.len), blocked: !!w.blocked, cd: w.cd }));   // V-276 ⑤ 컷·자용 실제 문
+  window.__makeArrowWall = (dx, dy, len = 150) => { const p = G.player; G.arrowWalls = [{ x: p.x - dx * len * 0.5, y: p.y - dy * len * 0.5, dx, dy, len, phase: 0 }]; G.arrows = []; cam.x = p.x - VW / (2 * Z); cam.y = p.y - VH / (2 * Z); return window.__arrowInfo()[0]; };
+  window.__armArrow = (i = 0) => { const w = (G.arrowWalls || [])[i]; if (w) w.cd = ARROW_WARN; return w ? window.__arrowInfo()[i] : null; };   // 예고(구멍 빛남) 상태로
+  window.__fireArrow = (i = 0) => { const w = (G.arrowWalls || [])[i]; if (!w) return null; spawnArrow(w, G.floor); w.cd = ARROW_CYCLE; return (G.arrows[G.arrows.length - 1]); };
+  window.__blockArrowSpear = (i = 0) => { const w = (G.arrowWalls || [])[i]; return w ? hitArrowWall(w.x, w.y) : false; };
   window.__pactInfo = () => G.cursePact ? { type: G.cursePact.type, left: Math.max(0, G.cursePact.until - gameTime), dmgMul: +G.player.dmgMul.toFixed(2), takenMul: +(G.player.takenMul || 1).toFixed(2), slots: G.player.slots, maxhp: G.player.maxhp, spd: Math.round(G.player.spd), atkCd: +G.player.atkCd.toFixed(3), minionHpMul: +G.player.minionHpMul.toFixed(2) } : null;
   window.__toTrapRoom = (edge) => { const tr = G.traproom; if (!tr) return null; const rm = tr.room; G.player.x = edge ? rm.x + 40 : tr.x; G.player.y = edge ? rm.cy : tr.y + 120; rm.visited = true; bigDirty = true; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return window.__traproomInfo(); };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
@@ -2332,6 +2337,46 @@ function hitTrap(x, y) {   // 뼈창이 함정 위를 지나면 미리 터뜨린
   }
   return false;
 }
+// ── V-276 ⑤ 화살 벽(__ARROWWALL) — 「지나갈 때를 고른다」. 복도 벽 구멍이 주기로 반대 벽까지 화살을 쏜다.
+//   예고 동안 비키면 안 맞는다(불길과 같은 규격). 사람 좌표만 잰다 → 소환수·적은 안 맞는다. 뼈창으로 구멍을 막을 수 있다.
+const ARROW_CYCLE = 2.4, ARROW_WARN = 0.5, ARROW_SPD = 540;
+function stepArrowWalls(dt) {
+  if (globalThis.__ARROWWALL === false || G.town || !G.arrowWalls) return;
+  const p = G.player, f = G.floor;
+  for (const w of G.arrowWalls) {
+    if (w.blocked) continue;
+    if (w.cd === undefined) w.cd = ARROW_WARN + w.phase * ARROW_CYCLE;   // 벽마다 어긋나게 시작(같은 층 여럿이 동시에 안 쏘게)
+    w.cd -= dt;
+    if (w.cd <= 0) { spawnArrow(w, f); w.cd = ARROW_CYCLE; }
+  }
+  for (const a of G.arrows) {
+    if (a.dead) continue;
+    const step = ARROW_SPD * dt;
+    a.x += a.dx * step; a.y += a.dy * step; a.dist += step;
+    if (!a.hit && (p.x - a.x) ** 2 + (p.y - a.y) ** 2 < a.hr * a.hr) {
+      a.hit = true; a.dead = true;
+      dotPlayer(a.dmg); p.hurt = Math.max(p.hurt, 0.16); cam.shake = Math.max(cam.shake, 8);
+      flash = Math.max(flash, 0.1); flashColor = "150,120,40";
+      floatNote("화살!", "#e8b84a", 1.0);
+      for (let i = 0; i < 8; i++) burst(a.x, a.y, "#e8c86a", 130);
+      continue;
+    }
+    if (a.dist >= a.max) { a.dead = true; for (let i = 0; i < 5; i++) burst(a.x, a.y, "#8a7a5a", 90); }
+  }
+  if (G.arrows.length) G.arrows = G.arrows.filter((a) => !a.dead);
+}
+function spawnArrow(w, f) {
+  (G.arrows || (G.arrows = [])).push({ x: w.x, y: w.y, dx: w.dx, dy: w.dy, dist: 0, max: w.len, dmg: 10 + f * 2, hr: G.player.r + 10, hit: false });
+  cam.shake = Math.max(cam.shake, 2);
+}
+function hitArrowWall(x, y) {   // 뼈창으로 구멍을 막는다(hitTrap 결) — 막힌 구멍은 더 안 쏜다.
+  if (globalThis.__ARROWWALL === false || !G.arrowWalls) return false;
+  for (const w of G.arrowWalls) {
+    if (w.blocked) continue;
+    if ((x - w.x) ** 2 + (y - w.y) ** 2 < 30 * 30) { w.blocked = true; floatNote("화살 구멍을 막았다", "#c9b89a", 1.0); for (let i = 0; i < 10; i++) burst(w.x, w.y, "#8a7a5a", 110); return true; }
+  }
+  return false;
+}
 // ── V-274 ⑤ 신전(__SHRINE) — 「얻는 쪽」. 다가가 E 로 쓰면 시간제 축복(네 갈래). 한 번 쓰면 꺼진다. 층 넘어가면 축복도 끊긴다(G 재생성).
 const SHRINE_BONE_SLOTS = 5;
 const SHRINE_USE_R = 66;
@@ -2438,6 +2483,65 @@ function drawShrines() {
 //   윗불은 어둡고 붉게(0.7·pulse<0.9) — 밝기로 화로를 안 이긴다. 랜드마크는 꼴(깨진 큰 기둥)과 바닥 검붉은 맥박으로 선다.
 function drawCursedShrines() {
   if (globalThis.__CURSEDSHRINE === false || !G.cursed || G.town) return;
+  if (globalThis.__CURSEDLOOK === false) return drawCursedShrinesRed();
+  // V-276 ㉯ __CURSEDLOOK — 저주 신전을 «검보라 자줏빛 + 기울어 깨진 기둥 + 가시·사슬»로. 붉은 「피의 축복」 신전과 색·꼴로 확실히 갈린다(가기 전에 대가가 읽힌다).
+  const now = nowMs();
+  for (const sc of G.cursed) {
+    const info = PACT_INFO[sc.type], x = sc.x, y = sc.y, ph = 66, pw = 32, lean = 9;
+    const topcx = x + lean;   // 기울어 위쪽이 +x 로 쏠린다(멀쩡한 신전의 곧은 기둥과 실루엣이 다르다)
+    ctx.save();
+    ctx.globalAlpha = 0.36; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(x, y + 6, 36, 13, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    if (!sc.used) {
+      const gp = 0.42 + 0.34 * Math.abs(Math.sin(now / 720));
+      const gg = ctx.createRadialGradient(x, y + 2, 4, x, y + 2, 64);
+      gg.addColorStop(0, "#3a0e52"); gg.addColorStop(0.5, "#6a1a8c"); gg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.32 * gp; ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.ellipse(x, y + 2, 64, 24, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    // 기울어 깨진 기둥 — 꼭대기가 톱니로 부서졌다
+    ctx.beginPath();
+    ctx.moveTo(x - pw / 2, y + 4);
+    ctx.lineTo(topcx - pw / 2, y - ph + 12);
+    ctx.lineTo(topcx - pw / 2 + 7, y - ph + 5); ctx.lineTo(topcx - 2, y - ph + 13);
+    ctx.lineTo(topcx + pw / 2 - 8, y - ph + 3); ctx.lineTo(topcx + pw / 2, y - ph + 16);
+    ctx.lineTo(x + pw / 2, y + 4); ctx.closePath();
+    ctx.fillStyle = sc.used ? "#1b1226" : "#2a1440"; ctx.fill();
+    ctx.fillStyle = sc.used ? "#120b1a" : "#1c0e2e";   // 왼쪽 그림자 면
+    ctx.beginPath(); ctx.moveTo(x - pw / 2, y + 4); ctx.lineTo(topcx - pw / 2, y - ph + 12); ctx.lineTo(topcx - pw / 2 + 11, y - ph + 14); ctx.lineTo(x - pw / 2 + 12, y + 4); ctx.closePath(); ctx.fill();
+    // 가시 셋 — 기둥에서 삐죽(「대가」가 읽히게)
+    ctx.fillStyle = sc.used ? "#241633" : "#3a1c54";
+    for (const [ty, dir] of [[0.72, -1], [0.5, 1], [0.28, -1]]) {
+      const by = y - ph * ty, bx = x + lean * (1 - ty) + dir * (pw / 2 - 2);
+      ctx.beginPath(); ctx.moveTo(bx, by - 5); ctx.lineTo(bx + dir * 12, by); ctx.lineTo(bx, by + 5); ctx.closePath(); ctx.fill();
+    }
+    // 자줏빛 균열(안 쓴 것만 맥박)
+    ctx.globalAlpha = sc.used ? 0.22 : (0.5 + 0.4 * Math.abs(Math.sin(now / 280)));
+    ctx.strokeStyle = sc.used ? "#3a2450" : "#c86aff"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(topcx - 2, y - ph + 12); ctx.lineTo(topcx + 5, y - ph * 0.66); ctx.lineTo(x - 3, y - ph * 0.4); ctx.lineTo(x + 4, y - 8);
+    ctx.moveTo(topcx + 5, y - ph * 0.66); ctx.lineTo(topcx + 13, y - ph * 0.56);
+    ctx.stroke();
+    // 사슬 — 오른쪽에 늘어진 고리 둘(속박·대가)
+    ctx.globalAlpha = sc.used ? 0.28 : 0.7; ctx.strokeStyle = sc.used ? "#4a4258" : "#8a7fb0"; ctx.lineWidth = 1.6;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(x + pw / 2 + 4, y - 18 + i * 8, 3, 4, 0, 0, 6.283); ctx.stroke(); }
+    // 꼭대기 타입색 룬(작게·어느 계약인지) — 자줏빛 몸 위 작은 점 하나
+    ctx.globalAlpha = sc.used ? 0.3 : 0.92; ctx.fillStyle = info.body;
+    ctx.fillRect(topcx - 5, Math.round(y - ph * 0.82), 10, 5);
+    ctx.globalAlpha = 1;
+    if (!sc.used) {
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 300)), topY = y - ph - 10, R = 42;
+      const gr = ctx.createRadialGradient(topcx, topY, 2, topcx, topY, R);
+      gr.addColorStop(0, "#e29cff"); gr.addColorStop(0.35, "#7a1aa8"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.62 * pulse; ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(topcx, topY, R, 0, 6.283); ctx.fill();
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+}
+function drawCursedShrinesRed() {   // __CURSEDLOOK=false → 옛(V-275) 검붉은 꼴
   const now = nowMs();
   for (const sc of G.cursed) {
     const info = PACT_INFO[sc.type], x = sc.x, y = sc.y, ph = 68, pw = 32;
@@ -2481,12 +2585,16 @@ function drawCursedShrines() {
 //   제목이 떠 있는 동안 띠가 그 아래로 내려가고(제목과 안 겹침), 제목이 사라지면 원래 자리(y74)로 올라온다.
 //   손으로 y 를 두 군데 안 적는다 — 띠가 늘어도 topBandCursor 가 이어 쌓는다. __TOPSTACK=false → 옛 고정 y74.
 let topBandCursor = 74;
+let topBandMeasure = false;   // 재는 패스에서만 참 — 이때 drawTopBand 는 그리지 않고 사각만 예약한다.
 function titleAtTop() { return globalThis.__FLOORTITLE !== false && G.zoneBanner && !titleHidden(); }
 function topBandBegin() {
   topBandCursor = (globalThis.__TOPSTACK !== false && titleAtTop()) ? zoneTitleY() + 40 : 74;
 }
 function drawTopBand(name, left, full, col, glow) {
   const w = 214, h = 22, x = VW / 2 - w / 2, y = topBandCursor;
+  // V-276 ㉮ __TOASTSTACK — 각 띠의 화면 사각을 reservedFloatRects 에 올려 토스트(drawFloats)가 이 위를 피하게 한다. __TOASTSTACK=false → 안 올림.
+  if (topBandMeasure && globalThis.__TOASTSTACK !== false) reservedFloatRects.push({ x0: x - 6, y0: y - 4, x1: x + w + 6, y1: y + h + 4 });
+  if (topBandMeasure) { topBandCursor = (globalThis.__TOPSTACK === false) ? topBandCursor : y + h + 6; return; }
   ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle";
   ctx.globalAlpha = 0.78; ctx.fillStyle = "#0c0906"; ctx.fillRect(x, y, w, h);
   ctx.globalAlpha = 0.9; ctx.fillStyle = col; ctx.fillRect(x, y, w * Math.min(1, left / full), h);
@@ -2506,6 +2614,18 @@ function drawTopBands() {   // 층 제목 밑에 축복 띠(붉음/갈래색) �
     drawTopBand(ci.name + " · " + ci.boon, left, full, ci.col, ci.glow);
     drawTopBand("대가 · " + ci.cost, left, full, "#3a3630", "#8a8478");   // 대가 띠 — 잿빛(축복과 눈으로 갈린다)
   }
+}
+function reserveTopUI() {   // V-276 ㉮ __TOASTSTACK — 제목·띠 사각을 재서 reservedFloatRects 에 올린다(그리지 않음·토스트가 피하게).
+  if (globalThis.__TOASTSTACK === false) return;
+  const zb = G.zoneBanner;
+  if (zb && !titleHidden()) {   // 층 제목 사각 — 실측 글자 폭으로만(넉넉히)
+    const cy = zoneTitleY();
+    ctx.save(); ctx.font = "42px 'Times New Roman',serif";
+    const w = Math.max(ctx.measureText(zb.name).width, 220) / 2 + 24;
+    ctx.restore();
+    reservedFloatRects.push({ x0: VW / 2 - w, y0: cy - 46, x1: VW / 2 + w, y1: cy + 34 });
+  }
+  topBandMeasure = true; drawTopBands(); topBandMeasure = false;
 }
 // 뼈 우리(뼈 왕)는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
 //   V-232 — 사람이 세운 뼈벽(b.foe)은 그 반대다. bonesBlock 은 b.foe 를 건너뛰어 사람은 제 벽을 지나고,
@@ -2860,6 +2980,7 @@ function stepSpears(dt) {
     sp.life -= dt;
     if (sp.life <= 0) { sp.dead = true; continue; }
     if (hitTrap(sp.x, sp.y)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-270 ① 뼈창으로 바닥 함정을 미리 터뜨린다
+    if (hitArrowWall(sp.x, sp.y)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-276 ⑤ 뼈창으로 화살 구멍을 막는다
     if (hitSecretWall(sp.x, sp.y, sp.dmg)) { sp.dead = true; projSpark(sp.x, sp.y, "#c9b89a"); continue; }   // V-269 ① 갈라진 벽을 뼈창으로 때린다
     if (moveProjHitWall(sp, dt)) { sp.dead = true; if (!hitSecretWall(sp.x, sp.y, sp.dmg)) projSpark(sp.x, sp.y, "#cfe0ef"); continue; }   // V-269 ① 지형 벽에서 죽는 자리가 갈라진 벽이면 그것도 때린 것(뼈창은 12px/프레임이라 프레임머리 검사만으론 샌다)
     forEachEnemy((m) => {
@@ -3528,6 +3649,7 @@ function drawWorld() {
   }
   drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
   drawTraps();     // V-270 ① 바닥 함정의 «결» — 빛 반경 안에서만(밟기 전에도 보인다·drawSecretWall 결)
+  drawArrowWalls();   // V-276 ⑤ 화살 벽 구멍(벽면) — 예고 때 빛난다
   drawShrines();   // V-274 ⑤ 신전 — 기둥/대야 + 갈래별 색 빛(월드 좌표)
   drawCursedShrines();   // V-275 ⑤ 저주받은 신전 — 검붉게 갈라진 큰 기둥 + 붉은 균열(월드 좌표)
   drawBossTele();
@@ -3573,6 +3695,7 @@ function drawWorld() {
   for (const a of G.altars) drawAltar(a);
   drawBones();   // V-230 — 뼈 우리는 배우와 같은 층에 서지만 y정렬 밖(짧게 뜨는 함정)
   drawBolts();   // V-246 — 십자 번개(경고 점선·발사 흰 선)는 바닥 층에
+  drawArrows();   // V-276 ⑤ 날아가는 화살(벽에서 벽으로)
   drawHoldMarker();   // V-254 ① — 「여기 지켜」 자리 표식(바닥 층에 · 유닛이 위에 선다)
   drawLairSeal();     // V-257 ① — 소굴 잠금(붉은 장막 테)도 바닥 층에
 
@@ -3704,6 +3827,7 @@ function drawWorld() {
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
 
   drawItems();
+  reserveTopUI();     // V-276 ㉮ — 제목·띠 사각을 먼저 예약해 토스트가 피하게 한다(drawFloats 전에)
   drawFloats();
   drawZoneTitle();    // V-247 — 구간 첫 진입 시 화면 가운데 지역 이름(주인 배너보다 아래 z)
   drawTopBands();   // V-274 ⑤ 신전 축복 + V-275 ⑤ 계약(축복·대가) 남은 시간 — 한 근원이 세로로 쌓음(제목과 안 겹침)
@@ -4882,6 +5006,44 @@ function drawBolts() {
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();
       ctx.restore();
     }
+  }
+}
+function drawArrowWalls() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — 대기=어두운 소켓 · 예고=주황빛 맥박 · 막힘=뼈 마개.
+  if (globalThis.__ARROWWALL === false || G.town || !G.arrowWalls) return;
+  const now = nowMs();
+  for (const w of G.arrowWalls) {
+    if (!onScreen(w.x, w.y, 40)) continue;
+    ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));   // +x 가 발사 방향
+    ctx.fillStyle = "#1a140d"; ctx.fillRect(-9, -9, 14, 18);
+    ctx.fillStyle = "#0a0806"; ctx.fillRect(-7, -5, 12, 10);
+    if (w.blocked) {
+      ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-6, -5, 9, 10);
+      ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-6, -1, 9, 2);
+    } else if (w.cd !== undefined && w.cd <= ARROW_WARN && w.cd > 0) {
+      const g = 0.4 + 0.6 * Math.abs(Math.sin(now / 90));
+      const gr = ctx.createRadialGradient(0, 0, 1, 0, 0, 22);
+      gr.addColorStop(0, "#ffd66a"); gr.addColorStop(0.5, "#e0781e"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.85 * g; ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(3, 0, 22, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = "#ffe89a"; ctx.fillRect(-2, -3, 6, 6);
+    } else {
+      ctx.globalAlpha = 0.5; ctx.fillStyle = "#3a2c1a"; ctx.fillRect(-2, -4, 3, 8);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+}
+function drawArrows() {
+  if (!G.arrows || !G.arrows.length) return;
+  for (const a of G.arrows) {
+    if (a.dead) continue;
+    ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(a.dy, a.dx));
+    ctx.globalAlpha = 0.4; ctx.strokeStyle = "#e8c86a"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-4, 0); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#caa85e"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(6, 0); ctx.stroke();
+    ctx.fillStyle = "#efe0b0"; ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(0, -4); ctx.lineTo(0, 4); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#9a8a5a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-14, -4); ctx.moveTo(-10, 0); ctx.lineTo(-14, 4); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
   }
 }
 function drawEnemy(m) {
@@ -6553,7 +6715,8 @@ function updateHUD() {
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
   el("xp").textContent = fmtPair(G.xp - lvBase, lvSpan);
   el("xpbar").style.width = barPct(100 * (G.xp - lvBase) / lvSpan) + "%";
-  el("mult").innerHTML = `피해 <b>${mulTxt(p.dmgMul)}</b> · 생명 <b>${fmtNum(p.maxhp)}</b>`
+  const dcol = (globalThis.__HUDREAD !== false && Math.abs(p.dmgMul - 1) > 0.005) ? (p.dmgMul > 1 ? "#ff7a52" : "#8a8478") : null;   // V-276 ㉰ 피해가 기본값(×1.00)이 아니면 색으로(축복 붉음/약화 잿빛)
+  el("mult").innerHTML = `피해 <b${dcol ? ` style="color:${dcol}"` : ""}>${mulTxt(p.dmgMul)}</b> · 생명 <b>${fmtNum(p.maxhp)}</b>`
     + (G.ascension ? ` · <b style="color:#d8b45a">승천 ${G.ascension}회</b>` : "");
   // ★ V-209 — 지역 넉 줄도 한글로(병수님 「영어랑 한글 섞였네」). HUD·조작 안내가 한글인데
   //   여기만 영어라 한 화면에 두 말이 섞여 있었다.
@@ -6591,6 +6754,7 @@ function updateHUD() {
     : "";
   el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "") + ascTxt;
   document.body.classList.toggle("notestack", globalThis.__NOTESTACK !== false);   // V-237 — 집는 글 칩에 읽히는 왼쪽 테두리(어두운 바닥에서 「테두리 없이 잘린」 것처럼 보였다)
+  document.body.classList.toggle("hudread", globalThis.__HUDREAD !== false);   // V-276 ㉰ 좌상단·좌하단 작은 글자를 키우고 밝힌다(1배율에서 읽히게)
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
@@ -6669,10 +6833,18 @@ function mapIcon(rctx, kind, cx, cy, s) {
       rctx.fillStyle = "#c8c0a0"; rctx.fillRect(cx - s * 0.72, cy + s * 0.46, s * 1.44, s * 0.5);
       rctx.strokeStyle = "#0e2a2a"; rctx.lineWidth = Math.max(1, s * 0.2); rctx.strokeRect(cx - s * 0.72, cy + s * 0.46, s * 1.44, s * 0.5); break;
     }
-    case "cursed": {                     // V-275 ⑤ 저주받은 신전 — 검붉은 마름모 + 금 균열(멀쩡한 신전 청록과 갈린다)
-      poly([[cx, cy - s], [cx + s, cy], [cx, cy + s], [cx - s, cy]]); done("#7a140c", "#1e0402");
-      rctx.strokeStyle = "#ff5a2e"; rctx.lineWidth = Math.max(1, s * 0.22);
+    case "cursed": {                     // V-276 ㉯ 저주받은 신전 — 자줏빛 마름모 + 균열(축복 신전 청록·함정 방 붉음과 셋이 갈린다). __CURSEDLOOK=false → 옛 검붉음.
+      const vio = globalThis.__CURSEDLOOK !== false;
+      poly([[cx, cy - s], [cx + s, cy], [cx, cy + s], [cx - s, cy]]); done(vio ? "#7a1aa8" : "#7a140c", vio ? "#1e0630" : "#1e0402");
+      rctx.strokeStyle = vio ? "#e29cff" : "#ff5a2e"; rctx.lineWidth = Math.max(1, s * 0.22);
       rctx.beginPath(); rctx.moveTo(cx, cy - s * 0.6); rctx.lineTo(cx + s * 0.24, cy); rctx.lineTo(cx - s * 0.2, cy + s * 0.55); rctx.stroke(); break;
+    }
+    case "arrowWall": {                  // V-276 ⑤ → 호박빛 작은 화살(계단▼·상자점·마름모들과 안 겹치는 꼴)
+      rctx.strokeStyle = "#ffb02a"; rctx.lineWidth = Math.max(1.4, s * 0.32); rctx.lineCap = "round"; rctx.lineJoin = "round";
+      rctx.beginPath();
+      rctx.moveTo(cx - s, cy); rctx.lineTo(cx + s * 0.5, cy);
+      rctx.moveTo(cx + s, cy); rctx.lineTo(cx + s * 0.1, cy - s * 0.62); rctx.moveTo(cx + s, cy); rctx.lineTo(cx + s * 0.1, cy + s * 0.62);
+      rctx.stroke(); break;
     }
     case "chest":                        // 작은 점 — 사건방보다 낮게
       rctx.fillStyle = "#e8b840"; rctx.beginPath(); rctx.arc(cx, cy, Math.max(1.3, s * 0.46), 0, 6.283); rctx.fill(); break;
@@ -6744,7 +6916,11 @@ function renderMapStatic(rctx, sx, sy, ox, oy, big) {
   }
   if (globalThis.__CURSEDSHRINE !== false && G.cursed) for (const sc of G.cursed) {   // V-275 ⑤ 저주받은 신전 표식 — 검붉음(멀쩡한 신전 청록과 갈린다)·쓴 것은 흐리게
     if (icons) { if (sc.used) rctx.globalAlpha = 0.4; mapIcon(rctx, "cursed", X(sc.x), Y(sc.y), isz); rctx.globalAlpha = 1; }
-    else { rctx.fillStyle = sc.used ? "#5a201a" : "#c8281a"; rctx.beginPath(); rctx.arc(X(sc.x), Y(sc.y), big ? 4.4 : 2.6, 0, 6.283); rctx.fill(); }
+    else { const vio = globalThis.__CURSEDLOOK !== false; rctx.fillStyle = vio ? (sc.used ? "#3a1a52" : "#a03cff") : (sc.used ? "#5a201a" : "#c8281a"); rctx.beginPath(); rctx.arc(X(sc.x), Y(sc.y), big ? 4.4 : 2.6, 0, 6.283); rctx.fill(); }
+  }
+  if (globalThis.__ARROWWALL !== false && G.arrowWalls) for (const w of G.arrowWalls) {   // V-276 ⑤ 화살 벽 표식 — 호박빛(막힌 것은 흐리게)
+    if (icons) { if (w.blocked) rctx.globalAlpha = 0.4; mapIcon(rctx, "arrowWall", X(w.x), Y(w.y), isz); rctx.globalAlpha = 1; }
+    else { rctx.fillStyle = w.blocked ? "#6a5a3a" : "#ffb02a"; rctx.fillRect(X(w.x) - 2, Y(w.y) - 2, 4, 4); }
   }
   if (G.stairs) {   // 계단(마을 문 포함)
     if (icons) mapIcon(rctx, "stairs", X(G.stairs.x), Y(G.stairs.y), isz);
@@ -6788,6 +6964,7 @@ function drawBigLegend(rctx, W, H) {
   if (globalThis.__TRAPROOM !== false && G.traproom) icon("traproom", "함정 방");
   if (globalThis.__SHRINE !== false && G.shrines && G.shrines.length) icon("shrine", "신전");
   if (globalThis.__CURSEDSHRINE !== false && G.cursed && G.cursed.length) icon("cursed", "저주받은 신전");
+  if (globalThis.__ARROWWALL !== false && G.arrowWalls && G.arrowWalls.length) icon("arrowWall", "화살 벽");
   if (globalThis.__CORPSERUN !== false && G.corpse) icon("mycorpse", "내 시체");
   if (three) { swatch("rgba(170,136,80,0.8)", "안 치운 방"); swatch("rgba(96,164,120,0.85)", "치운 방");
     items.push({ label: "적", g: (cx, cy) => { rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(cx, cy, 4, 0, 6.283); rctx.fill(); } }); }
@@ -6858,7 +7035,7 @@ function loop(now) {
   if (window.__botStep) window.__botStep(dt);
   if (!G.dead) {
     stepPlayer(dt); handleSkills();
-    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); stepTraps(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개 · V-270 바닥 함정
+    if (!G.town) { wakePacks(); stepEnemies(dt); stepFoeShots(dt); stepHazards(dt); stepBolts(dt); stepTraps(dt); stepArrowWalls(dt); }   // V-238 — 마을에선 웨이브·독장판이 멈춘다 · V-246 십자 번개 · V-270 바닥 함정 · V-276 화살 벽
     stepMinions(dt); stepSpears(dt); stepDrops(dt); stepPotions(dt); stepGems(dt); stepCorpseRun();
     stepBones(dt);
     stepParts(dt); stepFx(dt); stepFloats(dt); markVisited();

@@ -34,6 +34,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;
   color:#f2e7cf;text-shadow:0 1px 0 #000,0 0 3px #000}
 .mult{font-size:13px;color:#9c8f74;margin-top:1px}
 .mult b{color:var(--gold);font-weight:400}
+/* V-276 ㉰ __HUDREAD: 좌상단 「피해 ×… · 생명 …」이 1배율에서 너무 작고 어두워 안 읽혔다 — 키우고 밝힌다(값에 색은 JS 가 얹는다). body.hudread 없음 = 옛 꼴. */
+body.hudread .mult{font-size:15px;color:#c2b596;text-shadow:0 1px 0 #000}
 
 #tr{position:absolute;right:14px;top:12px;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .region{background:var(--panel);border:2px solid var(--edge);box-shadow:inset 0 0 0 1px var(--edge2);
@@ -120,6 +122,9 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 /* V-235: 붉은 장비 줄이 #4a3f33 로 패널에 묻혀 안 읽혔다 — 빈 칸 글자를 밝히고 살짝 키운다(착용 칸은 JS 가 레어도 색으로 덮는다). __GEARLINE=false 면 옛 어두운 줄. */
 .gearline.readable{font-size:13px;gap:10px}
 .gearline.readable span{color:#a89468}
+/* V-276 ㉰ __HUDREAD: 좌하단 태세 줄이 1배율에서 형체만 보였다 — 한 급 더 키우고 밝혀 빈 칸 이름표까지 읽히게(착용 칸 색은 JS 가 덮는다). */
+body.hudread .gearline.readable{font-size:15px}
+body.hudread .gearline.readable span{color:#cdb98a;text-shadow:0 1px 0 #000,0 0 2px #000}
 
 /* V-181: D2 물건 툴팁 — 검붉은 어둠 창(hud.css 팔레트 재사용) + HS_STYLE ④ 색 규칙.
    흰=이름·기본치 · 파랑=옵션 · 주황=규칙 바꿈 · 회색 이탤릭=이야기. 레어 노랑 이름·유니크 주황 이름. */

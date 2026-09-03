@@ -733,7 +733,42 @@ export function genFloor(floor) {
     }
   }
 
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom, shrines, cursed };
+  // ── V-276 ⑤ 화살 벽(__ARROWWALL) — genFloor «맨 끝»(cursed 뒤). __SHRINE 규격 그대로: 층 번호로 씨앗 잡는
+  //   산술 PRNG(aw)만 굴리고 Math.random 은 한 톨도 안 쓴다 → 앞선 굴림 그대로라 genFloor 지문 byte-동일.
+  //   arrowWalls 는 fp 밖(지문은 rooms/corridors/packs/chests/altars/stairs 만 해싱)·방/복도 지오메트리 무접촉.
+  //   「지나갈 때를 고른다」: 층4부터·층당 0~2. 좁은 복도 벽에 구멍을 뚫고 주기로 반대 벽까지 화살을 쏜다(예고 동안 비키면 안 맞는다).
+  let arrowWalls = [];
+  if (globalThis.__ARROWWALL !== false && floor >= 4) {
+    let az = (((floor + 97) * 0x9E3779B1) ^ 0x85EBCA77) >>> 0;
+    const aw = () => { az = (az + 0x6D2B79F5) | 0; let t = Math.imul(az ^ (az >>> 15), 1 | az);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const aint = (a, b) => a + Math.floor(aw() * (b - a + 1));
+    const want = (aw() < Math.min(0.75, 0.40 + floor * 0.02) ? 1 : 0) + (aw() < Math.min(0.50, 0.15 + floor * 0.015) ? 1 : 0);
+    const cand = [];
+    for (const c of corridors) {
+      if (c.pad) continue;
+      const horiz = c.w >= c.h, len = horiz ? c.w : c.h;
+      if (len < 170) continue;   // 화살이 가로지를 만큼 긴 복도만(짧은 목·모서리 배제)
+      const mx = c.x + c.w / 2, my = c.y + c.h / 2;
+      if ((mx - stairs.x) ** 2 + (my - stairs.y) ** 2 < 240 * 240) continue;   // 계단·시작 근처엔 안 둔다(들어서자마자 맞는 사고 방지)
+      if ((mx - startX) ** 2 + (my - startY) ** 2 < 260 * 260) continue;
+      cand.push({ c, horiz });
+    }
+    let guard = 0;
+    while (arrowWalls.length < want && guard++ < 60 && cand.length) {
+      const { c, horiz } = cand.splice(aint(0, cand.length - 1), 1)[0];
+      const frac = 0.35 + aw() * 0.3;
+      if (horiz) {   // 가로 복도 — 위/아래 벽에서 세로로 쏜다(걷는 선을 가로지른다)
+        const hx = Math.round(c.x + c.w * frac), top = aw() < 0.5;
+        arrowWalls.push({ x: hx, y: top ? c.y - 4 : c.y + c.h + 4, dx: 0, dy: top ? 1 : -1, len: c.h + 8, phase: aw() });
+      } else {   // 세로 복도 — 좌/우 벽에서 가로로 쏜다
+        const hy = Math.round(c.y + c.h * frac), left = aw() < 0.5;
+        arrowWalls.push({ x: left ? c.x - 4 : c.x + c.w + 4, y: hy, dx: left ? 1 : -1, dy: 0, len: c.w + 8, phase: aw() });
+      }
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom, shrines, cursed, arrowWalls };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)
