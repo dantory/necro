@@ -4823,17 +4823,34 @@ function drawSetRunes(p) {
   drawSetRunesInner(p, setAuraPuls());
   ctx.restore();
 }
-function drawRollDust(p, rp) {   // V-278 ㉰ 구르기 출발 자리 먼지 퍼프 — 흙빛 점 다섯이 퍼지며 옅어진다
+function drawRollDust(p, rp) {   // V-280 ㉯ 출발 자리에 납작한 타원 먼지 서넛 + 구른 경로 옅은 자국 — 정지 컷에서도 「굴렀다」가 읽힌다. __ROLLDUST=false → 옛(V-278) 작은 흙빛 점 다섯.
   if (p.dashX0 === undefined) return;
-  const a = 0.5 * (1 - rp);
-  if (a <= 0.02) return;
-  ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = "#8a7250";
-  const spread = 6 + 22 * rp;
-  for (let i = 0; i < 5; i++) {
-    const ang = i * 1.257 + p.dashX0 * 0.7;
-    const rad = spread * (0.5 + 0.1 * (i % 5));
-    const s = Math.max(1, 3 - 2 * rp);
-    ctx.fillRect(p.dashX0 + Math.cos(ang) * rad - s / 2, p.dashY0 + 6 + Math.sin(ang) * rad * 0.5 - s / 2, s, s);
+  if (globalThis.__ROLLDUST === false) {
+    const a = 0.5 * (1 - rp);
+    if (a <= 0.02) return;
+    ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = "#8a7250";
+    const spread = 6 + 22 * rp;
+    for (let i = 0; i < 5; i++) {
+      const ang = i * 1.257 + p.dashX0 * 0.7, rad = spread * (0.5 + 0.1 * (i % 5)), s = Math.max(1, 3 - 2 * rp);
+      ctx.fillRect(p.dashX0 + Math.cos(ang) * rad - s / 2, p.dashY0 + 6 + Math.sin(ang) * rad * 0.5 - s / 2, s, s);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+    return;
+  }
+  ctx.save(); ctx.lineCap = "round";
+  ctx.globalAlpha = 0.24 * (1 - rp * 0.3); ctx.strokeStyle = "#4e3d24"; ctx.lineWidth = 12;
+  ctx.beginPath(); ctx.moveTo(p.dashX0, p.dashY0 + 6); ctx.lineTo(p.x, p.y + 6); ctx.stroke();
+  const base = 1 - rp;
+  if (base > 0.04) {
+    const spread = 8 + 26 * rp;
+    for (let i = 0; i < 4; i++) {
+      const ang = i * 1.7 + p.dashX0 * 0.3, rad = spread * (0.35 + 0.2 * i);
+      const ex = p.dashX0 + Math.cos(ang) * rad, ey = p.dashY0 + 6 + Math.sin(ang) * rad * 0.4, rr = 6 + 5 * rp - i, f = base * (1 - i * 0.15);
+      ctx.globalAlpha = 0.42 * f; ctx.fillStyle = "#4e3d24";
+      ctx.beginPath(); ctx.ellipse(ex, ey + 2, Math.max(3, rr), Math.max(1.6, rr * 0.44), 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 0.36 * f; ctx.fillStyle = "#d8c8a8";
+      ctx.beginPath(); ctx.ellipse(ex, ey - 3 * rp, Math.max(2.6, rr * 0.9), Math.max(1.4, rr * 0.4), 0, 0, 6.283); ctx.fill();
+    }
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
@@ -4854,15 +4871,19 @@ function drawPlayer() {
     }
     ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 0.62;
+  const heroFilt = dashing ? "brightness(1.7) saturate(0.45)" : (p.dashEnd > 0 ? "brightness(2)" : (p.hurt > 0 ? "brightness(2.2)" : null));   // V-277 ⑤ 무적 끝나는 순간 반짝(dashEnd) → 원래대로
+  const tiltSign = p.dashDx >= 0 ? 1 : -1;
+  const rollTx = () => { ctx.translate(p.x, p.y); ctx.rotate(tiltSign * 0.46 * sq); ctx.scale(1 + 0.28 * sq, 1 - 0.42 * sq); ctx.translate(-p.x, -p.y); };
+  const glowRoll = rollNew && globalThis.__ROLLGLOW !== false;   // V-280 ㉮ 글로우(rim)를 구르기 변환 «안»에서 떠 기운 몸을 따라간다(속은 몸이 덮어 테두리만 남음·알파 낮춰 바닥 비침). __ROLLGLOW=false → 옛(V-278) 선 자세 rim 색면.
+  ctx.save();
+  if (glowRoll) rollTx();
+  ctx.globalAlpha = glowRoll ? 0.4 : 0.62;
   for (const [dx, dy] of RIM_OFF)
     drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x + dx, p.y + dy, PLAYER_H, RIM_FILTER);
+  ctx.restore();
   ctx.globalAlpha = 1;
-  const heroFilt = dashing ? "brightness(1.7) saturate(0.45)" : (p.dashEnd > 0 ? "brightness(2)" : (p.hurt > 0 ? "brightness(2.2)" : null));   // V-277 ⑤ 무적 끝나는 순간 반짝(dashEnd) → 원래대로
   if (rollNew) {
-    const tiltSign = p.dashDx >= 0 ? 1 : -1;
-    ctx.save();
-    ctx.translate(p.x, p.y); ctx.rotate(tiltSign * 0.46 * sq); ctx.scale(1 + 0.28 * sq, 1 - 0.42 * sq); ctx.translate(-p.x, -p.y);
+    ctx.save(); rollTx();
     if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt)) fallbackBlob(p.x, p.y, 146, "#cfc7b0");
     ctx.restore();
   } else if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt)) {
@@ -5129,13 +5150,24 @@ function drawArrowWalls() {   // V-277 ㉮ 발사구를 벽면에 실제로 그�
     if (!onScreen(w.x, w.y, 48)) continue;
     const warn = !w.blocked && w.cd !== undefined && w.cd <= ARROW_WARN && w.cd > 0;
     ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));
+    const hdNew = globalThis.__HOLEDEPTH !== false;   // V-280 ㉰ 구멍에 깊이 — 순검정 속·위 안쪽 밝은 테·아래 그림자 턱·화로 불빛에 테만 은은히 반짝. __HOLEDEPTH=false → 옛(V-278) 잿빛 홈.
     if (ahNew) {
       ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.beginPath(); ctx.moveTo(-9, 15); ctx.lineTo(8, 15); ctx.lineTo(6, 22); ctx.lineTo(-7, 22); ctx.closePath(); ctx.fill();
       ctx.fillStyle = "#6a6050"; ctx.fillRect(-13, -16, 15, 32);
+      if (hdNew) {
+        ctx.fillStyle = "#020201"; ctx.fillRect(-11, -14, 13, 28);
+        ctx.fillStyle = "#000"; ctx.fillRect(-11, -14, 7, 28);
+        ctx.fillStyle = "rgba(214,198,152,0.92)"; ctx.fillRect(-11, -14, 13, 2);
+        ctx.fillStyle = "#8e846c"; ctx.fillRect(-13, -16, 15, 2);
+        ctx.fillStyle = "#2a241a"; ctx.fillRect(-13, 12, 15, 4);
+        const sh = 0.28 + 0.22 * Math.abs(Math.sin(now / 620));
+        ctx.globalAlpha = sh; ctx.strokeStyle = "#c8b488"; ctx.lineWidth = 1; ctx.strokeRect(-12.5, -15.5, 14, 31); ctx.globalAlpha = 1;
+      } else {
       ctx.fillStyle = "#7e745e"; ctx.fillRect(-13, -16, 15, 3);
       ctx.fillStyle = "#40382c"; ctx.fillRect(-13, 13, 15, 3);
       ctx.fillStyle = "#050403"; ctx.fillRect(-10, -13, 12, 26);
       ctx.fillStyle = "#120d08"; ctx.fillRect(-10, -13, 5, 26);
+      }
       if (w.blocked) {
         ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-10, -11, 13, 22);
         ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-10, -3, 13, 3);
@@ -5194,8 +5226,23 @@ function drawArrowWallsOld() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — �
     ctx.restore(); ctx.globalAlpha = 1;
   }
 }
-function drawArrowStuck(s) {   // V-278 ㉯ 벽에 비스듬히 박힌 화살 — 대가 굵고 깃 보이고 벽에 그림자. 남는 시간(t/t0)으로 옅어진다.
+function drawArrowStuck(s) {   // V-280 ㉰ 닿은 벽면에 박힌 화살 — 촉이 벽으로 파고들고(기울임 없음) 박힌 자리에 부스러기+벽 그림자. __HOLEDEPTH=false → 옛(V-278) 바닥에 누운 듯(+0.28).
   const a = Math.max(0, Math.min(1, s.t / (s.t0 || 2.5)));
+  if (globalThis.__HOLEDEPTH !== false) {
+    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.dy, s.dx));
+    ctx.globalAlpha = a * 0.45; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(8, 2, 9, 5, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = a * 0.8; ctx.fillStyle = "#7a6a4e";
+    ctx.fillRect(9, -6, 2, 2); ctx.fillRect(12, 3, 2, 2); ctx.fillRect(7, 7, 2, 2); ctx.fillRect(11, -2, 1.5, 1.5);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = "#6a4a28"; ctx.fillRect(-24, -2.5, 32, 5);
+    ctx.fillStyle = "#8a6438"; ctx.fillRect(-24, -2.5, 32, 1.8);
+    ctx.fillStyle = "#2a2018"; ctx.fillRect(6, -2.5, 6, 5);
+    ctx.fillStyle = "#8a2c22"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, -7); ctx.lineTo(-18, -2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#a8382c"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, 7); ctx.lineTo(-18, 2); ctx.closePath(); ctx.fill();
+    ctx.restore(); ctx.globalAlpha = 1;
+    return;
+  }
   ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.dy, s.dx) + 0.28);
   ctx.globalAlpha = a * 0.4; ctx.fillStyle = "#000"; ctx.fillRect(-26, 3, 30, 4);
   ctx.globalAlpha = a;
