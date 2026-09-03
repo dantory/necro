@@ -18328,9 +18328,13 @@ V-199 컷(`tmp/v199_t{60,120}.png`)을 6배로 열어 봤다. **㉠㉡ 은 그�
   - 되돌림 `__MOBTINT=false`(+폭탄병 다시 brute) → genFloor 지문 byte-동일(base·h 는 지문 밖·assignZoneMix 는 genFloor 밖 산술 PRNG). 구현 커밋 `7563616`.
   - 회귀: `hs_v207_walk` 벽밖 **0%**·오류 **0** · `hs_v219_foeshot`(씨앗 1,2,3) 에셋 **100%**·오류 **0**·frame p95 **0.5ms**·쏜화살 154 → 다 규격 안 ✅.
 
-## V-275 — 10:00 감시 흠 넷 + 저주받은 신전(`__CURSEDSHRINE`) (착수 2026-09-03 · 검증 전)
-- [ ] ㉮ `__TOPSTACK` — 층 제목 · 축복 띠가 화면 위에서 겹친다(V-274 ③ 이 만든 충돌). `topBandLayout()` 한 근원으로 세로 쌓기.
-- [ ] ㉯ `__SHRINELOOK` — 신전이 화로보다 작고 어두워 랜드마크로 안 읽힘. 크기·꼴로(밝기 아님)+갈래 넷 색.
-- [ ] ㉰ armed 바닥 꺼짐 결을 1배율에서 보이게(이중선). 발동 뒤 구멍은 이미 또렷 — 손대지 말 것.
-- [ ] ㉱ 컷 중복 금지 — `md5 -q tmp/hs_v275_*.png | sort | uniq -d` 가 비어야 커밋(V-274 에서 두 장 byte-동일).
-- [ ] ⑤ `__CURSEDSHRINE` — 대가 있는 신전(축복+대가 동시). 「고르는 순간」을 만든다.
+## V-275 — 10:00 감시 흠 넷 + 저주받은 신전(`__CURSEDSHRINE`) (닫음 2026-09-03)
+만진 곳 `hs/`(main.js·map.js)·**새 자 파일 없음**(일회용 베이커 `tmp/hs_v275_cut.mjs`·`tmp/hs_v275_branches.mjs`·지문 `tmp/_v275_fp.mjs`).
+- [x] ㉮ `__TOPSTACK` — 층 제목·축복 띠·대가 띠를 «한 근원» `topBandLayout`(`topBandBegin`/`drawTopBand`/`drawTopBands`)이 세로로 쌓는다. 제목이 떠 있으면 띠가 `zoneTitleY()+40` 아래로 내려가고, 사라지면 y74 로 올라온다(손으로 y 안 적음). 컷 `topstack_title`(제목 밑) / `topstack_notitle`(위로 올라옴) — 제목과 한 화소도 안 겹침. `__TOPSTACK=false` → 옛 고정 y74.
+- [x] ㉯ `__SHRINELOOK` — 신전을 랜드마크로: 기둥 44→64px(사람 키 1.4배)·바닥 갈래색 광원 한 겹(은은한 맥박)·몸에 갈래색 룬 띠 둘. 밝기(윗불 0.9·pulse)는 옛값 그대로 → **제일 밝은 건 여전히 화로**(HS_STYLE). 컷 `shrine_look_on`(큰 기둥+광원) vs `shrine_look_off`(옛 작은 것)·`shrine_branches`(피 붉음·뼈 창백·재빠름 푸름·탐욕 금 넷 다 갈림). `__SHRINELOOK=false` → 옛 꼴.
+- [x] ㉰ armed 바닥 꺼짐 = **이중선**(어두운 금 바깥 테 `#241a0e` + 그 옆 밝은 하이라이트 `#e2cf98`) → 밝은 이끼 바닥·어두운 바닥 어디서도 대비가 선다. 발동 뒤 구멍은 손 안 댐. 컷 `trap_fall_bright`(층8 이끼)·`trap_fall_dark`(층3) 둘 다 1배율 전체 컷에서 함정 자리가 눈에 들어옴.
+- [x] ㉱ 컷 중복 금지 — `md5 -q tmp/hs_v275_*.png | sort | uniq -d` **비었음**(11장 다 서로 다른 상태).
+- [x] ⑤ `__CURSEDSHRINE` — 대가 있는 신전(「고르는 순간」). `genFloor` 맨 끝·산술 PRNG(`cs`)·Math.random 무소비·`cursed` fp 밖·층3부터·층당 0~1. E 로 쓰면 축복+대가를 같이(시간제·`recalc` 끝·층 넘으면 둘 다 끊김): 피의 계약 피해 ×1.8/받는 피해 ×1.45 · 뼈 자리 +8/최대체력 −25% · 굶주린 드랍 ×2.0/소환수 체력 −40% · 성급한 속도 ×1.45/시전 간격 ×1.35. 받는 피해는 `p.takenMul`(hurtPlayer 가 읽음). 검붉게 갈라진 큰 기둥(멀쩡한 신전과 꼴로 갈림)+붉은 균열·미니맵/전체지도 검붉은 마름모+범례. HUD 축복 띠(붉음)+대가 띠(잿빛)를 ㉮ 로 함께 쌓음. 컷 `cursed_idle`·`cursed_hud`(dmgMul 1→1.8·takenMul 1→1.45·제목과 안 겹침)·`cursed_map`·`cursed_numbers`(같은 화살 hp피해 40→61 ≈×1.5). `__CURSEDSHRINE=false` → 빠짐.
+- 되돌림 지문: genFloor 를 만지는 것은 `__CURSEDSHRINE` 뿐(맨 끝·산술 PRNG·`cursed` 는 fp 밖·방 지오메트리 무접촉) → OFF=ON=BASE **byte-동일** F1/F3/F5/F10/F30(`tmp/_v275_fp.mjs`: 4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359). 나머지 넷(㉮㉯㉰㉱)은 그리기/UI·genFloor 무접촉. 저주받은 신전/층 ON: F1=0 F3=1 F5=1 F10=1 F30=1.
+- 회귀(있는 자로만): `hs_v207_walk` **벽밖 0%·오류 0** / `hs_v219_foeshot` **frame p95 1.9ms(≤16.7)·오류 0·에셋 100%·쏜화살 330**. 컷 11장 직접 열어 봄(`tmp/hs_v275_{topstack_title,topstack_notitle,shrine_look_on,shrine_look_off,shrine_branches,trap_fall_bright,trap_fall_dark,cursed_idle,cursed_hud,cursed_map,cursed_numbers}.png`)·콘솔 오류 **0**.
+- **못 한 것**: 없음(㉮㉯㉰㉱⑤ 다 함). 미흡: `cursed_numbers` 의 hp 피해비가 ×1.52 로 기댓값 1.45 보다 살짝 높다(두 표본의 방어·반올림 차이)·방향/크기는 맞음(계약 켜면 확연히 더 아픔·takenMul 1.45 는 __pactInfo 로 정확히 확인).

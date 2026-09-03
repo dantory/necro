@@ -700,7 +700,40 @@ export function genFloor(floor) {
     }
   }
 
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom, shrines };
+  // ── V-275 ⑤ 저주받은 신전(__CURSEDSHRINE) — genFloor «맨 끝»(shrines 뒤). __SHRINE 과 같은 규격:
+  //   층 번호로 씨앗 잡는 산술 PRNG(cs)만 굴리고 Math.random 은 한 톨도 안 쓴다 → 앞선 굴림 그대로라 genFloor 지문 byte-동일.
+  //   cursed 는 fp 밖(지문은 rooms/corridors/packs/chests/altars/stairs 만 해싱)·방 지오메트리 무접촉 → 켜도 꺼도 지문 불변.
+  //   「고르는 순간」: 층3부터·층당 0~1·검붉게 갈라진 신전. E 로 쓰면 축복 하나 + 대가 하나(계약). 멀쩡한 신전과 «꼴»로 갈린다.
+  let cursed = [];
+  if (globalThis.__CURSEDSHRINE !== false && floor >= 3) {
+    let cz = (((floor + 61) * 0x9E3779B1) ^ 0x27D4EB2F) >>> 0;
+    const cs = () => { cz = (cz + 0x6D2B79F5) | 0; let t = Math.imul(cz ^ (cz >>> 15), 1 | cz);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const cint = (a, b) => a + Math.floor(cs() * (b - a + 1));
+    const CK = ["blood", "bone", "greed", "swift"];
+    // 층당 0~1 — 깊을수록 조금 더 잦게(층3 ~0.40·30층 상한 0.72)
+    const want = cs() < Math.min(0.72, 0.34 + floor * 0.02) ? 1 : 0;
+    if (want) {
+      const cand = [];
+      for (let i = 1; i < rooms.length; i++) {
+        const rm = rooms[i];
+        if (rm === far || rm.dead || rm.trapRoom) continue;
+        if (rm.zoneEvent || rm.eventKind) continue;
+        if (rm.w < 200 || rm.h < 180) continue;
+        // 멀쩡한 신전이 든 방은 배제(한 방에 신전 하나) — 꼴 혼동/겹침 방지
+        if (shrines.some((s) => s.x >= rm.x && s.x <= rm.x + rm.w && s.y >= rm.y && s.y <= rm.y + rm.h)) continue;
+        cand.push(rm);
+      }
+      if (cand.length) {
+        const rm = cand[cint(0, cand.length - 1)];
+        const x = rm.cx + (cs() < 0.5 ? -1 : 1) * Math.round(rm.w * (0.15 + cs() * 0.12));
+        const y = rm.y + Math.round(rm.h * (0.20 + cs() * 0.14));
+        cursed.push({ x, y, type: CK[cint(0, CK.length - 1)], used: false, r: 38 });
+      }
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom, shrines, cursed };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)
