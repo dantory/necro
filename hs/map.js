@@ -669,7 +669,38 @@ export function genFloor(floor) {
     }
   }
 
-  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom };
+  // ── V-274 ⑤ 신전(__SHRINE) — genFloor «맨 끝»(traproom 뒤). __TRAP/__TRAPROOM 처럼 층 번호로 씨앗 잡는
+  //   산술 PRNG(sh)만 굴리고 Math.random 은 한 톨도 안 쓴다 → 앞선 굴림 그대로라 genFloor 지문 byte-동일.
+  //   shrines 는 fp 밖(지문은 rooms/corridors/packs/chests/altars/stairs 만 해싱)·방 지오메트리를 안 건드림 → 켜도 꺼도 지문 불변.
+  //   「얻는 쪽」: 방에 가끔 신전이 서고(층 깊을수록 조금 더·층당 0~2) 다가가 E 로 쓰면 시간제 축복. 네 갈래(피·뼈·재빠름·탐욕).
+  let shrines = [];
+  if (globalThis.__SHRINE !== false) {
+    let ss = (((floor + 29) * 0x9E3779B1) ^ 0x165667B1) >>> 0;
+    const sh = () => { ss = (ss + 0x6D2B79F5) | 0; let t = Math.imul(ss ^ (ss >>> 15), 1 | ss);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const sint = (a, b) => a + Math.floor(sh() * (b - a + 1));
+    const KINDS = ["blood", "bone", "swift", "greed"];
+    // 층당 0~2 — 깊을수록 조금 더 잦게(1층 ~0.28 한 개·30층엔 두 개에 가깝게)
+    const want = (sh() < Math.min(0.78, 0.28 + floor * 0.03) ? 1 : 0) + (sh() < Math.min(0.60, 0.10 + floor * 0.02) ? 1 : 0);
+    const cand = [];
+    for (let i = 1; i < rooms.length; i++) {
+      const rm = rooms[i];
+      if (rm === far || rm.dead || rm.trapRoom) continue;
+      if (rm.zoneEvent || rm.eventKind) continue;
+      if (rm.w < 200 || rm.h < 180) continue;
+      cand.push(rm);
+    }
+    let guard = 0;
+    while (shrines.length < want && guard++ < 80 && cand.length) {
+      const rm = cand.splice(sint(0, cand.length - 1), 1)[0];   // 한 방에 신전 하나
+      // 벽 쪽으로 물려 세운다(가운데 싸움을 안 가림) — 방 위쪽 안으로 들인 자리
+      const x = rm.cx + (sh() < 0.5 ? -1 : 1) * Math.round(rm.w * (0.15 + sh() * 0.12));
+      const y = rm.y + Math.round(rm.h * (0.20 + sh() * 0.14));
+      shrines.push({ x, y, type: KINDS[sint(0, KINDS.length - 1)], used: false, r: 34 });
+    }
+  }
+
+  return { W, H, rooms, corridors, packs, chests, altars, stairs, startX, startY, decals, props, secret, traps, traproom, shrines };
 }
 const ALTAR_KINDS = ["blood", "bone", "ash"];
 const EVENT_ROOMS = ["lair", "treasure", "curse"];   // V-257 ① 사건 방 셋(층마다 랜덤 하나)

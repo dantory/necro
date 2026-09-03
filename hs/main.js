@@ -46,7 +46,8 @@ const CHEST_OPEN_R = 78;
 //   두 곳을 같이 내린다: **배율 1.5→1.15** (시야가 1008×575 → 1315×750 으로 30% 넓어져
 //   「무리를 보고 다가간다」가 생긴다) + **모든 몸 ×0.72**. 사람이 화면의 10% 가 된다.
 //   V-148 이 이 배율로 막았던 「새까만 여백」은 V-206 의 카메라 클램프가 이미 막는다.
-const Z = 1.15;               // 월드→화면 배율. 방을 화면에 채운다 (V-148 A)
+const Z_BASE = 1.15;          // 기준 배율 — __CAMROOM 줌이 이 위에서만 논다.
+let Z = Z_BASE;               // 월드→화면 배율(라이브). 방을 화면에 채운다 (V-148 A) · V-274 ② 방이 화면보다 작으면 살짝 당겨 채운다 — 모든 Z 소비처(변환·마우스·히트박스·컬링)가 이 값을 라이브로 읽어 한 프레임 안에서 어긋나지 않는다.
 const BASE_HP = 3315, BASE_MANA = 2286, BASE_SPD = 268, SPEAR_CD = 0.16;
 const BASE_SLOTS = 8;   // V-186 — 자리 밑값. 위로 「군세」 스킬 자리 노드가 쌓인다.
 // ★★ V-202b — 저울에 «천장»을 세운다. 여태 빌드 방울(바닥에 떨어지는 «자리 +2»·«소환수 피해 ×1.3»)이
@@ -722,6 +723,7 @@ function start(floor, carry, town) {
   G = fresh(floor, carry, town);
   G.blockProps = G.props.filter((pr) => BLOCK_IMGS.has(pr.img));
   window.G = G; window.cam = cam; window.HSZ = Z; window.SKEL_TIERS = SKEL_TIERS;
+  window.__liveZ = () => Z;   // V-274 ② HSZ 는 시작값(1.15) 스냅샷 — 컷 자가 «지금» 줌을 재게 라이브 Z 를 준다.
   window.recalc = recalc;   // 검수기가 «실제 문»으로 스탯을 다시 세우게 (V-182b)
   window.toggleChar = toggleChar;   // 검수기가 창을 열게(찍기는 창의 + 단추 실클릭으로)
   window.spendAttr = spendAttr; window.spendSkill = spendSkill;   // V-226 자가 «번 점수»를 실제 문으로 쓰게
@@ -763,6 +765,10 @@ function start(floor, carry, town) {
   window.__springTrap = (kind) => { const t = (G.traps || []).find((q) => (!kind || q.kind === kind) && !q.sprung); if (t) springTrap(t, false); return t || null; };
   window.__addTrap = (kind, dy = 70) => { const t = { x: G.player.x, y: G.player.y - dy, kind, sprung: false, r: 26 }; (G.traps || (G.traps = [])).push(t); cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return { x: Math.round(t.x), y: Math.round(t.y), kind }; };
   window.__traproomInfo = () => G.traproom ? { x: Math.round(G.traproom.x), y: Math.round(G.traproom.y), traps: (G.traps || []).filter((t) => t.room).length, chest: !!(G.traproom.chest && !G.traproom.chest.opened) } : null;
+  window.__shrineInfo = () => (G.shrines || []).map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), type: s.type, used: !!s.used }));   // V-274 ⑤ 컷·자용 실제 문
+  window.__toShrine = (type) => { const s = (G.shrines || []).find((q) => (!type || q.type === type) && !q.used); if (s) { G.player.x = s.x; G.player.y = s.y + 44; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); } return s ? { x: Math.round(s.x), y: Math.round(s.y), type: s.type } : null; };
+  window.__useShrine = () => useShrineNear();
+  window.__buffInfo = () => G.shrineBuff ? { type: G.shrineBuff.type, left: Math.max(0, G.shrineBuff.until - gameTime), dmgMul: G.player.dmgMul, slots: G.player.slots, spd: Math.round(G.player.spd), goldMul: +G.player.goldMul.toFixed(2) } : null;
   window.__toTrapRoom = (edge) => { const tr = G.traproom; if (!tr) return null; const rm = tr.room; G.player.x = edge ? rm.x + 40 : tr.x; G.player.y = edge ? rm.cy : tr.y + 120; rm.visited = true; bigDirty = true; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return window.__traproomInfo(); };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
   window.__buyGemTown = buyGemTown; window.__buyPotionTown = buyPotionTown;
@@ -1046,6 +1052,19 @@ function stepPlayer(dt) {
     else { p.townCast -= dt; if (p.townCast <= 0) { p.townCast = 0; goTown(); return; } }
   }
 
+  // V-274 ② __CAMROOM 줌 — 사람이 «든 방»이 화면보다 작으면 살짝 당겨 방이 화면을 채운다(죽은 벽 면적을 줄인다).
+  //   방 하나(사람 든 방)를 기준으로 min(VW/방폭,VH/방높이) 만큼(여유 CAM_MARGIN) 당긴다 — 방을 통째로 보이게(fit)·상한 1.6·하한 Z_BASE.
+  //   복도(방 밖)면 줌 없음. 방>화면이면 Z_BASE. lerp 로 부드럽게. clamp(아래 localBounds)가 함께 방을 화면 안으로 물린다. __CAMROOM=false → Z_BASE 고정.
+  let vzTarget = Z_BASE;
+  if (globalThis.__CAMROOM !== false && !G.town && G.rooms) {
+    let rm = null;
+    for (const r of G.rooms) if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) { rm = r; break; }
+    if (rm) {
+      const rw = rm.w + CAM_MARGIN * 2, rh = rm.h + CAM_MARGIN * 2;
+      vzTarget = Math.max(Z_BASE, Math.min(1.6, Math.min(VW / rw, VH / rh)));
+    }
+  }
+  Z += (vzTarget - Z) * Math.min(1, dt * 6);
   const vw = VW / Z, vh = VH / Z;
   let tcx = p.x - vw / 2, tcy = p.y - vh / 2;
   // V-273 ④ __CAMROOM — 화면 절반이 방 밖 벽이던 것을, 사람 든 walkable 덩어리(방+복도) bbox 안으로 카메라를 물려 방을 끌어온다.
@@ -1088,7 +1107,7 @@ function handleSkills() {
   }
   if (potionOn) { if (keys.has("p") && !p._p) { p._p = true; buyPotion(); } if (!keys.has("p")) p._p = false; }
   if (globalThis.__GEM !== false) { if (keys.has("j") && !p._j) { p._j = true; buyGem(); } if (!keys.has("j")) p._j = false; }
-  if (keys.has("e") && !p._e) { p._e = true; corpseNova(); } if (!keys.has("e")) p._e = false;
+  if (keys.has("e") && !p._e) { p._e = true; if (!useShrineNear()) corpseNova(); } if (!keys.has("e")) p._e = false;
   if (keys.has("v") && !p._v) { p._v = true; if (globalThis.__BONEWALL !== false) corpseWall(); } if (!keys.has("v")) p._v = false;
   if (keys.has("r") && !p._r) { p._r = true; if (!G.dead && globalThis.__FEED !== false) corpseFeed(); } if (!keys.has("r")) p._r = false;
   if (keys.has("g") && !p._gg) { p._gg = true; if (globalThis.__GOLEM !== false && globalThis.__MINIONKIND !== false) raiseGolem(); } if (!keys.has("g")) p._gg = false;
@@ -2309,6 +2328,74 @@ function hitTrap(x, y) {   // 뼈창이 함정 위를 지나면 미리 터뜨린
   }
   return false;
 }
+// ── V-274 ⑤ 신전(__SHRINE) — 「얻는 쪽」. 다가가 E 로 쓰면 시간제 축복(네 갈래). 한 번 쓰면 꺼진다. 층 넘어가면 축복도 끊긴다(G 재생성).
+const SHRINE_BONE_SLOTS = 5;
+const SHRINE_USE_R = 66;
+const SHRINE_INFO = {
+  blood: { name: "피의 신전", col: "#c33222", glow: "#ff6a48", desc: "피해 ×1.5" },
+  bone:  { name: "뼈의 신전", col: "#b8b2a0", glow: "#f4ecd6", desc: "소환 자리 +" + SHRINE_BONE_SLOTS },
+  swift: { name: "재빠름의 신전", col: "#2f9cb0", glow: "#68e2f2", desc: "이동·공격 속도 ↑" },
+  greed: { name: "탐욕의 신전", col: "#b8891f", glow: "#ffd24a", desc: "금·드랍 ↑" },
+};
+const SHRINE_DUR = { blood: 45, bone: 60, swift: 35, greed: 50 };
+function useShrineNear() {
+  if (globalThis.__SHRINE === false || !G.shrines || G.town) return false;
+  const p = G.player;
+  for (const sc of G.shrines) {
+    if (sc.used) continue;
+    if ((p.x - sc.x) ** 2 + (p.y - sc.y) ** 2 > SHRINE_USE_R * SHRINE_USE_R) continue;
+    sc.used = true;
+    G.shrineBuff = { type: sc.type, until: gameTime + (SHRINE_DUR[sc.type] || 45) };
+    recalc();
+    const info = SHRINE_INFO[sc.type];
+    floatNote(info.name + " — " + info.desc, info.glow, 1.6);
+    for (let i = 0; i < 18; i++) burst(sc.x, sc.y - 20, info.glow, 150);
+    cam.shake = Math.max(cam.shake, 5);
+    return true;
+  }
+  return false;
+}
+function shrineGreedMul() { return (G.shrineBuff && G.shrineBuff.type === "greed") ? 1.5 : 1; }
+function drawShrines() {   // 절차적 그림(캔버스) — 기둥/대야 + 갈래별 색 빛. 쓰면 빛이 꺼지고 결이 식는다.
+  if (globalThis.__SHRINE === false || !G.shrines || G.town) return;
+  const now = nowMs();
+  for (const sc of G.shrines) {
+    const info = SHRINE_INFO[sc.type], x = sc.x, y = sc.y;
+    ctx.save();
+    ctx.globalAlpha = 0.32; ctx.fillStyle = "#000";
+    ctx.beginPath(); ctx.ellipse(x, y + 6, 24, 9, 0, 0, 6.283); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = sc.used ? "#3a352c" : "#4c4838"; ctx.fillRect(x - 12, y - 40, 24, 44);
+    ctx.fillStyle = sc.used ? "#2c281f" : "#5c5644"; ctx.fillRect(x - 19, y - 4, 38, 10);
+    ctx.fillStyle = sc.used ? "#332f26" : "#6c6652"; ctx.fillRect(x - 17, y - 47, 34, 9);
+    if (!sc.used) {
+      const pulse = 0.55 + 0.45 * Math.abs(Math.sin(now / 420));
+      const gr = ctx.createRadialGradient(x, y - 54, 2, x, y - 54, 48);
+      gr.addColorStop(0, info.glow); gr.addColorStop(0.42, info.col); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.9 * pulse; ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(x, y - 54, 48, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = pulse; ctx.fillStyle = info.glow;
+      ctx.beginPath(); ctx.ellipse(x, y - 56, 6, 12 + 4 * pulse, 0, 0, 6.283); ctx.fill();
+    } else {
+      ctx.globalAlpha = 0.55; ctx.fillStyle = "#241f18";
+      ctx.beginPath(); ctx.arc(x, y - 51, 6, 0, 6.283); ctx.fill();
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+}
+function drawShrineBuff() {   // 화면 위 HUD — 남은 축복 시간(갈래 색 + 줄어드는 띠). 스크린 좌표(월드 변환 밖).
+  const b = G.shrineBuff; if (!b) return;
+  const info = SHRINE_INFO[b.type]; if (!info) return;
+  const left = Math.max(0, b.until - gameTime), full = SHRINE_DUR[b.type] || 45;
+  const w = 200, h = 22, x = VW / 2 - w / 2, y = 74;
+  ctx.save(); ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.globalAlpha = 0.72; ctx.fillStyle = "#0c0906"; ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = 0.9; ctx.fillStyle = info.col; ctx.fillRect(x, y, w * Math.min(1, left / full), h);
+  ctx.globalAlpha = 1; ctx.strokeStyle = info.glow; ctx.lineWidth = 1.4; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = "#f0e8d4"; ctx.font = "13px 'Times New Roman',serif";
+  ctx.fillText(info.name + "  " + Math.ceil(left) + "s", x + 8, y + h / 2 + 1);
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 // 뼈 우리(뼈 왕)는 사람만 막는다(가두는 함정) — 적·소환수는 지난다. 사람 이동만 walkableP 로 판정한다.
 //   V-232 — 사람이 세운 뼈벽(b.foe)은 그 반대다. bonesBlock 은 b.foe 를 건너뛰어 사람은 제 벽을 지나고,
 //   foeWallBlock 이 stepTo(적·소환수 이동) 한 자리에서 b.foe 만 막는다. unstick(walkable)은 안 건드려
@@ -2773,7 +2860,7 @@ function dropLoot(m) {
     G.items.push({ x: m.x, y: m.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, item: it, t: 0 });
     if (uniqueOn() && Math.random() < MYTHIC_BOSS_CHANCE) dropItemAt(m.x + 54, m.y + 22, rollMythic(G.floor));   // V-241 — 주인은 규칙형 유니크도 · V-242 ③ 두 물건을 떼어 놓아 바닥 이름표가 안 겹치게
   }
-  const dm = (G.pact && G.pact.dropMul) || 1;
+  const dm = ((G.pact && G.pact.dropMul) || 1) * shrineGreedMul();   // V-274 ⑤ 탐욕의 신전 — 금 드랍량 ×1.5(goldMul 은 recalc 에서 ×1.6 따로)
   const goldMul = (G.player.uniques.has("goldRush") ? 2 : 1) * G.player.goldMul * dm;
   const gn = Math.round((m.gold[0] + ((Math.random() * (m.gold[1] - m.gold[0] + 1)) | 0)) * goldMul);
   const grains = Math.min(3, Math.max(1, Math.round(gn / 30)));
@@ -2890,6 +2977,13 @@ function recalc() {
     if (G.pact.dmgMul) { p.dmgMul *= G.pact.dmgMul; p.minionMul *= G.pact.dmgMul; }
     if (G.pact.hpMul) p.maxhp = Math.round(p.maxhp * G.pact.hpMul);
     if (G.pact.goldMul) p.goldMul *= G.pact.goldMul;
+  }
+  if (G.shrineBuff) {   // V-274 ⑤ 신전 축복(시간제) — 이 문 끝에서 얹어 누수 0(recalc 매번 처음부터·G.pact 와 같은 자리). 층 바뀌면 G 재생성으로 사라진다.
+    const b = G.shrineBuff.type;
+    if (b === "blood") { p.dmgMul *= 1.5; p.minionMul *= 1.5; }
+    else if (b === "bone") p.slots += SHRINE_BONE_SLOTS;
+    else if (b === "swift") { p.spd *= 1.28; p.atkCd /= 1.28; }
+    else if (b === "greed") p.goldMul *= 1.6;
   }
   p.sets = setBonuses(eq, p);   // V-267 세트 짝 보너스 — 이 문 끝에서 얹어 누수 0(V-239 배수와 같은 자리). 3점 규칙은 p.uniques 에 더해 옛 유니크 경로로 편다.
   if (p.hp > p.maxhp) p.hp = p.maxhp;
@@ -3315,6 +3409,7 @@ function drawWorld() {
   }
   drawHazards();   // V-230 — 독 장판·예고는 바닥 위, 배우 밑
   drawTraps();     // V-270 ① 바닥 함정의 «결» — 빛 반경 안에서만(밟기 전에도 보인다·drawSecretWall 결)
+  drawShrines();   // V-274 ⑤ 신전 — 기둥/대야 + 갈래별 색 빛(월드 좌표)
   drawBossTele();
   drawMobTele();
   PROF.seg("terrain");
@@ -3491,6 +3586,7 @@ function drawWorld() {
   drawItems();
   drawFloats();
   drawZoneTitle();    // V-247 — 구간 첫 진입 시 화면 가운데 지역 이름(주인 배너보다 아래 z)
+  drawShrineBuff();   // V-274 ⑤ 신전 축복 남은 시간(화면 위 HUD)
   drawBossBanner();   // V-230 — 주인 이름은 창·연출보다 위(들어설 때 한 번)
   PROF.seg("overlay");
 }
@@ -3783,9 +3879,10 @@ function bannerBandY() {
   if (globalThis.__TITLEFIX === false) return null;
   if (globalThis.__TITLEFIX2 !== false && bigOpen) return null;
   if (G.bossBanner && globalThis.__BOSSNAME === false) { const cy = VH * 0.26; return [cy - 40, cy + 44]; }
-  if (G.zoneBanner) { const cy = VH * 0.34; return [cy - 48, cy + 36]; }
+  if (G.zoneBanner) { const cy = zoneTitleY(); return [cy - 48, cy + 36]; }
   return null;
 }
+function zoneTitleY() { return globalThis.__FLOORTITLE !== false ? VH * 0.13 : VH * 0.34; }   // V-274 ③ 층 제목을 방 한가운데(0.34)에서 화면 위(0.13)로 올려 방 안 물건·적·함정을 안 가린다. __FLOORTITLE=false → 옛 가운데.
 function drawBossBanner() {   // 들어설 때 한 번 — 이름을 화면 가운데 크게
   const bn = G.bossBanner; if (!bn) return;
   if (titleHidden()) return;   // V-270 ㉠ · V-271 ㉱
@@ -3804,7 +3901,7 @@ function drawZoneTitle() {   // V-247 — 구간 첫 진입 배너(D2 결): 이�
   const zb = G.zoneBanner; if (!zb) return;
   if (titleHidden()) return;   // V-270 ㉠ · V-271 ㉱
   const a = zb.t < 0.4 ? zb.t / 0.4 : zb.t > 2.0 ? Math.max(0, (2.8 - zb.t) / 0.8) : 1;
-  const cy = VH * 0.34;
+  const cy = zoneTitleY();
   ctx.save(); ctx.globalAlpha = a; ctx.textAlign = "center";
   // V-248 (b) — 배너가 우리뼈·소품 위에 맨글자로 겹쳐 읽히던 것 → 가로로 사그라드는 어두운 밑띠를 깔아 «UI 한 겹»으로 분리한다.
   ctx.font = "42px 'Times New Roman',serif";
@@ -5288,15 +5385,35 @@ function drawTrapMarkPixel(t, vis) {
     for (let i = 0; i < 5; i++) ctx.fillRect(Math.round((rr(i) - 0.5) * 24), Math.round((rr(i + 3) - 0.5) * 15), P, P);
     if (t.armed && !t.disarmed) { ctx.globalAlpha = vis * (0.3 + 0.3 * Math.abs(Math.sin(nowMs() / 300))); ctx.fillStyle = "#c8461e"; ctx.fillRect(-P, -P, P * 2, P * 2); }
   } else if (t.kind === "fall") {
-    ctx.globalAlpha = vis * 0.72;
-    for (let gy = -16; gy <= 16; gy += P) for (let gx = -16; gx <= 16; gx += P) {
-      const d = Math.sqrt(gx * gx + gy * gy); if (d > 16) continue;
-      if (t.sprung) { ctx.fillStyle = "#000000"; ctx.fillRect(gx, gy, P, P); continue; }
-      if (d > 8 && rr(gx * 5 + gy * 11) < 0.5) continue;
-      ctx.fillStyle = d < 7 ? "#080605" : "#1a1410"; ctx.fillRect(gx, gy, P, P);
+    if (globalThis.__TRAPFALL_LOOK !== false) {   // V-274 ① 눈에 띄는 «금 간 사각 + 꺼진 중앙 그림자» — 흙/재빛(노랑·쇳빛·초록·보라·주황과 안 겹침). __TRAPFALL_LOOK=false → 옛(V-273) 어두운 원반.
+      if (t.sprung) {
+        ctx.globalAlpha = vis; ctx.fillStyle = "#000000";
+        for (let gy = -15; gy <= 15; gy += P) for (let gx = -15; gx <= 15; gx += P) if (Math.max(Math.abs(gx), Math.abs(gy)) <= 15) ctx.fillRect(gx, gy, P, P);
+        ctx.globalAlpha = vis * 0.9; ctx.fillStyle = "#4a3b2a";
+        for (let g = -18; g <= 18; g += P) { ctx.fillRect(g, -18, P, P); ctx.fillRect(g, 15, P, P); ctx.fillRect(-18, g, P, P); ctx.fillRect(15, g, P, P); }
+      } else {
+        ctx.globalAlpha = vis * 0.92; ctx.fillStyle = "#4a3b2a";
+        for (let g = -18; g <= 18; g += P) { ctx.fillRect(g, -18, P, P); ctx.fillRect(g, 18, P, P); ctx.fillRect(-18, g, P, P); ctx.fillRect(18, g, P, P); }
+        ctx.globalAlpha = vis * 0.6; ctx.fillStyle = "#6a5638";
+        for (let g = -15; g <= 15; g += P) { ctx.fillRect(g, -15, P, P); ctx.fillRect(g, 15, P, P); ctx.fillRect(-15, g, P, P); ctx.fillRect(15, g, P, P); }
+        for (let gy = -12; gy <= 12; gy += P) for (let gx = -12; gx <= 12; gx += P) {
+          const d = Math.max(Math.abs(gx), Math.abs(gy)); if (d > 12) continue;
+          ctx.globalAlpha = vis * (0.9 - d / 20); ctx.fillStyle = d < 5 ? "#0a0806" : d < 9 ? "#181109" : "#241a10"; ctx.fillRect(gx, gy, P, P);
+        }
+        ctx.globalAlpha = vis * 0.85; ctx.fillStyle = "#0e0a06";
+        for (let k = 5; k <= 15; k += P) { ctx.fillRect(k, Math.round(k * 0.15 / P) * P, P, P); ctx.fillRect(-k, Math.round(k * 0.12 / P) * P, P, P); ctx.fillRect(Math.round(k * 0.2 / P) * P, k, P, P); ctx.fillRect(Math.round(k * 0.18 / P) * P, -k, P, P); }
+      }
+    } else {
+      ctx.globalAlpha = vis * 0.72;
+      for (let gy = -16; gy <= 16; gy += P) for (let gx = -16; gx <= 16; gx += P) {
+        const d = Math.sqrt(gx * gx + gy * gy); if (d > 16) continue;
+        if (t.sprung) { ctx.fillStyle = "#000000"; ctx.fillRect(gx, gy, P, P); continue; }
+        if (d > 8 && rr(gx * 5 + gy * 11) < 0.5) continue;
+        ctx.fillStyle = d < 7 ? "#080605" : "#1a1410"; ctx.fillRect(gx, gy, P, P);
+      }
+      if (!t.sprung) { ctx.globalAlpha = vis * 0.5; ctx.fillStyle = "#2a2018";
+        for (let a = 0; a < 6.283; a += 0.9) ctx.fillRect(Math.round(Math.cos(a) * 15 / P) * P, Math.round(Math.sin(a) * 15 / P) * P, P, P); }
     }
-    if (!t.sprung) { ctx.globalAlpha = vis * 0.5; ctx.fillStyle = "#2a2018";
-      for (let a = 0; a < 6.283; a += 0.9) ctx.fillRect(Math.round(Math.cos(a) * 15 / P) * P, Math.round(Math.sin(a) * 15 / P) * P, P, P); }
   } else {
     const abar = hue ? "#a066d6" : "#c8b048", arune = hue ? "#8a54c0" : "#a98f3a", asprung = hue ? "#5a4a6a" : "#6a5a3a";
     ctx.globalAlpha = vis * 0.72; ctx.fillStyle = t.sprung ? asprung : abar;
@@ -6426,6 +6543,11 @@ function mapIcon(rctx, kind, cx, cy, s) {
       poly([[cx, cy - s], [cx + s, cy], [cx, cy + s], [cx - s, cy]]); done("#a02818", "#280805");
       rctx.fillStyle = "#ffcf5a"; rctx.beginPath(); rctx.arc(cx, cy, Math.max(1, s * 0.34), 0, 6.283); rctx.fill(); break;
     }
+    case "shrine": {                     // V-274 ⑤ 신전 — 청록 빛(대야) + 돌 받침(제단 ✚·상자 점과 안 겹치게)
+      rctx.fillStyle = "#6fe0d0"; rctx.beginPath(); rctx.arc(cx, cy - s * 0.28, s * 0.6, 0, 6.283); rctx.fill();
+      rctx.fillStyle = "#c8c0a0"; rctx.fillRect(cx - s * 0.72, cy + s * 0.46, s * 1.44, s * 0.5);
+      rctx.strokeStyle = "#0e2a2a"; rctx.lineWidth = Math.max(1, s * 0.2); rctx.strokeRect(cx - s * 0.72, cy + s * 0.46, s * 1.44, s * 0.5); break;
+    }
     case "chest":                        // 작은 점 — 사건방보다 낮게
       rctx.fillStyle = "#e8b840"; rctx.beginPath(); rctx.arc(cx, cy, Math.max(1.3, s * 0.46), 0, 6.283); rctx.fill(); break;
     case "mycorpse":                     // ✖ 내 시체 — 푸른빛
@@ -6490,6 +6612,10 @@ function renderMapStatic(rctx, sx, sy, ox, oy, big) {
     if (icons) mapIcon(rctx, "traproom", X(G.traproom.x), Y(G.traproom.y), isz);
     else { const d = big ? 5 : 3; rctx.fillStyle = "#a02818"; rctx.save(); rctx.translate(X(G.traproom.x), Y(G.traproom.y)); rctx.rotate(Math.PI / 4); rctx.fillRect(-d, -d, d * 2, d * 2); rctx.restore(); }
   }
+  if (globalThis.__SHRINE !== false && G.shrines) for (const sc of G.shrines) {   // V-274 ⑤ 신전 표식 — 쓴 것은 흐리게
+    if (icons) { if (sc.used) rctx.globalAlpha = 0.4; mapIcon(rctx, "shrine", X(sc.x), Y(sc.y), isz); rctx.globalAlpha = 1; }
+    else { rctx.fillStyle = sc.used ? "#4a6a66" : "#6fe0d0"; rctx.beginPath(); rctx.arc(X(sc.x), Y(sc.y), big ? 4.4 : 2.6, 0, 6.283); rctx.fill(); }
+  }
   if (G.stairs) {   // 계단(마을 문 포함)
     if (icons) mapIcon(rctx, "stairs", X(G.stairs.x), Y(G.stairs.y), isz);
     else { rctx.fillStyle = "#7fe6a0"; rctx.beginPath(); rctx.arc(X(G.stairs.x), Y(G.stairs.y), big ? 5 : 3, 0, 6.283); rctx.fill(); }
@@ -6530,6 +6656,7 @@ function drawBigLegend(rctx, W, H) {
   icon("stairs", "계단"); icon("treasure", "보물방"); icon("lair", "소굴");
   icon("curseAltar", "저주 제단"); icon("boneAltar", "뼈 제단"); icon("merchant", "상인"); icon("chest", "상자");
   if (globalThis.__TRAPROOM !== false && G.traproom) icon("traproom", "함정 방");
+  if (globalThis.__SHRINE !== false && G.shrines && G.shrines.length) icon("shrine", "신전");
   if (globalThis.__CORPSERUN !== false && G.corpse) icon("mycorpse", "내 시체");
   if (three) { swatch("rgba(170,136,80,0.8)", "안 치운 방"); swatch("rgba(96,164,120,0.85)", "치운 방");
     items.push({ label: "적", g: (cx, cy) => { rctx.fillStyle = "#c8443a"; rctx.beginPath(); rctx.arc(cx, cy, 4, 0, 6.283); rctx.fill(); } }); }
@@ -6553,7 +6680,7 @@ function drawBigLegend(rctx, W, H) {
 function drawBigCache(g) {
   bigCache.width = g.W; bigCache.height = g.H;
   bcctx.clearRect(0, 0, g.W, g.H);
-  bcctx.fillStyle = globalThis.__BIGMAPDIM !== false ? "rgba(3,2,2,0.95)" : "rgba(6,4,4,0.82)"; bcctx.fillRect(0, 0, g.W, g.H);
+  bcctx.fillStyle = globalThis.__MAPOPAQUE !== false ? "#050303" : (globalThis.__BIGMAPDIM !== false ? "rgba(3,2,2,0.95)" : "rgba(6,4,4,0.82)"); bcctx.fillRect(0, 0, g.W, g.H);   // V-274 ④ 전체지도 판을 불투명하게 덮어 뒤 HUD 글자가 안 비치게(V-270 흠 ㉱). __MAPOPAQUE=false → 옛 반투명(0.95).
   renderMapStatic(bcctx, g.s, g.s, g.ox, g.oy, true);
   const title = G.town ? "전체 지도 — 마을" : `전체 지도 — 지하 ${G.floor}층`;
   bcctx.font = "20px 'Times New Roman',serif"; bcctx.textAlign = "left"; bcctx.textBaseline = "top";
@@ -6613,6 +6740,7 @@ function loop(now) {
       if (G.zoneBanner.t > 2.8) G.zoneBanner = null;
     }
     for (const e of G.pickLog) e.t -= dt;
+    if (G.shrineBuff && gameTime > G.shrineBuff.until) { G.shrineBuff = null; recalc(); floatNote("축복이 식었다", "#9a8a6a", 1.2); }   // V-274 ⑤ 시간제 축복 만료 — recalc 가 처음부터 다시 세워 버프가 빠진다(누수 0)
   } else { handleSkills(); }
   cam.shake *= 0.86; if (cam.shake < 0.4) cam.shake = 0;
   flash = Math.max(0, flash - dt * 1.4);
