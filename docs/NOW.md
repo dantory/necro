@@ -10,6 +10,17 @@
 > (「… 착수 · 검증 전」 커밋은 근거가 아니다 — 그건 네가 이어서 끝내야 할 표시다).
 > 「지켜보겠다 · 중복을 피하겠다 · 다음에 검증하겠다」로 끝나는 턴 = 실패한 판.
 
+## ✔ 끝난 판: V-280 — 13:00 감시 흠 넷(㉮㉯㉰㉱) + 바닥 타일 둘(crypt·sanctum) (2026-09-03)
+13:00 감시가 V-278 컷 여덟을 직접 열어 흠 넷을 넘겼다. 만진 곳 `hs/main.js`(그리기)+`assets/floor/{crypt,sanctum}_tile.png`(에셋 교체). **새 자 파일 없음**(베이커 `tmp/hs_v280_cut.mjs`·타일 자 `tmp/hs_v280_{tilemeas,tilepreview,floor}.mjs`·지문 `tmp/_v276_fp.mjs`·되돌림 `assets/floor/_pre_v280/`). 코드 커밋 `6c35bc6`.
+- **㉮ `__ROLLGLOW`** — 구르는 중 노란 «사람 실루엣» 색면(rim 이 변형 전 선 자세로 그려짐)을, rim 을 구르기 회전/squash 변환 «안»에서 떠 기운 몸을 따라가게. 속은 몸이 덮어 **테두리만**·알파 0.4 로 바닥 비침. 컷 `rollglow_mid`(속 찬 노란 덩어리 **0**)·`rollglow_mid_off`(옛 색면 — 서 있는 노란 실루엣 보임)·`rollglow_end`(끝 반짝 유지). `__ROLLGLOW=false` → 옛(V-278) 꼴.
+- **㉯ `__ROLLDUST`** — 먼지가 컷에 한 점도 안 보이던 것(흙빛이 바닥색과 겹침)을 **어두운 긁힘 + 옅은 먼지 두 톤 + 경로 자국**으로 어떤 바닥에서도 읽히게(정지 컷에서도 「굴렀다」가 읽힘). 컷 `rolldust`(+`_crop3`). `__ROLLDUST=false` → 옛(V-278) 작은 흙빛 점 다섯.
+- **㉰ `__HOLEDEPTH`** — 발사구가 벽과 안 갈리던(잿빛 홈) 것에 **깊이**(순검정 속·위 안쪽 밝은 테·아래 그림자 턱·화로 불빛 은은한 테 반짝). 꽂힌 화살은 바닥에 누운 듯하던 것을 **벽면에 박히게**(기울임 없음·촉이 벽 속·박힌 자리 부스러기+벽 그림자). 컷 `hole_depth`(+`_crop3`)·`stuck_wall`(+`_crop3`). `__HOLEDEPTH=false` → 옛(V-278) 꼴.
+- **㉱ 짝 컷 화소차 잣대** — md5 만으로는 「눈으로 같은 그림」을 못 걸러 베이커 안에 `PXDIFF`(브라우저 안 getImageData 화소차%·`tools/` 새 자 없음)를 두고, 짝 컷은 **바뀐 화소 ≥3%**: **rollglow off↔on 6.83% · rolldust off↔on 7.36% · hole_depth off↔on 15.45%**(다 통과). 처음엔 hole 을 240px 상자로 재 0.71% 였으나 구멍(~18px)이 너무 작아 상자를 좁혀 다시 잼.
+- **⑤ 바닥 타일** — V-272 남은 넷 중 **crypt·sanctum 둘 적용**(PixelLab `create_tiles_pro` **style_images 에 rot 타일**을 주고 색은 각 지역 것·`color_palette:false`). crypt 무늬 **8.9→28.6**(mean 42→45·안 밝아짐) · sanctum **7.4→31.2**(mean 59→39·어두워짐·「어둠의 성소」답게) — 둘 다 **sd≥25**. 컷 `floor_{crypt,sanctum}_{before,after}` 직접 열어 봄: 격자 안 보임(`buildFloorPat` 4×4 회전이 이음매를 흩음 — bone 이 이음매 58 이어도 통과한 그 이치)·crypt 는 또렷한 판석·sanctum 은 금빛 알갱이 돌바닥. 콘솔 오류 0.
+- 되돌림 지문: **genFloor 무접촉**(㉮㉯㉰ 는 그리기·⑤ 는 에셋 PNG 교체) → F1/3/5/10/30 **byte-동일**(4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359).
+- 회귀(있는 자로만): `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000/820) · `hs_v219_foeshot` **frame p95 1.7ms·오류 0·에셋 100%·쏜화살 271**. 컷 직접 열어 봄·콘솔 오류 **0**·`md5 -q tmp/hs_v280_*.png|sort|uniq -d` **비었음**.
+- **못 한 것**: **⑤ blood·abyss 못 함.** style_images 로 굽되 blood(무늬 14)·abyss(무늬 10)는 **sd<25**(목표 미달·현재 7.0/9.3 보다는 낫지만 「무늬」로 안 읽힘) — crypt(28)은 이음매 58 이나 4×4 회전이 흩어 통과, blood/abyss 는 무늬 자체가 옅어 억지로 안 넣음(브리프 「나쁘면 옛것을 둔다」). 남은 둘은 다음 판 — 씨앗·프롬프트를 바꾸거나(대비·알갱이 더) shape mode segmentation 재시도.
+
 ## ✔ 끝난 판: V-278 — 12:30 감시 흠 넷(㉮㉯㉰㉱) (흠 넷 닫음 2026-09-03 · ⑤ 바닥 타일은 못 함)
 12:30 감시가 V-277 컷 열 장을 직접 열어 통과 판정하고 흠 넷을 넘겼다. 만진 곳 `hs/`(main.js·hud.css). **새 자 파일 없음**(베이커 `tmp/hs_v278_cut.mjs`·지문은 있는 것 `tmp/_v276_fp.mjs` 되씀). ★ 이 판은 V-279 워커와 **한 브라우저(:9333)를 겹쳐** 돌던 판 — 내 main.js 흠넷 코드가 V-279 커밋(`3569c24`)에 함께 실려 origin 에 올라갔고, 빠져 있던 `body.bottomread` CSS 한 줄을 `1bc8413` 로 마저 올려 완결했다.
 - **㉮ `__WARNBAND`** — 발사 예고 띠가 「각진 점선 marquee(선택 상자)」로 보이던 것을, 구멍→반대 벽 **가장자리가 흐려지는 빛 띠**로(점선 테 없앰·구멍 쪽 밝고 멀수록 옅어지는 gradient·가운데 굵고 끝 가는 마름모꼴+밝은 심지 한 겹). 임박할수록(작은 `w.cd`) **맥박이 빨라짐**(`spd=55+150*(cd/ARROW_WARN)`). 컷 `warn_band`(초반)·`warn_band_late`(발동 직전) 각진 점선 **0**. `__WARNBAND=false` → 옛(V-277) 점선 사각.
@@ -287,8 +298,9 @@ D2 카타콤 **실제 도면**(`docs/ref/d2_catacombs.png`)을 받아 읽고 적
 · 07:35 적용: **rot** 무늬 9.6→**34.9**(이음매 0.4 — 거의 seamless) · **bone** 12.4→**45.7**.
   ★ bone 은 밝기가 71.8→86.3 이고 이음매 33 이라 **화면에서 격자로 보이면 되돌린다**
     (되돌릴 것: `assets/floor/_pre_v272/`).
-· **남은 넷은 구운 것이 없다** — crypt(8.9) · blood(7.0) · abyss(9.3) · sanctum(7.4).
-  `create_tiles_pro` 로 굽되 **`style_images` 에 rot2 결을 주고**, 불투명 100% · 이음매 낮은 칸만 고른다.
+· **crypt·sanctum 은 V-280 이 적용**(crypt 8.9→28.6 · sanctum 7.4→31.2 · style_images 에 rot 타일). **남은 둘: blood(7.0) · abyss(9.3).**
+  V-280 이 style_images 로 blood/abyss 도 구웠으나 무늬 14/10 로 **sd<25** 라 안 넣었다(tmp/_gs_t5~11).
+  다음 판: 프롬프트에 대비·알갱이를 더 못박거나 shape mode segmentation 재시도 → **sd≥25** 되면 넣는다(되돌림 `assets/floor/_pre_v280/`).
 
 ## ✔ V-279 — 방·복도 밖을 «검정»으로 (2026-09-03 12:46 · **13:00 감시가 화면으로 통과 판정**)
 병수님 12:44: 「맵에서 문제는 **바깥 공간**인 거 같아, 그냥 타일 깔지 말고 **까맣게** 해」
