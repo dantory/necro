@@ -111,6 +111,11 @@ if (globalThis.__NOTESTACK === undefined) globalThis.__NOTESTACK = true;
 //   ㉩ V-237 — 장비줄 낀 칸을 레어도 색으로, 빈 칸은 흐리게(V-235 는 둘 다 밝아 컷에서 안 갈렸다).
 //      기본 켬. 끄면 V-235 동작(빈 칸 __GEARLINE 색·낀 칸 레어도 색이되 대비가 약함).
 if (globalThis.__GEARCOLOR === undefined) globalThis.__GEARCOLOR = true;
+//   ㉫ V-287 ① — UI 를 D2 결로. 좌우 큰 «구슬»(왼 체력 붉음·오른 마나 푸름·액체가 담긴 꼴)이 좌상단 가로
+//      바를 대신하고, 아래 조작을 화면 아래 가운데 한 덩어리(경험치 띠 위 + 스킬·벨트 칸)로 모은다. 지역·미니맵은
+//      우상단 그대로. HUD 는 DOM+CSS 라 틀은 CSS 로 «한 번» 그려지고 프레임마다는 폭/액체 높이만 갱신 →
+//      렉 안 늘린다(브리프 규칙). 순수 렌더/DOM(genFloor 무접촉). 끄면(globalThis.__UI=false) 옛(히어로시즈) 흩어진 UI.
+if (globalThis.__UI === undefined) globalThis.__UI = true;
 // ★ 시체 도둑 — 바닥 시체를 먹어 없앤다(이 게임의 자원을 뺏는 첫 적). 재미 판정: «먹어 없앰»을 골랐다 —
 //   되살리면 잡을 때 시체가 도로 생겨 자원이 결국 돌아오지만, 먹어 없애면 「서둘러 써라」는 압박이 곧고 세다(NOW.md 의 결).
 //   대신 도둑을 잡으면 삼킨 넋이 시체로 돌아온다(THIEF_BACK) — 그게 도둑을 «먼저 잡을» 이유(처치 보상)다.
@@ -7243,6 +7248,13 @@ function updateHUD() {
   el("hptxt").textContent = fmtPair(p.hp, p.maxhp);
   el("mpbar").style.width = barPct(100 * p.mana / p.maxmana) + "%";
   el("mptxt").textContent = fmtPair(p.mana, p.maxmana);
+  if (globalThis.__UI !== false) {
+    const oh = el("orbHPfill"), om = el("orbMPfill"), oht = el("orbHPtxt"), omt = el("orbMPtxt");
+    if (oh) oh.style.height = barPct(100 * p.hp / p.maxhp) + "%";
+    if (om) om.style.height = barPct(100 * p.mana / p.maxmana) + "%";
+    if (oht) oht.textContent = fmtPair(p.hp, p.maxhp);
+    if (omt) omt.textContent = fmtPair(p.mana, p.maxmana);
+  }
   el("lvl").textContent = p.level;
   el("gold").textContent = fmtNum(G.gold);
   const lvBase = xpForLevel(p.level), lvSpan = xpForLevel(p.level + 1) - lvBase;
@@ -7300,6 +7312,7 @@ function updateHUD() {
   document.body.classList.toggle("notestack", globalThis.__NOTESTACK !== false);   // V-237 — 집는 글 칩에 읽히는 왼쪽 테두리(어두운 바닥에서 「테두리 없이 잘린」 것처럼 보였다)
   document.body.classList.toggle("hudread", globalThis.__HUDREAD !== false);   // V-276 ㉰ 좌상단·좌하단 작은 글자를 키우고 밝힌다(1배율에서 읽히게)
   document.body.classList.toggle("bottomread", globalThis.__BOTTOMREAD !== false);   // V-278 ㉱ 아래쪽 조작 안내 뒤에 어두운 판을 깔아 1배율에서 읽히게
+  document.body.classList.toggle("d2ui", globalThis.__UI !== false);   // V-287 ① UI 를 D2 결로(좌우 구슬·아래 가운데 벨트). false → 옛 흩어진 UI
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
