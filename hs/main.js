@@ -4373,9 +4373,18 @@ function floorBase(x, y, w, h, ri) {
   if (globalThis.__FLOORMIX === false || ri == null) return;
   const m = roomMix(ri);
   if (!m || !m.pat) return;
+  // V-282 ㉯ __FLOORMIXCAP — 섞어 넣는 이웃 타일 얼룩이 어두운 바닥(abyss 등) 위에서 «밝은 격자»로
+  //   튀던 것을, 얼룩이 바닥보다 밝을 때만 알파를 줄여 「무늬」로만 남긴다(어두운 얼룩은 옛대로).
+  //   ★ 진짜 「밝은 얼룩」은 구운 타일 비네트가 아니라 이 floorMix 얼룩이었다(리뷰의 타일 비네트 진단은 근접).
+  //   __FLOORMIXCAP=false → 옛(V-281) 알파.
+  let mf = 1;
+  if (globalThis.__FLOORMIXCAP !== false) {
+    const bm = TILE_MEAN[floorTileName(G.floor)] || 40, am = TILE_MEAN[m.alt] || 40;
+    if (am > bm) mf = Math.max(0.34, 1 - (am - bm) / 60);
+  }
   ctx.fillStyle = m.pat;
-  ctx.globalAlpha = m.a; ctx.fillRect(x, y, w, h);
-  ctx.globalAlpha = m.a + 0.24;
+  ctx.globalAlpha = m.a * mf; ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = (m.a + 0.24) * mf;
   for (const sp of m.spots) {
     ctx.beginPath();
     ctx.ellipse(x + sp[0] * w, y + sp[1] * h, sp[2] * w, sp[2] * h * 0.78, 0, 0, 6.2832);
@@ -4385,6 +4394,7 @@ function floorBase(x, y, w, h, ri) {
 }
 // V-261 ① — 방마다 「이웃 결」과 얼룩 자리. 층+방 인덱스로 결정하니 프레임마다 같고 씨앗과 무관하다.
 const MIX_TILES = ["crypt_tile", "bone_tile", "rot_tile", "blood_tile", "abyss_tile", "sanctum_tile"];
+const TILE_MEAN = { crypt_tile: 45, bone_tile: 86, rot_tile: 40, blood_tile: 32, abyss_tile: 32, sanctum_tile: 40 };
 const ROOM_MIX = new Map();
 let roomMixFloor = null;
 function floorPatByName(name) {
@@ -4764,6 +4774,45 @@ function drawFootRing(x, y, w) {
   ctx.beginPath(); ctx.ellipse(x, y + ry * 0.2, rx, ry, 0, 0, 6.283); ctx.fill();
   ctx.restore(); ctx.globalAlpha = 1;
   ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: rx * Z, ry: ry * Z, col: "#96702f" });
+}
+// V-282 ㉮ __PROPRING — 소품(제단 등)의 발밑 «쨍한 순노랑 닫힌 고리»(RTS 선택 원처럼 화면에서 제일 밝아
+//   석상·불보다 먼저 눈에 들던 것)를 사람 발밑(drawFootRing)과 같은 결로 낮춘다: 채도·밝기 낮춘 던전 호박빛
+//   접지 풀(닫힌 테 없음·아래로 짙게) + 은은한 룬 맥동으로 「쓸 수 있다」만 읽힌다(밝기로 화로를 안 이긴다).
+//   ★ grep 로 확인 — 소품 중 닫힌 밝은 고리를 그리는 것은 제단(drawAltar) 하나뿐(신전=위 광원·화로=warmGlow·상자=풀).
+//   __PROPRING=false → 옛(V-281) 쨍한 순노랑 닫힌 고리.
+function drawPropPool(x, y, rr0) {
+  const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
+  if (globalThis.__PROPRING === false) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const rr = rr0 + pulse * 6;
+    const g = ctx.createRadialGradient(x, y, rr * 0.35, x, y, rr);
+    g.addColorStop(0, "rgba(248,210,110,0)");
+    g.addColorStop(0.72, `rgba(240,200,90,${0.12 + pulse * 0.14})`);
+    g.addColorStop(1, "rgba(248,214,120,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(x, y, rr, rr * 0.42, 0, 0, 6.283); ctx.fill();
+    ctx.strokeStyle = `rgba(248,222,150,${0.5 + pulse * 0.4})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y, rr * 0.8, rr * 0.42 * 0.8, 0, 0, 6.283); ctx.stroke();
+    ctx.restore(); ctx.globalAlpha = 1;
+    return;
+  }
+  const rr = rr0 + pulse * 4, ry = rr * 0.42;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(x, y + ry * 0.3, ry * 0.2, x, y + ry * 0.3, rr);
+  g.addColorStop(0, `rgba(150,112,48,${0.16 + pulse * 0.08})`);
+  g.addColorStop(0.6, `rgba(150,112,48,${0.09 + pulse * 0.05})`);
+  g.addColorStop(1, "rgba(150,112,48,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(x, y + ry * 0.15, rr, ry, 0, 0, 6.283); ctx.fill();
+  // 은은한 룬 맥동(닫힌 테 아님) — 안쪽 룬 점 넷이 숨쉬듯 밝아진다. 「쓸 수 있다」가 읽힌다.
+  ctx.globalAlpha = 0.24 + pulse * 0.24; ctx.fillStyle = "rgba(226,198,146,1)";
+  for (let i = 0; i < 4; i++) {
+    const ang = i * Math.PI / 2 + Math.PI / 4;
+    const px = x + Math.cos(ang) * rr * 0.52, py = y + Math.sin(ang) * ry * 0.66;
+    ctx.beginPath(); ctx.ellipse(px, py, 2, 1.4, 0, 0, 6.283); ctx.fill();
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 function drawShadow(x, y, w, col, lw, a) {
   groundMark(x, y, w);
@@ -5280,17 +5329,36 @@ function drawArrowStuck(s) {   // V-280 ㉰ 닿은 벽면에 박힌 화살 — �
     //   박힌 자리를 발사 반대쪽(사람 쪽)으로 16px 당겨 촉 끝이 딱 벽면 impact 에 오고 나머지(대·깃)는
     //   전부 방 쪽에 오게 한다(앞쪽 화소가 s 를 안 넘음). __STUCKFRONT=false → 옛(V-280) 자리 그대로.
     const back = globalThis.__STUCKFRONT !== false ? 16 : 0;
+    // V-282 ㉱ __STUCKDIR — 국소 +x = 날아간(=벽으로 파고든) 방향. V-281 은 촉(붉은 미늘)을 -x(방 쪽)에,
+    //   깃을 +x(벽)에 그려 화살이 벽에서 «튀어나온» 꼴이었다. 바로잡는다: 깃은 방 쪽(-x)·촉은 벽 안(+x·안 보임).
+    //   rotate 로 네 방향(상·하·좌·우 벽) 다 같은 국소 규칙을 따른다. __STUCKDIR=false → 옛(V-281) 뒤집힌 꼴.
+    const flip = globalThis.__STUCKDIR !== false;
     ctx.save(); ctx.translate(s.x - s.dx * back, s.y - s.dy * back); ctx.rotate(Math.atan2(s.dy, s.dx));
     ctx.globalAlpha = a * 0.45; ctx.fillStyle = "#000";
-    ctx.beginPath(); ctx.ellipse(8, 2, 9, 5, 0, 0, 6.283); ctx.fill();
-    ctx.globalAlpha = a * 0.8; ctx.fillStyle = "#7a6a4e";
-    ctx.fillRect(9, -6, 2, 2); ctx.fillRect(12, 3, 2, 2); ctx.fillRect(7, 7, 2, 2); ctx.fillRect(11, -2, 1.5, 1.5);
-    ctx.globalAlpha = a;
-    ctx.fillStyle = "#6a4a28"; ctx.fillRect(-24, -2.5, 32, 5);
-    ctx.fillStyle = "#8a6438"; ctx.fillRect(-24, -2.5, 32, 1.8);
-    ctx.fillStyle = "#2a2018"; ctx.fillRect(6, -2.5, 6, 5);
-    ctx.fillStyle = "#8a2c22"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, -7); ctx.lineTo(-18, -2); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = "#a8382c"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, 7); ctx.lineTo(-18, 2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(flip ? -6 : 8, flip ? 3 : 2, flip ? 11 : 9, flip ? 4 : 5, 0, 0, 6.283); ctx.fill();
+    if (flip) {
+      ctx.globalAlpha = a * 0.8; ctx.fillStyle = "#7a6a4e";
+      ctx.fillRect(7, -6, 2, 2); ctx.fillRect(10, 4, 2, 2); ctx.fillRect(8, 0, 1.5, 1.5);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "#6a4a28"; ctx.fillRect(-20, -2.5, 28, 5);
+      ctx.fillStyle = "#8a6438"; ctx.fillRect(-20, -2.5, 28, 1.8);
+      ctx.fillStyle = "#241b12"; ctx.fillRect(7, -3, 4, 6);
+      ctx.fillStyle = "#b9b3a3"; ctx.beginPath(); ctx.moveTo(4, -3.5); ctx.lineTo(12, 0); ctx.lineTo(4, 3.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#7f7969"; ctx.beginPath(); ctx.moveTo(4, 0); ctx.lineTo(12, 0); ctx.lineTo(4, 3.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#8a2c22";
+      ctx.beginPath(); ctx.moveTo(-12, -1); ctx.lineTo(-24, -6); ctx.lineTo(-21, -2.5); ctx.lineTo(-13, -0.5); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-12, 1); ctx.lineTo(-24, 6); ctx.lineTo(-21, 2.5); ctx.lineTo(-13, 0.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#5a1f18"; ctx.fillRect(-22, -1.5, 3, 3);
+    } else {
+      ctx.globalAlpha = a * 0.8; ctx.fillStyle = "#7a6a4e";
+      ctx.fillRect(9, -6, 2, 2); ctx.fillRect(12, 3, 2, 2); ctx.fillRect(7, 7, 2, 2); ctx.fillRect(11, -2, 1.5, 1.5);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = "#6a4a28"; ctx.fillRect(-24, -2.5, 32, 5);
+      ctx.fillStyle = "#8a6438"; ctx.fillRect(-24, -2.5, 32, 1.8);
+      ctx.fillStyle = "#2a2018"; ctx.fillRect(6, -2.5, 6, 5);
+      ctx.fillStyle = "#8a2c22"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, -7); ctx.lineTo(-18, -2); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#a8382c"; ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(-33, 7); ctx.lineTo(-18, 2); ctx.closePath(); ctx.fill();
+    }
     ctx.restore(); ctx.globalAlpha = 1;
     return;
   }
@@ -5627,19 +5695,7 @@ const ALTAR_STATUE_H = 150;
 function drawAltar(a) {
   groundMark(a.x, a.y, 30, 8);
   if (!a.used) {
-    const pulse = 0.5 + 0.5 * Math.sin(nowMs() / 360);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    const rr = 42 + pulse * 6;
-    const g = ctx.createRadialGradient(a.x, a.y, rr * 0.35, a.x, a.y, rr);
-    g.addColorStop(0, "rgba(248,210,110,0)");
-    g.addColorStop(0.72, `rgba(240,200,90,${0.12 + pulse * 0.14})`);
-    g.addColorStop(1, "rgba(248,214,120,0)");
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(a.x, a.y, rr, rr * 0.42, 0, 0, 6.283); ctx.fill();
-    ctx.strokeStyle = `rgba(248,222,150,${0.5 + pulse * 0.4})`; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.ellipse(a.x, a.y, rr * 0.8, rr * 0.42 * 0.8, 0, 0, 6.283); ctx.stroke();
-    ctx.restore();
+    drawPropPool(a.x, a.y, 42);
   } else if (globalThis.__ALTARSPENT !== false) {
     const pulse = 0.4 + 0.2 * Math.sin(nowMs() / 700);
     ctx.save();
