@@ -4835,6 +4835,25 @@ const DESAT_STR = 0.9;    // 화면 채도 ~36% → 12~15%; 지역 색조는 살
 const VIGN_STR  = 0.5;    // 내 둘레/불 밖을 어둠으로 (재서 정함 — 어둠 비율을 지금 값에서 크게 올리지 않게)
 const VIGN_R    = 620;    // 밝은 반경(월드px) — 한 화면에 적 무리 하나가 드는 정도 (재서 정함)
 const FIRE_STR  = 0.45;   // 불빛 세기 배수 — 채도 덮개 뒤 주황이 화면 평균 채도를 12~15%로 (재서 정함)
+// V-290 ㉠ — 우리 불은 «주황»이 아니라 «흰 얼룩»이었다(가장 밝은 0.5% 화소 채도 9.3% vs D2 53.8%·흰색 83% vs 1%).
+//   까닭: 채도 덮개(__DESAT)가 불꽃 스프라이트를 «밝은 회색»으로 씻고, 그 위에 additive warmGlow 가 겹쳐 코어가 255 백색으로 blow.
+//   고침: additive 뒤에 불자리마다 «진한 주황»을 confined multiply 로 얹는다 — 흰 코어를 R>G>B 주황으로 되돌리고(채도↑)
+//         동시에 G·B 를 곱해 내려 blow 된 휘도를 끌어내린다(밝음>110 도 준다). 반경은 불 크기만큼 좁게(바닥·halo 밖 안 건드림).
+//   ★ 채도 덮개 뒤에 걸리는 순서(V-289 ㉮)는 그대로 — multiply 도 drawFireGlow(덮개 뒤) 안에서 additive 다음에 건다.
+//   되돌림: __FIRECOLOR=false → V-289 그대로(흰 코어).
+const FIRE_MUL   = "255,190,95";  // multiply 코어 색 — R=255 지켜 휘도 보존(불이 제일 밝아 cut 높이 유지→흰 UI 가 top 에 덜 낌) · G·B 내려 hue~36°·채도~63% (재서 정함)
+const FIRE_MULR  = 0.9;           // additive 세기 배수 — 잔불(㉡)이 채도를 보태니 화면 채도 12~15 안에 들게 낮춤 (재서 정함)
+const FIRE_GLOW_P = 150;          // 사람 횃불 additive 반경 — V-289 의 250 에서 줄여 «작은 불»(D2)로: 불이 compact 해 코어가 덮기 쉽고 화면 채도가 안 넘친다 (재서 정함)
+const FIRE_GLOW_B = 90;           // 화로 additive 반경 (재서 정함)
+const FIRE_CORE_P = 138;          // 사람 횃불 코어 반경 — glow 보다 조금 작게: 밝은 꼭대기만 채도(topSat↑)·전체 채도 area 는 줄여 화면 채도 ≤15 (재서 정함)
+const FIRE_CORE_B = 88;           // 화로 코어 반경 (재서 정함)
+// V-290 ㉡ — D2 는 작은 불이 방마다 흩어져 「불이 유일한 색」이 화면 대부분에 닿는다. 우리는 화로가 셋뿐이라 안 닿았다.
+//   방마다 잔불 2~3개를 결정적 hash 로 흩는다(genFloor·전역 Math.random 무접촉 → 바닥 지문 byte-동일). 화로와 같은 결(warmGlow+fireCore)이라 채도 덮개 뒤로 걸려 주황이 남는다.
+//   되돌림: __EMBERS=false → 잔불 없음(V-289). 성능: 화면 밖 방은 건너뛰고 프레임당 상한(EMBER_CAP).
+const EMBER_GLOW = 42;            // 잔불 additive 반경 — 작게(화로보다 훨씬)·화면 채도 안 넘게 (재서 정함)
+const EMBER_CORE = 30;            // 잔불 multiply 코어 반경 (재서 정함)
+const EMBER_STR  = 0.65;          // 잔불 additive 세기 배수 — 은은하게(D2 잔불은 흐리다) (재서 정함)
+const EMBER_CAP  = 20;            // 프레임당 잔불 상한 — p95 프레임을 안 늘리게 (재서 정함)
 const knob = (v, d) => v === false ? 0 : (typeof v === "number" ? v : d);
 let _vignSprite = null;
 function vignSprite() {
@@ -4870,12 +4889,28 @@ function drawMood() {
 function drawFireGlow() {
   const p = G.player, z = curZone();
   const fs = knob(globalThis.__FIRESTR, FIRE_STR);
+  const fc = globalThis.__FIRECOLOR !== false;
+  const ar = fc ? knob(globalThis.__FMULR, FIRE_MULR) : 1;
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  warmGlow(p.x, p.y - 20, 250, z.warm * fs);   // V-289 — 사람 횃불: 반경·세기를 줄여 «방 전체 주황 워시»가 아니라 둘레만 물들게(D2 는 불이 작다).
+  const grp = knob(globalThis.__FGRP, fc ? FIRE_GLOW_P : 250), grb = knob(globalThis.__FGRB, fc ? FIRE_GLOW_B : 150);
+  warmGlow(p.x, p.y - 20, grp, z.warm * fs * ar);   // V-289 — 사람 횃불: 반경·세기를 줄여 «방 전체 주황 워시»가 아니라 둘레만 물들게(D2 는 불이 작다).
   for (const pr of G.props) {
     if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
-    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, z.warm * 2 * fs);
+    warmGlow(pr.x, pr.y - pr.h * 0.5, grb, z.warm * 2 * fs * ar);
+  }
+  const embers = emberSpots();   // V-290 ㉡ — 방마다 흩은 잔불(화로와 같은 결)
+  const eg = knob(globalThis.__EGLOW, EMBER_GLOW), estr = knob(globalThis.__ESTR, EMBER_STR);
+  for (const [ex, ey] of embers) warmGlow(ex, ey, eg, z.warm * estr * fs * ar);
+  if (fc) {   // V-290 ㉠ — additive 다음, 불자리마다 진한 주황 multiply 코어(흰 blow 를 R>G>B 주황으로 되돌리고 휘도를 내림)
+    ctx.globalCompositeOperation = "multiply";
+    fireCore(p.x, p.y - 20, knob(globalThis.__FCRP, FIRE_CORE_P));
+    for (const pr of G.props) {
+      if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
+      fireCore(pr.x, pr.y - pr.h * 0.5, knob(globalThis.__FCRB, FIRE_CORE_B));
+    }
+    for (const [ex, ey] of embers) fireCore(ex, ey, knob(globalThis.__ECORE, EMBER_CORE));
+    ctx.globalCompositeOperation = "lighter";
   }
   // V-255 ④ — 어두운 바닥에 삼켜져 «붉은 고리»만 남던 시체를 옅은 상아빛으로 들어 올린다(안 쓴 시체만·「시체가 자원」 가독). __CORPSEGLOW=false 면 옛대로.
   if (globalThis.__CORPSEGLOW !== false) for (const c of G.corpses) {
@@ -4892,6 +4927,28 @@ function warmGlow(x, y, r, a) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
   g.addColorStop(0, `rgba(240,150,60,${a})`); g.addColorStop(1, "rgba(240,150,60,0)");
   ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+function fireCore(x, y, r) {
+  const col = typeof globalThis.__FMUL === "string" ? globalThis.__FMUL : FIRE_MUL;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.7, `rgba(${col},0.82)`); g.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+function emberSpots() {
+  const out = [];
+  if (globalThis.__EMBERS === false || !G.rooms) return out;
+  for (const r of G.rooms) {
+    if (r.town || !onScreen(r.x + r.w / 2, r.y + r.h / 2, (r.w + r.h) / 2 + 80)) continue;
+    let h = (Math.imul(r.x | 0, 73856093) ^ Math.imul(r.y | 0, 19349663) ^ Math.imul(r.w | 0, 83492791)) >>> 0;
+    const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+    const k = 2 + (h & 1);
+    for (let i = 0; i < k; i++) {
+      const ex = r.x + 46 + rnd() * Math.max(1, r.w - 92);
+      const ey = r.y + 46 + rnd() * Math.max(1, r.h - 92);
+      if (onScreen(ex, ey, 70)) { out.push([ex, ey]); if (out.length >= EMBER_CAP) return out; }
+    }
+  }
+  return out;
 }
 
 function actorDir(a) { return dirName(a.dx ?? 0, a.dy ?? 1); }
