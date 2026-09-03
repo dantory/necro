@@ -1058,6 +1058,7 @@ function stepPlayer(dt) {
       const l = Math.hypot(ddx, ddy) || 1;
       p.dashDx = ddx / l; p.dashDy = ddy / l;
       p.dashT = DASH_DUR; p.dashCd = DASH_CD; cam.shake = Math.max(cam.shake, 3);
+      p.dashX0 = p.x; p.dashY0 = p.y;   // V-278 ㉰ 구르기 출발 자리(먼지 퍼프가 여기서 퍼진다)
     }
   }
   if (!keys.has(" ")) p._space = false;
@@ -2397,7 +2398,7 @@ function stepArrowWalls(dt) {
     }
     if (a.dist >= a.max) {
       a.dead = true; for (let i = 0; i < 5; i++) burst(a.x, a.y, "#8a7a5a", 90);
-      if (globalThis.__ARROWLOOK !== false) (G.arrowStuck || (G.arrowStuck = [])).push({ x: a.x, y: a.y, dx: a.dx, dy: a.dy, t: 0.5 });   // V-277 ㉯ 벽에 잠깐 꽂힌 채 남는다(어디까지 오는지 배우게)
+      if (globalThis.__ARROWLOOK !== false) { const st = globalThis.__ARROWHOLE !== false ? 2.5 : 0.5; (G.arrowStuck || (G.arrowStuck = [])).push({ x: a.x, y: a.y, dx: a.dx, dy: a.dy, t: st, t0: st }); }   // V-277 ㉯ 벽에 잠깐 꽂힌 채 남는다 · V-278 ㉯ __ARROWHOLE 이면 2.5s 로 늘려 지나가다 읽게
     }
   }
   if (G.arrows.length) G.arrows = G.arrows.filter((a) => !a.dead);
@@ -3659,7 +3660,18 @@ function drawWorld() {
 
   curFPat = floorPatFor(G.floor);          // V-204 ㉡ — 층마다 바닥이 갈린다
   if (!wallPatN) buildWallPats();           // V-204 ㉠ — 벽을 wall.png 로 (한 번만 굽는다)
-  if (bedrockPat) { ctx.fillStyle = bedrockPat; ctx.fillRect(cam.x - 64, cam.y - 64, VW / Z + 128, VH / Z + 128); }
+  // ★★ V-279 (2026-09-03 12:44 병수님 「맵에서 문제는 바깥 공간인 거 같아, 그냥 타일 깔지 말고
+  //   까맣게 해」) — **방·복도 밖을 검정으로 되돌린다.**
+  //   V-212 가 「화면의 70% 가 빈 검정」을 고치려고 암반을 깔았고, V-215 가 그 암반의 벽지
+  //   무늬를 흩었다. 그런데 그 둘이 고친 것은 **「휑하다」였지 「던전이 아니다」가 아니었다** —
+  //   밖이 무늬로 차니 **방 안과 밖의 경계가 흐려져** 어디가 걷는 자리인지 덜 읽힌다.
+  //   ★ D2 카타콤 도면(`docs/ref/d2_catacombs.png`)도 **밖이 완전한 검정**이다. 벽이 두꺼우면
+  //     그것으로 충분하고, 검정이 오히려 방을 도드라지게 한다. `docs/D2_DUNGEON.md` 에
+  //     「이건 안 가져온다」고 적어 둔 것은 **내 판단이 틀린 것**이었다.
+  //   되돌리려면 `globalThis.__BEDROCK = true`.
+  if (globalThis.__BEDROCK === true && bedrockPat) {
+    ctx.fillStyle = bedrockPat; ctx.fillRect(cam.x - 64, cam.y - 64, VW / Z + 128, VH / Z + 128);
+  }
 
   // ── 던전을 «던전으로» 그린다 — 방·복도만 바닥, 나머지는 벽/공허 (V-151 B) ──────
   // 옛 판은 화면 전체를 바닥으로 깔아 방·복도·공허가 다 같은 갈색이었다. 이제 걷는
@@ -4811,12 +4823,30 @@ function drawSetRunes(p) {
   drawSetRunesInner(p, setAuraPuls());
   ctx.restore();
 }
+function drawRollDust(p, rp) {   // V-278 ㉰ 구르기 출발 자리 먼지 퍼프 — 흙빛 점 다섯이 퍼지며 옅어진다
+  if (p.dashX0 === undefined) return;
+  const a = 0.5 * (1 - rp);
+  if (a <= 0.02) return;
+  ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = "#8a7250";
+  const spread = 6 + 22 * rp;
+  for (let i = 0; i < 5; i++) {
+    const ang = i * 1.257 + p.dashX0 * 0.7;
+    const rad = spread * (0.5 + 0.1 * (i % 5));
+    const s = Math.max(1, 3 - 2 * rp);
+    ctx.fillRect(p.dashX0 + Math.cos(ang) * rad - s / 2, p.dashY0 + 6 + Math.sin(ang) * rad * 0.5 - s / 2, s, s);
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function drawPlayer() {
   const p = G.player;
-  drawShadow(p.x, p.y, 34, "#e8cf52", 3);
+  const dashing = globalThis.__DASH !== false && p.dashT > 0;   // V-277 ⑤ 구르는 중 — 뒤로 잔상 두어 칸 + 몸이 창백하게 빛남(무적이 눈에 보이게)
+  const rollNew = dashing && globalThis.__ROLLPOSE !== false;   // V-278 ㉰ 선 자세로 미끄러지던 것 → 기울기·squash·먼지. __ROLLPOSE=false → 옛(V-277) 선 자세
+  const rp = rollNew ? 1 - Math.max(0, p.dashT) / DASH_DUR : 0;
+  const sq = rollNew ? Math.sin(rp * Math.PI) : 0;             // 가운데에서 최대(제일 납작)
+  if (rollNew) drawRollDust(p, rp);
+  drawShadow(p.x, p.y, rollNew ? 34 * (1 - 0.4 * sq) : 34, "#e8cf52", 3);   // V-278 ㉰ 구르면 그림자도 납작해진다
   drawSetAura(p);
   const st = p.state, dir = actorDir(p), fr = frame(p, PLAYER_BASE);
-  const dashing = globalThis.__DASH !== false && p.dashT > 0;   // V-277 ⑤ 구르는 중 — 뒤로 잔상 두어 칸 + 몸이 창백하게 빛남(무적이 눈에 보이게)
   if (dashing) {
     for (let i = 3; i >= 1; i--) {
       ctx.globalAlpha = 0.12 * i;
@@ -4829,8 +4859,15 @@ function drawPlayer() {
     drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x + dx, p.y + dy, PLAYER_H, RIM_FILTER);
   ctx.globalAlpha = 1;
   const heroFilt = dashing ? "brightness(1.7) saturate(0.45)" : (p.dashEnd > 0 ? "brightness(2)" : (p.hurt > 0 ? "brightness(2.2)" : null));   // V-277 ⑤ 무적 끝나는 순간 반짝(dashEnd) → 원래대로
-  if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt))
+  if (rollNew) {
+    const tiltSign = p.dashDx >= 0 ? 1 : -1;
+    ctx.save();
+    ctx.translate(p.x, p.y); ctx.rotate(tiltSign * 0.46 * sq); ctx.scale(1 + 0.28 * sq, 1 - 0.42 * sq); ctx.translate(-p.x, -p.y);
+    if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt)) fallbackBlob(p.x, p.y, 146, "#cfc7b0");
+    ctx.restore();
+  } else if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt)) {
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
+  }
   recordSil("player", PLAYER_BASE, p.x, p.y, PLAYER_H);
   drawSetRunes(p);   // V-271 ㉮ 어깨 룬은 sprite «뒤»(위)에 — 몸에 안 가려 셋 다 뜬다
 }
@@ -5061,39 +5098,75 @@ function drawArrowWalls() {   // V-277 ㉮ 발사구를 벽면에 실제로 그�
   if (globalThis.__ARROWWALL === false || G.town || !G.arrowWalls) return;
   if (globalThis.__ARROWLOOK === false) return drawArrowWallsOld();
   const now = nowMs();
-  for (const w of G.arrowWalls) {   // 예고 동안 발사선(구멍→반대 벽)을 바닥에 호박빛 띠로 — 「이 위에 있으면 맞는다」. 발동 순간 사라진다.
+  const wbNew = globalThis.__WARNBAND !== false;   // V-278 ㉮ 각진 점선 marquee → 가장자리 흐려지는 빛 띠(가운데 굵고 끝 가늘게)·임박할수록 빠른 맥박. __WARNBAND=false → 옛(V-277) 점선 사각
+  for (const w of G.arrowWalls) {   // 예고 동안 발사선(구멍→반대 벽)을 바닥에 호박빛 빛으로 — 「이 위에 있으면 맞는다」. 발동 순간 사라진다.
     if (w.blocked || w.cd === undefined || w.cd > ARROW_WARN || w.cd <= 0) continue;
     if (!onScreen(w.x + w.dx * w.len * 0.5, w.y + w.dy * w.len * 0.5, w.len)) continue;
-    const hw = 34, g = 0.4 + 0.5 * Math.abs(Math.sin(now / 110));
     ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));
-    const grad = ctx.createLinearGradient(0, 0, w.len, 0);
-    grad.addColorStop(0, `rgba(230,150,40,${0.5 * g})`); grad.addColorStop(1, `rgba(230,150,40,${0.12 * g})`);
-    ctx.fillStyle = grad; ctx.fillRect(0, -hw, w.len, hw * 2);
-    ctx.strokeStyle = `rgba(255,190,90,${0.7 * g})`; ctx.lineWidth = 2; ctx.setLineDash([11, 8]);
-    ctx.strokeRect(2, -hw, w.len - 4, hw * 2); ctx.setLineDash([]);
+    if (wbNew) {
+      const spd = 55 + 150 * (w.cd / ARROW_WARN), g = 0.42 + 0.5 * Math.abs(Math.sin(now / spd));
+      const grad = ctx.createLinearGradient(0, 0, w.len, 0);
+      grad.addColorStop(0, `rgba(240,168,52,${0.6 * g})`); grad.addColorStop(0.5, `rgba(232,146,40,${0.34 * g})`); grad.addColorStop(1, "rgba(224,132,34,0)");
+      ctx.fillStyle = grad;
+      const h0 = 12, hm = 34, h1 = 8, mid = w.len * 0.46;
+      ctx.beginPath(); ctx.moveTo(0, -h0); ctx.lineTo(mid, -hm); ctx.lineTo(w.len, -h1); ctx.lineTo(w.len, h1); ctx.lineTo(mid, hm); ctx.lineTo(0, h0); ctx.closePath(); ctx.fill();
+      const core = ctx.createLinearGradient(0, 0, w.len, 0);
+      core.addColorStop(0, `rgba(255,210,120,${0.5 * g})`); core.addColorStop(0.6, `rgba(255,196,96,${0.2 * g})`); core.addColorStop(1, "rgba(255,190,90,0)");
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.moveTo(0, -5); ctx.lineTo(mid, -12); ctx.lineTo(w.len, -3); ctx.lineTo(w.len, 3); ctx.lineTo(mid, 12); ctx.lineTo(0, 5); ctx.closePath(); ctx.fill();
+    } else {
+      const hw = 34, g = 0.4 + 0.5 * Math.abs(Math.sin(now / 110));
+      const grad = ctx.createLinearGradient(0, 0, w.len, 0);
+      grad.addColorStop(0, `rgba(230,150,40,${0.5 * g})`); grad.addColorStop(1, `rgba(230,150,40,${0.12 * g})`);
+      ctx.fillStyle = grad; ctx.fillRect(0, -hw, w.len, hw * 2);
+      ctx.strokeStyle = `rgba(255,190,90,${0.7 * g})`; ctx.lineWidth = 2; ctx.setLineDash([11, 8]);
+      ctx.strokeRect(2, -hw, w.len - 4, hw * 2); ctx.setLineDash([]);
+    }
     ctx.restore(); ctx.globalAlpha = 1;
   }
+  const ahNew = globalThis.__ARROWHOLE !== false;   // V-278 ㉯ 발사구를 키우고(어깨 폭) 검은 속·돌 테·그림자 턱 — 문틈·균열과 갈리게. __ARROWHOLE=false → 옛(V-277) 작은 「[」
   for (const w of G.arrowWalls) {   // 구멍(벽면) — 늘 보이는 어두운 구멍 + 돌 테. 예고면 크게 빛난다. 막히면 뼈 마개.
-    if (!onScreen(w.x, w.y, 44)) continue;
+    if (!onScreen(w.x, w.y, 48)) continue;
     const warn = !w.blocked && w.cd !== undefined && w.cd <= ARROW_WARN && w.cd > 0;
     ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));
-    ctx.fillStyle = "#5a5142"; ctx.fillRect(-11, -12, 12, 24);
-    ctx.fillStyle = "#6e6552"; ctx.fillRect(-11, -12, 12, 3); ctx.fillRect(-11, 9, 12, 3);
-    ctx.fillStyle = "#080604"; ctx.fillRect(-8, -9, 10, 18);
-    ctx.fillStyle = "#140f0a"; ctx.fillRect(-8, -9, 4, 18);
-    if (w.blocked) {
-      ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-8, -8, 11, 16);
-      ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-8, -2, 11, 3);
-      ctx.fillStyle = "#e6dcc2"; ctx.fillRect(-6, -8, 3, 16);
-    } else if (warn) {
-      const g = 0.45 + 0.55 * Math.abs(Math.sin(now / 80));
-      const gr = ctx.createRadialGradient(2, 0, 1, 2, 0, 24);
-      gr.addColorStop(0, "#ffe08a"); gr.addColorStop(0.45, "#e0781e"); gr.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.9 * g; ctx.fillStyle = gr;
-      ctx.beginPath(); ctx.arc(2, 0, 24, 0, 6.283); ctx.fill();
-      ctx.globalAlpha = 1; ctx.fillStyle = "#fff0b4"; ctx.fillRect(-3, -4, 7, 8);
+    if (ahNew) {
+      ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.beginPath(); ctx.moveTo(-9, 15); ctx.lineTo(8, 15); ctx.lineTo(6, 22); ctx.lineTo(-7, 22); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "#6a6050"; ctx.fillRect(-13, -16, 15, 32);
+      ctx.fillStyle = "#7e745e"; ctx.fillRect(-13, -16, 15, 3);
+      ctx.fillStyle = "#40382c"; ctx.fillRect(-13, 13, 15, 3);
+      ctx.fillStyle = "#050403"; ctx.fillRect(-10, -13, 12, 26);
+      ctx.fillStyle = "#120d08"; ctx.fillRect(-10, -13, 5, 26);
+      if (w.blocked) {
+        ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-10, -11, 13, 22);
+        ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-10, -3, 13, 3);
+        ctx.fillStyle = "#e6dcc2"; ctx.fillRect(-8, -11, 3, 22);
+      } else if (warn) {
+        const g = 0.45 + 0.55 * Math.abs(Math.sin(now / 80));
+        const gr = ctx.createRadialGradient(2, 0, 1, 2, 0, 28);
+        gr.addColorStop(0, "#ffe08a"); gr.addColorStop(0.45, "#e0781e"); gr.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.92 * g; ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.arc(2, 0, 28, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = "#fff0b4"; ctx.fillRect(-4, -6, 9, 12);
+      }
     } else {
-      ctx.fillStyle = "#2a2018"; ctx.fillRect(-4, -3, 5, 6);
+      ctx.fillStyle = "#5a5142"; ctx.fillRect(-11, -12, 12, 24);
+      ctx.fillStyle = "#6e6552"; ctx.fillRect(-11, -12, 12, 3); ctx.fillRect(-11, 9, 12, 3);
+      ctx.fillStyle = "#080604"; ctx.fillRect(-8, -9, 10, 18);
+      ctx.fillStyle = "#140f0a"; ctx.fillRect(-8, -9, 4, 18);
+      if (w.blocked) {
+        ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-8, -8, 11, 16);
+        ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-8, -2, 11, 3);
+        ctx.fillStyle = "#e6dcc2"; ctx.fillRect(-6, -8, 3, 16);
+      } else if (warn) {
+        const g = 0.45 + 0.55 * Math.abs(Math.sin(now / 80));
+        const gr = ctx.createRadialGradient(2, 0, 1, 2, 0, 24);
+        gr.addColorStop(0, "#ffe08a"); gr.addColorStop(0.45, "#e0781e"); gr.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalAlpha = 0.9 * g; ctx.fillStyle = gr;
+        ctx.beginPath(); ctx.arc(2, 0, 24, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = 1; ctx.fillStyle = "#fff0b4"; ctx.fillRect(-3, -4, 7, 8);
+      } else {
+        ctx.fillStyle = "#2a2018"; ctx.fillRect(-4, -3, 5, 6);
+      }
     }
     ctx.restore(); ctx.globalAlpha = 1;
   }
@@ -5121,9 +5194,21 @@ function drawArrowWallsOld() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — �
     ctx.restore(); ctx.globalAlpha = 1;
   }
 }
+function drawArrowStuck(s) {   // V-278 ㉯ 벽에 비스듬히 박힌 화살 — 대가 굵고 깃 보이고 벽에 그림자. 남는 시간(t/t0)으로 옅어진다.
+  const a = Math.max(0, Math.min(1, s.t / (s.t0 || 2.5)));
+  ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.dy, s.dx) + 0.28);
+  ctx.globalAlpha = a * 0.4; ctx.fillStyle = "#000"; ctx.fillRect(-26, 3, 30, 4);
+  ctx.globalAlpha = a;
+  ctx.fillStyle = "#6a4a28"; ctx.fillRect(-26, -3, 30, 5);
+  ctx.fillStyle = "#8a6438"; ctx.fillRect(-26, -3, 30, 2);
+  ctx.fillStyle = "#3a2c1a"; ctx.fillRect(2, -3, 4, 5);
+  ctx.fillStyle = "#8a2c22"; ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-34, -7); ctx.lineTo(-20, -2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#6a625a"; ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(-34, 7); ctx.lineTo(-20, 2); ctx.closePath(); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+}
 function drawArrows() {   // V-277 ㉯ 날아가는 화살 — 픽셀 결(나무대·쇠촉·깃)로 눕는다. __ARROWLOOK=false → 옛(V-276) 선 화살.
   const pix = globalThis.__ARROWLOOK !== false;
-  if (G.arrowStuck && G.arrowStuck.length) for (const s of G.arrowStuck) drawArrowPixel(s.x, s.y, s.dx, s.dy, Math.max(0, Math.min(1, s.t / 0.5)), false);
+  if (G.arrowStuck && G.arrowStuck.length) for (const s of G.arrowStuck) { if (globalThis.__ARROWHOLE !== false) drawArrowStuck(s); else drawArrowPixel(s.x, s.y, s.dx, s.dy, Math.max(0, Math.min(1, s.t / (s.t0 || 0.5))), false); }
   if (!G.arrows || !G.arrows.length) return;
   for (const a of G.arrows) {
     if (a.dead) continue;
@@ -6850,11 +6935,16 @@ function updateHUD() {
   if (ac.skel) parts.push(`해골 ${ac.skel}`);
   if (ac.ghoul) parts.push(`구울 ${ac.ghoul}`);
   if (ac.golem) parts.push(`골렘 ${ac.golem}`);
-  let dashHTML = "";   // V-277 ⑤ 구르기 쿨 게이지 — 태세 띠 옆에 작게(준비=초록·식는중=네 칸 채워짐)
+  let dashHTML = "";   // V-277 ⑤ 구르기 쿨 게이지 — 태세 띠 옆에 작게 · V-278 ㉱ __BOTTOMREAD 이면 찬 칸 호박빛·빈 칸 테두리·15px 로 밝힌다
   if (globalThis.__DASH !== false) {
     const cd = Math.max(0, p.dashCd || 0), ready = cd <= 0;
     const filled = ready ? 4 : Math.min(4, Math.floor((1 - cd / DASH_CD) * 4));
-    dashHTML = ` · <b style="color:${ready ? "#7fe0a0" : "#8a8478"}">구르기 ${ready ? "준비" : "▮".repeat(filled) + "▯".repeat(4 - filled)}</b>`;
+    if (globalThis.__BOTTOMREAD !== false) {
+      const cells = ready ? `<span style="color:#ffcf6a">준비</span>` : `<span style="color:#ffcf6a">${"▮".repeat(filled)}</span><span style="color:#6a5f4a">${"▯".repeat(4 - filled)}</span>`;
+      dashHTML = ` · <b style="font-size:15px;color:#ffcf6a">구르기 ${cells}</b>`;
+    } else {
+      dashHTML = ` · <b style="color:${ready ? "#7fe0a0" : "#8a8478"}">구르기 ${ready ? "준비" : "▮".repeat(filled) + "▯".repeat(4 - filled)}</b>`;
+    }
   }
   slotsEl.innerHTML = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "")
     + (globalThis.__ORDERS !== false ? ` · 태세 ${STANCE_NAME[armyStance]}` : "") + dashHTML;
@@ -6868,6 +6958,7 @@ function updateHUD() {
   el("enh").textContent = `등급 ${gnames}` + (p.mult.minionDmg > 1.001 ? ` · 피해 ${mulTxt(p.mult.minionDmg)}` : "") + (pts ? ` · 점수 ${pts} (C)` : "") + ascTxt;
   document.body.classList.toggle("notestack", globalThis.__NOTESTACK !== false);   // V-237 — 집는 글 칩에 읽히는 왼쪽 테두리(어두운 바닥에서 「테두리 없이 잘린」 것처럼 보였다)
   document.body.classList.toggle("hudread", globalThis.__HUDREAD !== false);   // V-276 ㉰ 좌상단·좌하단 작은 글자를 키우고 밝힌다(1배율에서 읽히게)
+  document.body.classList.toggle("bottomread", globalThis.__BOTTOMREAD !== false);   // V-278 ㉱ 아래쪽 조작 안내 뒤에 어두운 판을 깔아 1배율에서 읽히게
   const log = el("picklog");
   log.innerHTML = "";
   for (const e of G.pickLog) { if (e.t <= 0) continue; const d = document.createElement("div"); d.style.color = e.color; d.textContent = e.name; d.style.opacity = Math.min(1, e.t); log.appendChild(d); }
