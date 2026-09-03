@@ -10,6 +10,16 @@
 > (「… 착수 · 검증 전」 커밋은 근거가 아니다 — 그건 네가 이어서 끝내야 할 표시다).
 > 「지켜보겠다 · 중복을 피하겠다 · 다음에 검증하겠다」로 끝나는 턴 = 실패한 판.
 
+## ✔ 끝난 판: V-281 — 14:00 감시 흠 셋(㉮㉯㉰) + 바닥 타일 둘(blood·abyss) (2026-09-03)
+14:00 감시가 V-280 컷 넷을 직접 열어 흠 셋을 넘겼다. 만진 곳 `hs/main.js`(그리기)+`assets/floor/{blood,abyss}_tile.png`(에셋 교체). **새 자 파일 없음**(베이커 `tmp/hs_v281_cut.mjs`·타일 자 `tmp/hs_v280_tilemeas.mjs`·화면 `tmp/hs_v281_floor.mjs`·지문 `tmp/_v276_fp.mjs`·되돌림 `assets/floor/_pre_v280/`).
+- **㉮ `__FOOTRING`** — 발밑 쨍한 순노랑 닫힌 고리(#e8cf52·α0.9·lw3)가 RTS 선택 원처럼 화면에서 제일 밝아 먼지·바닥무늬를 덮던 것을, 채도·밝기 낮춘 던전 호박빛 «접지 풀»(부드러운 그라디언트·닫힌 테 없음·groundMark 접촉선과 안 싸움)로 낮춤. 사람은 금빛 rim(RIM_FILTER)으로 여전히 읽힘. 노란 화소%(사람 둘레 96px 상자) **13%→6.96%**(줄음)·짝 화소차 **21%**(≥3%). 소환수·적 고리(ringsOn)는 안 건드림. 컷 `footring_before`(=`__FOOTRING=false`)·`footring_after`(+_crop3). `__FOOTRING=false` → 옛(V-280) 쨍한 노란 고리.
+- **㉯ `__ROLLDUST2`** — V-280 먼지가 한 점도 안 보이던 «까닭»: 어두운 갈색(#4e3d24)을 α≈0.2 로 어두운(빛으로 눌린) 바닥에 얹어 명도차가 시각 문턱 아래였다(그리기·좌표·z 순서·빛 다 정상 — drawLight 는 drawPlayer 앞이라 안 덮음). 흙먼지를 «밝게»(#e2d2ad 알갱이·#b7a074 경로 스커프) 올리고 알파를 높여 정지 컷에서도 「굴렀다」가 읽히게. 짝 화소차 **10.72%**(≥3%). 컷 `rolldust2_before`(=V-280)·`rolldust2`(+_crop3). `__ROLLDUST2=false` → 옛(V-280) 어두운 두 톤.
+- **㉰ `__STUCKFRONT`** — 꽂힌 화살 대 절반이 벽 위 경계를 넘어 V-279 검은 바깥에 잠기던 것을, 박힌 자리를 발사 반대쪽(사람 쪽)으로 16px 당겨 촉 끝이 딱 벽면 impact 에 오고 대·깃은 전부 방 쪽에 오게(앞쪽 화소가 impact 를 안 넘음). 컷으로 검은 영역에 걸친 화살 화소 없음 확인. 짝 화소차 **3.38%**(≥3%). 컷 `stuckfront_before`(=`__STUCKFRONT=false`·검은 영역에 걸침)·`stuckfront`(+_crop3). `__STUCKFRONT=false` → 옛(V-280) 자리.
+- **⑤ 바닥 타일 blood·abyss** — V-272 마지막 둘. V-280 이 style_images 로 sd<25(blood 7·abyss 9)라 못 넣던 것을 **shape mode segmentation**(`create_tiles_pro`·square_topdown·top-down 90°·32px·outline_mode segmentation·16변주 중 sd·mean·이음매로 골라)로 다시 구움. blood 무늬 **7.0→27.7**(mean 67.9→35.3·어두워짐·이음매 ~1·붉은 판석) · abyss **9.3→37.8**(mean 38.9→19.8·어두워짐·이음매 5/2.6·검은 갈라진 바위) — 둘 다 **sd≥25·mean 옛것보다 안 밝음**. 컷 `floor_{blood,abyss}_{before,after}` 직접 열어 봄: before 는 뜬 tan/밝은 회색이라 「무늬」로 안 읽히던 것이 after 는 붉은 판석·검은 균열로 읽힘·격자 안 보임(4×4 회전이 흩음). 콘솔 오류 0.
+- 되돌림 지문: ㉮㉯㉰ 는 그리기·⑤ 는 에셋 PNG 교체 → **genFloor 무접촉** → F1/3/5/10/30 **byte-동일**(4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359).
+- 회귀(있는 자로만): `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000/820) · `hs_v219_foeshot` **frame p95 1.6ms·오류 0·에셋 100%·쏜화살 239**. 컷 직접 열어 봄·콘솔 오류 **0**·`md5 -q tmp/hs_v281_*.png|sort|uniq -d` **비었음**.
+- **못 한 것**: 없음(㉮㉯㉰⑤ 다 함). 미흡: ㉮ 노란 화소 6.96% 잔여는 사람 몸의 금빛 rim(before/after 둘 다·위치 읽힘용)이지 발밑 접지 아님. ㉰ 표본은 dx=1(세로 벽에 박힌 가로 화살)이라 당김이 사람 쪽으로 옳음(어느 벽 방향이든 «발사 반대쪽»이 바깥 반대). abyss after 균열이 다소 촘촘하나 격자로는 안 읽힘.
+
 ## ✔ 끝난 판: V-280 — 13:00 감시 흠 넷(㉮㉯㉰㉱) + 바닥 타일 둘(crypt·sanctum) (2026-09-03)
 13:00 감시가 V-278 컷 여덟을 직접 열어 흠 넷을 넘겼다. 만진 곳 `hs/main.js`(그리기)+`assets/floor/{crypt,sanctum}_tile.png`(에셋 교체). **새 자 파일 없음**(베이커 `tmp/hs_v280_cut.mjs`·타일 자 `tmp/hs_v280_{tilemeas,tilepreview,floor}.mjs`·지문 `tmp/_v276_fp.mjs`·되돌림 `assets/floor/_pre_v280/`). 코드 커밋 `6c35bc6`.
 - **㉮ `__ROLLGLOW`** — 구르는 중 노란 «사람 실루엣» 색면(rim 이 변형 전 선 자세로 그려짐)을, rim 을 구르기 회전/squash 변환 «안»에서 떠 기운 몸을 따라가게. 속은 몸이 덮어 **테두리만**·알파 0.4 로 바닥 비침. 컷 `rollglow_mid`(속 찬 노란 덩어리 **0**)·`rollglow_mid_off`(옛 색면 — 서 있는 노란 실루엣 보임)·`rollglow_end`(끝 반짝 유지). `__ROLLGLOW=false` → 옛(V-278) 꼴.
@@ -593,3 +603,6 @@ V-268 컷 판정(04:30 감시가 일곱 장을 직접 열어 봄) = **통과**. 
 남은 흠 넷은 V-269 가 받았다: ㉠ 바닥 아이콘이 이름표 폭 1/4(글을 읽어야 안다) · ㉡ 죽음 화면 「B7층」 vs HUD 「지하 8층」 ·
 ㉢ 가방 칸 테 두 겹(작은 칸은 한 겹 — 들쭉날쭉) · ㉣ 세트 초록 오라가 노란 선택 고리 안에 겹쳐 고리 둘.
 V-269 는 그 넷에 더해 **층에서 「찾아낼 것」**을 만든다 — `grep "비밀|secret" hs/*.js` = 0 이라 통째로 없던 축.
+
+---
+★ 14:30 감시 메모(다음 축 후보): `~/.openclaw/workspace/tmp/hs_watch_notes.txt` — ringsOn() 고리·크롭 상자·컷 DISMISS.

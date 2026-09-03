@@ -4746,6 +4746,25 @@ function groundMark(x, y, rx, ry) {
   ctx.beginPath(); ctx.ellipse(x, y, rx * 0.92, ry * 0.92, 0, Math.PI, 0); ctx.stroke();
 }
 
+// V-281 ㉮ 발밑 «표시»(쨍한 순노랑 닫힌 고리)를 «빛/접지»로 낮춘다. #e8cf52(α0.9·lw3 닫힌 타원)이
+//   RTS 선택 원·튜토리얼 하이라이트처럼 화면에서 제일 밝게 읽히며 먼지·발자국·바닥 무늬를 다 덮던 것을,
+//   채도·밝기 낮춘 던전 호박빛 «접지 풀»(부드러운 그라디언트·닫힌 테 없음·아래로 갈수록 짙게)로 바꾼다.
+//   groundMark(대비 접촉선)와 두 겹으로 안 싸우게 «테»가 아니라 «빛»만 얹는다. 사람은 이미 금빛 rim(RIM_FILTER)으로
+//   무리 속에서 서므로 위치는 읽힌다. __FOOTRING=false → 옛(V-280) 쨍한 노란 고리.
+function drawFootRing(x, y, w) {
+  groundMark(x, y, w);
+  const rx = w + 2, ry = w * 0.4 + 1.5;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const g = ctx.createRadialGradient(x, y + ry * 0.35, ry * 0.2, x, y + ry * 0.35, rx);
+  g.addColorStop(0, "rgba(150,112,48,0.24)");
+  g.addColorStop(0.62, "rgba(150,112,48,0.13)");
+  g.addColorStop(1, "rgba(150,112,48,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(x, y + ry * 0.2, rx, ry, 0, 0, 6.283); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
+  ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: rx * Z, ry: ry * Z, col: "#96702f" });
+}
 function drawShadow(x, y, w, col, lw, a) {
   groundMark(x, y, w);
   if (col) {
@@ -4825,6 +4844,32 @@ function drawSetRunes(p) {
 }
 function drawRollDust(p, rp) {   // V-280 ㉯ 출발 자리에 납작한 타원 먼지 서넛 + 구른 경로 옅은 자국 — 정지 컷에서도 「굴렀다」가 읽힌다. __ROLLDUST=false → 옛(V-278) 작은 흙빛 점 다섯.
   if (p.dashX0 === undefined) return;
+  // V-281 ㉯ V-280 먼지는 어두운 갈색(#4e3d24)을 α≈0.2 로 어두운(빛으로 더 눌린) 바닥 위에 얹어 명도차가
+  //   시각 문턱 아래라 한 점도 안 보였다(그리기·좌표·z 순서·빛 다 정상 — drawLight 는 drawPlayer 앞이라 안 덮음).
+  //   흙먼지를 «밝게»(어두운 바닥 위에서 읽히는 흙빛) 올리고 알파를 높여 정지 컷에서도 「굴렀다」가 읽히게 한다.
+  //   __ROLLDUST2=false → 옛(V-280) 어두운 두 톤.
+  if (globalThis.__ROLLDUST2 !== false && globalThis.__ROLLDUST !== false) {
+    const base = 1 - rp;
+    ctx.save(); ctx.lineCap = "round";
+    ctx.globalAlpha = 0.32 * (1 - rp * 0.25); ctx.strokeStyle = "#b7a074"; ctx.lineWidth = 11;
+    ctx.beginPath(); ctx.moveTo(p.dashX0, p.dashY0 + 7); ctx.lineTo(p.x, p.y + 7); ctx.stroke();
+    ctx.globalAlpha = 0.26 * (1 - rp * 0.25); ctx.strokeStyle = "#3a2c18"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(p.dashX0, p.dashY0 + 8.5); ctx.lineTo(p.x, p.y + 8.5); ctx.stroke();
+    if (base > 0.03) {
+      const spread = 10 + 30 * rp;
+      for (let i = 0; i < 5; i++) {
+        const ang = i * 1.4 + p.dashX0 * 0.3, rad = spread * (0.3 + 0.22 * i);
+        const ex = p.dashX0 + Math.cos(ang) * rad, ey = p.dashY0 + 6 + Math.sin(ang) * rad * 0.42;
+        const rr = 7 + 6 * rp - i, f = base * (1 - i * 0.13);
+        ctx.globalAlpha = Math.min(0.62, 0.72 * f); ctx.fillStyle = "#e2d2ad";
+        ctx.beginPath(); ctx.ellipse(ex, ey - 2 * rp, Math.max(3, rr), Math.max(1.8, rr * 0.5), 0, 0, 6.283); ctx.fill();
+        ctx.globalAlpha = Math.min(0.42, 0.5 * f); ctx.fillStyle = "#6a5330";
+        ctx.beginPath(); ctx.ellipse(ex, ey + 2, Math.max(2.6, rr * 0.8), Math.max(1.4, rr * 0.4), 0, 0, 6.283); ctx.fill();
+      }
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+    return;
+  }
   if (globalThis.__ROLLDUST === false) {
     const a = 0.5 * (1 - rp);
     if (a <= 0.02) return;
@@ -4861,7 +4906,9 @@ function drawPlayer() {
   const rp = rollNew ? 1 - Math.max(0, p.dashT) / DASH_DUR : 0;
   const sq = rollNew ? Math.sin(rp * Math.PI) : 0;             // 가운데에서 최대(제일 납작)
   if (rollNew) drawRollDust(p, rp);
-  drawShadow(p.x, p.y, rollNew ? 34 * (1 - 0.4 * sq) : 34, "#e8cf52", 3);   // V-278 ㉰ 구르면 그림자도 납작해진다
+  const footW = rollNew ? 34 * (1 - 0.4 * sq) : 34;
+  if (globalThis.__FOOTRING === false) drawShadow(p.x, p.y, footW, "#e8cf52", 3);   // 옛(V-280) 쨍한 노란 고리
+  else drawFootRing(p.x, p.y, footW);                                               // V-281 ㉮ 은은한 호박빛 접지
   drawSetAura(p);
   const st = p.state, dir = actorDir(p), fr = frame(p, PLAYER_BASE);
   if (dashing) {
@@ -5229,7 +5276,11 @@ function drawArrowWallsOld() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — �
 function drawArrowStuck(s) {   // V-280 ㉰ 닿은 벽면에 박힌 화살 — 촉이 벽으로 파고들고(기울임 없음) 박힌 자리에 부스러기+벽 그림자. __HOLEDEPTH=false → 옛(V-278) 바닥에 누운 듯(+0.28).
   const a = Math.max(0, Math.min(1, s.t / (s.t0 || 2.5)));
   if (globalThis.__HOLEDEPTH !== false) {
-    ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(Math.atan2(s.dy, s.dx));
+    // V-281 ㉰ 대(shaft) 절반이 벽 위 경계를 넘어 V-279 의 검은 바깥으로 걸쳐 잘려 보이던 것을,
+    //   박힌 자리를 발사 반대쪽(사람 쪽)으로 16px 당겨 촉 끝이 딱 벽면 impact 에 오고 나머지(대·깃)는
+    //   전부 방 쪽에 오게 한다(앞쪽 화소가 s 를 안 넘음). __STUCKFRONT=false → 옛(V-280) 자리 그대로.
+    const back = globalThis.__STUCKFRONT !== false ? 16 : 0;
+    ctx.save(); ctx.translate(s.x - s.dx * back, s.y - s.dy * back); ctx.rotate(Math.atan2(s.dy, s.dx));
     ctx.globalAlpha = a * 0.45; ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.ellipse(8, 2, 9, 5, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = a * 0.8; ctx.fillStyle = "#7a6a4e";
