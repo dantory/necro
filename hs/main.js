@@ -4034,6 +4034,33 @@ function warnRingPath(cx, cy, r, a0, a1) {
   }
   ctx.closePath();
 }
+// V-283 ㉰ — 경고 도형(원·부채꼴·장판·십자)을 한 결로: 각진 단색 채움 대신 근원 쪽이 밝고 끝으로 옅어지는
+//   gradient·끝이 가늘어지는 마름모(V-278 __WARNBAND 결)·임박할수록 빠른 맥동·사람 몸이 밑에 깔려도 보이게 알파 낮춤.
+//   벽 클립(V-247)은 그대로(caller 가 teleReach 로 줄인 reach 를 넘긴다) · globalCompositeOperation 은 안 바꾼다.
+//   __TELEGRAPH=false → 옛(각진 단색) 꼴.
+const teleNew = () => globalThis.__TELEGRAPH !== false;
+function telePulse(imm) { const spd = 250 - 175 * Math.max(0, Math.min(1, imm)); return 0.55 + 0.45 * Math.abs(Math.sin(nowMs() / spd)); }
+function teleBand(sx, sy, dir, reach, halfW, prog) {   // 근원(sx,sy)→dir 로 reach 까지 뻗는 띠/부채. 근원 밝고 끝 투명·끝이 가늘어 가장자리가 흐리게 읽힘.
+  const p = telePulse(prog), hm = halfW, h0 = halfW * 0.5, h1 = halfW * 0.3, mid = reach * 0.5;
+  ctx.save(); ctx.translate(sx, sy); ctx.rotate(dir);
+  const grad = ctx.createLinearGradient(0, 0, reach, 0);
+  grad.addColorStop(0, `rgba(255,92,66,${0.34 * p})`); grad.addColorStop(0.5, `rgba(232,62,48,${0.20 * p})`); grad.addColorStop(1, "rgba(210,50,40,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.moveTo(0, -h0); ctx.lineTo(mid, -hm); ctx.lineTo(reach, -h1); ctx.lineTo(reach, h1); ctx.lineTo(mid, hm); ctx.lineTo(0, h0); ctx.closePath(); ctx.fill();
+  const core = ctx.createLinearGradient(0, 0, reach, 0);
+  core.addColorStop(0, `rgba(255,188,150,${0.34 * p})`); core.addColorStop(0.6, `rgba(255,150,116,${0.14 * p})`); core.addColorStop(1, "rgba(255,140,108,0)");
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.moveTo(0, -h0 * 0.4); ctx.lineTo(mid, -hm * 0.34); ctx.lineTo(reach, -h1 * 0.4); ctx.lineTo(reach, h1 * 0.4); ctx.lineTo(mid, hm * 0.34); ctx.lineTo(0, h0 * 0.4); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function teleField(cx, cy, r, prog, filled) {   // 원/장판 — walkable 클립(warnRingPath)으로 옅게 채우고 가장자리만 밝은 링(맥동). 안쪽이 옅어 사람 실루엣이 비친다.
+  const p = telePulse(prog);
+  ctx.save();
+  ctx.globalAlpha = (filled ? 0.16 : 0.10) * p; ctx.fillStyle = "rgb(220,60,48)"; warnRingPath(cx, cy, r); ctx.fill();
+  ctx.globalAlpha = 1; ctx.strokeStyle = `rgba(255,112,82,${0.5 * p})`; ctx.lineWidth = 6; warnRingPath(cx, cy, r); ctx.stroke();
+  ctx.strokeStyle = `rgba(255,168,130,${0.32 * p})`; ctx.lineWidth = 2; warnRingPath(cx, cy, r); ctx.stroke();
+  ctx.restore();
+}
 function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임(피할 시간을 준다)
   for (const pk of G.packs) {
     if (!pk.awake || !pk.boss) continue;
@@ -4042,21 +4069,31 @@ function drawBossTele() {   // 큰 수법의 예고 — 붉은 자리·번쩍임
       const c = m.cast, k = m.bossKind;
       if (c.phase === "warn") {
         const prog = 1 - c.t / c.warn;
-        ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 80));
-        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4;
-        if (k === 0) { warnRingPath(c.cx, c.cy, CAGE_R); ctx.stroke(); }   // V-247 (b) — 원형 경고도 벽에서 끊는다
-        else if (k === 1) { warnRingPath(c.cx, c.cy, 120); ctx.stroke(); }
-        else if (k === 2) {
-          const reach = teleReach(m.x, m.y, Math.cos(c.dir), Math.sin(c.dir), 640, m.r || 18);   // V-243 ②c — 경고선을 벽에서 끊는다(돌진이 닿는 데까지만).
-          ctx.lineWidth = 26; ctx.strokeStyle = `rgba(255,50,40,${0.22 + 0.4 * prog})`;
-          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * reach, m.y + Math.sin(c.dir) * reach); ctx.stroke();
-        } else { warnRingPath(m.x, m.y - m.h * 0.35, 60 + 130 * prog); ctx.stroke(); }
-        ctx.globalAlpha = 1;
+        if (teleNew()) {
+          if (k === 0) teleField(c.cx, c.cy, CAGE_R, prog, false);
+          else if (k === 1) teleField(c.cx, c.cy, 120, prog, false);
+          else if (k === 2) { const reach = teleReach(m.x, m.y, Math.cos(c.dir), Math.sin(c.dir), 640, m.r || 18); teleBand(m.x, m.y, c.dir, reach, 26, prog); }
+          else teleField(m.x, m.y - m.h * 0.35, 60 + 130 * prog, prog, false);
+        } else {
+          ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 80));
+          ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4;
+          if (k === 0) { warnRingPath(c.cx, c.cy, CAGE_R); ctx.stroke(); }   // V-247 (b) — 원형 경고도 벽에서 끊는다
+          else if (k === 1) { warnRingPath(c.cx, c.cy, 120); ctx.stroke(); }
+          else if (k === 2) {
+            const reach = teleReach(m.x, m.y, Math.cos(c.dir), Math.sin(c.dir), 640, m.r || 18);   // V-243 ②c — 경고선을 벽에서 끊는다(돌진이 닿는 데까지만).
+            ctx.lineWidth = 26; ctx.strokeStyle = `rgba(255,50,40,${0.22 + 0.4 * prog})`;
+            ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + Math.cos(c.dir) * reach, m.y + Math.sin(c.dir) * reach); ctx.stroke();
+          } else { warnRingPath(m.x, m.y - m.h * 0.35, 60 + 130 * prog); ctx.stroke(); }
+          ctx.globalAlpha = 1;
+        }
       } else if (c.phase === "sweepWarn") {
-        ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 70));
-        ctx.fillStyle = "rgba(200,40,40,0.28)"; warnRingPath(c.cx, c.cy, c.r); ctx.fill();   // V-247 (b) — 장판(fill)도 같은 path 로 벽에서 끊는다
-        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.stroke();
-        ctx.globalAlpha = 1;
+        if (teleNew()) teleField(c.cx, c.cy, c.r, 0.6, true);
+        else {
+          ctx.globalAlpha = 0.4 + 0.4 * Math.abs(Math.sin(nowMs() / 70));
+          ctx.fillStyle = "rgba(200,40,40,0.28)"; warnRingPath(c.cx, c.cy, c.r); ctx.fill();   // V-247 (b) — 장판(fill)도 같은 path 로 벽에서 끊는다
+          ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 4; ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
       }
     }
   }
@@ -4069,14 +4106,20 @@ function drawMobTele() {   // V-231 — 잡몹 수법 예고(돌진선·자폭 �
       if (m.tele > 0) {   // 돌진 예고 — 겨눈 방향(m.dx/dy)으로 붉은 띠, 남을수록 옅고 찰수록 진하게
         const reach = m.spd * CHARGE_SPD_MUL * CHARGE_DUR;   // V-250 (e) — 띠를 «실제 돌진이 닿는 거리»까지만(옛 CHARGE_RANGE*0.8=496 은 탁 트인 성소서 벽에 안 닿아 방 밖·미니맵까지 뻗었다)
         const prog = 1 - m.tele / CHARGE_TELE, len = teleReach(m.x, m.y, m.dx, m.dy, reach, m.r || 18);
-        ctx.lineWidth = 20; ctx.strokeStyle = `rgba(255,50,40,${0.16 + 0.42 * prog})`;
-        ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.dx * len, m.y + m.dy * len); ctx.stroke();
+        if (teleNew()) teleBand(m.x, m.y, Math.atan2(m.dy, m.dx), len, 20, prog);
+        else {
+          ctx.lineWidth = 20; ctx.strokeStyle = `rgba(255,50,40,${0.16 + 0.42 * prog})`;
+          ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x + m.dx * len, m.y + m.dy * len); ctx.stroke();
+        }
       } else if (m.fuse > 0) {   // 자폭 예고 — 발밑 붉은 고리, fuse 줄수록 진하고 두껍게
         const prog = 1 - m.fuse / BOMB_FUSE;
-        ctx.globalAlpha = 0.4 + 0.5 * prog;
-        ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 2 + 5 * prog;
-        ctx.beginPath(); ctx.arc(m.x, m.y, BOMB_R, 0, 6.283); ctx.stroke();
-        ctx.globalAlpha = 1;
+        if (teleNew()) teleField(m.x, m.y, BOMB_R, prog, false);
+        else {
+          ctx.globalAlpha = 0.4 + 0.5 * prog;
+          ctx.strokeStyle = "#ff3828"; ctx.lineWidth = 2 + 5 * prog;
+          ctx.beginPath(); ctx.arc(m.x, m.y, BOMB_R, 0, 6.283); ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
       }
     }
   }
@@ -4814,13 +4857,32 @@ function drawPropPool(x, y, rr0) {
   }
   ctx.restore(); ctx.globalAlpha = 1;
 }
+// V-283 ㉯ — 적/소환수/정예의 닫힌 색 테(마지막 RTS 선택 원)를 사람(V-281)·소품(V-282)과 같은 결로:
+//   안쪽으로 흐려지는 접지 풀(닫힌 테 없음·채도 낮춤). 적/아군/정예 구분은 색상(붉음/파랑/주황)으로 남되
+//   밝기(알파 0.30 상한)는 화로를 안 이긴다. __FOERING=false → 옛(V-282) 닫힌 색 테.
+function foeRingRGB(col) {
+  let r = 176, g = 72, b = 60;
+  const m = /^#([0-9a-fA-F]{6})$/.exec(col || "");
+  if (m) { const v = parseInt(m[1], 16); r = (v >> 16) & 255; g = (v >> 8) & 255; b = v & 255; }
+  const lum = 0.3 * r + 0.59 * g + 0.11 * b, k = 0.30;   // 채도 30% 내림(쨍함만 빼고 적/파랑/주황 색상은 또렷이 남긴다)
+  r = Math.round(r + (lum - r) * k); g = Math.round(g + (lum - g) * k); b = Math.round(b + (lum - b) * k);
+  return `${r},${g},${b}`;
+}
 function drawShadow(x, y, w, col, lw, a) {
   groundMark(x, y, w);
   if (col) {
-    ctx.globalAlpha = a || 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
-    ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
-    ctx.globalAlpha = 1;
-    ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: (w + 2) * Z, ry: (w * 0.4 + 1.5) * Z, col });
+    if (globalThis.__FOERING !== false) {
+      const rx = w + 3, ry = w * 0.42 + 2, c = foeRingRGB(col);
+      const g = ctx.createRadialGradient(x, y, 1, x, y, rx);
+      g.addColorStop(0, `rgba(${c},0.40)`); g.addColorStop(0.5, `rgba(${c},0.22)`); g.addColorStop(1, `rgba(${c},0)`);
+      ctx.save(); ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, 6.283); ctx.fill(); ctx.restore();
+      ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: rx * Z, ry: ry * Z, col });
+    } else {
+      ctx.globalAlpha = a || 0.9; ctx.strokeStyle = col; ctx.lineWidth = lw || 2.5;
+      ctx.beginPath(); ctx.ellipse(x, y, w + 2, w * 0.4 + 1.5, 0, 0, 6.283); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ringRects.push({ cx: (x - cam.x) * Z, cy: (y - cam.y) * Z, rx: (w + 2) * Z, ry: (w * 0.4 + 1.5) * Z, col });
+    }
   }
 }
 
@@ -5107,8 +5169,13 @@ const MOBKIND_META = {   // V-237 — 갈래별 머리 위 이름표(색은 몸 
 // ── V-240 이름표 접기(__LABELFOLD) — 잡몹·소환수 갈래 이름표가 떼로 겹쳐 도배되던 것을 «같은 이름끼리 묶어 ×N» 한 장으로. ──
 //   __LABELFOLD===false 면 옛 동작(이름표를 그 자리에서 그대로 그린다·안 접고·안 물린다).
 let pendingKindLabels = [];
+const PLATE_NEAR_R = 300;   // V-283 ㉮ — 이름표를 띄울 반경(사람 기준·월드). 디아처럼 「가까운 것」만 글자로, 먼 것은 몸 색조로만.
 function pushKindLabel(wx, wtop, text, col) {
   if (globalThis.__LABELFOLD === false) { drawKindLabel(wx, wtop - 9, text, col); return; }
+  if (globalThis.__PLATEFOLD2 !== false) {
+    const p = G.player, dx = wx - p.x, dy = wtop - p.y;
+    if (dx * dx + dy * dy > PLATE_NEAR_R * PLATE_NEAR_R) return;
+  }
   pendingKindLabels.push({ wx, wtop, text, col });
 }
 function drawKindLabel(wx, wy, text, col) {
@@ -5126,7 +5193,8 @@ function drawKindLabel(wx, wy, text, col) {
 //   세로는 화면 상단 안쪽(18px)으로 물려 잘리지 않게 한다. 월드 변환 안에서 부른다(actors 뒤·restore 앞).
 function drawFoldedKindLabels() {
   const items = pendingKindLabels;
-  if (!items.length) return;
+  let plateN = 0;
+  if (!items.length) { globalThis.__plateN = 0; return; }
   const used = new Array(items.length).fill(false);
   const topY = cam.y + 18 / Z;
   const band = globalThis.__LABELBAND === false ? null : hudBandRect();   // V-255 ② 아래 HUD 띠와 안 겹치게
@@ -5144,8 +5212,10 @@ function drawFoldedKindLabels() {
     let wy = Math.max(top - 9, topY);   // V-246 ③c — 앵커를 머리 «바로 위»(몸 위·-9)로. -3 은 유닛 몸에 잘렸고 -16 은 너무 떠 모호했다. 쌓을 때만 아래 루프가 위로 민다.
     const kx = (sumx / n - cam.x) * Z;
     const label = n > 1 ? `${a.text} ×${n}` : a.text;
+    ctx.font = "bold 10px 'Times New Roman',serif";
+    const khw2 = ctx.measureText(label).width / 2 + 3;
+    if (globalThis.__PLATEFOLD2 !== false) wy = liftLabel(band, sumx / n, wy, khw2);   // V-283 ㉮ — HUD 띠 물림을 «먼저» 한다: 옛 순서(물림을 맨 뒤)는 placed 예약 y 와 그린 y 가 어긋나, 아래쪽 이름표가 전부 띠 천장 한 줄에 겹쳐 「글자 죽」이 됐다.
     if (globalThis.__LABELFOLD !== false) {   // V-244 ②d — 부하 이름표끼리(다른 갈래 포함) 겹치면 아래로 쌓는다(drawFloats·barRects 와 같은 결). 주인 이름표(eliteLabels)도 피한다.
-      ctx.font = "bold 10px 'Times New Roman',serif";
       const khw = ctx.measureText(label).width / 2 + 2;
       for (let g = 0; g < 24; g++) {
         const ky = (wy - cam.y) * Z;
@@ -5158,10 +5228,10 @@ function drawFoldedKindLabels() {
       const ky = (wy - cam.y) * Z;
       placed.push({ x0: kx - khw, y0: ky - 11, x1: kx + khw, y1: ky });
     }
-    ctx.font = "bold 10px 'Times New Roman',serif";
-    wy = liftLabel(band, sumx / n, wy, ctx.measureText(label).width / 2 + 3);
-    drawKindLabel(sumx / n, wy, label, a.col);
+    if (globalThis.__PLATEFOLD2 === false) wy = liftLabel(band, sumx / n, wy, khw2);   // 옛(V-282) 순서 — 물림을 맨 뒤에
+    drawKindLabel(sumx / n, wy, label, a.col); plateN++;
   }
+  globalThis.__plateN = plateN;
 }
 // V-246 ① 수식어 시각 — 발밑 고리(화상·번개)와 날랜 잔상은 몸 뒤에, 뼈 껍질 테는 몸 앞에.
 function drawAffixGround(m) {
@@ -5200,10 +5270,13 @@ function drawBolts() {
   for (const b of G.bolts) {
     const len = teleReach(b.x, b.y, b.dx, b.dy, AFFIX_BOLT_LEN, 4);   // V-247 (c) — 십자 경고·발사선도 벽에서 끊는다(경고 도형과 같은 뿌리)
     if (b.warn > 0) {
-      ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(nowMs() / 60));
-      ctx.strokeStyle = "#7fd8ff"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
-      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();
-      ctx.restore();
+      if (teleNew()) teleBand(b.x, b.y, Math.atan2(b.dy, b.dx), len, 16, 1 - b.warn / 0.4);
+      else {
+        ctx.save(); ctx.globalAlpha = 0.35 + 0.35 * Math.abs(Math.sin(nowMs() / 60));
+        ctx.strokeStyle = "#7fd8ff"; ctx.lineWidth = 2; ctx.setLineDash([8, 6]);
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();
+        ctx.restore();
+      }
     } else if (b.life > 0) {
       ctx.save(); ctx.globalAlpha = Math.max(0, b.life / 0.15); ctx.strokeStyle = "#eaffff"; ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x + b.dx * len, b.y + b.dy * len); ctx.stroke();

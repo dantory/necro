@@ -10,13 +10,15 @@
 > (「… 착수 · 검증 전」 커밋은 근거가 아니다 — 그건 네가 이어서 끝내야 할 표시다).
 > 「지켜보겠다 · 중복을 피하겠다 · 다음에 검증하겠다」로 끝나는 턴 = 실패한 판.
 
-## ▶ 지금 도는 판: V-283 — 16:00 감시 흠 넷 (착수 2026-09-03 16:05 · PID 52939)
-브리프 `tmp/hs_v283_prompt.md` · 로그/마커 `~/.openclaw/workspace/tmp/necro_hs_v283.log[.done]`.
-16:00 감시가 V-282 컷을 직접 열어 **넷 다 통과** 판정하고(㉮ `__PROPRING` 고리 사라짐 · ㉱ `__STUCKDIR` 촉이 벽 안 · ㉯ `__FLOORMIXCAP` 밝은 격자 사라짐 · ㉰ blood 마른 검붉은 판석 — **다시 집지 말 것**), 이번엔 **바닥이 아니라 전투 화면**(`tmp/hs_v219_after.png`)을 열어 더 큰 흠 넷을 넘겼다.
-- **㉮ `__PLATEFOLD2`** — 적 이름표 스물 몇이 **같은 y 한 줄에 겹쳐** 「시체 도둑·망령·시체·돌진꾼·도둑」이 서로를 파먹는다. `__LABELFOLD` 가 있는데 안 먹음(의심: `placed.push` 예약 뒤 `liftLabel` 이 y 를 다시 옮김·main.js:5155~5160) + **표시 대상 자체를 줄일 것**.
-- **㉯ `__FOERING`** — 사람(V-281)·소품(V-282) 발밑은 접지 풀로 갈렸는데 **적·소환수 고리(`ringsOn()`·5066·5409)만 닫힌 색 테로 남아** 화면의 마지막 RTS 선택 원이 됐다([[carry-fixes-forward]]).
-- **㉰ `__TELEGRAPH`** — 경고 부채꼴이 **하드 엣지 단색 붉은 쐐기**로 사람 몸을 덮는다. V-278 `__WARNBAND` 의 결(가장자리 흐림·맥동·gradient)이 이 도형엔 안 옮겨졌다. 원·장판·십자까지 **한 규칙으로**.
-- **㉱ `__ABYSSGRAIN`** — V-282 flat-field 가 밝은 얼룩과 함께 **돌의 결까지 물렀다**. blood 는 또렷한 판석 격자인데 abyss 만 부드러운 균열 판 한 장. 이미지 처리로 고주파만 되살릴 것(PixelLab 금지·`_pre_v283/` 되돌림).
+## ✔ 끝난 판: V-283 — 16:00 감시 전투화면 흠 넷(㉮㉯㉰㉱) (2026-09-03)
+16:00 감시가 V-282 컷을 통과 판정(㉮㉯㉰㉱ 다시 집지 말 것)하고, **전투 화면**(`tmp/hs_v219_after.png`)을 열어 더 큰 흠 넷을 넘겼다. 만진 곳 `hs/main.js`(그리기)+`assets/floor/abyss_tile.png`(에셋). **새 자 파일 없음**(베이커 `tmp/hs_v283_cut.mjs`·타일 손질 `tmp/hs_v283_tilefix.mjs`·지문 `tmp/_v276_fp.mjs`·되돌림 `assets/floor/_pre_v283/`).
+- **㉮ `__PLATEFOLD2`** — 이름표 「글자 죽」의 **진짜 까닭**: `drawFoldedKindLabels` 가 `placed` 예약 사각을 **물림 전** y 로 적고 나서 맨 끝에 `liftLabel`(HUD 띠 회피)을 걸어, 아래쪽 이름표가 전부 띠 천장 한 줄에 겹쳤다. 물림을 **placed 예약 «앞»으로 옮겨** 예약 y=그린 y 로 맞췄다. + **표시 대상을 좁힘**: `pushKindLabel` 이 사람 반경 `PLATE_NEAR_R=300` 안 잡몹만 이름표(먼 것은 몸 색조로). 컷 `plates_{before,after}` — 이름표 수 29→24(합쳐진 크라우드라 준 폭 작음·실전 흩어진 화면일수록 큼)·「×2」 접기 살아있음·PXDIFF 30.8%. `__PLATEFOLD2=false` → 옛(V-282) 순서+무제한 표시.
+- **㉯ `__FOERING`** — 적·소환수·정예 발밑 **닫힌 색 테**(마지막 RTS 선택 원)를 사람(V-281)·소품(V-282)과 같은 결로: `drawShadow` 의 stroke 타원을 **안쪽으로 흐려지는 접지 풀**(radial·닫힌 테 없음·채도 30% 내림·알파 0.40 상한 화로 안 이김)로. 적/소환수/정예는 **색상**(붉음/파랑/주황)으로 여전히 갈림(`foeRingRGB` 가 색상 지키고 쨍함만 뺌). 컷 `foering_{before,after}` — before 밝은 닫힌 고리 셋 또렷 → after 붉은/파랑/주황 접지 풀·PXDIFF 78%. `__FOERING=false` → 옛 닫힌 색 테.
+- **㉰ `__TELEGRAPH`** — 경고 도형(원·부채꼴·장판·십자) **하드 엣지 단색 붉은 쐐기**가 사람 몸을 덮던 것을, V-278 `__WARNBAND` 결로 **한 곳에 모아**(`teleBand`·`teleField`·`telePulse` 새 helper) 통일: 근원 밝고 끝 옅은 gradient·끝이 가늘어지는 마름모·임박할수록 빠른 맥동·**알파 낮춰 사람 실루엣이 비침**. 벽 클립(V-247 `warnRingPath`/`teleReach`)·`globalCompositeOperation` **그대로**. `drawBossTele`(원 k0/k1/k3·부채 k2·장판 sweep)·`drawMobTele`(돌진·자폭)·`drawBolts`(십자) 넷이 같은 규칙. 컷 `telegraph_{before,after}` — 사람상자 붉은화소 17%→4%(몸이 안 덮임)·PXDIFF 73%. `__TELEGRAPH=false` → 옛(각진 단색) 꼴.
+- **㉱ abyss 결**(에셋) — V-282 flat-field 가 밝은 얼룩과 함께 **판석 결(중간주파 슬랩 구조)까지 물렸다**(blockSd 8.7→3.1 로 너무 평탄). PixelLab 재굽기 금지 — 있는 타일에 **결정적 언샵**(반경3·amount 0.35·`tmp/hs_v283_tilefix.mjs`)으로 슬랩 스케일 국소대비만 올림: abyss sd 30.4→**40.6**(≥25)·blockSd 3.1→**3.7**(<4·밝은 얼룩 안 돌아옴)·mean 32.1 **불변**·고주파(laplacian) blood 의 **1.51배**(≥0.6). 컷 `abyss_grain_{before,after}` — before 부드러운 균열 판 → after **판석 격자 또렷**. 되돌림: git `HEAD^`(V-282 타일) 또는 `assets/floor/_pre_v283/`.
+- 되돌림 지문: 넷 다 그리기/에셋 → **genFloor 무접촉** → F1/3/5/10/30 **byte-동일**(4341720539·cebe184b88·07968a97a3·e9e3aa0cbf·b2bea5b359).
+- 회귀(있는 자로만): `hs_v207_walk` **벽밖 0%·오류 0**(WAKE 3000/820) · `hs_v219_foeshot` **frame p95 1.5ms·오류 0·에셋 100%·쏜화살 349**. 컷 직접 열어 봄·콘솔 오류 **0**·`md5 -q tmp/hs_v283_*.png|sort|uniq -d` **비었음**·짝 PXDIFF(plates 30.8%·foering 78%·telegraph 73%) **≥3%**.
+- **못 한 것**: 없음(㉮㉯㉰㉱ 다 함). 미흡: ㉮ 는 **합쳐 세운 크라우드**(다 반경 안)라 컷에서 표시 감소가 29→24 로 작다 — 실전 흩어진 전투 화면일수록 반경 밖이 많아 더 준다(설계상 「가까운 것만」). ㉮ 극단적 「한 줄 겹침」은 합성 장면이 HUD 띠까지 안 닿아 재현이 옅으나, 물림 순서 버그는 코드로 바로잡고 접기·물림은 컷에서 확인. ㉰ `telegraph_late`(임박 맥동) 컷은 poke 한 tele 가 그새 돌진으로 넘어가 예고가 사라져 못 담음(기능 정상·베이커 타이밍).
 
 ## ✔ 끝난 판: V-282 — 15:00 감시 흠 넷(㉮㉯㉰㉱) (2026-09-03)
 15:00 감시가 V-281 컷 여섯을 직접 열어 흠 넷을 넘겼다. 만진 곳 `hs/main.js`(그리기)+`assets/floor/{abyss,blood}_tile.png`(에셋 교체). **새 자 파일 없음**(베이커 `tmp/hs_v282_cut.mjs`·타일 손질 `tmp/hs_v282_tilefix.mjs`·지문 `tmp/_v276_fp.mjs`·되돌림 `assets/floor/_pre_v282/`). ㉯㉰ 는 PixelLab 이 아니라 **결정적 이미지 처리**로 고침(리뷰가 「밝기 정규화」로 명시 허용한 길 — 굽는 주사위보다 재현·되돌림·검증이 확실).
