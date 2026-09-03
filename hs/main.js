@@ -49,6 +49,9 @@ const CHEST_OPEN_R = 78;
 const Z_BASE = 1.15;          // 기준 배율 — __CAMROOM 줌이 이 위에서만 논다.
 let Z = Z_BASE;               // 월드→화면 배율(라이브). 방을 화면에 채운다 (V-148 A) · V-274 ② 방이 화면보다 작으면 살짝 당겨 채운다 — 모든 Z 소비처(변환·마우스·히트박스·컬링)가 이 값을 라이브로 읽어 한 프레임 안에서 어긋나지 않는다.
 const BASE_HP = 3315, BASE_MANA = 2286, BASE_SPD = 268, SPEAR_CD = 0.16;
+// V-277 ⑤ 구르기(__DASH) — Space 로 바라보는 쪽으로 짧게 구른다(무적·쿨). 「비켜서는 손맛」.
+const DASH_DUR = 0.25, DASH_DIST = 150, DASH_CD = 0.9, DASH_END = 0.18;
+function dashInvuln() { const p = G && G.player; return globalThis.__DASH !== false && p && p.dashT > 0; }   // 구르는 동안 무적(함정·화살·근접 다 안 맞음)
 const BASE_SLOTS = 8;   // V-186 — 자리 밑값. 위로 「군세」 스킬 자리 노드가 쌓인다.
 // ★★ V-202b — 저울에 «천장»을 세운다. 여태 빌드 방울(바닥에 떨어지는 «자리 +2»·«소환수 피해 ×1.3»)이
 //   상한 없이 쌓여, 자(tools/hs_v202b_shape.mjs)로 재니 소환 자리가 8→58·소환수 한 방 피해가
@@ -696,6 +699,7 @@ function fresh(floor, carry, town) {
   };
   p.x = f.startX; p.y = f.startY; p.dx = 0; p.dy = 1; p.anim = 0; p.state = "idle";
   p.spearCd = 0; p.hurt = 0; p.iframe = 0; p.stun = 0; p.r = PLAYER_R;
+  p.dashT = 0; p.dashCd = 0; p.dashEnd = 0; p.dashDx = 0; p.dashDy = 1; p._space = false;
   const zi = zoneOf(floor), prevZi = carry ? carry.lastZone : -1;   // V-247 — 구간이 갈리면(첫 판 포함) 가운데 지역 이름 배너
   const zBanner = (!town && globalThis.__ZONE !== false && zi !== prevZi) ? { name: ZONES[zi].name, flavor: ZONES[zi].flavor, t: 0 } : null;
   return {
@@ -777,6 +781,8 @@ function start(floor, carry, town) {
   window.__armArrow = (i = 0) => { const w = (G.arrowWalls || [])[i]; if (w) w.cd = ARROW_WARN; return w ? window.__arrowInfo()[i] : null; };   // 예고(구멍 빛남) 상태로
   window.__fireArrow = (i = 0) => { const w = (G.arrowWalls || [])[i]; if (!w) return null; spawnArrow(w, G.floor); w.cd = ARROW_CYCLE; return (G.arrows[G.arrows.length - 1]); };
   window.__blockArrowSpear = (i = 0) => { const w = (G.arrowWalls || [])[i]; return w ? hitArrowWall(w.x, w.y) : false; };
+  window.__dashInfo = () => { const p = G.player; return { dashT: +(p.dashT || 0).toFixed(3), dashCd: +(p.dashCd || 0).toFixed(3), dashEnd: +(p.dashEnd || 0).toFixed(3), iframe: +(p.iframe || 0).toFixed(3) }; };   // V-277 ⑤ 컷·자용 실제 문
+  window.__dashNow = (dx = 0, dy = 1) => { const p = G.player; const l = Math.hypot(dx, dy) || 1; p.dashDx = dx / l; p.dashDy = dy / l; p.dashT = DASH_DUR; p.dashCd = DASH_CD; return window.__dashInfo(); };
   window.__pactInfo = () => G.cursePact ? { type: G.cursePact.type, left: Math.max(0, G.cursePact.until - gameTime), dmgMul: +G.player.dmgMul.toFixed(2), takenMul: +(G.player.takenMul || 1).toFixed(2), slots: G.player.slots, maxhp: G.player.maxhp, spd: Math.round(G.player.spd), atkCd: +G.player.atkCd.toFixed(3), minionHpMul: +G.player.minionHpMul.toFixed(2) } : null;
   window.__toTrapRoom = (edge) => { const tr = G.traproom; if (!tr) return null; const rm = tr.room; G.player.x = edge ? rm.x + 40 : tr.x; G.player.y = edge ? rm.cy : tr.y + 120; rm.visited = true; bigDirty = true; cam.x = G.player.x - VW / (2 * Z); cam.y = G.player.y - VH / (2 * Z); return window.__traproomInfo(); };
   window.__sellOne = () => { if (G.player.bag.length) sellBagItem(0); return G.player.bag.length; };
@@ -1039,16 +1045,43 @@ function stepPlayer(dt) {
   if (keys.has("w") || keys.has("arrowup")) my -= 1;
   if (keys.has("s") || keys.has("arrowdown")) my += 1;
   if (p.stun > 0) { p.stun -= dt; mx = 0; my = 0; }   // V-270 ① 가시 함정의 짧은 경직 — 밟은 순간 잠깐 못 움직인다
-  if (mx || my) {
-    const l = Math.hypot(mx, my);
-    mx /= l; my /= l;
-    stepToP(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
-    p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
-  } else { p.state = "idle"; p.anim += dt * 6; }
+  // V-277 ⑤ 구르기 — Space 로 바라보는(또는 이동 입력) 쪽으로 짧게 구른다. 무적·쿨. 벽은 못 뚫는다(stepToP 가 막는다).
+  const dashOn = globalThis.__DASH !== false;
+  if (p.dashCd > 0) p.dashCd -= dt;
+  if (p.dashEnd > 0) p.dashEnd -= dt;
+  if (dashOn && keys.has(" ") && !p._space) {
+    p._space = true;
+    if (p.dashT <= 0 && p.dashCd <= 0 && p.stun <= 0) {
+      let ddx = mx, ddy = my;
+      if (!ddx && !ddy) { ddx = p.dx || 0; ddy = p.dy || 0; }
+      if (!ddx && !ddy) ddy = 1;
+      const l = Math.hypot(ddx, ddy) || 1;
+      p.dashDx = ddx / l; p.dashDy = ddy / l;
+      p.dashT = DASH_DUR; p.dashCd = DASH_CD; cam.shake = Math.max(cam.shake, 3);
+    }
+  }
+  if (!keys.has(" ")) p._space = false;
+  let dashing = false;
+  if (dashOn && p.dashT > 0) {
+    dashing = true;
+    p.dashT -= dt;
+    stepToP(p, p.x + p.dashDx * (DASH_DIST / DASH_DUR) * dt, p.y + p.dashDy * (DASH_DIST / DASH_DUR) * dt, p.r);
+    p.dx = p.dashDx; p.dy = p.dashDy; p.state = "walk"; p.anim += dt * 16;
+    p.iframe = Math.max(p.iframe, p.dashT + 0.001);   // 구르는 동안 무적(hurtPlayer 의 iframe 이 근접을·dashInvuln 이 도트·함정을 막는다)
+    if (p.dashT <= 0) { p.dashT = 0; p.dashEnd = DASH_END; }
+  }
+  if (!dashing) {
+    if (mx || my) {
+      const l = Math.hypot(mx, my);
+      mx /= l; my /= l;
+      stepToP(p, p.x + mx * p.spd * dt, p.y + my * p.spd * dt, p.r);
+      p.dx = mx; p.dy = my; p.state = "walk"; p.anim += dt * 11;
+    } else { p.state = "idle"; p.anim += dt * 6; }
+  }
 
   const tx = cam.x + mouse.x / Z, ty = cam.y + mouse.y / Z;
   p.spearCd -= dt;
-  if (mouse.down && p.spearCd <= 0 && !invOpen && !charOpen && !shopOpen) {
+  if (!dashing && mouse.down && p.spearCd <= 0 && !invOpen && !charOpen && !shopOpen) {   // V-277 ⑤ 구르는 중엔 공격을 안 먹는다(끝나고 받는다)
     fireSpear(p, tx, ty);
     p.spearCd = p.atkCd;
   }
@@ -1108,6 +1141,7 @@ function fireSpear(p, tx, ty) {
 
 function handleSkills() {
   const p = G.player;
+  if (globalThis.__DASH !== false && p.dashT > 0) return;   // V-277 ⑤ 구르는 중엔 시전 입력을 안 먹는다(끝나고 다시 누르면 받는다)
   if (keys.has("q") && !p._q) { p._q = true; raiseSkeleton(); } if (!keys.has("q")) p._q = false;
   const potionOn = globalThis.__POTION !== false;
   for (let i = 0; i < (potionOn ? 4 : 3); i++) {
@@ -2241,7 +2275,7 @@ function stepHazards(dt) {
   for (const h of G.hazards) {
     if (h.warn > 0) { h.warn -= dt; continue; }
     h.life -= dt;
-    if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 < h.r * h.r) {
+    if (!dashInvuln() && (p.x - h.x) ** 2 + (p.y - h.y) ** 2 < h.r * h.r) {
       dotPlayer(h.dmg * dt); p.hurt = Math.max(p.hurt, 0.1);
       if (G.parts.length < 380 && Math.random() < 0.3) burst(p.x, p.y - 10, "#7ad04a", 60);
     }
@@ -2263,12 +2297,12 @@ function stepTraps(dt) {
     if (t.kind === "flame") {
       if (globalThis.__FLAME === false || t.disarmed) continue;
       if (!t.armed) {
-        if ((p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) { t.armed = true; t.cool = FLAME_CYCLE; emitFlame(t, f); floatNote("불길!", "#ff9a3c", 1.0); }
+        if (!dashInvuln() && (p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) { t.armed = true; t.cool = FLAME_CYCLE; emitFlame(t, f); floatNote("불길!", "#ff9a3c", 1.0); }
       } else { t.cool -= dt; if (t.cool <= 0) { t.cool = FLAME_CYCLE; emitFlame(t, f); } }
       continue;
     }
     if (t.sprung) continue;
-    if ((p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) { springTrap(t, false); if (G.fallPending) break; }
+    if (!dashInvuln() && (p.x - t.x) ** 2 + (p.y - t.y) ** 2 < t.r * t.r) { springTrap(t, false); if (G.fallPending) break; }
   }
   if (G.fallPending) { G.fallPending = false; fallThrough(); }
 }
@@ -2353,7 +2387,7 @@ function stepArrowWalls(dt) {
     if (a.dead) continue;
     const step = ARROW_SPD * dt;
     a.x += a.dx * step; a.y += a.dy * step; a.dist += step;
-    if (!a.hit && (p.x - a.x) ** 2 + (p.y - a.y) ** 2 < a.hr * a.hr) {
+    if (!a.hit && !dashInvuln() && (p.x - a.x) ** 2 + (p.y - a.y) ** 2 < a.hr * a.hr) {
       a.hit = true; a.dead = true;
       dotPlayer(a.dmg); p.hurt = Math.max(p.hurt, 0.16); cam.shake = Math.max(cam.shake, 8);
       flash = Math.max(flash, 0.1); flashColor = "150,120,40";
@@ -2361,9 +2395,13 @@ function stepArrowWalls(dt) {
       for (let i = 0; i < 8; i++) burst(a.x, a.y, "#e8c86a", 130);
       continue;
     }
-    if (a.dist >= a.max) { a.dead = true; for (let i = 0; i < 5; i++) burst(a.x, a.y, "#8a7a5a", 90); }
+    if (a.dist >= a.max) {
+      a.dead = true; for (let i = 0; i < 5; i++) burst(a.x, a.y, "#8a7a5a", 90);
+      if (globalThis.__ARROWLOOK !== false) (G.arrowStuck || (G.arrowStuck = [])).push({ x: a.x, y: a.y, dx: a.dx, dy: a.dy, t: 0.5 });   // V-277 ㉯ 벽에 잠깐 꽂힌 채 남는다(어디까지 오는지 배우게)
+    }
   }
   if (G.arrows.length) G.arrows = G.arrows.filter((a) => !a.dead);
+  if (G.arrowStuck && G.arrowStuck.length) { for (const s of G.arrowStuck) s.t -= dt; G.arrowStuck = G.arrowStuck.filter((s) => s.t > 0); }
 }
 function spawnArrow(w, f) {
   (G.arrows || (G.arrows = [])).push({ x: w.x, y: w.y, dx: w.dx, dy: w.dy, dist: 0, max: w.len, dmg: 10 + f * 2, hr: G.player.r + 10, hit: false });
@@ -2446,11 +2484,12 @@ function drawShrines() {
     ctx.globalAlpha = 0.32; ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.ellipse(x, y + 6, big ? 34 : 24, big ? 12 : 9, 0, 0, 6.283); ctx.fill();
     ctx.globalAlpha = 1;
+    const dim = globalThis.__SHRINEGLOW !== false;   // V-277 ㉰ 광원을 낮춰 기둥 실루엣이 먼저 읽히게(제일 밝은 건 화로). __SHRINEGLOW=false → 옛 밝기.
     if (big && !sc.used) {
       const gp = 0.4 + 0.28 * Math.abs(Math.sin(now / 900));
       const gg = ctx.createRadialGradient(x, y + 2, 4, x, y + 2, 60);
       gg.addColorStop(0, info.col); gg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.3 * gp; ctx.fillStyle = gg;
+      ctx.globalAlpha = (dim ? 0.2 : 0.3) * gp; ctx.fillStyle = gg;
       ctx.beginPath(); ctx.ellipse(x, y + 2, 60, 24, 0, 0, 6.283); ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -2463,15 +2502,15 @@ function drawShrines() {
       ctx.fillRect(x - pw / 2 + 4, Math.round(y - ph * 0.35), pw - 8, 5);
       ctx.globalAlpha = 1;
     }
-    const topY = y - ph - 14, R = big ? 58 : 48;
+    const topY = y - ph - 14, R = (big ? 58 : 48) * (dim ? 0.7 : 1);
     if (!sc.used) {
       const pulse = 0.55 + 0.45 * Math.abs(Math.sin(now / 420));
       const gr = ctx.createRadialGradient(x, topY, 2, x, topY, R);
       gr.addColorStop(0, info.glow); gr.addColorStop(0.42, info.col); gr.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.9 * pulse; ctx.fillStyle = gr;
+      ctx.globalAlpha = (dim ? 0.5 : 0.9) * pulse; ctx.fillStyle = gr;
       ctx.beginPath(); ctx.arc(x, topY, R, 0, 6.283); ctx.fill();
-      ctx.globalAlpha = pulse; ctx.fillStyle = info.glow;
-      ctx.beginPath(); ctx.ellipse(x, topY - 2, big ? 8 : 6, (big ? 15 : 12) + 4 * pulse, 0, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = (dim ? 0.7 : 1) * pulse; ctx.fillStyle = info.glow;
+      ctx.beginPath(); ctx.ellipse(x, topY - 2, (big ? 8 : 6) * (dim ? 0.8 : 1), ((big ? 15 : 12) + 4 * pulse) * (dim ? 0.8 : 1), 0, 0, 6.283); ctx.fill();
     } else {
       ctx.globalAlpha = 0.55; ctx.fillStyle = "#241f18";
       ctx.beginPath(); ctx.arc(x, topY + 3, 6, 0, 6.283); ctx.fill();
@@ -2489,6 +2528,7 @@ function drawCursedShrines() {
   for (const sc of G.cursed) {
     const info = PACT_INFO[sc.type], x = sc.x, y = sc.y, ph = 66, pw = 32, lean = 9;
     const topcx = x + lean;   // 기울어 위쪽이 +x 로 쏠린다(멀쩡한 신전의 곧은 기둥과 실루엣이 다르다)
+    const dim = globalThis.__SHRINEGLOW !== false;   // V-277 ㉰ 자줏빛 광원을 화로보다 어둡게(반지름·알파 둘 다) — 「색」으로 갈리고 「밝기」로 이기지 않는다. __SHRINEGLOW=false → 옛 밝기.
     ctx.save();
     ctx.globalAlpha = 0.36; ctx.fillStyle = "#000";
     ctx.beginPath(); ctx.ellipse(x, y + 6, 36, 13, 0, 0, 6.283); ctx.fill();
@@ -2497,7 +2537,7 @@ function drawCursedShrines() {
       const gp = 0.42 + 0.34 * Math.abs(Math.sin(now / 720));
       const gg = ctx.createRadialGradient(x, y + 2, 4, x, y + 2, 64);
       gg.addColorStop(0, "#3a0e52"); gg.addColorStop(0.5, "#6a1a8c"); gg.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.32 * gp; ctx.fillStyle = gg;
+      ctx.globalAlpha = (dim ? 0.22 : 0.32) * gp; ctx.fillStyle = gg;
       ctx.beginPath(); ctx.ellipse(x, y + 2, 64, 24, 0, 0, 6.283); ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -2532,10 +2572,10 @@ function drawCursedShrines() {
     ctx.fillRect(topcx - 5, Math.round(y - ph * 0.82), 10, 5);
     ctx.globalAlpha = 1;
     if (!sc.used) {
-      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 300)), topY = y - ph - 10, R = 42;
+      const pulse = 0.5 + 0.5 * Math.abs(Math.sin(now / 300)), topY = y - ph - 10, R = dim ? 28 : 42;
       const gr = ctx.createRadialGradient(topcx, topY, 2, topcx, topY, R);
-      gr.addColorStop(0, "#e29cff"); gr.addColorStop(0.35, "#7a1aa8"); gr.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalAlpha = 0.62 * pulse; ctx.fillStyle = gr;
+      gr.addColorStop(0, dim ? "#b060e0" : "#e29cff"); gr.addColorStop(0.35, "#7a1aa8"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = (dim ? 0.4 : 0.62) * pulse; ctx.fillStyle = gr;
       ctx.beginPath(); ctx.arc(topcx, topY, R, 0, 6.283); ctx.fill();
     }
     ctx.restore(); ctx.globalAlpha = 1;
@@ -4776,11 +4816,20 @@ function drawPlayer() {
   drawShadow(p.x, p.y, 34, "#e8cf52", 3);
   drawSetAura(p);
   const st = p.state, dir = actorDir(p), fr = frame(p, PLAYER_BASE);
+  const dashing = globalThis.__DASH !== false && p.dashT > 0;   // V-277 ⑤ 구르는 중 — 뒤로 잔상 두어 칸 + 몸이 창백하게 빛남(무적이 눈에 보이게)
+  if (dashing) {
+    for (let i = 3; i >= 1; i--) {
+      ctx.globalAlpha = 0.12 * i;
+      drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x - p.dashDx * 12 * i, p.y - p.dashDy * 12 * i, PLAYER_H, "brightness(1.5) saturate(0.4)");
+    }
+    ctx.globalAlpha = 1;
+  }
   ctx.globalAlpha = 0.62;
   for (const [dx, dy] of RIM_OFF)
     drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x + dx, p.y + dy, PLAYER_H, RIM_FILTER);
   ctx.globalAlpha = 1;
-  if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, p.hurt > 0 ? "brightness(2.2)" : null))
+  const heroFilt = dashing ? "brightness(1.7) saturate(0.45)" : (p.dashEnd > 0 ? "brightness(2)" : (p.hurt > 0 ? "brightness(2.2)" : null));   // V-277 ⑤ 무적 끝나는 순간 반짝(dashEnd) → 원래대로
+  if (!drawSprite8(ctx, PLAYER_BASE, dir, st, fr, p.x, p.y, PLAYER_H, heroFilt))
     fallbackBlob(p.x, p.y, 146, "#cfc7b0");
   recordSil("player", PLAYER_BASE, p.x, p.y, PLAYER_H);
   drawSetRunes(p);   // V-271 ㉮ 어깨 룬은 sprite «뒤»(위)에 — 몸에 안 가려 셋 다 뜬다
@@ -5008,8 +5057,48 @@ function drawBolts() {
     }
   }
 }
-function drawArrowWalls() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — 대기=어두운 소켓 · 예고=주황빛 맥박 · 막힘=뼈 마개.
+function drawArrowWalls() {   // V-277 ㉮ 발사구를 벽면에 실제로 그린다(늘 보임) + 예고 때 바닥에 발사선 띠(호박빛). __ARROWLOOK=false → 옛(V-276) 꼴.
   if (globalThis.__ARROWWALL === false || G.town || !G.arrowWalls) return;
+  if (globalThis.__ARROWLOOK === false) return drawArrowWallsOld();
+  const now = nowMs();
+  for (const w of G.arrowWalls) {   // 예고 동안 발사선(구멍→반대 벽)을 바닥에 호박빛 띠로 — 「이 위에 있으면 맞는다」. 발동 순간 사라진다.
+    if (w.blocked || w.cd === undefined || w.cd > ARROW_WARN || w.cd <= 0) continue;
+    if (!onScreen(w.x + w.dx * w.len * 0.5, w.y + w.dy * w.len * 0.5, w.len)) continue;
+    const hw = 34, g = 0.4 + 0.5 * Math.abs(Math.sin(now / 110));
+    ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));
+    const grad = ctx.createLinearGradient(0, 0, w.len, 0);
+    grad.addColorStop(0, `rgba(230,150,40,${0.5 * g})`); grad.addColorStop(1, `rgba(230,150,40,${0.12 * g})`);
+    ctx.fillStyle = grad; ctx.fillRect(0, -hw, w.len, hw * 2);
+    ctx.strokeStyle = `rgba(255,190,90,${0.7 * g})`; ctx.lineWidth = 2; ctx.setLineDash([11, 8]);
+    ctx.strokeRect(2, -hw, w.len - 4, hw * 2); ctx.setLineDash([]);
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+  for (const w of G.arrowWalls) {   // 구멍(벽면) — 늘 보이는 어두운 구멍 + 돌 테. 예고면 크게 빛난다. 막히면 뼈 마개.
+    if (!onScreen(w.x, w.y, 44)) continue;
+    const warn = !w.blocked && w.cd !== undefined && w.cd <= ARROW_WARN && w.cd > 0;
+    ctx.save(); ctx.translate(w.x, w.y); ctx.rotate(Math.atan2(w.dy, w.dx));
+    ctx.fillStyle = "#5a5142"; ctx.fillRect(-11, -12, 12, 24);
+    ctx.fillStyle = "#6e6552"; ctx.fillRect(-11, -12, 12, 3); ctx.fillRect(-11, 9, 12, 3);
+    ctx.fillStyle = "#080604"; ctx.fillRect(-8, -9, 10, 18);
+    ctx.fillStyle = "#140f0a"; ctx.fillRect(-8, -9, 4, 18);
+    if (w.blocked) {
+      ctx.fillStyle = "#cdbf9a"; ctx.fillRect(-8, -8, 11, 16);
+      ctx.fillStyle = "#8a7d5e"; ctx.fillRect(-8, -2, 11, 3);
+      ctx.fillStyle = "#e6dcc2"; ctx.fillRect(-6, -8, 3, 16);
+    } else if (warn) {
+      const g = 0.45 + 0.55 * Math.abs(Math.sin(now / 80));
+      const gr = ctx.createRadialGradient(2, 0, 1, 2, 0, 24);
+      gr.addColorStop(0, "#ffe08a"); gr.addColorStop(0.45, "#e0781e"); gr.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = 0.9 * g; ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(2, 0, 24, 0, 6.283); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = "#fff0b4"; ctx.fillRect(-3, -4, 7, 8);
+    } else {
+      ctx.fillStyle = "#2a2018"; ctx.fillRect(-4, -3, 5, 6);
+    }
+    ctx.restore(); ctx.globalAlpha = 1;
+  }
+}
+function drawArrowWallsOld() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — 대기=어두운 소켓 · 예고=주황빛 맥박 · 막힘=뼈 마개.
   const now = nowMs();
   for (const w of G.arrowWalls) {
     if (!onScreen(w.x, w.y, 40)) continue;
@@ -5032,10 +5121,13 @@ function drawArrowWalls() {   // V-276 ⑤ 벽에 박힌 화살 구멍 — 대�
     ctx.restore(); ctx.globalAlpha = 1;
   }
 }
-function drawArrows() {
+function drawArrows() {   // V-277 ㉯ 날아가는 화살 — 픽셀 결(나무대·쇠촉·깃)로 눕는다. __ARROWLOOK=false → 옛(V-276) 선 화살.
+  const pix = globalThis.__ARROWLOOK !== false;
+  if (G.arrowStuck && G.arrowStuck.length) for (const s of G.arrowStuck) drawArrowPixel(s.x, s.y, s.dx, s.dy, Math.max(0, Math.min(1, s.t / 0.5)), false);
   if (!G.arrows || !G.arrows.length) return;
   for (const a of G.arrows) {
     if (a.dead) continue;
+    if (pix) { drawArrowPixel(a.x, a.y, a.dx, a.dy, 1, true); continue; }
     ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(Math.atan2(a.dy, a.dx));
     ctx.globalAlpha = 0.4; ctx.strokeStyle = "#e8c86a"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(-22, 0); ctx.lineTo(-4, 0); ctx.stroke();
@@ -5045,6 +5137,20 @@ function drawArrows() {
     ctx.strokeStyle = "#9a8a5a"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(-14, -4); ctx.moveTo(-10, 0); ctx.lineTo(-14, 4); ctx.stroke();
     ctx.restore(); ctx.globalAlpha = 1;
   }
+}
+function drawArrowPixel(x, y, dx, dy, alpha, moving) {   // +x = 날아가는 방향. 바닥 그림자 한 점 · 뒤에 짧은 잔상(나는 중만) · 나무대 · 쇠촉 · 깃.
+  ctx.save(); ctx.translate(x, y); ctx.rotate(Math.atan2(dy, dx));
+  ctx.globalAlpha = alpha * 0.3; ctx.fillStyle = "#000";
+  ctx.beginPath(); ctx.ellipse(-2, 6, 10, 3, 0, 0, 6.283); ctx.fill();
+  if (moving) { ctx.globalAlpha = alpha * 0.35; ctx.fillStyle = "#d8b878"; ctx.fillRect(-34, -1, 15, 2); }
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#7a5a32"; ctx.fillRect(-17, -2, 25, 4);
+  ctx.fillStyle = "#9a7442"; ctx.fillRect(-17, -2, 25, 1.5);
+  ctx.fillStyle = "#e8e2d0"; ctx.beginPath(); ctx.moveTo(8, -4.5); ctx.lineTo(17, 0); ctx.lineTo(8, 4.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#b8b2a2"; ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(17, 0); ctx.lineTo(8, 4.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#7a2820"; ctx.beginPath(); ctx.moveTo(-17, 0); ctx.lineTo(-23, -5); ctx.lineTo(-13, -1.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "#5a5048"; ctx.beginPath(); ctx.moveTo(-17, 0); ctx.lineTo(-23, 5); ctx.lineTo(-13, 1.5); ctx.closePath(); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = 1;
 }
 function drawEnemy(m) {
   // ★ V-207 — 잡몹 발밑 붉은 고리를 얇고 옅게(1.6px·α0.4). 팩 10~14 가 뭉치면 0.9 짜리
@@ -6191,6 +6297,7 @@ function renderJournal() {
 const CONTROLS = [
   { k: "WASD / 화살표", h: "이동",     d: "이동" },
   { k: "좌클릭",         h: "뼈창",     d: "뼈창" },
+  { k: "Space",         h: "구르기",   d: "구르기 — 바라보는(또는 이동) 쪽으로 짧게 구른다. 구르는 동안 무적(함정·화살·근접 회피)·쿨 0.9초" },
   { k: "Q",             h: "해골",     d: "해골 소환" },
   { k: "K",             h: "구울",     d: "구울 소환(시체 2·마나 25 — 싸고 빠르고 피를 빤다)" },
   { k: "G",             h: "골렘",     d: "뼈 골렘(시체 3·마나 40 — 느리고 두껍다·도발로 적을 끌고 몸으로 막는다)" },
@@ -6230,7 +6337,7 @@ function applyHintFold() {
   if (globalThis.__HINTFOLD === false) return;
   const h = el("hint");
   h.classList.add("short");
-  h.textContent = "WASD 이동 · 좌클릭 뼈창 · Q 소환 · O 태세 · F 아래로 · H 조작 전체";
+  h.textContent = "WASD 이동 · 좌클릭 뼈창 · Space 구르기 · Q 소환 · O 태세 · F 아래로 · H 조작 전체";
 }
 function toggleInv() {
   invOpen = !invOpen;
@@ -6743,8 +6850,14 @@ function updateHUD() {
   if (ac.skel) parts.push(`해골 ${ac.skel}`);
   if (ac.ghoul) parts.push(`구울 ${ac.ghoul}`);
   if (ac.golem) parts.push(`골렘 ${ac.golem}`);
-  slotsEl.textContent = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "")
-    + (globalThis.__ORDERS !== false ? ` · 태세 ${STANCE_NAME[armyStance]}` : "");
+  let dashHTML = "";   // V-277 ⑤ 구르기 쿨 게이지 — 태세 띠 옆에 작게(준비=초록·식는중=네 칸 채워짐)
+  if (globalThis.__DASH !== false) {
+    const cd = Math.max(0, p.dashCd || 0), ready = cd <= 0;
+    const filled = ready ? 4 : Math.min(4, Math.floor((1 - cd / DASH_CD) * 4));
+    dashHTML = ` · <b style="color:${ready ? "#7fe0a0" : "#8a8478"}">구르기 ${ready ? "준비" : "▮".repeat(filled) + "▯".repeat(4 - filled)}</b>`;
+  }
+  slotsEl.innerHTML = `자리 ${used} / ${cap}` + (parts.length ? ` · ${parts.join(" ")}` : "")
+    + (globalThis.__ORDERS !== false ? ` · 태세 ${STANCE_NAME[armyStance]}` : "") + dashHTML;
   slotsEl.classList.toggle("full", used >= cap);
   const gnames = SKEL_TIERS.slice(0, p.maxGrade + 1).map((t, i) => (i === p.grade ? "▸" : "") + t.label).join(" · ");
   const pts = p.attrPts + p.sklPts;
