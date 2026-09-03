@@ -87,6 +87,9 @@ body.notestack #picklog div{background:linear-gradient(90deg,rgba(10,6,7,.94),rg
 /* V-234: 짧은 한 줄 — 두 줄로 절대 안 접히게 폭을 묶고, 좌우 하단 패널(#bl·오른쪽)과 안 겹치게 가운데 좁게. */
 #hint.short{white-space:nowrap;max-width:calc(100vw - 720px);overflow:hidden;text-overflow:ellipsis;
   background:rgba(6,4,5,.5);padding:2px 12px;border-radius:3px;pointer-events:none}
+/* V-278 ㉱ __BOTTOMREAD: 조작 안내가 밝은 바닥 위에서 던전에 묻혔다 — 위아래로 흐려지는 어두운 띠를 깔고 글자를 밝힌다. body.bottomread 없음 = 옛 꼴. */
+body.bottomread #hint.short{color:#c7b489;font-size:14px;padding:3px 16px;text-shadow:0 1px 2px #000,0 0 3px #000;
+  background:linear-gradient(rgba(6,4,5,0),rgba(6,4,5,.82) 32%,rgba(6,4,5,.82) 68%,rgba(6,4,5,0))}
 
 /* V-234 조작 판(H) — #inv·#char 창과 같은 결(검붉은 어둠·금빛 제목). */
 .helpwin{position:fixed;display:none;z-index:18;left:50%;top:50%;transform:translate(-50%,-50%);
