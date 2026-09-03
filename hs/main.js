@@ -3882,6 +3882,9 @@ function drawWorld() {
   ctx.globalAlpha = 1;
   PROF.seg("fx");
 
+  drawMood();   // V-289 — 「게임 전체 분위기」: 전장을 다 그린 뒤 채도를 내리고(saturation 덮개) 내 둘레만 밝힌다(vignette). 불빛(warmGlow)은 덮개 «뒤»(drawFireGlow)라 주황이 유일한 색으로 남는다(D2).
+  PROF.seg("mood");
+
   ctx.restore();
 
   if (flash > 0) { ctx.globalAlpha = flash; ctx.fillStyle = `rgb(${flashColor})`; ctx.fillRect(0, 0, VW, VH); ctx.globalAlpha = 1; }
@@ -4821,23 +4824,69 @@ function drawLight() {
   lg.addColorStop(0.55, "rgba(4,2,3,0.06)");
   lg.addColorStop(1, `rgba(2,1,2,${z.dark})`);
   ctx.fillStyle = lg; rect();
+  // V-289 — 불빛(warmGlow)·시체 후광은 채도 덮개 «뒤»로 옮겼다(drawFireGlow). 덮개보다 먼저 걸면 saturation 합성이 주황을 씻는다.
+}
+
+// V-289 ㉮㉯ — D2 카타콤은 거의 회색조이고 색을 내는 것은 «불»뿐이다(같은 자로 재니 우리 채도 36% vs D2 11%·3.2배).
+//   전장을 다 그린 뒤 화면 전체 채도를 한 번에 내리고(saturation 덮개·fillRect 한 번이라 싸다) 내 둘레만 밝힌다(vignette 스프라이트 한 장 재활용).
+//   순서가 핵심: 채도 덮개 → vignette → 불빛. 불빛은 맨 뒤라 주황이 유일한 색으로 남고, 불 둘레는 다시 밝아진다.
+//   되돌림: __DESAT=false(채도 안 내림)·__VIGN=false(균일 조명). 세기는 숫자로도 줄 수 있다(재서 정한 기본값 아래).
+const DESAT_STR = 0.9;    // 화면 채도 ~36% → 12~15%; 지역 색조는 살짝 남겨 존 갈림 유지(㉰) (재서 정함)
+const VIGN_STR  = 0.5;    // 내 둘레/불 밖을 어둠으로 (재서 정함 — 어둠 비율을 지금 값에서 크게 올리지 않게)
+const VIGN_R    = 620;    // 밝은 반경(월드px) — 한 화면에 적 무리 하나가 드는 정도 (재서 정함)
+const FIRE_STR  = 0.45;   // 불빛 세기 배수 — 채도 덮개 뒤 주황이 화면 평균 채도를 12~15%로 (재서 정함)
+const knob = (v, d) => v === false ? 0 : (typeof v === "number" ? v : d);
+let _vignSprite = null;
+function vignSprite() {
+  if (_vignSprite) return _vignSprite;
+  const S = 512, c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d");
+  const rg = g.createRadialGradient(S / 2, S / 2, S * 0.28, S / 2, S / 2, S * 0.5);
+  rg.addColorStop(0, "rgba(0,0,0,0)");
+  rg.addColorStop(0.6, "rgba(0,0,0,0)");
+  rg.addColorStop(1, "rgba(0,0,0,1)");
+  g.fillStyle = rg; g.fillRect(0, 0, S, S);
+  _vignSprite = c; return _vignSprite;
+}
+function drawMood() {
+  const desat = knob(globalThis.__DESAT, DESAT_STR), vign = knob(globalThis.__VIGN, VIGN_STR);
+  if (desat > 0) {
+    ctx.save();
+    ctx.globalCompositeOperation = typeof globalThis.__DESATMODE === "string" ? globalThis.__DESATMODE : "saturation";
+    ctx.globalAlpha = desat;
+    ctx.fillStyle = "#808080";
+    ctx.fillRect(cam.x - 40, cam.y - 40, VW / Z + 80, VH / Z + 80);
+    ctx.restore();
+  }
+  if (vign > 0) {
+    const p = G.player, R = VIGN_R;
+    ctx.save();
+    ctx.globalAlpha = vign;
+    ctx.drawImage(vignSprite(), p.x - R, p.y - 20 - R, R * 2, R * 2);
+    ctx.restore();
+  }
+  if (globalThis.__FIREGLOW !== false) drawFireGlow();
+}
+function drawFireGlow() {
+  const p = G.player, z = curZone();
+  const fs = knob(globalThis.__FIRESTR, FIRE_STR);
+  ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  warmGlow(p.x, p.y - 20, 320, z.warm);
+  warmGlow(p.x, p.y - 20, 250, z.warm * fs);   // V-289 — 사람 횃불: 반경·세기를 줄여 «방 전체 주황 워시»가 아니라 둘레만 물들게(D2 는 불이 작다).
   for (const pr of G.props) {
     if (!pr.brazier || !onScreen(pr.x, pr.y, 120)) continue;
-    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, z.warm * 2);
+    warmGlow(pr.x, pr.y - pr.h * 0.5, 150, z.warm * 2 * fs);
   }
-  // V-255 ④ — 어두운 바닥에 삼켜져 «붉은 고리»만 남던 시체를, 빛 판(lighter) 위에서 옅은 상아빛으로 들어 올린다.
-  //   「시체가 자원」인 게임에서 주울 것이 어디 있는지 읽히게(안 쓴 시체만). __CORPSEGLOW=false 면 옛대로 안 든다.
+  // V-255 ④ — 어두운 바닥에 삼켜져 «붉은 고리»만 남던 시체를 옅은 상아빛으로 들어 올린다(안 쓴 시체만·「시체가 자원」 가독). __CORPSEGLOW=false 면 옛대로.
   if (globalThis.__CORPSEGLOW !== false) for (const c of G.corpses) {
     if (c.used || !onScreen(c.x, c.y, 60)) continue;
-    const body = globalThis.__CORPSEBODY !== false;   // V-256 ② 유해를 그린 뒤엔 빛이 몸을 덮어 흰 얼룩이 되지 않게 옅은 후광만
+    const body = globalThis.__CORPSEBODY !== false;
     const r = body ? 26 : 40, a = body ? 0.14 : 0.30;
     const g = ctx.createRadialGradient(c.x, c.y - 4, 0, c.x, c.y - 4, r);
     g.addColorStop(0, `rgba(216,199,154,${a})`); g.addColorStop(1, "rgba(216,199,154,0)");
     ctx.fillStyle = g; ctx.fillRect(c.x - r, c.y - 4 - r, r * 2, r * 2);
   }
-  ctx.globalCompositeOperation = "source-over";
+  ctx.restore();
 }
 function warmGlow(x, y, r, a) {
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
